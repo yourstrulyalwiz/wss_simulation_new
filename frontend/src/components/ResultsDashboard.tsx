@@ -146,6 +146,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     geoScope === 'urban' ? 'urban' : geoScope === 'rural' ? 'rural' : 'national'
   );
   const [unitMode, setUnitMode] = useState<'count' | 'share'>('count');
+  // Graph-only year window. It intentionally does not enter the calculation payload or saved inputs.
+  const [chartStart, setChartStart] = useState<number | null>(null);
+  const [chartEnd, setChartEnd] = useState<number | null>(null);
   // Areas to ship to the slide-deck export. The deck covers every scope in one file, so this follows
   // the ENTRY mode (how the user filled the data in), not the Scope dropdown above, which only
   // chooses what this tab displays. In national-entry mode the national dataset lives in altInputs
@@ -328,6 +331,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   }, [depKey, JSON.stringify(toggles)]);
 
   const isShare = unitMode === 'share';
+  const chartYears: number[] = contrib?.water?.covRows?.map((r: any) => r.year) ?? [];
+  const filterChartYears = (rows: any[]) => {
+    if (!rows.length) return rows;
+    const lo = chartStart ?? rows[0].year;
+    const hi = chartEnd ?? rows[rows.length - 1].year;
+    return rows.filter(r => r.year >= lo && r.year <= hi);
+  };
   const covFmt = isShare ? (v: number) => Math.round(v * 100) + '%' : (v: number) => sig3(v);
   // gapRows are ALREADY in billions (÷1000 when built), so format with sig3 — sigB would divide twice.
   const gapFmt = (v: number) => sig3(v);
@@ -506,8 +516,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const label = secKey === 'water' ? 'Water Supply' : 'Sanitation';
     const cs = secKey === 'water' ? contrib?.water : contrib?.sanitation;
     const csBands = cs?.bands ?? [];
-    const covData = cs ? (isShare ? asShareStack(cs.covRows, csBands) : cs.covRows) : [];
-    const gapData = cs?.gapRows ?? [];
+    const allCovData = cs ? (isShare ? asShareStack(cs.covRows, csBands) : cs.covRows) : [];
+    const covData = filterChartYears(allCovData);
+    const gapData = filterChartYears(cs?.gapRows ?? []);
     // Coverage stack: BAU base (blue) at the bottom, one intervention band on top, then the ceiling & target
     // reference lines (grey Total dashed, green Target dashed) drawn over the stack.
     const covBase = { key: '__bau', label: 'BAU (safely managed)', stroke: C.bau, fill: C.bauFill };
@@ -607,6 +618,33 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
               </>)}
             </select>
           </div>
+          {chartYears.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>Graph years</span>
+              <select aria-label="Graph start year" value={chartStart ?? chartYears[0]}
+                onChange={e => {
+                  const v = +e.target.value; setChartStart(v);
+                  if (chartEnd !== null && v > chartEnd) setChartEnd(v);
+                }}
+                style={{ padding: '5px 6px', borderRadius: 5, border: '1px solid #94a3b8', background: '#fff', fontSize: 11 }}>
+                {chartYears.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <span style={{ fontSize: 11, color: '#64748b' }}>to</span>
+              <select aria-label="Graph end year" value={chartEnd ?? chartYears[chartYears.length - 1]}
+                onChange={e => {
+                  const v = +e.target.value; setChartEnd(v);
+                  if (chartStart !== null && v < chartStart) setChartStart(v);
+                }}
+                style={{ padding: '5px 6px', borderRadius: 5, border: '1px solid #94a3b8', background: '#fff', fontSize: 11 }}>
+                {chartYears.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              {(chartStart !== null || chartEnd !== null) &&
+                <button onClick={() => { setChartStart(null); setChartEnd(null); }}
+                  style={{ border: 'none', background: 'transparent', color: '#2563eb', fontSize: 10.5, cursor: 'pointer', padding: '3px' }}>
+                  Reset
+                </button>}
+            </div>
+          )}
           <div style={{ display: 'inline-flex', border: '1px solid #cbd5e1', borderRadius: 6, overflow: 'hidden' }}>
             {([['count', '# Households'], ['share', '% of population']] as const).map(([m, l]) => (
               <button key={m} onClick={() => setUnitMode(m)} style={{

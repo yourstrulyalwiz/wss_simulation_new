@@ -56,6 +56,9 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   // Unit toggle, matching the BAU chart and the Results dashboard: absolute households or share of
   // population. The engine always returns household counts; share mode is a pure display conversion.
   const [unitMode, setUnitMode] = useState<'count' | 'share'>('count');
+  // Display-only x-axis window. These values are local UI state and are never written into model inputs.
+  const [chartStart, setChartStart] = useState<number | null>(null);
+  const [chartEnd, setChartEnd] = useState<number | null>(null);
 
   const depKey = JSON.stringify(inputs) + '|' + sector;
   useEffect(() => {
@@ -142,11 +145,18 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       return o;
     });
   }, [data, bands, isShare]);
+  const visibleData = useMemo(() => {
+    if (!displayData.length) return displayData;
+    const lo = chartStart ?? displayData[0].year;
+    const hi = chartEnd ?? displayData[displayData.length - 1].year;
+    return displayData.filter((r: any) => r.year >= lo && r.year <= hi);
+  }, [displayData, chartStart, chartEnd]);
+  const availableYears = data.map((r: any) => r.year as number);
   const fmtAxis = (v: number) => (isShare ? Math.round(v * 100) + '%' : sig(v));
   const fmtVal = (v: number) => (isShare ? (v * 100).toFixed(1) + '%' : sig(v) + ' M');
   // Data series behind the chart, for the "⤓ Excel" export: Year, BAU base, each band, and the ceiling.
   const exportHeaders = ['Year', baseKey, ...bands.map(([, label]) => label), 'Total households'];
-  const exportRows = displayData.map((r: any) => [r.year, r[baseKey], ...bands.map(([, label]) => r[label] ?? 0), r['Total households']]);
+  const exportRows = visibleData.map((r: any) => [r.year, r[baseKey], ...bands.map(([, label]) => r[label] ?? 0), r['Total households']]);
   // Native Excel chart: grey BAU base + each contributing intervention band as stacked areas, ceiling as a line.
   const chartSpec = {
     category: 'Year', stacked: true,
@@ -162,6 +172,33 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
           {scopeLabel ? scopeLabel + ' ' : ''}{sectorLabel} — {rungName} impact (live)
         </h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {availableYears.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: '#475569' }}>
+              <span style={{ fontWeight: 600 }}>Years</span>
+              <select aria-label="Chart start year" value={chartStart ?? availableYears[0]}
+                onChange={e => {
+                  const v = +e.target.value; setChartStart(v);
+                  if (chartEnd !== null && v > chartEnd) setChartEnd(v);
+                }}
+                style={{ padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: 4, background: '#fff', fontSize: 10.5 }}>
+                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <span>to</span>
+              <select aria-label="Chart end year" value={chartEnd ?? availableYears[availableYears.length - 1]}
+                onChange={e => {
+                  const v = +e.target.value; setChartEnd(v);
+                  if (chartStart !== null && v < chartStart) setChartStart(v);
+                }}
+                style={{ padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: 4, background: '#fff', fontSize: 10.5 }}>
+                {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              {(chartStart !== null || chartEnd !== null) &&
+                <button onClick={() => { setChartStart(null); setChartEnd(null); }}
+                  style={{ border: 'none', background: 'transparent', color: '#2563eb', fontSize: 10, cursor: 'pointer', padding: '2px 3px' }}>
+                  Reset
+                </button>}
+            </div>
+          )}
           <div style={{ display: 'inline-flex', border: '1px solid #cbd5e1', borderRadius: 6, overflow: 'hidden' }}>
             {([['count', '# Households'], ['share', '% of population']] as const).map(([m, l]) => (
               <button key={m} onClick={() => setUnitMode(m)} style={{
@@ -187,9 +224,9 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       )}
       <div ref={chartRef} style={{ background: '#fff' }}>
       <ResponsiveContainer width="100%" height={360}>
-        <ComposedChart data={displayData} margin={{ top: 14, right: 24, bottom: 5, left: 10 }}>
+        <ComposedChart data={visibleData} margin={{ top: 14, right: 24, bottom: 5, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis dataKey="year" tick={{ fontSize: 10 }} interval={yearAxisInterval(data)} />
+          <XAxis dataKey="year" tick={{ fontSize: 10 }} interval={yearAxisInterval(visibleData)} />
           <YAxis tick={{ fontSize: 10 }} domain={isShare ? [0, 1] : undefined} tickFormatter={fmtAxis}>
             <Label value={isShare ? '% of population' : '# households (millions)'} angle={-90} position="insideLeft" style={{ fontSize: 10, fill: '#64748b' }} />
           </YAxis>

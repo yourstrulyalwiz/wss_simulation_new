@@ -245,6 +245,7 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
     bau['scenario_total_investment_need'] = scn['total_investment_need']
     bau['scenario_collection_cash'] = scn['collection_cash']            # collection-efficiency revenue (scenario)
     bau['scenario_tariff_cash'] = scn['tariff_cash']                    # tariff-reform revenue (scenario)
+    bau['scenario_financial_commitment_cash'] = scn.get('financial_commitment_cash', [])
     bau['scenario_nrw_net'] = scn.get('nrw_net', [])                    # NRW money ledger (scenario)
     bau['scenario_nrw_upgrade_hh'] = scn.get('nrw_upgrade_hh', [])      # NRW basic→SM upgrades (scenario)
     bau['scenario_selffinance_upgrade_hh'] = scn.get('selffinance_upgrade_hh', [])  # self-financed connections (scenario)

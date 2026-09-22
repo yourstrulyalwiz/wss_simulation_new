@@ -29,6 +29,7 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
     san_ce_on = bool(getattr(tog, 'san_collection_efficiency_enabled', False)) if tog is not None else False
     san_tariff_on = bool(getattr(tog, 'san_tariff_enabled', False)) if tog is not None else False
     san_mf_on = bool(getattr(tog, 'san_microfinance_enabled', False)) if tog is not None else False
+    san_financial_on = bool(getattr(tog, 'san_financial_commitment_enabled', False)) if tog is not None else False
     # Cost-side levers (test2): capex efficiency (unit-cost discount) + optimised technology selection →
     # per-year SM cost factor. Gated by their toggles, so the BAU pass keeps cost_factor = 1.0.
     san_costeff_on = bool(getattr(tog, 'san_costeff_enabled', False)) if tog is not None else False
@@ -104,6 +105,17 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
         cost_factor=cost_factor,                               # test2: capex-efficiency + optimised-technology SM cost discount
         cost_factor_basic=cost_factor_basic * cust_cf,
         basic_share=float(getattr(si, 'basic_share', 0.0) or 0.0),
+        financial_enabled=san_financial_on,
+        financial_settings={
+            'gdp_enabled': si.fin_gdp_enabled, 'gdp_start_year': si.fin_gdp_start_year,
+            'gdp_target_share': si.fin_gdp_target_share,
+            'growth_enabled': si.fin_growth_enabled, 'growth_rate': si.fin_growth_rate,
+            'growth_start_year': si.fin_growth_start_year, 'growth_end_year': si.fin_growth_end_year,
+            'injection_enabled': si.fin_injection_enabled, 'injection_mode': si.fin_injection_mode,
+            'injection_amount': si.fin_injection_amount, 'injection_start_year': si.fin_injection_start_year,
+            'injection_end_year': si.fin_injection_end_year,
+        },
+        financial_execution_rate=b.execution_rate,
         full_budget=full_budget, capex_pct=san_capex,
         growth_capex_pct=1.0,   # sanitation 4a SM growth uses the sanitation capex budget (I!333)
         hist_all_proportional=False,  # sanitation history I!193-197 = SM kept / Basic plug / lower proportional

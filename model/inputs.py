@@ -316,6 +316,21 @@ class TechnicalInputs(BaseModel):
 # Water supply interventions  (contract #113-#142)
 # ──────────────────────────────────────────────────────────────────────────
 class WaterInterventionInputs(BaseModel):
+    # Increase in Financial Commitments. Each sub-option is independent and additive. The GDP value is
+    # the TARGET total sector-spending share (not an uplift); only the positive difference above BAU is added.
+    fin_gdp_enabled: bool = False
+    fin_gdp_start_year: int = 2026
+    fin_gdp_target_share: float = 0.0
+    fin_growth_enabled: bool = False
+    fin_growth_rate: float = 0.0
+    fin_growth_start_year: int = 2026
+    fin_growth_end_year: int = 2040
+    fin_injection_enabled: bool = False
+    fin_injection_mode: str = 'one_time'  # 'one_time' | 'recurring'
+    fin_injection_amount: float = 0.0      # local-currency millions
+    fin_injection_start_year: int = 2026
+    fin_injection_end_year: int = 2040
+
     # Increased collection efficiency (#113-#118)
     ce_start_year: int = 2028
     ce_target_year: int = 2031
@@ -426,6 +441,20 @@ class WaterInterventionInputs(BaseModel):
 # Sanitation interventions  (contract #143-#160)
 # ──────────────────────────────────────────────────────────────────────────
 class SanitationInterventionInputs(BaseModel):
+    # Increase in Financial Commitments — same additive mechanics and units as water.
+    fin_gdp_enabled: bool = False
+    fin_gdp_start_year: int = 2026
+    fin_gdp_target_share: float = 0.0
+    fin_growth_enabled: bool = False
+    fin_growth_rate: float = 0.0
+    fin_growth_start_year: int = 2026
+    fin_growth_end_year: int = 2040
+    fin_injection_enabled: bool = False
+    fin_injection_mode: str = 'one_time'
+    fin_injection_amount: float = 0.0
+    fin_injection_start_year: int = 2026
+    fin_injection_end_year: int = 2040
+
     # Increased collection efficiency (#143-#146)
     ce_start_year: int = 2027
     ce_target_year: int = 2030
@@ -575,6 +604,7 @@ class InterventionToggles(BaseModel):
     # (`mf_selffinance_share` isolates the BAU-anyway HH who'd pay upfront) and a means-based grant sub-lever
     # (`grant_total` buys the loan down for HH who can't service it). No separate self-finance/grant toggles.
     ws_microfinance_enabled: bool = True
+    ws_financial_commitment_enabled: bool = False
     # Sanitation
     san_collection_efficiency_enabled: bool = True
     san_capital_efficiency_enabled: bool = True
@@ -585,6 +615,7 @@ class InterventionToggles(BaseModel):
     san_techmix_enabled: bool = False
     # NRW-linked sanitation revenue (needs the water NRW lever on to have any recovered volume to charge for).
     san_nrw_link_enabled: bool = False
+    san_financial_commitment_enabled: bool = False
 
 
 # ──────────────────────────────────────────────────────────────────────────

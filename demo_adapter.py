@@ -256,7 +256,11 @@ def _afford_defaults():
 
 
 def _default_ws_intervention():
-    return {'ce_start_year':2026,'ce_target_year':2035,'ce_current_ratio':0.90,'ce_target_ratio':0.95,
+    return {'fin_gdp_enabled':False,'fin_gdp_start_year':2026,'fin_gdp_target_share':0.0,
+            'fin_growth_enabled':False,'fin_growth_rate':0.0,'fin_growth_start_year':2026,'fin_growth_end_year':2040,
+            'fin_injection_enabled':False,'fin_injection_mode':'one_time','fin_injection_amount':0.0,
+            'fin_injection_start_year':2026,'fin_injection_end_year':2040,
+            'ce_start_year':2026,'ce_target_year':2035,'ce_current_ratio':0.90,'ce_target_ratio':0.95,
             'ce_water_sold_mld':87.6,'ce_current_tariff':32.0,
             'nrw_start_year':2026,'nrw_target_year':2035,'nrw_current_pct':0.40,'nrw_target_pct':0.25,
             'nrw_treatment_cost_pct_capex':0.40,
@@ -278,7 +282,11 @@ def _default_ws_intervention():
 
 
 def _default_san_intervention():
-    return {'ce_start_year':2026,'ce_target_year':2035,'ce_sewer_tariff_pct_water':0.5,
+    return {'fin_gdp_enabled':False,'fin_gdp_start_year':2026,'fin_gdp_target_share':0.0,
+            'fin_growth_enabled':False,'fin_growth_rate':0.0,'fin_growth_start_year':2026,'fin_growth_end_year':2040,
+            'fin_injection_enabled':False,'fin_injection_mode':'one_time','fin_injection_amount':0.0,
+            'fin_injection_start_year':2026,'fin_injection_end_year':2040,
+            'ce_start_year':2026,'ce_target_year':2035,'ce_sewer_tariff_pct_water':0.5,
             'capeff_start_year':2026,'capeff_target_year':2035,'capeff_target_pct':1.0,'capeff_current_pct':0.0,'capeff_gains_pct':0.20,
             # Capex efficiency (unit-cost discount) + optimised technology selection (see water for the mechanic).
             'costeff_start_year':2026,'costeff_target_year':2035,'costeff_current_pct':0.0,'costeff_target_pct':0.20,
@@ -380,6 +388,24 @@ def _afford_fields(d: dict) -> dict:
         mf_gap_shares=gs,
         mf_selffinance_share=float(d.get('mf_selffinance_share', 0.0) or 0.0),
         grant_total=float(d.get('grant_total', 0.0) or 0.0),
+    )
+
+
+def _financial_fields(d: dict) -> dict:
+    """Frontend financial-commitment settings shared by both sectors."""
+    return dict(
+        fin_gdp_enabled=bool(d.get('fin_gdp_enabled', False)),
+        fin_gdp_start_year=int(d.get('fin_gdp_start_year', 0) or 0),
+        fin_gdp_target_share=max(0.0, float(d.get('fin_gdp_target_share', 0.0) or 0.0)),
+        fin_growth_enabled=bool(d.get('fin_growth_enabled', False)),
+        fin_growth_rate=max(0.0, float(d.get('fin_growth_rate', 0.0) or 0.0)),
+        fin_growth_start_year=int(d.get('fin_growth_start_year', 0) or 0),
+        fin_growth_end_year=int(d.get('fin_growth_end_year', 0) or 0),
+        fin_injection_enabled=bool(d.get('fin_injection_enabled', False)),
+        fin_injection_mode=('recurring' if d.get('fin_injection_mode') == 'recurring' else 'one_time'),
+        fin_injection_amount=max(0.0, float(d.get('fin_injection_amount', 0.0) or 0.0)),
+        fin_injection_start_year=int(d.get('fin_injection_start_year', 0) or 0),
+        fin_injection_end_year=int(d.get('fin_injection_end_year', 0) or 0),
     )
 
 
@@ -496,6 +522,7 @@ def to_engine(fe: dict) -> ModelInputs:
     # NRW factors (feed the 4d capex adder; sanitation reads the same water cells)
     wi = fe.get('water_interventions', {}) or {}
     ws_intv = WaterInterventionInputs(
+        **_financial_fields(wi),
         # null-safe: a cleared cell serialises to JSON null (dict.get returns None), so guard with `or default`.
         nrw_treatment_cost_pct_capex=float(wi.get('nrw_treatment_cost_pct_capex', 0.40) or 0.40),
         nrw_current_pct=float(wi.get('nrw_current_pct', 0.40) or 0.40),
@@ -551,6 +578,7 @@ def to_engine(fe: dict) -> ModelInputs:
     )
     si = fe.get('sanitation_interventions', {}) or {}
     san_intv = SanitationInterventionInputs(
+        **_financial_fields(si),
         # Collection efficiency (sanitation): own start/target years + wastewater-collected% + sewer-tariff%
         # (collected ratios and billed volume are inherited from water_interventions in the engine).
         ce_start_year=int(si.get('ce_start_year', 2027) or 0),

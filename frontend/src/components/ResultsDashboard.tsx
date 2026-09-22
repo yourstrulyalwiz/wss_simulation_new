@@ -34,6 +34,7 @@ const sumRange = (arr: number[], years: number[], lo: number, hi: number) =>
 //    color = its band colour, shared with the intervention-impact chart via chartColors INTV_PALETTE) ──
 type IntvDef = { key: string; label: string; resourceKey?: string; color: string };
 const WATER_INTV: IntvDef[] = [
+  { key: 'ws_financial_commitment_enabled', label: 'Increase in Financial Commitments', resourceKey: 'scenario_financial_commitment_cash', color: P.financial },
   { key: 'ws_collection_efficiency_enabled', label: 'Increased collection efficiency', resourceKey: 'scenario_collection_cash', color: P.collection },
   { key: 'ws_nrw_enabled', label: 'NRW reduction', resourceKey: 'scenario_nrw_net', color: P.nrw },
   { key: 'ws_capital_efficiency_enabled', label: 'Budget execution improvement', color: P.budgetExec },
@@ -43,6 +44,7 @@ const WATER_INTV: IntvDef[] = [
   { key: 'ws_microfinance_enabled', label: 'Microfinance', resourceKey: 'scenario_mf_loan_volume', color: P.microfinance },
 ];
 const SAN_INTV: IntvDef[] = [
+  { key: 'san_financial_commitment_enabled', label: 'Increase in Financial Commitments', resourceKey: 'scenario_financial_commitment_cash', color: P.financial },
   { key: 'san_collection_efficiency_enabled', label: 'Increased collection efficiency', resourceKey: 'scenario_collection_cash', color: P.collection },
   { key: 'san_capital_efficiency_enabled', label: 'Budget execution improvement', color: P.budgetExec },
   { key: 'san_costeff_enabled', label: 'Capex efficiency (unit cost)', color: P.capex },

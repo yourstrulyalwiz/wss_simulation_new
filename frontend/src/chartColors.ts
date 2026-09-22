@@ -31,5 +31,6 @@ export const INTV_PALETTE = {
   nrw: '#fb464b',        // red
   tariff: '#c355fb',     // orchid     (was amber — clashed with budget-exec gold)
   microfinance: '#c5146a', // rose
+  financial: '#0f766e',    // deep teal
   custom: '#ae4f0e',     // burnt-orange (default for custom interventions; user-overridable)
 };

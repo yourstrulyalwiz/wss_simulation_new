@@ -17,6 +17,7 @@ from model.engine import calculate
 
 # key → (label, resource cash stream or None), in the same cumulative order the dashboard uses.
 WATER_INTV = [
+    ('ws_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash'),
     ('ws_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash'),
     ('ws_nrw_enabled', 'NRW reduction', 'scenario_nrw_net'),
     ('ws_capital_efficiency_enabled', 'Budget execution improvement', None),
@@ -26,6 +27,7 @@ WATER_INTV = [
     ('ws_microfinance_enabled', 'Microfinance', 'scenario_mf_loan_volume'),
 ]
 SAN_INTV = [
+    ('san_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash'),
     ('san_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash'),
     ('san_capital_efficiency_enabled', 'Budget execution improvement', None),
     ('san_costeff_enabled', 'Capex efficiency (unit cost)', None),

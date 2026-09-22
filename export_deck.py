@@ -273,7 +273,20 @@ def _fill_interventions(slide, b, cur):
 def _fill_detail(slide, b, row, inputs, sk, cur):
     """One intervention's detail slide. Only the tool-known figures are filled; the narrative
     placeholders stay as bracketed prompts for whoever presents the deck."""
-    perf = DD.lever_performance(inputs, sk, row['key'])
+    if isinstance(inputs, list):
+        labelled = [(label, DD.lever_performance(fe, sk, row['key'])) for label, fe in inputs]
+        perfs = [p for _, p in labelled]
+        def combined(field):
+            values = [p.get(field) for p in perfs]
+            return values[0] if values and all(v == values[0] for v in values) else \
+                '; '.join(f'{label}: {p.get(field, "n/a")}' for label, p in labelled)
+        starts = [p.get('start_year') for p in perfs if p.get('start_year')]
+        ends = [p.get('target_year') for p in perfs if p.get('target_year')]
+        perf = {'current': combined('current'), 'target': combined('target'),
+                'start_year': min(starts) if starts else None,
+                'target_year': max(ends) if ends else None}
+    else:
+        perf = DD.lever_performance(inputs, sk, row['key'])
     title = find_shape(slide, 'Text 0')
     if title is not None:
         set_text(title, title.text_frame.text.replace('[intervention name]', row['label']))
@@ -620,8 +633,13 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A) ->
         at = index_of(prs, detail)
         # One detail slide per enabled lever: fill the template's own, then clone it for the rest.
         clones = [detail] + [clone_slide(prs, at, insert_at=at + k) for k in range(1, len(rows))]
+        if sc == 'national' and sc not in d['area_inputs']:
+            scope_inputs = [(SCOPE_TITLE[s], d['area_inputs'][s])
+                            for s in ('urban', 'rural') if s in d['area_inputs']]
+        else:
+            scope_inputs = d['area_inputs'].get(sc) or d['inputs']
         for slide, row in zip(clones, rows):
-            _fill_detail(slide, b, row, d['inputs'], sk, cur)
+            _fill_detail(slide, b, row, scope_inputs, sk, cur)
 
     # ── contents + prompts ──────────────────────────────────────────────────────────────────────
     _rebuild_contents(prs.slides[IDX_CONTENTS], _contents_entries(prs, d, present, lever_rows),

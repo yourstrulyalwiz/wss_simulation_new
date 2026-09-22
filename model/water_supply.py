@@ -253,6 +253,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                afford_upfront_payable_ratio=0.0, afford_takeup=0.0, afford_gap_shares=None,
                afford_bracket_income=None, afford_grant_total=0.0,
                selffinance_enabled=False, selffinance_share=0.0, connection_fee=0.0,
+               financial_enabled=False, financial_settings=None, financial_execution_rate=None,
                extra_cash=None):
     """Shared 4a-4d core. All HH and money values are in MILLIONS; costs in actual currency.
 
@@ -274,7 +275,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     active = np.maximum(ctx['forecast_flag'], ctx['perf_flag'])
     exec_rate = float(execution_rate)
     planned_annual = np.zeros(n)                                                     # planned investment removed from the model
-    full_budget_in = full_budget                                                     # raw pct_gdp/direct budget (unused by from_cost)
+    full_budget_in = np.asarray(full_budget, dtype=float)                            # raw total-spending budget
     # Per-year unit-cost factor: a cost-side intervention (e.g. capital efficiency) DISCOUNTS the connection
     # cost from its start year, so cost varies by year. Defaults to all-1.0 → BAU pass is untouched. Only the
     # forecast 4a/4d cost reads it; history & opening stock keep the base cost so BAU parity is preserved.
@@ -389,6 +390,40 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     else:
         full_budget = np.asarray(full_budget_in, dtype=float)
         capex_pct_eff, exec_eff = capex_pct, float(exec_rate)
+    # Increase in Financial Commitments. All three mechanisms are calculated against BAU independently,
+    # then added. The GDP entry is a target TOTAL share: only max(target×GDP − BAU full spending, 0) counts.
+    financial_cash = np.zeros(n)
+    fs = financial_settings or {}
+    if financial_enabled:
+        gdp = np.asarray(gdp_real if gdp_real is not None else ctx['gdp_real_local'], dtype=float)
+        # The financial levers are defined against TOTAL sector spending even when the BAU connection
+        # budget itself is derived from historical service costs. `full_budget_in` preserves that total
+        # spending series across budget modes. New commitments then pass through the sector's ordinary
+        # capex share and execution rate before becoming capital available for connections.
+        commitment_base = full_budget_in
+        if commitment_base.shape[0] < n:
+            commitment_base = np.concatenate([commitment_base, np.zeros(n - commitment_base.shape[0])])
+        commitment_exec = execution_rate if financial_execution_rate is None else financial_execution_rate
+        financial_capex_factor = max(0.0, float(capex_pct)) * max(0.0, float(commitment_exec))
+        for t, y in enumerate(years):
+            if y <= by:
+                continue
+            extra_full = 0.0
+            if fs.get('gdp_enabled') and y >= int(fs.get('gdp_start_year') or 0):
+                target_total = max(0.0, float(fs.get('gdp_target_share') or 0.0)) * gdp[t]
+                extra_full += max(0.0, target_total - commitment_base[t])
+            gs, ge = int(fs.get('growth_start_year') or 0), int(fs.get('growth_end_year') or years[-1])
+            gr = max(0.0, float(fs.get('growth_rate') or 0.0))
+            if fs.get('growth_enabled') and gs <= y <= ge:
+                extra_full += max(0.0, commitment_base[t] * ((1.0 + gr) ** (y - gs + 1) - 1.0))
+            iy, ie = int(fs.get('injection_start_year') or 0), int(fs.get('injection_end_year') or 0)
+            amt = max(0.0, float(fs.get('injection_amount') or 0.0))
+            if fs.get('injection_enabled'):
+                if fs.get('injection_mode') == 'recurring' and iy <= y <= ie:
+                    extra_full += amt
+                elif fs.get('injection_mode') != 'recurring' and y == iy:
+                    extra_full += amt
+            financial_cash[t] = extra_full * financial_capex_factor
     # "Budget used" = the capital that becomes service each year (the from_cost cost-of-service budget,
     # or the user's per-year override). This is the DRIVER of the baseline BAU. capex_pct_eff/exec_eff
     # are 1.0 in from_cost; in %GDP mode it is the capital share of the (executed) budget.
@@ -655,7 +690,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # extra caller cash (sanitation's water-NRW-linked sewer revenue). The NRW ledger is negative when
         # fixing costs exceed the water's value that year (drawn from the BAU budget first) and positive
         # later (surplus funds new connections). All the lever terms are 0 when their lever is off.
-        avail = bau_available[t] + collection_cash[t] + tariff_cash[t] + nrw_net[t] + extra_cash_arr[t]
+        avail = bau_available[t] + collection_cash[t] + tariff_cash[t] + nrw_net[t] + financial_cash[t] + extra_cash_arr[t]
         # ── Investment split (test2) ───────────────────────────────────────────────────────────────────
         # Replacement is funded first, then the remainder is split: `basic_share` buys BASIC service for
         # households at limited-and-below, the rest buys SAFELY MANAGED for households at basic-and-below.
@@ -835,6 +870,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'bau_available': bau_available.tolist(),
         'collection_cash': collection_cash.tolist(),   # collection-efficiency revenue folded into capex (scenario)
         'tariff_cash': tariff_cash.tolist(),           # tariff-reform revenue folded into capex (scenario)
+        'financial_commitment_cash': financial_cash.tolist(),  # added effective capex from all financial options
         'nrw_net': nrw_net.tolist(),                   # NRW money ledger (value − fixing cost) folded into capex
         'nrw_recovered_phys_vol': nrw_recovered_phys.tolist(),  # recovered physical water per year (M m³/yr) → wastewater
         'nrw_link_cash': extra_cash_arr.tolist(),      # caller-injected extra capex cash (san water-NRW-linked revenue)
@@ -890,6 +926,7 @@ def calculate_water_supply(inputs, ctx):
     tariff_on = bool(getattr(tog, 'ws_tariff_enabled', False)) if tog is not None else False
     nrw_on = bool(getattr(tog, 'ws_nrw_enabled', False)) if tog is not None else False
     mf_on = bool(getattr(tog, 'ws_microfinance_enabled', False)) if tog is not None else False
+    financial_on = bool(getattr(tog, 'ws_financial_commitment_enabled', False)) if tog is not None else False
     # Two cost-side levers (test2) → a per-year SM cost factor via sector_bau's cost_factor hook. Both are
     # gated by their own toggle, so the BAU pass (all toggles off) keeps cost_factor = 1.0 and is unchanged.
     costeff_on = bool(getattr(tog, 'ws_costeff_enabled', False)) if tog is not None else False
@@ -953,6 +990,17 @@ def calculate_water_supply(inputs, ctx):
         cost_factor=cost_factor,                               # test2: capex-efficiency + optimised-technology + custom cost cuts
         cost_factor_basic=cost_factor_basic * cust_cf,
         basic_share=float(getattr(nrw, 'basic_share', 0.0) or 0.0),
+        financial_enabled=financial_on,
+        financial_settings={
+            'gdp_enabled': nrw.fin_gdp_enabled, 'gdp_start_year': nrw.fin_gdp_start_year,
+            'gdp_target_share': nrw.fin_gdp_target_share,
+            'growth_enabled': nrw.fin_growth_enabled, 'growth_rate': nrw.fin_growth_rate,
+            'growth_start_year': nrw.fin_growth_start_year, 'growth_end_year': nrw.fin_growth_end_year,
+            'injection_enabled': nrw.fin_injection_enabled, 'injection_mode': nrw.fin_injection_mode,
+            'injection_amount': nrw.fin_injection_amount, 'injection_start_year': nrw.fin_injection_start_year,
+            'injection_end_year': nrw.fin_injection_end_year,
+        },
+        financial_execution_rate=b.execution_rate,
         extra_cash=cust_cash,                                  # custom new-revenue net cash → water capex
         full_budget=full_budget, capex_pct=ws_capex,
         growth_capex_pct=ws_capex,                             # water 4a uses the water CAPEX budget (I!326)

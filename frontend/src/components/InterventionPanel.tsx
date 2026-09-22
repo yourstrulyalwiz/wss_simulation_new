@@ -284,6 +284,53 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
     </>);
   };
 
+  const financialFields = (section: 'water_interventions' | 'sanitation_interventions') => {
+    const iv = inputs[section] || {};
+    const option = (field: string, label: string, fields: React.ReactNode) => (
+      <div style={{ gridColumn: '1 / -1', border: '1px solid #dbeafe', borderRadius: 6, padding: 10, background: '#f8fbff' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 650, color: '#1e3a5f' }}>
+          <input type="checkbox" checked={!!iv[field]} onChange={e => u(section, field, e.target.checked ? 1 : 0)}
+            style={{ width: 16, height: 16, accentColor: '#2563eb' }} />
+          {label}
+        </label>
+        {!!iv[field] && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px 14px', marginTop: 10 }}>{fields}</div>}
+      </div>
+    );
+    return (<>
+      <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b' }}>
+        Select any combination. Enabled options overlap additively and apply only to the intervention scenario.
+      </div>
+      {option('fin_gdp_enabled', 'Target spending as a share of GDP', <>
+        <F label="Target total spending share" value={iv.fin_gdp_target_share} onChange={v => u(section, 'fin_gdp_target_share', Math.max(0, v))} isPercent unit="% of GDP"
+          tip="Enter the target total sector-spending share, not the percentage increase. Only the positive difference above BAU is added." />
+        <F label="Start year" value={iv.fin_gdp_start_year} onChange={v => u(section, 'fin_gdp_start_year', v)}
+          tip="The target total spending share applies from this year onward." />
+      </>)}
+      {option('fin_growth_enabled', 'Annual percentage increase in spending', <>
+        <F label="Annual spending increase" value={iv.fin_growth_rate} onChange={v => u(section, 'fin_growth_rate', Math.max(0, v))} isPercent unit="% per year"
+          tip="The increase compounds annually from the start year through the end year." />
+        <F label="Start year" value={iv.fin_growth_start_year} onChange={v => u(section, 'fin_growth_start_year', v)} />
+        <F label="End year" value={iv.fin_growth_end_year} onChange={v => u(section, 'fin_growth_end_year', v)} />
+      </>)}
+      {option('fin_injection_enabled', 'Exogenous injection of funds', <>
+        <F label="Funding amount" value={iv.fin_injection_amount} onChange={v => u(section, 'fin_injection_amount', Math.max(0, v))}
+          unit={`${CUR} mn`} tip="Absolute additional funding in local-currency millions." />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+          <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Schedule</label>
+          <select value={iv.fin_injection_mode || 'one_time'} onChange={e => u(section, 'fin_injection_mode', e.target.value)}
+            style={{ padding: '7px 10px', border: '1px solid #F0D070', background: '#FFF9E6', borderRadius: 4, fontSize: 13 }}>
+            <option value="one_time">One-time</option>
+            <option value="recurring">Recurring annually</option>
+          </select>
+        </div>
+        <F label={iv.fin_injection_mode === 'recurring' ? 'Start year' : 'Injection year'} value={iv.fin_injection_start_year}
+          onChange={v => u(section, 'fin_injection_start_year', v)} />
+        {iv.fin_injection_mode === 'recurring' &&
+          <F label="End year" value={iv.fin_injection_end_year} onChange={v => u(section, 'fin_injection_end_year', v)} />}
+      </>)}
+    </>);
+  };
+
   // Which intervention layers are switched on for the active sector — drives the impact graph
   const t = inputs.toggles || {};
   const chartActive = sectorTab === 'water'
@@ -339,6 +386,9 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
         {sectorTab === 'water' && <>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Water Supply Interventions</h3>
 
+          <InterventionToggle label="Increase in Financial Commitments" checked={inputs.toggles?.ws_financial_commitment_enabled ?? false} onChange={v => toggleIntv('ws_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('ws_financial_commitment')}>
+            {financialFields('water_interventions')}
+          </InterventionToggle>
 
           <InterventionToggle label="Collection efficiency" checked={inputs.toggles?.ws_collection_efficiency_enabled ?? false} onChange={v => toggleIntv('ws_collection_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('ws_ce')}>
             <F label="Improvement start year" value={inputs.water_interventions.ce_start_year} onChange={v => u('water_interventions','ce_start_year',v)} tip="Year the collection efficiency improvement begins" />
@@ -426,6 +476,9 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
         {sectorTab === 'sanitation' && <>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Sanitation Interventions</h3>
 
+          <InterventionToggle label="Increase in Financial Commitments" checked={inputs.toggles?.san_financial_commitment_enabled ?? false} onChange={v => toggleIntv('san_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('san_financial_commitment')}>
+            {financialFields('sanitation_interventions')}
+          </InterventionToggle>
 
           <InterventionToggle label="Collection efficiency" checked={inputs.toggles?.san_collection_efficiency_enabled ?? false} onChange={v => toggleIntv('san_collection_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('san_ce')}>
             <F label="Improvement start year" value={inputs.sanitation_interventions.ce_start_year} onChange={v => u('sanitation_interventions','ce_start_year',v)} tip="Year the collection efficiency improvement begins" />

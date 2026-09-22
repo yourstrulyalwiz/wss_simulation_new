@@ -19,6 +19,7 @@ import { linesFirstLegend } from './chartLegend';
 type Intv = [key: string, label: string, color: string];   // toggle key, legend label, band colour
 // Band palette excludes blue (BAU) and green (target) so those meanings stay reserved (see chartColors).
 const WATER_INTV: Intv[] = [
+  ['ws_financial_commitment_enabled', 'Financial commitments', P.financial],
   ['ws_collection_efficiency_enabled', 'Collection efficiency', P.collection],
   ['ws_capital_efficiency_enabled', 'Budget execution', P.budgetExec],
   ['ws_costeff_enabled', 'Capex efficiency', P.capex],
@@ -28,6 +29,7 @@ const WATER_INTV: Intv[] = [
   ['ws_microfinance_enabled', 'Microfinance', P.microfinance],
 ];
 const SAN_INTV: Intv[] = [
+  ['san_financial_commitment_enabled', 'Financial commitments', P.financial],
   ['san_collection_efficiency_enabled', 'Collection efficiency', P.collection],
   ['san_capital_efficiency_enabled', 'Budget execution', P.budgetExec],
   ['san_costeff_enabled', 'Capex efficiency', P.capex],

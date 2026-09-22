@@ -21,6 +21,7 @@ from model.engine import calculate
 #   execution — it raises the share of the allocated budget that reaches service
 #   cost      — it cuts the unit cost of a connection, so the same budget buys more
 WATER_INTV = [
+    ('ws_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash', '0f766e', 'revenue'),
     ('ws_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash', '1a9ed6', 'revenue'),
     ('ws_nrw_enabled', 'NRW reduction', 'scenario_nrw_net', 'fb464b', 'revenue'),
     ('ws_capital_efficiency_enabled', 'Budget execution improvement', None, 'c58216', 'execution'),
@@ -30,6 +31,7 @@ WATER_INTV = [
     ('ws_microfinance_enabled', 'Microfinance', 'scenario_mf_loan_volume', 'c5146a', 'revenue'),
 ]
 SAN_INTV = [
+    ('san_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash', '0f766e', 'revenue'),
     ('san_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash', '1a9ed6', 'revenue'),
     ('san_capital_efficiency_enabled', 'Budget execution improvement', None, 'c58216', 'execution'),
     ('san_costeff_enabled', 'Capex efficiency (unit cost)', None, '7238f8', 'cost'),
@@ -124,19 +126,26 @@ def cumulative_passes(area_fes: List[dict]) -> Tuple[List[dict], List[tuple], bo
 
     Each pass is run for every area in `area_fes` and the results summed, so a National block is the
     roll-up of the same cumulative sequence rather than a separate attribution."""
-    toggles = dict((area_fes[0].get('toggles') or {}))
-    enabled = [d for d in WATER_INTV if toggles.get(d[0])] + [d for d in SAN_INTV if toggles.get(d[0])]
-    has_custom = any((c or {}).get('enabled') for c in (area_fes[0].get('custom_interventions') or []))
+    defs = WATER_INTV + SAN_INTV
+    enabled = [d for d in defs if any((fe.get('toggles') or {}).get(d[0]) for fe in area_fes)]
+    has_custom = any(any((c or {}).get('enabled') for c in (fe.get('custom_interventions') or []))
+                     for fe in area_fes)
 
-    off = {k: False for k in toggles}
-    passes = [aggregate([_run(fe, off) for fe in area_fes])]
-    acc = dict(off)
+    # Each area keeps its own selections. This matters for a synthesized National roll-up where, for
+    # example, Rural enables a lever that Urban does not: the cumulative pass must not copy Urban's
+    # toggle set onto Rural or omit Rural-only levers.
+    all_keys = {d[0] for d in defs}
+    original = [dict(fe.get('toggles') or {}) for fe in area_fes]
+    accumulators = [{**tg, **{k: False for k in all_keys}} for tg in original]
+    passes = [aggregate([_run(fe, acc) for fe, acc in zip(area_fes, accumulators)])]
     for key, *_ in enabled:
-        acc[key] = True
-        passes.append(aggregate([_run(fe, acc) for fe in area_fes]))
+        for acc, tg in zip(accumulators, original):
+            acc[key] = bool(tg.get(key))
+        passes.append(aggregate([_run(fe, acc) for fe, acc in zip(area_fes, accumulators)]))
     if has_custom:
         # Customs sit on top of every built-in lever and are reported as one aggregate band.
-        passes.append(aggregate([_run(fe, acc, keep_customs=True) for fe in area_fes]))
+        passes.append(aggregate([_run(fe, acc, keep_customs=True)
+                                 for fe, acc in zip(area_fes, accumulators)]))
     return passes, enabled, has_custom
 
 
@@ -335,6 +344,24 @@ def lever_performance(inputs: dict, sector_key: str, key: str) -> dict:
         return {'current': _fmt_pct(src.get('ce_current_ratio') or 0),
                 'target': _fmt_pct(src.get('ce_target_ratio') or 0),
                 'start_year': g('ce_start_year'), 'target_year': g('ce_target_year')}
+    if 'financial_commitment' in key:
+        modes = []
+        if g('fin_gdp_enabled', False):
+            modes.append(f"target {_fmt_pct(g('fin_gdp_target_share', 0))} of GDP")
+        if g('fin_growth_enabled', False):
+            modes.append(f"{_fmt_pct(g('fin_growth_rate', 0))} annual growth")
+        if g('fin_injection_enabled', False):
+            modes.append('absolute injection')
+        starts = [g(k) for k, enabled in [
+            ('fin_gdp_start_year', g('fin_gdp_enabled', False)),
+            ('fin_growth_start_year', g('fin_growth_enabled', False)),
+            ('fin_injection_start_year', g('fin_injection_enabled', False)),
+        ] if enabled and g(k)]
+        ends = [g('fin_growth_end_year') if g('fin_growth_enabled', False) else None,
+                g('fin_injection_end_year') if g('fin_injection_enabled', False) and g('fin_injection_mode') == 'recurring' else None]
+        return {'current': 'BAU spending', 'target': ', '.join(modes) or 'no mechanism selected',
+                'start_year': min(starts) if starts else None,
+                'target_year': max([x for x in ends if x] or starts or [None])}
     if key == 'ws_nrw_enabled':
         return {'current': _fmt_pct(g('nrw_current_pct', 0)), 'target': _fmt_pct(g('nrw_target_pct', 0)),
                 'start_year': g('nrw_start_year'), 'target_year': g('nrw_target_year')}

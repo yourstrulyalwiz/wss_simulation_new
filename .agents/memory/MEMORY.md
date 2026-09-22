@@ -1,0 +1,1 @@
+- [Financial commitment semantics](financial-commitment-semantics.md) — added spending uses a total-spending base, then becomes effective capex through sector treatment.

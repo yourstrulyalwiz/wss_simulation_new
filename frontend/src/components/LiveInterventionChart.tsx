@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Label, ReferenceLine,
+  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Label,
 } from 'recharts';
 import ChartExport from './ChartExport';
 
@@ -51,9 +51,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   // 1 = basic. The engine returns every rung, so only the row index and the labels change.
   const rungName = rung === 0 ? 'safely-managed' : 'basic';
   const baseKey = `BAU (${rungName})`;
-  const targetKey = `Target (${rungName})`;
   const [data, setData] = useState<any[]>([]);
-  const [targetLines, setTargetLines] = useState<{ year: number; count: number; share: number }[]>([]);
   const [bands, setBands] = useState<Intv[]>([]);   // interventions that actually contribute, in stack order
   const [summary, setSummary] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,32 +104,12 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         // that pass's toggles+customs (`scenario_hh`). Grey base = pure BAU; each pass's scenario_hh gives
         // the extra SM its newly-added lever delivers (sm[p+1] − sm[p] for band p, in payload order).
         const bauBase = secOf(results[0]).bau_hh[rung];              // pure BAU (same in every pass)
-        const target = secOf(results[0]).target_hh[rung];           // same target as the BAU chart
         const sm = results.map((r: any) => secOf(r).scenario_hh[rung]); // rung WITH the pass's levers
         const rows = years.map((y: number, i: number) => {
-          const total = +results[0].total_hh[i];
-          const row: any = { year: +y, [baseKey]: +(+bauBase[i]).toFixed(4),
-            [targetKey]: +Math.min(total, +target[i]).toFixed(4), 'Total households': +total.toFixed(4) };
+          const row: any = { year: +y, [baseKey]: +(+bauBase[i]).toFixed(4), 'Total households': +(+results[0].total_hh[i]).toFixed(4) };
           bandDefs.forEach(([, label], p) => { row[label] = Math.max(0, +(sm[p + 1][i] - sm[p][i]).toFixed(4)); });
           return row;
         });
-        // Match the BAU chart's milestone detection: a complete service-share
-        // column marks a target year, and the model supplies its household count.
-        const service = inputs?.[sector === 'water' ? 'water_service' : 'sanitation_service'] || {};
-        const prefix = sector === 'water' ? 'serv' : 'sserv';
-        const series = [1, 2, 3, 4, 5].map(k => service[`${prefix}${k}_ts`] || []);
-        const firstYear = inputs?.period?.model_start_year ?? years[0];
-        const baselineYear = inputs?.period?.baseline_year ?? firstYear;
-        setTargetLines(years.flatMap((year: number, i: number) => {
-          if (year <= baselineYear) return [];
-          const idx = year - firstYear;
-          const values = series.map(a => a[idx]);
-          const shares = values.reduce((s: number, v: any) => s + (+v || 0), 0);
-          if (!values.some(v => v != null && v > 0) || Math.abs(shares - 1) >= 0.02) return [];
-          const total = +results[0].total_hh[i];
-          const count = Math.min(total, +target[i]);
-          return [{ year, count, share: total > 0 ? count / total : 0 }];
-        }));
         // Only stack levers that actually move the needle (an enabled-but-unparameterised one adds 0).
         const contributing = bandDefs.filter(([, label]) => rows.some((r: any) => r[label] > 1e-4));
         setData(rows);
@@ -156,7 +134,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const sectorLabel = sector === 'water' ? 'Water Supply' : 'Sanitation';
   const chartRef = useRef<HTMLDivElement>(null);
   const isShare = unitMode === 'share';
-  // Share mode divides the BAU base, target, every intervention band and the ceiling by that year's total
+  // Share mode divides the BAU base, every intervention band and the ceiling by that year's total
   // households, so the stack still adds up and the ceiling becomes a flat 100%. One household size
   // is used throughout the model, so the household share is also the share of population.
   const displayData = useMemo(() => {
@@ -164,12 +142,11 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
     return data.map((r: any) => {
       const tot = r['Total households'] || 0;
       const d = (v: number) => (tot > 0 ? (+v || 0) / tot : 0);
-      const o: any = { year: r.year, 'Total households': tot > 0 ? 1 : 0,
-        [baseKey]: d(r[baseKey]), [targetKey]: d(r[targetKey]) };
+      const o: any = { year: r.year, 'Total households': tot > 0 ? 1 : 0, [baseKey]: d(r[baseKey]) };
       bands.forEach(([, label]) => { o[label] = d(r[label]); });
       return o;
     });
-  }, [data, bands, isShare, targetKey]);
+  }, [data, bands, isShare]);
   const visibleData = useMemo(() => {
     if (!displayData.length) return displayData;
     const lo = chartStart ?? displayData[0].year;
@@ -180,13 +157,13 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const fmtAxis = (v: number) => (isShare ? Math.round(v * 100) + '%' : sig(v));
   const fmtVal = (v: number) => (isShare ? (v * 100).toFixed(1) + '%' : sig(v) + ' M');
   // Data series behind the chart, for the "⤓ Excel" export: Year, BAU base, each band, and the ceiling.
-  const exportHeaders = ['Year', baseKey, ...bands.map(([, label]) => label), targetKey, 'Total households'];
-  const exportRows = visibleData.map((r: any) => [r.year, r[baseKey], ...bands.map(([, label]) => r[label] ?? 0), r[targetKey], r['Total households']]);
-  // Native Excel chart: grey BAU base + intervention bands, target and ceiling as dashed lines.
+  const exportHeaders = ['Year', baseKey, ...bands.map(([, label]) => label), 'Total households'];
+  const exportRows = visibleData.map((r: any) => [r.year, r[baseKey], ...bands.map(([, label]) => r[label] ?? 0), r['Total households']]);
+  // Native Excel chart: grey BAU base + each contributing intervention band as stacked areas, ceiling as a line.
   const chartSpec = {
     category: 'Year', stacked: true,
     areas: [{ name: baseKey, color: C.bauFill }, ...bands.map(([, label, color]) => ({ name: label, color }))],
-    lines: [{ name: targetKey, color: C.target, dash: true }, { name: 'Total households', color: C.total, dash: true }],
+    lines: [{ name: 'Total households', color: C.total, dash: true }],
     yTitle: isShare ? '% of population' : '# households (millions)', xTitle: 'Year',
   };
   const fileBase = `${scopeLabel ? scopeLabel + '_' : ''}${sector}_${rung === 0 ? 'sm' : 'basic'}_intervention_impact`;
@@ -238,7 +215,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         </div>
       </div>
       <div style={{ fontSize: 10, color: '#334155', background: '#f1f5f9', padding: '4px 8px', borderRadius: 4, marginBottom: 8 }}>
-        Live engine output. The blue base is business-as-usual {rungName} coverage; each coloured band stacked on top is the extra coverage an enabled intervention delivers. The green dashed line is the target household path; horizontal markers show target-year levels. Switch between absolute households and share of population above.
+        Live engine output. The blue base is business-as-usual {rungName} coverage; each coloured band stacked on top is the extra coverage an enabled intervention delivers. Switch between absolute households and share of population above.
       </div>
       {error && <div style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>{error}</div>}
       {summary && (
@@ -249,7 +226,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       )}
       <div ref={chartRef} style={{ background: '#fff' }}>
       <ResponsiveContainer width="100%" height={360}>
-        <ComposedChart data={visibleData} margin={{ top: 14, right: 70, bottom: 5, left: 10 }}>
+        <ComposedChart data={visibleData} margin={{ top: 14, right: 24, bottom: 5, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis dataKey="year" tick={{ fontSize: 10 }} interval={yearAxisInterval(visibleData)} />
           <YAxis tick={{ fontSize: 10 }} domain={isShare ? [0, 1] : undefined} tickFormatter={fmtAxis}>
@@ -271,14 +248,6 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
           ))}
           {/* Total households — the coverage ceiling, drawn on top (not stacked). */}
           <Line type="monotone" dataKey="Total households" stroke={C.total} strokeWidth={1.5} strokeDasharray="6 4" dot={false} legendType="plainline" isAnimationActive animationDuration={600} />
-          <Line type="monotone" dataKey={targetKey} stroke={C.target} strokeWidth={2.5} strokeDasharray="6 4"
-            dot={false} legendType="plainline" isAnimationActive={false} />
-          {targetLines.filter(t => t.year >= (chartStart ?? availableYears[0]) &&
-            t.year <= (chartEnd ?? availableYears[availableYears.length - 1])).map(t => (
-            <ReferenceLine key={t.year} y={isShare ? t.share : t.count} stroke={C.target}
-              strokeDasharray="2 4" ifOverflow="extendDomain"
-              label={{ value: `Target (${t.year})`, position: 'right', fontSize: 9, fill: '#15803d' }} />
-          ))}
         </ComposedChart>
       </ResponsiveContainer>
       </div>

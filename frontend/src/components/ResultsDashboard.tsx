@@ -529,6 +529,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const covData = filterChartYears(allCovData);
     const basicData = filterChartYears(s.basicRows);
     const gapData = filterChartYears(cs?.gapRows ?? []);
+    // Both coverage charts share a household scale, including the total-households
+    // ceiling, so their heights can be compared directly in count mode.
+    const maxCoverage = Math.max(0,
+      ...covData.map(r => Math.max(r.__total || 0, r.__target || 0,
+        (r.__bau || 0) + csBands.reduce((sum, b) => sum + (r[b.key] || 0), 0))),
+      ...basicData.map(r => Math.max(r.total, r.bau, r.scenario, r.target)));
+    const coverageDomain: [number, number] = isShare ? [0, 1] : [0, maxCoverage > 0 ? maxCoverage * 1.05 : 1];
     // Coverage stack: BAU base (blue) at the bottom, one intervention band on top, then the ceiling & target
     // reference lines (grey Total dashed, green Target dashed) drawn over the stack.
     const covBase = { key: '__bau', label: 'BAU (safely managed)', stroke: C.bau, fill: C.bauFill };
@@ -560,9 +567,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 8 }}>
           <StackChart title={`${label} — safely-managed coverage`} subtitle="BAU base + each intervention's added households (target & ceiling shown as lines)"
             data={covData} yLabel={isShare ? '% of population' : '# households (millions)'}
-            base={covBase} bands={csBands} lines={covLines} fmt={covFmt} domain={isShare ? [0, 1] : undefined}
+            base={covBase} bands={csBands} lines={covLines} fmt={covFmt} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_coverage`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_coverage`} />
-          <BasicCoverageChart title={`${label} — basic coverage`} rows={basicData} isShare={isShare}
+          <BasicCoverageChart title={`${label} — basic coverage`} rows={basicData} isShare={isShare} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_basic_coverage`}
             captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
           <StackChart title={`${label} — annual financing gap`} subtitle="Interventions stack up from zero; the space up to the dashed line (total BAU gap) is the gap remaining"

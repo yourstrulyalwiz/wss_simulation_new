@@ -10,7 +10,7 @@ import copy
 from typing import Dict, List, Optional, Tuple
 
 from deck_aggregate import aggregate, run_areas
-from demo_adapter import coerce_to_engine
+from demo_adapter import coerce_to_engine, financial_toggles
 from model.engine import calculate
 
 # Per-intervention definitions, mirroring the Results dashboard exactly — same labels, same colours,
@@ -22,6 +22,7 @@ from model.engine import calculate
 #   cost      — it cuts the unit cost of a connection, so the same budget buys more
 WATER_INTV = [
     ('ws_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash', '0f766e', 'revenue'),
+    ('ws_exogenous_injection_enabled', 'Exogenous Injection of Funds', 'scenario_exogenous_injection_cash', 'b45309', 'revenue'),
     ('ws_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash', '1a9ed6', 'revenue'),
     ('ws_nrw_enabled', 'NRW reduction', 'scenario_nrw_net', 'fb464b', 'revenue'),
     ('ws_capital_efficiency_enabled', 'Budget execution improvement', None, 'c58216', 'execution'),
@@ -32,6 +33,7 @@ WATER_INTV = [
 ]
 SAN_INTV = [
     ('san_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash', '0f766e', 'revenue'),
+    ('san_exogenous_injection_enabled', 'Exogenous Injection of Funds', 'scenario_exogenous_injection_cash', 'b45309', 'revenue'),
     ('san_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash', '1a9ed6', 'revenue'),
     ('san_capital_efficiency_enabled', 'Budget execution improvement', None, 'c58216', 'execution'),
     ('san_costeff_enabled', 'Capex efficiency (unit cost)', None, '7238f8', 'cost'),
@@ -127,7 +129,8 @@ def cumulative_passes(area_fes: List[dict]) -> Tuple[List[dict], List[tuple], bo
     Each pass is run for every area in `area_fes` and the results summed, so a National block is the
     roll-up of the same cumulative sequence rather than a separate attribution."""
     defs = WATER_INTV + SAN_INTV
-    enabled = [d for d in defs if any((fe.get('toggles') or {}).get(d[0]) for fe in area_fes)]
+    original = [financial_toggles(fe) for fe in area_fes]
+    enabled = [d for d in defs if any(tg.get(d[0]) for tg in original)]
     has_custom = any(any((c or {}).get('enabled') for c in (fe.get('custom_interventions') or []))
                      for fe in area_fes)
 
@@ -135,7 +138,6 @@ def cumulative_passes(area_fes: List[dict]) -> Tuple[List[dict], List[tuple], bo
     # example, Rural enables a lever that Urban does not: the cumulative pass must not copy Urban's
     # toggle set onto Rural or omit Rural-only levers.
     all_keys = {d[0] for d in defs}
-    original = [dict(fe.get('toggles') or {}) for fe in area_fes]
     accumulators = [{**tg, **{k: False for k in all_keys}} for tg in original]
     passes = [aggregate([_run(fe, acc) for fe, acc in zip(area_fes, accumulators)])]
     for key, *_ in enabled:
@@ -350,18 +352,22 @@ def lever_performance(inputs: dict, sector_key: str, key: str) -> dict:
             modes.append(f"target {_fmt_pct(g('fin_gdp_target_share', 0))} of GDP")
         if g('fin_growth_enabled', False):
             modes.append(f"{_fmt_pct(g('fin_growth_rate', 0))} annual growth")
-        if g('fin_injection_enabled', False):
-            modes.append('absolute injection')
         starts = [g(k) for k, enabled in [
             ('fin_gdp_start_year', g('fin_gdp_enabled', False)),
             ('fin_growth_start_year', g('fin_growth_enabled', False)),
-            ('fin_injection_start_year', g('fin_injection_enabled', False)),
         ] if enabled and g(k)]
-        ends = [g('fin_growth_end_year') if g('fin_growth_enabled', False) else None,
-                g('fin_injection_end_year') if g('fin_injection_enabled', False) and g('fin_injection_mode') == 'recurring' else None]
+        ends = [g('fin_growth_end_year') if g('fin_growth_enabled', False) else None]
         return {'current': 'BAU spending', 'target': ', '.join(modes) or 'no mechanism selected',
                 'start_year': min(starts) if starts else None,
                 'target_year': max([x for x in ends if x] or starts or [None])}
+    if 'exogenous_injection' in key:
+        mode = g('fin_injection_mode', 'one_time')
+        amount = float(g('fin_injection_amount', 0) or 0)
+        start = g('fin_injection_start_year')
+        return {'current': 'no injection',
+                'target': f"{amount:,.0f} {cur_of(inputs)} million" + (' annually' if mode == 'recurring' else ' once'),
+                'start_year': start,
+                'target_year': g('fin_injection_end_year') if mode == 'recurring' else start}
     if key == 'ws_nrw_enabled':
         return {'current': _fmt_pct(g('nrw_current_pct', 0)), 'target': _fmt_pct(g('nrw_target_pct', 0)),
                 'start_year': g('nrw_start_year'), 'target_year': g('nrw_target_year')}

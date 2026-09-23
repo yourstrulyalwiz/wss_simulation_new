@@ -298,7 +298,7 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
     );
     return (<>
       <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b' }}>
-        Select any combination. Enabled options overlap additively and apply only to the intervention scenario.
+        Select either or both options. Enabled options overlap additively and apply only to the intervention scenario.
       </div>
       {option('fin_gdp_enabled', 'Target spending as a share of GDP', <>
         <F label="Target total spending share" value={iv.fin_gdp_target_share} onChange={v => u(section, 'fin_gdp_target_share', Math.max(0, v))} isPercent unit="% of GDP"
@@ -312,7 +312,15 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
         <F label="Start year" value={iv.fin_growth_start_year} onChange={v => u(section, 'fin_growth_start_year', v)} />
         <F label="End year" value={iv.fin_growth_end_year} onChange={v => u(section, 'fin_growth_end_year', v)} />
       </>)}
-      {option('fin_injection_enabled', 'Exogenous injection of funds', <>
+    </>);
+  };
+
+  const injectionFields = (section: 'water_interventions' | 'sanitation_interventions') => {
+    const iv = inputs[section] || {};
+    return (<>
+        <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b' }}>
+          Add a one-time or recurring amount independently of the GDP target and annual growth.
+        </div>
         <F label="Funding amount" value={iv.fin_injection_amount} onChange={v => u(section, 'fin_injection_amount', Math.max(0, v))}
           unit={`${CUR} mn`} tip="Absolute additional funding in local-currency millions." />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
@@ -327,7 +335,6 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           onChange={v => u(section, 'fin_injection_start_year', v)} />
         {iv.fin_injection_mode === 'recurring' &&
           <F label="End year" value={iv.fin_injection_end_year} onChange={v => u(section, 'fin_injection_end_year', v)} />}
-      </>)}
     </>);
   };
 
@@ -388,6 +395,9 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
 
           <InterventionToggle label="Increase in Financial Commitments" checked={inputs.toggles?.ws_financial_commitment_enabled ?? false} onChange={v => toggleIntv('ws_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('ws_financial_commitment')}>
             {financialFields('water_interventions')}
+          </InterventionToggle>
+          <InterventionToggle label="Exogenous Injection of Funds" checked={inputs.toggles?.ws_exogenous_injection_enabled ?? false} onChange={v => toggleIntv('ws_exogenous_injection_enabled', v)} onFocus={() => onSectionFocus?.('ws_exogenous_injection')}>
+            {injectionFields('water_interventions')}
           </InterventionToggle>
 
           <InterventionToggle label="Collection efficiency" checked={inputs.toggles?.ws_collection_efficiency_enabled ?? false} onChange={v => toggleIntv('ws_collection_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('ws_ce')}>
@@ -478,6 +488,9 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
 
           <InterventionToggle label="Increase in Financial Commitments" checked={inputs.toggles?.san_financial_commitment_enabled ?? false} onChange={v => toggleIntv('san_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('san_financial_commitment')}>
             {financialFields('sanitation_interventions')}
+          </InterventionToggle>
+          <InterventionToggle label="Exogenous Injection of Funds" checked={inputs.toggles?.san_exogenous_injection_enabled ?? false} onChange={v => toggleIntv('san_exogenous_injection_enabled', v)} onFocus={() => onSectionFocus?.('san_exogenous_injection')}>
+            {injectionFields('sanitation_interventions')}
           </InterventionToggle>
 
           <InterventionToggle label="Collection efficiency" checked={inputs.toggles?.san_collection_efficiency_enabled ?? false} onChange={v => toggleIntv('san_collection_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('san_ce')}>

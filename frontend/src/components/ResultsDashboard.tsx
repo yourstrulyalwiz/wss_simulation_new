@@ -35,6 +35,7 @@ const sumRange = (arr: number[], years: number[], lo: number, hi: number) =>
 type IntvDef = { key: string; label: string; resourceKey?: string; color: string };
 const WATER_INTV: IntvDef[] = [
   { key: 'ws_financial_commitment_enabled', label: 'Increase in Financial Commitments', resourceKey: 'scenario_financial_commitment_cash', color: P.financial },
+  { key: 'ws_exogenous_injection_enabled', label: 'Exogenous Injection of Funds', resourceKey: 'scenario_exogenous_injection_cash', color: P.injection },
   { key: 'ws_collection_efficiency_enabled', label: 'Increased collection efficiency', resourceKey: 'scenario_collection_cash', color: P.collection },
   { key: 'ws_nrw_enabled', label: 'NRW reduction', resourceKey: 'scenario_nrw_net', color: P.nrw },
   { key: 'ws_capital_efficiency_enabled', label: 'Budget execution improvement', color: P.budgetExec },
@@ -45,6 +46,7 @@ const WATER_INTV: IntvDef[] = [
 ];
 const SAN_INTV: IntvDef[] = [
   { key: 'san_financial_commitment_enabled', label: 'Increase in Financial Commitments', resourceKey: 'scenario_financial_commitment_cash', color: P.financial },
+  { key: 'san_exogenous_injection_enabled', label: 'Exogenous Injection of Funds', resourceKey: 'scenario_exogenous_injection_cash', color: P.injection },
   { key: 'san_collection_efficiency_enabled', label: 'Increased collection efficiency', resourceKey: 'scenario_collection_cash', color: P.collection },
   { key: 'san_capital_efficiency_enabled', label: 'Budget execution improvement', color: P.budgetExec },
   { key: 'san_costeff_enabled', label: 'Capex efficiency (unit cost)', color: P.capex },

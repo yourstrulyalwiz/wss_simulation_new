@@ -17,6 +17,20 @@ function BAUChartPair(props: { inputsList: any[]; sector: 'water' | 'sanitation'
   );
 }
 
+// Older saved sessions/profiles kept injection as an option under the financial master switch.
+// Give each area an independent switch without altering settings that already use the new one.
+function migrateInjectionToggle(area: any) {
+  if (!area) return area;
+  const toggles = { ...(area.toggles || {}) };
+  for (const [prefix, section] of [['ws', 'water_interventions'], ['san', 'sanitation_interventions']]) {
+    const key = `${prefix}_exogenous_injection_enabled`;
+    if (!(key in toggles)) {
+      toggles[key] = !!(toggles[`${prefix}_financial_commitment_enabled`] && area[section]?.fin_injection_enabled);
+    }
+  }
+  return { ...area, toggles };
+}
+
 export default function App() {
   const [inputs, setInputs] = useState<any>(null);
   const [activeTab, setActiveTab] = useState(0);
@@ -51,18 +65,25 @@ export default function App() {
     let session: any = null;
     try { session = JSON.parse(localStorage.getItem('wss_working_bundle') || 'null'); } catch { /* corrupt — ignore */ }
     if (session?.inputs) {
-      setAltInputs(session.altInputs || {});
+      setAltInputs(Object.fromEntries(Object.entries(session.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])));
       const sc = session.scope || {};
       if (sc.scopeMode) setScopeMode(sc.scopeMode);
       if (typeof sc.areaUrban === 'boolean') setAreaUrban(sc.areaUrban);
       if (typeof sc.areaRural === 'boolean') setAreaRural(sc.areaRural);
-      setInputs(session.inputs);
+      setInputs(migrateInjectionToggle(session.inputs));
     } else {
-      fetchDefaults().then(setInputs).catch(() => {});
+      fetchDefaults().then(v => setInputs(migrateInjectionToggle(v))).catch(() => {});
     }
     refreshProfiles();
     const saved = localStorage.getItem('wss_demo_scenarios');
-    if (saved) setScenarios(JSON.parse(saved));
+    if (saved) {
+      try { setScenarios(JSON.parse(saved).map((sc: any) => ({
+        ...sc, inputs: isBundle(sc.inputs) ? {
+          ...sc.inputs, inputs: migrateInjectionToggle(sc.inputs.inputs),
+          altInputs: Object.fromEntries(Object.entries(sc.inputs.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])),
+        } : migrateInjectionToggle(sc.inputs),
+      }))); } catch { /* corrupt saved scenarios — ignore */ }
+    }
   }, []);
 
   const resizeMacroArrays = useCallback((inp: any) => {
@@ -85,7 +106,7 @@ export default function App() {
   }, []);
 
   const handleSetInputs = useCallback((newInputs: any) => {
-    setInputs(resizeMacroArrays(newInputs));
+    setInputs(resizeMacroArrays(migrateInjectionToggle(newInputs)));
   }, [resizeMacroArrays]);
 
   // ── Area bundle ────────────────────────────────────────────────────────────────────────────────
@@ -119,7 +140,7 @@ export default function App() {
       handleSetInputs(obj);
       return;
     }
-    setAltInputs(obj.altInputs || {});
+    setAltInputs(Object.fromEntries(Object.entries(obj.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])));
     const sc = obj.scope || {};
     if (sc.scopeMode) setScopeMode(sc.scopeMode);
     if (typeof sc.areaUrban === 'boolean') setAreaUrban(sc.areaUrban);

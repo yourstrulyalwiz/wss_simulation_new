@@ -238,9 +238,11 @@ def frontend_defaults() -> dict:
         'toggles': {k: False for k in [
             'ws_collection_efficiency_enabled','ws_nrw_enabled','ws_capital_efficiency_enabled','ws_tariff_enabled',
             'ws_microfinance_enabled','ws_costeff_enabled','ws_techmix_enabled',
+            'ws_financial_commitment_enabled','ws_exogenous_injection_enabled',
             'san_collection_efficiency_enabled',
             'san_capital_efficiency_enabled','san_tariff_enabled','san_microfinance_enabled',
-            'san_costeff_enabled','san_techmix_enabled','san_nrw_link_enabled']},
+            'san_costeff_enabled','san_techmix_enabled','san_nrw_link_enabled',
+            'san_financial_commitment_enabled','san_exogenous_injection_enabled']},
         # Income distribution (5 brackets) shared by both sectors' microfinance + means-based grant lever.
         'income_distribution': {'brackets': [dict(b) for b in _INCOME_BRACKETS_DEFAULT]},
         'custom_interventions': [],
@@ -353,6 +355,17 @@ def _techmix_cost(iv: dict, costs: dict, mix_key: str = 'techmix_sm_tech_mix') -
     return float(w) * float(idx) / 100.0
 
 
+def financial_toggles(inputs: dict) -> dict:
+    """Return toggles with pre-split injection settings migrated before attribution or calculation."""
+    tg = dict(inputs.get('toggles') or {})
+    for prefix, section in [('ws', 'water_interventions'), ('san', 'sanitation_interventions')]:
+        key = f'{prefix}_exogenous_injection_enabled'
+        if key not in tg:
+            tg[key] = bool(tg.get(f'{prefix}_financial_commitment_enabled') and
+                           (inputs.get(section) or {}).get('fin_injection_enabled', False))
+    return tg
+
+
 def coerce_to_engine(inputs: dict) -> ModelInputs:
     """Accept EITHER shape and return a ModelInputs.
 
@@ -361,6 +374,7 @@ def coerce_to_engine(inputs: dict) -> ModelInputs:
     (budget under macro.*, water_costs.network_cost_per_hh_*, water_service.serv1_ts,
     macro.inflation_nepal). Frontend markers are checked FIRST so demo-side additions (e.g. the
     tech-mix calculator fields) can never flip a demo payload into the engine path."""
+    inputs = {**inputs, 'toggles': financial_toggles(inputs)}
     macro = inputs.get('macro') or {}
     ws = inputs.get('water_service') or {}
     if 'inflation_nepal' in macro or 'serv1_ts' in ws:
@@ -392,7 +406,7 @@ def _afford_fields(d: dict) -> dict:
 
 
 def _financial_fields(d: dict) -> dict:
-    """Frontend financial-commitment settings shared by both sectors."""
+    """Frontend commitment and separately switched injection settings shared by both sectors."""
     return dict(
         fin_gdp_enabled=bool(d.get('fin_gdp_enabled', False)),
         fin_gdp_start_year=int(d.get('fin_gdp_start_year', 0) or 0),
@@ -614,7 +628,7 @@ def to_engine(fe: dict) -> ModelInputs:
     )
     # Intervention toggles: forward the frontend's on/off flags (only keys the engine schema knows;
     # the two-pass compare sends all-off for the BAU baseline and the user's selection for the scenario).
-    tg = fe.get('toggles', {}) or {}
+    tg = financial_toggles(fe)
     # Some frontend toggle keys use a shorter alias than the engine field (the UI's "Collection efficiency"
     # historically keyed *_collection_enabled); map them onto the engine's *_collection_efficiency_enabled.
     _toggle_alias = {'ws_collection_enabled': 'ws_collection_efficiency_enabled',

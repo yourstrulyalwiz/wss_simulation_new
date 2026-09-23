@@ -30,6 +30,7 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
     san_tariff_on = bool(getattr(tog, 'san_tariff_enabled', False)) if tog is not None else False
     san_mf_on = bool(getattr(tog, 'san_microfinance_enabled', False)) if tog is not None else False
     san_financial_on = bool(getattr(tog, 'san_financial_commitment_enabled', False)) if tog is not None else False
+    san_injection_on = bool(getattr(tog, 'san_exogenous_injection_enabled', False)) if tog is not None else False
     # Cost-side levers (test2): capex efficiency (unit-cost discount) + optimised technology selection →
     # per-year SM cost factor. Gated by their toggles, so the BAU pass keeps cost_factor = 1.0.
     san_costeff_on = bool(getattr(tog, 'san_costeff_enabled', False)) if tog is not None else False
@@ -106,6 +107,7 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
         cost_factor_basic=cost_factor_basic * cust_cf,
         basic_share=float(getattr(si, 'basic_share', 0.0) or 0.0),
         financial_enabled=san_financial_on,
+        injection_enabled=san_injection_on,
         financial_settings={
             'gdp_enabled': si.fin_gdp_enabled, 'gdp_start_year': si.fin_gdp_start_year,
             'gdp_target_share': si.fin_gdp_target_share,

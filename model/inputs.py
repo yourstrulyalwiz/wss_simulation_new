@@ -316,7 +316,8 @@ class TechnicalInputs(BaseModel):
 # Water supply interventions  (contract #113-#142)
 # ──────────────────────────────────────────────────────────────────────────
 class WaterInterventionInputs(BaseModel):
-    # Increase in Financial Commitments. Each sub-option is independent and additive. The GDP value is
+    # Financial commitments and injection share settings but have independent intervention switches.
+    # The GDP value is
     # the TARGET total sector-spending share (not an uplift); only the positive difference above BAU is added.
     fin_gdp_enabled: bool = False
     fin_gdp_start_year: int = 2026
@@ -441,7 +442,7 @@ class WaterInterventionInputs(BaseModel):
 # Sanitation interventions  (contract #143-#160)
 # ──────────────────────────────────────────────────────────────────────────
 class SanitationInterventionInputs(BaseModel):
-    # Increase in Financial Commitments — same additive mechanics and units as water.
+    # Financial commitments and injection — same independent mechanics and units as water.
     fin_gdp_enabled: bool = False
     fin_gdp_start_year: int = 2026
     fin_gdp_target_share: float = 0.0
@@ -605,6 +606,7 @@ class InterventionToggles(BaseModel):
     # (`grant_total` buys the loan down for HH who can't service it). No separate self-finance/grant toggles.
     ws_microfinance_enabled: bool = True
     ws_financial_commitment_enabled: bool = False
+    ws_exogenous_injection_enabled: bool = False
     # Sanitation
     san_collection_efficiency_enabled: bool = True
     san_capital_efficiency_enabled: bool = True
@@ -616,6 +618,7 @@ class InterventionToggles(BaseModel):
     # NRW-linked sanitation revenue (needs the water NRW lever on to have any recovered volume to charge for).
     san_nrw_link_enabled: bool = False
     san_financial_commitment_enabled: bool = False
+    san_exogenous_injection_enabled: bool = False
 
 
 # ──────────────────────────────────────────────────────────────────────────

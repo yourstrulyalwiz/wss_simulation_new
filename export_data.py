@@ -12,12 +12,13 @@ import copy
 import math
 import base64
 
-from demo_adapter import coerce_to_engine
+from demo_adapter import coerce_to_engine, financial_toggles
 from model.engine import calculate
 
 # key → (label, resource cash stream or None), in the same cumulative order the dashboard uses.
 WATER_INTV = [
     ('ws_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash'),
+    ('ws_exogenous_injection_enabled', 'Exogenous Injection of Funds', 'scenario_exogenous_injection_cash'),
     ('ws_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash'),
     ('ws_nrw_enabled', 'NRW reduction', 'scenario_nrw_net'),
     ('ws_capital_efficiency_enabled', 'Budget execution improvement', None),
@@ -28,6 +29,7 @@ WATER_INTV = [
 ]
 SAN_INTV = [
     ('san_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash'),
+    ('san_exogenous_injection_enabled', 'Exogenous Injection of Funds', 'scenario_exogenous_injection_cash'),
     ('san_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash'),
     ('san_capital_efficiency_enabled', 'Budget execution improvement', None),
     ('san_costeff_enabled', 'Capex efficiency (unit cost)', None),
@@ -95,7 +97,7 @@ def _run(inputs, toggles):
 
 def intervention_breakdown(inputs, sector_key, defs):
     """[(label, added_hh_millions, resources_billions_or_None, gap_closed_billions), …] for enabled levers."""
-    toggles = dict(inputs.get('toggles') or {})
+    toggles = financial_toggles(inputs)
     enabled = [d for d in defs if toggles.get(d[0])]
     if not enabled:
         return []

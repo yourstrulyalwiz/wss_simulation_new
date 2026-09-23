@@ -925,6 +925,13 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'cost_sm_t': cost_sm_t.tolist(),
         'bau_hh': bau.tolist(),
         'target_hh': tgt.tolist(),
+        # Reference for the GDP-target commitment input. This is the baseline
+        # share of the TOTAL-spending series the commitment compares against,
+        # not the capex budget (which can be cost-derived in from_cost mode).
+        'baseline_bau_total_spending_share': (
+            float(full_budget_in[bi] / ctx['gdp_real_local'][bi])
+            if ctx['gdp_real_local'][bi] > 0 else None
+        ),
         'opening_stock': opening_stock,
         'household_gap': hh_gap.tolist(),
         'household_gap_basic': hh_gap_basic.tolist(),

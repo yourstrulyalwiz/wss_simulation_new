@@ -286,6 +286,9 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
 
   const financialFields = (section: 'water_interventions' | 'sanitation_interventions') => {
     const iv = inputs[section] || {};
+    const sectorResult = section === 'water_interventions' ? results?.water_supply : results?.sanitation;
+    const baselineShare = sectorResult?.baseline_bau_total_spending_share;
+    const baselineYear = inputs?.period?.baseline_year;
     const option = (field: string, label: string, fields: React.ReactNode) => (
       <div style={{ gridColumn: '1 / -1', border: '1px solid #dbeafe', borderRadius: 6, padding: 10, background: '#f8fbff' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 650, color: '#1e3a5f' }}>
@@ -297,6 +300,17 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
       </div>
     );
     return (<>
+      <div style={{ gridColumn: '1 / -1', border: '1px solid #dbeafe', background: '#f8fbff',
+        borderRadius: 6, padding: '10px 12px', fontSize: 12, color: '#1e3a5f' }}>
+        <span style={{ fontWeight: 700 }}>Baseline BAU total spending share{baselineYear ? ` (${baselineYear})` : ''}: </span>
+        <strong>{typeof baselineShare === 'number' && Number.isFinite(baselineShare)
+          ? `${(baselineShare * 100).toFixed(4)}% of GDP`
+          : 'Unavailable — check baseline real GDP'}</strong>
+        <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 4, lineHeight: 1.4 }}>
+          Reference only: baseline BAU total sector spending ÷ baseline real GDP, before the capex share and
+          execution rate. The target is compared with each forecast year’s BAU total spending, not this fixed share.
+        </div>
+      </div>
       <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b' }}>
         Select either or both options. Enabled options overlap additively and apply only to the intervention scenario.
       </div>

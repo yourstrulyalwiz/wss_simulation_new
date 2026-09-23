@@ -10,3 +10,9 @@ All added commitments are full-spending amounts and become capital available for
 **Why:** This prevents double-counting BAU, keeps the intervention economically consistent across budget modes, preserves the agreed distinction between pledged spending and effective capital, and lets users identify injections separately from spending commitments.
 
 **How to apply:** Use these rules for calculations, attribution, and exports in both water supply and sanitation. Keep sector and geographic-area settings independent. When reading old saved inputs, migrate an enabled injection before constructing cumulative attribution passes; otherwise the injection can be counted under commitments instead.
+
+When comparing levers, independently additive *capital* does not imply additive standalone household or gap effects. Cumulative marginal attribution depends on intervention order; a commitment can already exhaust the available gap or eligible households before an injection is measured. Keep the two cash sources visible even when the later one's marginal outcome is zero, and never infer lost funding from a missing outcome band.
+
+**Why:** A user mistook an injection's zero marginal chart band after a large commitment for an overwritten injection, although the combined scenario retained both cash streams.
+
+**How to apply:** In charts, tables, and exports, label outcome bands as conditional marginal effects and display the independent cash totals alongside them. Do not sum standalone outcome effects as if they were guaranteed to equal the combined scenario.

@@ -69,7 +69,10 @@ def per_year_table(result, inputs, sector_key):
         'BAU safely-managed (M HH)', 'Target safely-managed (M HH)', 'With-interventions safely-managed (M HH)',
         'Service gap (M HH)',
         f'Investment need ({cur} M)', f'BAU investment ({cur} M)',
-        f'Financing gap — BAU ({cur} M)', f'Financing gap — with interventions ({cur} M)',
+        f'Financing gap — BAU sector-wide ({cur} M)',
+        f'Financing gap — BAU safely-managed ({cur} M)',
+        f'Financing gap — BAU basic ({cur} M)',
+        f'Financing gap — with interventions ({cur} M)',
     ]
     rows = []
     for i, y in enumerate(years):
@@ -82,6 +85,8 @@ def per_year_table(result, inputs, sector_key):
             round(g('total_investment_need', i, rung0=False), 4),
             round(g('bau_available', i, rung0=False), 4),
             round(g('financing_gap', i, rung0=False), 4),
+            round(g('financing_gap_by_service', i), 4),
+            round((sec.get('financing_gap_by_service') or [[], []])[1][i], 4) if sec.get('financing_gap_by_service') else 0.0,
             round(g('scenario_financing_gap', i, rung0=False), 4),
         ])
     return headers, rows

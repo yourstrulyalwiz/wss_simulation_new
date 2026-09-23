@@ -16,6 +16,8 @@ That already produces a distinct sanitation BAU; the sanitation-specific diverge
 
 import numpy as np
 
+from model.gap_attribution import attribute_gap
+
 RUNGS = ["Safely managed", "Basic", "Limited", "Unimproved", "No Service"]
 LOWER = [2, 3, 4]   # Limited, Unimproved, No Service
 
@@ -628,6 +630,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
 
     # 4c — opening asset stock (booked at the baseline year)
     opening_stock = (bau[0, bi] * cost_sm + bau[1, bi] * cost_basic) * (1.0 + nonhh_mult)
+    opening_sm = bau[0, bi] * cost_sm * (1.0 + nonhh_mult)
 
     # BAU forecast (4a), targets (4b) and investment need (4d) are computed together in ONE forward
     # pass, because the BAU additional safely-managed HH depend on the BAU replacement capex:
@@ -640,6 +643,13 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     tgt_unadj = np.zeros((5, n)); tgt = np.zeros((5, n))
     hh_gap = np.zeros(n); hh_gap_basic = np.zeros(n); new_capex_total = np.zeros(n); stock = np.zeros(n)
     replacement = np.zeros(n); total_need = np.zeros(n); financing_gap = np.zeros(n)
+    # These are target-need accounting ledgers. They do not alter the BAU stock
+    # used to project household connections or the existing sector-wide figures.
+    need_stock_by_service = np.zeros((2, n))
+    new_capex_by_service = np.zeros((2, n))
+    replacement_by_service = np.zeros((2, n))
+    funded_by_service = np.zeros((2, n))
+    financing_gap_by_service = np.zeros((2, n))
     # BAU's OWN asset stock + its depreciation, kept SEPARATE from `stock` (which accumulates the
     # target-gap capex nc_total). The BAU 4a replacement depreciates THIS, so the BAU counterfactual
     # never depends on the target path — this fixes the cross-scenario circularity.
@@ -660,6 +670,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         tgt_unadj[:, t] = bau[:, t]; tgt[:, t] = bau[:, t]
         booked = opening_stock if years[t] == by else 0.0
         stock[t] = booked + (stock[t - 1] if t > 0 else 0.0)
+        need_stock_by_service[0, t] = opening_sm if years[t] == by else 0.0
+        need_stock_by_service[1, t] = opening_stock - opening_sm if years[t] == by else 0.0
         bau_stock[t] = booked + (bau_stock[t - 1] if t > 0 else 0.0)
 
     unadj = [bau[r, bi] for r in range(5)]                              # forecast SM accumulates on the baseline count
@@ -675,6 +687,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # Depreciation starts the FIRST forecast year (baseline+1, e.g. 2026), matching excel2 — which
         # depreciates the existing stock from baseline+1, NOT the later performance-improvement year (2028).
         replacement[t] = prior_stock * depr if ff > 0 else 0.0        # TARGET-stock depreciation → 4d only
+        replacement_by_service[0, t] = need_stock_by_service[0, t - 1] * depr if ff > 0 else 0.0
+        replacement_by_service[1, t] = replacement[t] - replacement_by_service[0, t]
         # 4a — additional safely-managed HH funded by (BAU investment − replacement), household share only.
         # BAU replacement depreciates the BAU's OWN stock (baseline existing stock + BAU's own additions),
         # NOT the target-gap stock — so the BAU counterfactual is independent of the target path.
@@ -845,11 +859,28 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         nc_hh = ((gap * cost_sm_t[t] + gap_b * cost_basic_t[t] + capex_adder)
                  if (gap > 0 or gap_b > 0) else 0.0)
         nc_total = nc_hh * (1.0 + nonhh_mult); new_capex_total[t] = nc_total
+        # Distribute the shared capex adder in proportion to the two directly
+        # priced shortfalls; apply the same non-household multiplier to each.
+        sm_direct, basic_direct = gap * cost_sm_t[t], gap_b * cost_basic_t[t]
+        direct = sm_direct + basic_direct
+        new_capex_by_service[0, t] = (sm_direct + capex_adder * sm_direct / direct) * (1.0 + nonhh_mult) if direct > 0 else 0.0
+        new_capex_by_service[1, t] = nc_total - new_capex_by_service[0, t]
         booked = opening_stock if years[t] == by else 0.0
         stock[t] = booked + prior_stock + nc_total
+        need_stock_by_service[0, t] = need_stock_by_service[0, t - 1] + new_capex_by_service[0, t]
+        need_stock_by_service[1, t] = stock[t] - need_stock_by_service[0, t]
         total_need[t] = (nc_total + replacement[t]) if (ff > 0 or pf > 0) else 0.0
         shortfall = total_need[t] - avail          # collection-efficiency cash reduces the financing gap
         financing_gap[t] = shortfall if ((ff > 0 or pf > 0) and shortfall > 0) else 0.0
+        if ff > 0 or pf > 0:
+            sm_gap, basic_gap, sm_paid, basic_paid = attribute_gap(
+                new_capex_by_service[0, t], new_capex_by_service[1, t],
+                replacement_by_service[0, t], replacement_by_service[1, t],
+                avail, basic_share)
+            financing_gap_by_service[0, t] = sm_gap
+            financing_gap_by_service[1, t] = basic_gap
+            funded_by_service[0, t] = sm_paid
+            funded_by_service[1, t] = basic_paid
 
     # Affordability lever running totals (cumulative over the forecast).
     selffin_upgrade_cum = np.cumsum(selffin_flow)
@@ -898,10 +929,14 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'household_gap': hh_gap.tolist(),
         'household_gap_basic': hh_gap_basic.tolist(),
         'new_capex_total': new_capex_total.tolist(),
+        'new_capex_by_service': new_capex_by_service.tolist(),
         'replacement_capex': replacement.tolist(),
+        'replacement_by_service': replacement_by_service.tolist(),
         'bau_replacement_capex': bau_replacement.tolist(),
         'total_investment_need': total_need.tolist(),
         'financing_gap': financing_gap.tolist(),
+        'funded_by_service': funded_by_service.tolist(),
+        'financing_gap_by_service': financing_gap_by_service.tolist(),
     }
 
 

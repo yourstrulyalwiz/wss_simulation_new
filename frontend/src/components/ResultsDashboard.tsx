@@ -14,7 +14,6 @@ import { captureImage } from './exportUtils';
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
 function round3(v: number): number { return (!isFinite(v) || v === 0) ? 0 : Number(v.toPrecision(3)); }
 function sig3(v: number): string { return round3(v).toLocaleString('en-US', { maximumFractionDigits: 2 }); }
-function sigMoney(v: number): string { return round3(v).toLocaleString('en-US', { maximumFractionDigits: 9 }); }
 // Money is carried in MILLIONS; show as BILLIONS (÷1000) so a 254,000 M gap reads "254 B".
 function sigB(vMillions: number): string { return sig3(vMillions / 1000); }
 
@@ -68,7 +67,7 @@ interface Props {
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
 type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number } };
 type Both = { water: Series; sanitation: Series } | null;
-type Row = { key: string; label: string; addHH: number; resources: number | null; gapReduction: number };
+type Row = { key: string; label: string; addHH: number; resources: number | null };
 
 // Per-intervention stacked breakdown for a sector. covRows/gapRows are per-year rows keyed by each band's
 // label (plus reserved keys __bau/__total/__target for coverage and __remain for the gap). `bands` lists the
@@ -191,13 +190,11 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // ── Fan charts: BAU vs the user's full designed scenario (interventions + customs) ──────────────
   useEffect(() => {
     if (!datasets.length || !datasets[0]) return;
-    let cancelled = false;
     const h = setTimeout(() => {
       Promise.all(datasets.map((inp: any) =>
         fetch('/api/calculate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inp) })
           .then(r => { if (!r.ok) throw new Error('calc failed (' + r.status + ')'); return r.json(); })
       )).then(resList => {
-        if (cancelled) return;
         const years: number[] = resList[0].years;
         const per = datasets[0]?.period || {};
         const baseYr = per.baseline_year ?? years[0];
@@ -243,9 +240,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         };
         setBoth({ water: build('water_supply'), sanitation: build('sanitation') });
         setError(null);
-      }).catch(e => { if (!cancelled) setError(String(e)); });
+      }).catch(e => setError(String(e)));
     }, 350);
-    return () => { cancelled = true; clearTimeout(h); };
+    return () => clearTimeout(h);
   }, [depKey]);
 
   // ── Per-intervention breakdown: cumulative passes over the ENABLED built-in toggles isolate each lever's
@@ -255,27 +252,18 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   //    at the true with-interventions scenario (shown as a single "Custom interventions" band). ───────────
   useEffect(() => {
     if (!datasets.length || !datasets[0]) { setTable(null); setContrib(null); return; }
-    const active = (key: string) => datasets.some((inp: any) => !!inp?.toggles?.[key]);
-    const enW = WATER_INTV.filter(d => active(d.key));
-    const enS = SAN_INTV.filter(d => active(d.key));
+    const enW = WATER_INTV.filter(d => toggles[d.key]);
+    const enS = SAN_INTV.filter(d => toggles[d.key]);
     const enabled = [...enW, ...enS];                              // global cumulative order (water then san)
     const hasCustoms = datasets.some((inp: any) => (inp.custom_interventions || []).some((c: any) => c && c.enabled !== false));
-    let cancelled = false;
     const h = setTimeout(() => {
-      // Keep a separate set of switches per dataset. National is the sum of Urban and Rural,
-      // whose enabled levers need not match; replacing both with the primary area's switches
-      // made the chart/table differ from the full-scenario headline.
-      let acc: any[] = datasets.map((inp: any) => Object.fromEntries(
-        Object.keys(inp?.toggles || {}).map(k => [k, false])));
-      const sets: any[][] = [acc.map(tg => ({ ...tg }))];           // pass 0 = BAU
-      enabled.forEach(d => {
-        acc = acc.map((tg, i) => ({ ...tg, [d.key]: !!datasets[i]?.toggles?.[d.key] }));
-        sets.push(acc.map(tg => ({ ...tg })));
-      });
-      const fetchPass = (tg: any[], useCustoms: boolean) => Promise.all(datasets.map((inp: any, i: number) =>
+      const off = Object.fromEntries(Object.keys(toggles).map(k => [k, false]));
+      const sets: any[] = [{ ...off }];                            // pass 0 = BAU (all off)
+      let acc: any = { ...off };
+      enabled.forEach(d => { acc = { ...acc, [d.key]: true }; sets.push({ ...acc }); });   // +1 pass per lever
+      const fetchPass = (tg: any, useCustoms: boolean) => Promise.all(datasets.map((inp: any) =>
         fetch('/api/calculate', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...inp, toggles: tg[i], custom_interventions: useCustoms ? (inp.custom_interventions || []) : [] }) })
-          .then(r => { if (!r.ok) throw new Error(`Calculation failed (${r.status})`); return r.json(); })));
+          body: JSON.stringify({ ...inp, toggles: tg, custom_interventions: useCustoms ? (inp.custom_interventions || []) : [] }) }).then(r => r.json())));
       const specs = sets.map(tg => ({ tg, customs: false }));
       if (hasCustoms) specs.push({ tg: acc, customs: true });      // final pass = all built-ins on + real customs
       Promise.all(specs.map(s => fetchPass(s.tg, s.customs))).then(passes => {   // passes[p] = results[] (one/dataset)
@@ -294,24 +282,24 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
 
         // ── stacked per-year series for one sector ──
         const buildContrib = (defs: IntvDef[], sk: string): ContribSeries => {
-          const en = defs.filter(d => active(d.key));
+          const en = defs.filter(d => toggles[d.key]);
           const covRows: any[] = [], gapRows: any[] = [];
           years.forEach((y, i) => {
-            const covRow: any = { year: y, __bau: +smY(passes[0], sk, i).toFixed(6), __total: +totY(i).toFixed(6), __target: +tgtY(sk, i).toFixed(6) };
+            const covRow: any = { year: y, __bau: +smY(passes[0], sk, i).toFixed(4), __total: +totY(i).toFixed(4), __target: +tgtY(sk, i).toFixed(4) };
             const bauGap = gapY(passes[0], sk, i);
             const gapRow: any = { year: y };
             let sumRed = 0;
             en.forEach(d => {
               const idx = idxOf(d);
-              covRow[d.label] = +Math.max(0, smY(passes[idx + 1], sk, i) - smY(passes[idx], sk, i)).toFixed(6);
+              covRow[d.label] = +Math.max(0, smY(passes[idx + 1], sk, i) - smY(passes[idx], sk, i)).toFixed(4);
               const red = Math.max(0, gapY(passes[idx], sk, i) - gapY(passes[idx + 1], sk, i));
-              gapRow[d.label] = +(red / 1000).toFixed(6);          // M → B
+              gapRow[d.label] = +(red / 1000).toFixed(4);          // M → B
               sumRed += red;
             });
             if (hasCustoms) {
-              covRow['Custom interventions'] = +Math.max(0, smY(passes[nBuiltin + 1], sk, i) - smY(passes[nBuiltin], sk, i)).toFixed(6);
+              covRow['Custom interventions'] = +Math.max(0, smY(passes[nBuiltin + 1], sk, i) - smY(passes[nBuiltin], sk, i)).toFixed(4);
               const redC = Math.max(0, gapY(passes[nBuiltin], sk, i) - gapY(passes[nBuiltin + 1], sk, i));
-              gapRow['Custom interventions'] = +(redC / 1000).toFixed(6);
+              gapRow['Custom interventions'] = +(redC / 1000).toFixed(4);
               sumRed += redC;
             }
             gapRow.__remain = +(Math.max(0, bauGap - sumRed) / 1000).toFixed(4);   // remaining gap (kept for exports)
@@ -321,30 +309,27 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const all: ContribBand[] = en.map(d => ({ key: d.label, label: d.label, color: d.color }));
           if (hasCustoms) all.push({ key: 'Custom interventions', label: 'Custom interventions', color: P.custom });
           // keep only bands that actually move either chart (an enabled-but-unparameterised lever adds 0)
-          const bands = all.filter(b => covRows.some(r => (r[b.key] || 0) > 0) || gapRows.some(r => (r[b.key] || 0) > 0));
+          const bands = all.filter(b => covRows.some(r => (r[b.key] || 0) > 1e-4) || gapRows.some(r => (r[b.key] || 0) > 1e-4));
           return { covRows, gapRows, bands };
         };
-        if (cancelled) return;
         setContrib({ water: buildContrib(WATER_INTV, 'water_supply'), sanitation: buildContrib(SAN_INTV, 'sanitation') });
 
         // ── endline resources-and-households table (built-in levers only) ──
         if (!enabled.length) { setTable({ water: [], sanitation: [] }); return; }
         const smEnd = (rl: any[], sk: string) => smY(rl, sk, endIdx);
-        const rowsFor = (defs: IntvDef[], sk: string): Row[] => defs.filter(d => active(d.key)).map(d => {
+        const rowsFor = (defs: IntvDef[], sk: string): Row[] => defs.filter(d => toggles[d.key]).map(d => {
           const idx = idxOf(d);
           const after = passes[idx + 1], before = passes[idx];
           const addHH = Math.max(0, smEnd(after, sk) - smEnd(before, sk)) * 1000;      // millions HH → thousands
           const resources = d.resourceKey
             ? (cashCum(after, sk, d.resourceKey) - cashCum(before, sk, d.resourceKey)) / 1000               // M → B
             : null;
-          const gapReduction = years.reduce((sum, year, i) =>
-            sum + (year > baseYr ? gapY(before, sk, i) - gapY(after, sk, i) : 0), 0) / 1000;
-          return { key: d.key, label: d.label, addHH, resources, gapReduction };
+          return { key: d.key, label: d.label, addHH, resources };
         });
         setTable({ water: rowsFor(WATER_INTV, 'water_supply'), sanitation: rowsFor(SAN_INTV, 'sanitation') });
-      }).catch((err: any) => { if (!cancelled) { setError(String(err)); setTable(null); setContrib(null); } });
+      }).catch(() => { /* leave the previous view on a transient fetch error */ });
     }, 400);
-    return () => { cancelled = true; clearTimeout(h); };
+    return () => clearTimeout(h);
   }, [depKey, JSON.stringify(toggles)]);
 
   const isShare = unitMode === 'share';
@@ -386,40 +371,36 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     if (!rows || !rows.length) return null;
     const totRes = rows.reduce((a, r) => a + (r.resources || 0), 0);
     const totHH = rows.reduce((a, r) => a + (r.addHH || 0), 0);
-    const totGap = rows.reduce((a, r) => a + r.gapReduction, 0);
     const th: React.CSSProperties = { padding: '7px 12px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#0ea5e9', textAlign: 'right' };
     const td: React.CSSProperties = { padding: '6px 12px', fontSize: 11.5, borderBottom: '1px solid #eef2f7', textAlign: 'right' };
-    const exHeaders = ['Intervention', `Mobilised funds (${cur} B)`, hhCol, `Marginal gap reduction (${cur} B)`];
-    const exRows = [...rows.map(r => [r.label, r.resources == null ? 'n/a' : r.resources, r.addHH, r.gapReduction]), ['Total', totRes, totHH, totGap]];
+    const exHeaders = ['Intervention', `Resources generated (${cur} B)`, hhCol];
+    const exRows = [...rows.map(r => [r.label, r.resources == null ? 'n/a' : r.resources, r.addHH]), ['Total', totRes, totHH]];
     return (
       <div>
-       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4, maxWidth: 680 }}>
         <TableExport filename="contribution_by_intervention" sheetName="Interventions" headers={exHeaders} rows={exRows} compact />
       </div>
-       <div style={{ margin: '2px 0 4px', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 6 }}>
-         <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 600 }}>
+      <div style={{ margin: '2px 0 4px', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 6, maxWidth: 680 }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 420 }}>
           <thead>
             <tr>
               <th style={{ ...th, textAlign: 'left' }}>Intervention</th>
-               <th style={th}>Mobilised funds ({cur} B)</th>
+              <th style={th}>Resources generated ({cur} b)</th>
               <th style={th}>{hhCol}</th>
-               <th style={th}>Marginal gap reduction ({cur} B)</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
               <tr key={r.key} style={{ background: i % 2 ? '#f1f8fd' : '#fff' }}>
                 <td style={{ ...td, textAlign: 'left', color: '#334155' }}>{r.label}</td>
-                <td style={{ ...td, color: '#0369a1' }}>{r.resources == null ? 'n/a' : sigMoney(r.resources)}</td>
-                <td style={{ ...td, color: '#0369a1' }}>{sigMoney(r.addHH)}</td>
-                <td style={{ ...td, color: '#0369a1' }}>{sigMoney(r.gapReduction)}</td>
+                <td style={{ ...td, color: '#0369a1' }}>{r.resources == null ? 'n/a' : sig3(r.resources)}</td>
+                <td style={{ ...td, color: '#0369a1' }}>{sig3(r.addHH)}</td>
               </tr>
             ))}
             <tr style={{ background: '#dff1fb', fontWeight: 700 }}>
               <td style={{ ...td, textAlign: 'left', color: '#1e3a5f', borderBottom: 'none' }}>Total</td>
-              <td style={{ ...td, color: '#1e3a5f', borderBottom: 'none' }}>{sigMoney(totRes)}</td>
-              <td style={{ ...td, color: '#1e3a5f', borderBottom: 'none' }}>{sigMoney(totHH)}</td>
-              <td style={{ ...td, color: '#1e3a5f', borderBottom: 'none' }}>{sigMoney(totGap)}</td>
+              <td style={{ ...td, color: '#1e3a5f', borderBottom: 'none' }}>{sig3(totRes)}</td>
+              <td style={{ ...td, color: '#1e3a5f', borderBottom: 'none' }}>{sig3(totHH)}</td>
             </tr>
           </tbody>
         </table>
@@ -552,10 +533,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     // that line is the gap still remaining to reach the fully-financed target.
     const gapLines = [{ key: '__bau_gap', name: 'Total financing gap (BAU) — target to close', color: C.gap, dash: '6 3', width: 2 }];
     const noImpact = s.sum.addHH < 1e-4 && Math.abs(s.sum.gapBauCum - s.sum.gapScnCum) < 1e-4;
-    const hasActive = datasets.some((inp: any) =>
-      (secKey === 'water' ? WATER_INTV : SAN_INTV).some(d => !!inp?.toggles?.[d.key]));
     const rows = secKey === 'water' ? table?.water : table?.sanitation;
-    const fundingRows = (rows || []).filter(r => r.key.endsWith('_financial_commitment_enabled') || r.key.endsWith('_exogenous_injection_enabled'));
     const hhCol = secKey === 'water' ? "Added HHs with treated, piped (HHs '000)" : "Added safely-managed HHs (HHs '000)";
     return (
       <div key={secKey} style={{ marginBottom: 26 }}>
@@ -568,8 +546,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         </div>
         {noImpact && (
           <div style={{ fontSize: 10.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '5px 9px', marginBottom: 10 }}>
-            {hasActive ? 'The enabled interventions have no additional measured outcome under these settings; any added funding remains in the cash totals below.' :
-              `No interventions are active for ${label.toLowerCase()}. Toggle some on above to break down the impact by intervention.`}
+            No interventions are active for {label.toLowerCase()}. Toggle some on above to break down the impact by intervention.
           </div>
         )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 8 }}>
@@ -582,18 +559,6 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             bands={csBands} lines={gapLines} fmt={gapFmt}
             filename={`${scopeName}_${secKey}_financing_gap`} />
         </div>
-        {fundingRows.length > 0 && <div style={{ border: '1px solid #dbeafe', background: '#f8fbff', borderRadius: 6, padding: '8px 12px', marginBottom: 12, fontSize: 11, color: '#334155' }}>
-          <b>Added funding (independent streams)</b> · Cash adds together even when the later lever has no extra coverage or gap reduction after earlier levers.
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 5 }}>
-            {fundingRows.map(r => <div key={r.key}>
-              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: r.key.endsWith('_financial_commitment_enabled') ? P.financial : P.injection, marginRight: 5 }} />
-              {r.label}: <b>{sigMoney(r.resources || 0)} B {cur}</b> effective added capital
-              {r.resources != null && r.resources > 0 && Math.abs(r.addHH) < 0.001 && Math.abs(r.gapReduction) < 0.000001 &&
-                <span style={{ color: '#92400e' }}> · no further measured outcome after earlier levers</span>}
-            </div>)}
-            {fundingRows.length > 1 && <div><b>Combined: {sigMoney(fundingRows.reduce((a, r) => a + (r.resources || 0), 0))} B {cur}</b></div>}
-          </div>
-        </div>}
         {rows && rows.length > 0 && (
           <div style={{ marginTop: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f', marginBottom: 3 }}>Contribution by intervention (cumulative to {s.sum.endline})</div>
@@ -614,15 +579,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       <div style={{ fontSize: 11.5, fontWeight: 700, color: '#1e3a5f', marginBottom: 5 }}>{title}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         {defs.map(d => {
-          const on = datasets.some((inp: any) => !!inp?.toggles?.[d.key]);
-          const allOn = datasets.every((inp: any) => !!inp?.toggles?.[d.key]);
+          const on = !!toggles[d.key];
           return (
             <label key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, cursor: 'pointer',
               padding: '4px 8px', background: on ? '#eff6ff' : '#fff', border: `1px solid ${on ? '#bfdbfe' : '#e5e7eb'}`, borderRadius: 5 }}>
-               <input type="checkbox" checked={allOn} onChange={e => onToggle?.(d.key, e.target.checked)}
+              <input type="checkbox" checked={on} onChange={e => onToggle?.(d.key, e.target.checked)}
                 style={{ width: 15, height: 15, accentColor: '#2563eb' }} />
               <span style={{ color: on ? '#1e3a5f' : '#475569', fontWeight: on ? 600 : 400 }}>{d.label}</span>
-               {on && !allOn && <span style={{ fontSize: 10, color: '#475569' }}>(some areas)</span>}
             </label>
           );
         })}
@@ -636,7 +599,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         <div>
           <h2 style={{ fontSize: 17, color: '#1e3a5f', margin: 0 }}>Results — intervention impact (live)</h2>
           <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-            Coverage and gap bands show each lever's marginal effect after earlier levers; cash from commitments and injections adds independently even when a marginal band is zero.
+            The charts stack the BAU baseline with each enabled intervention's own contribution, so you can see how much every lever adds to coverage and closes the financing gap.
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -721,9 +684,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       {sectorBlock('sanitation')}
 
       <div style={{ fontSize: 10, color: '#94a3b8', marginTop: -6, marginBottom: 16 }}>
-        Table: “Mobilised funds” shows effective added capital for commitments and injections, and modelled finance
-        from revenue or loans for other levers. Cost-side and budget-execution levers show “n/a” because they stretch existing budget.
-        Added households and gap reduction are signed marginal results after earlier levers; a zero marginal result does not mean added cash was removed. Enabled custom
+        Table: “Resources generated” is the finance each lever mobilises (revenue collected, tariff income, recovered-water
+        value, sewer revenue, or loans) — cost-side and budget-execution levers show “n/a” as they stretch existing budget
+        rather than raise new money. “Added HHs” is each lever’s marginal safely-managed service. Enabled custom
         interventions appear as a single “Custom interventions” band on the charts above, but are not itemised in this table.
       </div>
 

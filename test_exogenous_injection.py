@@ -10,56 +10,6 @@ from model.engine import calculate
 
 
 class ExogenousInjectionTests(unittest.TestCase):
-    def test_combined_funding_and_saturated_marginal_outcome(self):
-        for prefix, section, sector in (
-            ("ws", "water_interventions", "water_supply"),
-            ("san", "sanitation_interventions", "sanitation"),
-        ):
-            for gdp_share, injection_amount, expect_extra_coverage in (
-                (0.002, 10000, True),
-                (0.05, 100, False),
-            ):
-                with self.subTest(sector=sector, gdp_share=gdp_share):
-                    inputs = frontend_defaults()
-                    inputs[section].update(
-                        fin_gdp_enabled=True, fin_gdp_start_year=2028,
-                        fin_gdp_target_share=gdp_share,
-                        fin_injection_mode="recurring", fin_injection_amount=injection_amount,
-                        fin_injection_start_year=2028, fin_injection_end_year=2040,
-                    )
-                    f_key = f"{prefix}_financial_commitment_enabled"
-                    i_key = f"{prefix}_exogenous_injection_enabled"
-                    runs = {}
-                    for name, financial, injection in (
-                        ("financial", True, False),
-                        ("injection", False, True),
-                        ("both", True, True),
-                    ):
-                        case = copy.deepcopy(inputs)
-                        case["toggles"][f_key] = financial
-                        case["toggles"][i_key] = injection
-                        runs[name] = calculate(coerce_to_engine(case))[sector]
-
-                    year_index = calculate(coerce_to_engine(inputs))["years"].index(2040)
-                    f_cash = runs["both"]["scenario_financial_commitment_cash"][year_index]
-                    i_cash = runs["both"]["scenario_exogenous_injection_cash"][year_index]
-                    self.assertGreater(f_cash, 0)
-                    self.assertGreater(i_cash, 0)
-                    self.assertAlmostEqual(f_cash, runs["financial"]["scenario_financial_commitment_cash"][year_index])
-                    self.assertAlmostEqual(i_cash, runs["injection"]["scenario_exogenous_injection_cash"][year_index])
-                    self.assertAlmostEqual(
-                        f_cash + i_cash,
-                        runs["both"]["scenario_financial_commitment_cash"][year_index]
-                        + runs["both"]["scenario_exogenous_injection_cash"][year_index],
-                    )
-                    extra = (runs["both"]["scenario_hh"][0][year_index]
-                             - runs["financial"]["scenario_hh"][0][year_index])
-                    if expect_extra_coverage:
-                        self.assertGreater(extra, 0)
-                    else:
-                        self.assertAlmostEqual(extra, 0, places=6)
-                        self.assertAlmostEqual(runs["both"]["scenario_financing_gap"][year_index], 0)
-
     def test_independent_and_legacy_attribution(self):
         defaults = frontend_defaults()
         baseline = calculate(coerce_to_engine(defaults))

@@ -182,6 +182,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         const bau = sum((res, i) => secOf(res).bau_hh[rung][i]);
         const tgt = sum((res, i) => secOf(res).target_hh[rung][i]);
         const finGapSeries = sum((res, i) => (secOf(res).financing_gap || [])[i] || 0);
+        const availableFinancing = sum((res, i) => (secOf(res).bau_available || [])[i] || 0);
         const rungSeries = (key: string) =>
           sum((res, i) => secOf(res)[key]?.[rung]?.[i] || 0);
         const serviceGap = rungSeries('financing_gap_by_service');
@@ -215,6 +216,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           const t = Math.min(tot, tgt[i]);
           const gapHH = Math.max(0, t - b);
           return { year: y, total: tot, bau: b, tgt: t, gapHH,
+            availableFinancing: availableFinancing[i],
             newNeed: serviceNewNeed[i], replacement: serviceReplacement[i],
             funded: serviceFunded[i], serviceGap: serviceGap[i], finGap: finGapSeries[i] ?? null };
         }).filter(Boolean) as any[];
@@ -352,12 +354,14 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   };
   // Forecast data table (per year) — for its own ⤓ CSV / ⤓ Excel.
   const tableHeaders = ['Year', 'Total households (M)', `${rungNameRaw} BAU (M)`, `Target ${rungLabel} (M)`, 'Service Gap (M HH)',
+    `BAU available financing (${endAnno?.cur || 'LCU'} M/yr)`,
     `${rungLabel} new-service need (${endAnno?.cur || 'LCU'} M/yr)`,
     `${rungLabel} replacement need (${endAnno?.cur || 'LCU'} M/yr)`,
     `${rungLabel} attributed funding (${endAnno?.cur || 'LCU'} M/yr)`,
     `${rungLabel} financing gap (${endAnno?.cur || 'LCU'} M/yr)`,
     `Sector-wide financing gap (${endAnno?.cur || 'LCU'} M/yr)`];
   const tableExportRows = tableRows.map((r: any) => [r.year, round3(r.total), round3(r.bau), round3(r.tgt), round3(r.gapHH),
+    round3(r.availableFinancing),
     round3(r.newNeed), round3(r.replacement), round3(r.funded), round3(r.serviceGap),
     r.finGap == null ? '' : round3(r.finGap)]);
 
@@ -558,7 +562,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
               {summary.costSM != null && <> Weighted {summary.rungLabel} cost per household: <b>{sig3(summary.costSM)} {cur}</b>.</>}
             </div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 5, lineHeight: 1.45 }}>
-              Service-level gaps are funding attributions, not percentages of the total gap: existing assets determine replacement needs; available funds cover replacement first, then the Data Inputs split directs new-service funding. Unused funding rolls to the other service level. The two attributed gaps add up to the sector-wide gap.
+              BAU available financing is the sector-wide effective capital before replacement, not funding for this service level alone. Service-level gaps are funding attributions, not percentages of the total gap: existing assets determine replacement needs; available funds cover replacement first, then the Data Inputs split directs new-service funding. Unused funding rolls to the other service level. The two attributed gaps add up to the sector-wide gap.
             </div>
           </div>
         );
@@ -667,6 +671,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
               <thead>
                 <tr style={{ background: '#f1f5f9', color: '#334155' }}>
                    {['Year', 'Total households (M)', `${rungNameRaw} — BAU (M)`, 'Target (M)', 'Service Gap (M HH)',
+                     `BAU available financing (B ${endAnno?.cur || 'LCU'}/yr)`,
                      `${rungLabel} new-service need (B ${endAnno?.cur || 'LCU'}/yr)`,
                      `${rungLabel} replacement need (B ${endAnno?.cur || 'LCU'}/yr)`,
                      `${rungLabel} attributed funding (B ${endAnno?.cur || 'LCU'}/yr)`,
@@ -684,6 +689,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
                     <td style={{ padding: '4px 10px', textAlign: 'right', color: C.bau }}>{sig3(r.bau)}</td>
                     <td style={{ padding: '4px 10px', textAlign: 'right', color: '#15803d' }}>{sig3(r.tgt)}</td>
                     <td style={{ padding: '4px 10px', textAlign: 'right', color: '#b45309', fontWeight: 600 }}>{sig3(r.gapHH)}</td>
+                    <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.availableFinancing)}</td>
                     <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.newNeed)}</td>
                     <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.replacement)}</td>
                     <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.funded)}</td>

@@ -643,6 +643,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     tgt_unadj = np.zeros((5, n)); tgt = np.zeros((5, n))
     hh_gap = np.zeros(n); hh_gap_basic = np.zeros(n); new_capex_total = np.zeros(n); stock = np.zeros(n)
     replacement = np.zeros(n); total_need = np.zeros(n); financing_gap = np.zeros(n)
+    available_total = np.zeros(n)  # effective budget plus all signed intervention cash reaching the gap calculation
     # These are target-need accounting ledgers. They do not alter the BAU stock
     # used to project household connections or the existing sector-wide figures.
     need_stock_by_service = np.zeros((2, n))
@@ -706,6 +707,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # fixing costs exceed the water's value that year (drawn from the BAU budget first) and positive
         # later (surplus funds new connections). All the lever terms are 0 when their lever is off.
         avail = bau_available[t] + collection_cash[t] + tariff_cash[t] + nrw_net[t] + financial_cash[t] + injection_cash[t] + extra_cash_arr[t]
+        available_total[t] = avail
         # ── Investment split (test2) ───────────────────────────────────────────────────────────────────
         # Replacement is funded first, then the remainder is split: `basic_share` buys BASIC service for
         # households at limited-and-below, the rest buys SAFELY MANAGED for households at basic-and-below.
@@ -900,6 +902,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'execution_rate': exec_eff,
         'planned_annual': planned_annual.tolist(),
         'bau_available': bau_available.tolist(),
+        'available_total': available_total.tolist(),
         'collection_cash': collection_cash.tolist(),   # collection-efficiency revenue folded into capex (scenario)
         'tariff_cash': tariff_cash.tolist(),           # tariff-reform revenue folded into capex (scenario)
         'financial_commitment_cash': financial_cash.tolist(),  # GDP target + annual growth

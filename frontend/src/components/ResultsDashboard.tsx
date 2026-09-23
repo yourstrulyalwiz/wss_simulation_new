@@ -11,6 +11,7 @@ import ChartExport from './ChartExport';
 import TableExport from './TableExport';
 import { captureImage } from './exportUtils';
 import BasicCoverageChart, { type BasicCoverageRow } from './BasicCoverageChart';
+import ScenarioGapTables, { type FinanceYear } from './ScenarioGapTables';
 
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
 function round3(v: number): number { return (!isFinite(v) || v === 0) ? 0 : Number(v.toPrecision(3)); }
@@ -66,7 +67,7 @@ interface Props {
 }
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
-type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; basicRows: BasicCoverageRow[] };
+type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[] };
 type Both = { water: Series; sanitation: Series } | null;
 type Row = { key: string; label: string; addHH: number; resources: number | null };
 
@@ -228,6 +229,36 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const repl = sum((r, i) => secOf(r).replacement_capex?.[i] || 0);
           const totNeed = sum((r, i) => secOf(r).total_investment_need?.[i] || 0);
           const bauInv = sum((r, i) => secOf(r).bau_available?.[i] || 0);
+          const scnInv = sum((r, i) => secOf(r).scenario_available_total[i]);
+          const loanCum = sum((r, i) => secOf(r).scenario_mf_loan_volume[i]);
+          const grantCum = sum((r, i) => secOf(r).scenario_grant_spend[i]);
+          const rungSeries = (key: string, rung: number) => sum((r, i) => secOf(r)[key][rung][i]);
+          const rungData = [0, 1].map(rung => ({
+            bau: rung === 0 ? bau : basicBau,
+            scenario: rung === 0 ? scn : basicScn,
+            target: rung === 0 ? tgt : basicTgt,
+            newBau: rungSeries('new_capex_by_service', rung),
+            replacementBau: rungSeries('replacement_by_service', rung),
+            fundedBau: rungSeries('funded_by_service', rung),
+            gapBau: rungSeries('financing_gap_by_service', rung),
+            newScenario: rungSeries('scenario_new_capex_by_service', rung),
+            replacementScenario: rungSeries('scenario_replacement_by_service', rung),
+            fundedScenario: rungSeries('scenario_funded_by_service', rung),
+            gapScenario: rungSeries('scenario_financing_gap_by_service', rung),
+          }));
+          const financeRows: FinanceYear[] = years.flatMap((year, i) => year <= baseYr ? [] : [{
+            year, total: totalHH[i], bauAvailable: bauInv[i], scenarioAvailable: scnInv[i],
+            offBudgetLoans: loanCum[i] - (loanCum[i - 1] || 0),
+            offBudgetGrants: grantCum[i] - (grantCum[i - 1] || 0),
+            bauGap: bauGap[i], scenarioGap: scnGap[i],
+            services: rungData.map(d => ({
+              bau: d.bau[i], scenario: d.scenario[i], target: d.target[i],
+              newBau: d.newBau[i], replacementBau: d.replacementBau[i],
+              fundedBau: d.fundedBau[i], gapBau: d.gapBau[i],
+              newScenario: d.newScenario[i], replacementScenario: d.replacementScenario[i],
+              fundedScenario: d.fundedScenario[i], gapScenario: d.gapScenario[i],
+            })) as [FinanceYear['services'][0], FinanceYear['services'][1]],
+          }]);
           const periods = buildPeriods(years, baseYr);
           const invRow = (label: string, arr: number[], strong = false) =>
             ({ label, strong, vals: periods.map(p => sumRange(arr, years, p.lo, p.hi) / 1000) });
@@ -239,7 +270,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             invRow('Financing gap (C − D)', bauGap, true),
           ] };
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
-          return { inv, unit, basicRows, sum: {
+          return { inv, unit, basicRows, financeRows, sum: {
             endline: years[endIdx], curCov, bauCov: covPct(bau), scnCov: covPct(scn), tgtCov: covPct(tgt),
             addHH: Math.max(0, Math.min(tEnd, scn[endIdx]) - Math.min(tEnd, bau[endIdx])),
             gapBauCum: cumGap(bauGap), gapScnCum: cumGap(scnGap),
@@ -247,7 +278,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         };
         setBoth({ water: build('water_supply'), sanitation: build('sanitation') });
         setError(null);
-      }).catch(e => setError(String(e)));
+      }).catch(e => { setBoth(null); setError(String(e)); });
     }, 350);
     return () => clearTimeout(h);
   }, [depKey]);
@@ -577,6 +608,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             bands={csBands} lines={gapLines} fmt={gapFmt}
             filename={`${scopeName}_${secKey}_financing_gap`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} />
         </div>
+        <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={cur} />
         {rows && rows.length > 0 && (
           <div style={{ marginTop: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f', marginBottom: 3 }}>Contribution by intervention (cumulative to {s.sum.endline})</div>

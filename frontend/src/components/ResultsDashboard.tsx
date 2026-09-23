@@ -10,6 +10,7 @@ import ExportButtons from './ExportButtons';
 import ChartExport from './ChartExport';
 import TableExport from './TableExport';
 import { captureImage } from './exportUtils';
+import BasicCoverageChart, { type BasicCoverageRow } from './BasicCoverageChart';
 
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
 function round3(v: number): number { return (!isFinite(v) || v === 0) ? 0 : Number(v.toPrecision(3)); }
@@ -65,7 +66,7 @@ interface Props {
 }
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
-type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number } };
+type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; basicRows: BasicCoverageRow[] };
 type Both = { water: Series; sanitation: Series } | null;
 type Row = { key: string; label: string; addHH: number; resources: number | null };
 
@@ -78,12 +79,12 @@ type Contrib = { water: ContribSeries; sanitation: ContribSeries } | null;
 
 // A stacked-contribution chart: a base area at the bottom, one stacked band per intervention on top (so the
 // coloured stack IS each lever's marginal contribution), plus optional reference lines drawn over the top.
-function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, domain, filename }: {
+function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, domain, filename, captureKey }: {
   title: string; subtitle?: string; data: any[]; yLabel: string;
   base?: { key: string; label: string; stroke: string; fill: string };   // optional bottom area (coverage BAU)
   bands: ContribBand[];
   lines: { key: string; name: string; color: string; dash?: string; width?: number }[];
-  fmt: (v: number) => string; domain?: [number, number]; filename: string;
+  fmt: (v: number) => string; domain?: [number, number]; filename: string; captureKey: string;
 }) {
   const chartRef = useRef<HTMLDivElement>(null);
   // Data series behind the chart, for the "⤓ Excel" export: Year, [base], each band, then the reference lines.
@@ -106,7 +107,7 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
   ));
   const stackAreas = base ? [baseArea, ...bandAreas] : bandAreas;
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div data-results-chart={captureKey} style={{ marginBottom: 12 }}>
       {/* Fixed-height header so paired charts' plot areas line up horizontally regardless of subtitle length.
           The title/subtitle column takes the full width (flex:1, minWidth:0 so it can wrap) and overflow is
           clipped to the fixed height. */}
@@ -207,6 +208,12 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const bau = sum((r, i) => secOf(r).bau_hh[0][i]);
           const scn = sum((r, i) => secOf(r).scenario_hh[0][i]);
           const tgt = sum((r, i) => secOf(r).target_hh[0][i]);
+          const basicBau = sum((r, i) => secOf(r).bau_hh[1][i]);
+          const basicScn = sum((r, i) => secOf(r).scenario_hh[1][i]);
+          const basicTgt = sum((r, i) => secOf(r).target_hh[1][i]);
+          const basicRows = years.map((year, i) => ({
+            year, total: totalHH[i], bau: basicBau[i], scenario: basicScn[i], target: basicTgt[i],
+          }));
           const bauGap = sum((r, i) => (secOf(r).financing_gap || [])[i] || 0);
           const scnGap = sum((r, i) => (secOf(r).scenario_financing_gap || [])[i] || 0);
           const tEnd = totalHH[endIdx] || 0;
@@ -232,7 +239,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             invRow('Financing gap (C − D)', bauGap, true),
           ] };
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
-          return { inv, unit, sum: {
+          return { inv, unit, basicRows, sum: {
             endline: years[endIdx], curCov, bauCov: covPct(bau), scnCov: covPct(scn), tgtCov: covPct(tgt),
             addHH: Math.max(0, Math.min(tEnd, scn[endIdx]) - Math.min(tEnd, bau[endIdx])),
             gapBauCum: cumGap(bauGap), gapScnCum: cumGap(scnGap),
@@ -354,14 +361,14 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   const scopeName = effScope === 'rural' ? 'Rural' : effScope === 'urban' ? 'Urban' : 'National';
   const pct = (f: number) => (f * 100).toFixed(1) + '%';
 
-  // Capture the four on-screen result charts (DOM order: water coverage, water gap, san coverage, san gap)
-  // as PNGs for the PowerPoint deck — the backend can't render recharts, so it embeds these.
+  // Capture by identity, not DOM order: the Basic charts must not shift the existing deck images.
   const captureResultsCharts = async (): Promise<Record<string, string>> => {
-    const keys = ['water_coverage', 'water_gap', 'san_coverage', 'san_gap'];
-    const wraps = Array.from(document.querySelectorAll('.recharts-wrapper')) as HTMLElement[];
+    const keys = ['water_coverage', 'water_basic_coverage', 'water_gap', 'san_coverage', 'san_basic_coverage', 'san_gap'];
     const out: Record<string, string> = {};
-    for (let i = 0; i < keys.length && i < wraps.length; i++) {
-      try { out[keys[i]] = await captureImage(wraps[i], 'png'); } catch { /* skip a chart that fails to capture */ }
+    for (const key of keys) {
+      const wrap = document.querySelector(`[data-results-chart="${key}"] .recharts-wrapper`) as HTMLElement | null;
+      if (!wrap) continue;
+      try { out[key] = await captureImage(wrap, 'png'); } catch { /* skip a chart that fails to capture */ }
     }
     return out;
   };
@@ -520,6 +527,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const csBands = cs?.bands ?? [];
     const allCovData = cs ? (isShare ? asShareStack(cs.covRows, csBands) : cs.covRows) : [];
     const covData = filterChartYears(allCovData);
+    const basicData = filterChartYears(s.basicRows);
     const gapData = filterChartYears(cs?.gapRows ?? []);
     // Coverage stack: BAU base (blue) at the bottom, one intervention band on top, then the ceiling & target
     // reference lines (grey Total dashed, green Target dashed) drawn over the stack.
@@ -553,11 +561,14 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <StackChart title={`${label} — safely-managed coverage`} subtitle="BAU base + each intervention's added households (target & ceiling shown as lines)"
             data={covData} yLabel={isShare ? '% of population' : '# households (millions)'}
             base={covBase} bands={csBands} lines={covLines} fmt={covFmt} domain={isShare ? [0, 1] : undefined}
-            filename={`${scopeName}_${secKey}_coverage`} />
+            filename={`${scopeName}_${secKey}_coverage`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_coverage`} />
+          <BasicCoverageChart title={`${label} — basic coverage`} rows={basicData} isShare={isShare}
+            filename={`${scopeName}_${secKey}_basic_coverage`}
+            captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
           <StackChart title={`${label} — annual financing gap`} subtitle="Interventions stack up from zero; the space up to the dashed line (total BAU gap) is the gap remaining"
             data={gapData} yLabel={`Financing gap (B ${cur}/yr)`}
             bands={csBands} lines={gapLines} fmt={gapFmt}
-            filename={`${scopeName}_${secKey}_financing_gap`} />
+            filename={`${scopeName}_${secKey}_financing_gap`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} />
         </div>
         {rows && rows.length > 0 && (
           <div style={{ marginTop: 8 }}>
@@ -599,7 +610,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         <div>
           <h2 style={{ fontSize: 17, color: '#1e3a5f', margin: 0 }}>Results — intervention impact (live)</h2>
           <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-            The charts stack the BAU baseline with each enabled intervention's own contribution, so you can see how much every lever adds to coverage and closes the financing gap.
+            Safely-managed coverage and financing-gap charts show each intervention's contribution. Basic coverage compares the BAU, full scenario and target; Basic households may move up to Safely Managed.
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>

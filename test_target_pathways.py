@@ -54,8 +54,10 @@ class TargetPathwayTests(unittest.TestCase):
         result = calculate(coerce_to_engine(frontend_defaults()))
         first = result["years"].index(2026)
         expected = {
-            "water_supply": (16130.525177451287, 13617.018028608018, 232795.69253990575),
-            "sanitation": (3621.086631519019, 490.4743762943317, 83973.1900016299),
+            # Gross population-cohort transitions price new-household connections even when
+            # aggregate Basic service falls. Earlier net-count costing missed those additions.
+            "water_supply": (16130.525177451294, 13617.018028608025, 233475.40645086943),
+            "sanitation": (6633.452000290505, 3502.839745065817, 95264.41885780603),
         }
         for sector, (need, annual_gap, cumulative_gap) in expected.items():
             with self.subTest(sector=sector):

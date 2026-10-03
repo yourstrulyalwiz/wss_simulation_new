@@ -773,7 +773,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
           <span style={gFieldLbl}>Business-as-usual (BAU):</span> The tool grows household counts at their historical yearly rate to project what happens if nothing changes. Any blank years you leave are filled in smoothly from the yearly growth rate, between the values you did enter.
         </div>
         <div style={gFieldWrap}>
-          <span style={gFieldLbl}>Targets:</span> Where you set a target year (a service-level column that adds up to 100%), the tool moves service levels toward that target and interpolates between consecutive targets.
+          <span style={gFieldLbl}>Targets:</span> A complete future service-level column sets a milestone. Target shares are multiplied by projected households in that year. The annual target path follows a constant household-count growth rate between the baseline and successive milestones, with the zero-category rules explained in the Service levels Guide.
         </div>
         <div style={gFieldWrap}>
           <span style={gFieldLbl}>Financing gap:</span> Annual target investment need minus available financing, floored at zero. Target need includes scheduled new connections and upgrades, replacement of existing target-path assets, and implementation costs. It is separate from simulated coverage and does not repeatedly price the outstanding coverage gap.
@@ -823,6 +823,15 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
           <GFind items={[
             'WHO/UNICEF JMP – washdata.org/data/household',
           ]} />
+        </div>
+        <div style={gFieldWrap}>
+          <span style={gFieldLbl}>Annual target trajectory:</span> At each milestone, target share × projected households gives the required households in each of the five mutually exclusive categories. Between milestones, the model retains piecewise household-count CAGR interpolation for categories with positive starting counts. A category starting at zero grows linearly to its next milestone because a growth rate from zero is undefined. A positive category ending at zero retains the existing geometric decline toward a negligible floor and reaches exactly zero in the milestone year. Safely Managed and Basic are bounded by total households; the remaining households are distributed among the three lower categories in their interpolated proportions. All milestones are met exactly. After the last milestone, shares stay constant and counts change with projected households.
+        </div>
+        <div style={gFieldWrap}>
+          <span style={gFieldLbl}>Annual transitions and costs:</span> Aggregate targets cannot identify individual household movements. The model assumes newly added households take the current year’s target mix, then calculates transitions for the continuing household population. This can identify Basic-to-Safely Managed upgrades even when Basic counts also rise with population. New Basic and new Safely Managed connections use their respective current-year unit costs; an upgrade uses only the positive difference between Safely Managed and Basic costs. Each transition is costed once, including the applicable technology mix and eligible capex-efficiency adjustments. A move from Safely Managed to Basic is not charged as a new connection.
+        </div>
+        <div style={gFieldWrap}>
+          <span style={gFieldLbl}>Hypothetical target assets and replacement:</span> The target schedule assumes the programme is fully funded. It begins with costed baseline assets and adds scheduled expansion, not the outstanding coverage gap. Upgrading Basic households transfers their existing Basic asset value into Safely Managed; that transfer is not new spending. Replacement is a simplified annual allowance: prior-year scheduled asset value ÷ asset life. It maintains capacity and is not added again to asset stock. This approximation retains existing assets and does not model asset ages, retirements, or reuse of spare capacity. The target schedule stays separate from the assets supporting resource-constrained BAU/intervention coverage.
         </div>
       </div>
     ),

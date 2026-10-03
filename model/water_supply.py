@@ -18,7 +18,7 @@ import numpy as np
 
 from model.finance import (
     annual_asset_requirements, funding_ledger, loan_schedule, target_transition_capex,
-    tariff_collection_cash,
+    tariff_collection_cash, target_household_trajectory,
 )
 from model.gap_attribution import attribute_gap
 
@@ -281,7 +281,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     so replacement (depreciation of the existing stock) is funded first, and only the household share
     buys new connections. `growth_capex_pct` and `planned_list` are kept for the caller signature but
     are no longer used. NOTE: this deliberately DIVERGES from the reference workbook's BAU (which grew
-    SM on the %GDP capex budget alone); the 4d investment-need / financing-gap formulas are unchanged."""
+    SM on the %GDP capex budget alone). Target investment is costed independently of this coverage."""
     n, bi, years, total_hh = ctx['n'], ctx['bi'], ctx['years'], ctx['total_hh']
     msy, by = period.model_start_year, period.baseline_year
     t1y, t2y = period.target1_year, period.target2_year
@@ -619,39 +619,17 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     # 4b prep — target boundary points. test2: ANY number of targets (a sorted list of (year, [5
     # shares])); falls back to the two target1/target2 sets when no list is supplied. Each boundary's
     # COUNTS = that year's total households × share; the path CAGRs between consecutive boundaries.
-    eai = int(eay - msy)
     if targets:
         tlist = sorted(((int(ty), list(sh)) for ty, sh in targets if int(ty) > eay), key=lambda x: x[0])
     else:
         tlist = [tp for tp in [(int(t1y), list(tgt1)), (int(t2y), list(tgt2))] if tp[0] > eay]
     tgt_years = [ty for ty, _ in tlist]
-    tgt_counts = [[total_hh[int(np.clip(ty - msy, 0, n - 1))] * sh[r] for r in range(5)] for ty, sh in tlist]
-    last_tgt_year = tgt_years[-1] if tgt_years else eay
-    last_shares = tlist[-1][1] if tlist else [0.0, 0.0, 0.0, 0.0, 0.0]
 
     # Intervention SM ceiling (protects the basic target): interventions may CLOSE the SM gap but not
     # overshoot it — the ceiling is the target-path SM count, CAGR'd from the baseline SM through the SM
     # target boundaries. inf where there is nothing to protect (history / no targets). Only ever binds in
     # the scenario pass; the BAU SM sits below the target, so the clamp is a no-op there (parity kept).
     sm_cap = np.full(n, np.inf)
-    if tgt_years:
-        sm_pts = [(eay, bau[0, bi])] + list(zip(tgt_years, [tc[0] for tc in tgt_counts]))
-        for t in range(n):
-            y = years[t]
-            if y <= eay:
-                continue
-            if y >= last_tgt_year:
-                sm_cap[t] = total_hh[t] * last_shares[0]
-                continue
-            for k in range(1, len(sm_pts)):
-                y0, c0 = sm_pts[k - 1]; y1, c1 = sm_pts[k]
-                if y <= y1:
-                    if c0 > 0 and c1 > 0 and y1 > y0:
-                        g = (c1 / c0) ** (1.0 / (y1 - y0)) - 1.0
-                        sm_cap[t] = c0 * (1.0 + g) ** (y - y0)
-                    else:
-                        sm_cap[t] = c1
-                    break
 
     # 4c — opening asset stock (booked at the baseline year)
     opening_stock = (bau[0, bi] * cost_sm + bau[1, bi] * cost_basic) * (1.0 + nonhh_mult)
@@ -665,7 +643,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     # stock is kept separate from the target `stock` so the BAU never depends on the target (no circularity).
     depr = 1.0 / asset_life
     hh_share = 1.0 - nonhh_pct
-    tgt_unadj = np.zeros((5, n)); tgt = np.zeros((5, n))
+    tgt = np.zeros((5, n))
     hh_gap = np.zeros(n); hh_gap_basic = np.zeros(n); new_capex_total = np.zeros(n); stock = np.zeros(n)
     replacement = np.zeros(n); total_need = np.zeros(n); financing_gap = np.zeros(n)
     available_total = np.zeros(n)  # effective budget plus all signed intervention cash reaching the gap calculation
@@ -677,7 +655,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     funded_by_service = np.zeros((2, n))
     financing_gap_by_service = np.zeros((2, n))
     # BAU's OWN asset stock + its depreciation, kept SEPARATE from `stock` (which accumulates the
-    # target-gap capex nc_total). The BAU 4a replacement depreciates THIS, so the BAU counterfactual
+    # scheduled target expansion). The BAU 4a replacement depreciates THIS, so the BAU counterfactual
     # never depends on the target path — this fixes the cross-scenario circularity.
     bau_stock = np.zeros(n); bau_replacement = np.zeros(n)
 
@@ -693,15 +671,18 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
 
     # History (start..baseline): target = BAU; the opening stock is booked at the baseline year.
     for t in range(bi + 1):
-        tgt_unadj[:, t] = bau[:, t]; tgt[:, t] = bau[:, t]
+        tgt[:, t] = bau[:, t]
         booked = opening_stock if years[t] == by else 0.0
         stock[t] = booked + (stock[t - 1] if t > 0 else 0.0)
         need_stock_by_service[0, t] = opening_sm if years[t] == by else 0.0
         need_stock_by_service[1, t] = opening_stock - opening_sm if years[t] == by else 0.0
         bau_stock[t] = booked + (bau_stock[t - 1] if t > 0 else 0.0)
 
+    if tgt_years:
+        target_schedule = target_household_trajectory(years, total_hh, bau[:, bi], bi, tlist)
+        tgt[:, bi + 1:] = target_schedule[:, bi + 1:]
+        sm_cap[bi + 1:] = tgt[0, bi + 1:]
     unadj = [bau[r, bi] for r in range(5)]                              # forecast SM accumulates on the baseline count
-    seg_cagr = None
     # Affordability-lever SM accounting: `budget_sm` is SM from the budget + NRW only (no levers); the lever
     # cumulatives accumulate on top. `gap_served_hw` = high-water mark of the budget gap already partitioned,
     # so each year only the NEW gap is offered to self-finance / microfinance / grant (shares stay meaningful).
@@ -814,55 +795,10 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # of the target path (driven by bau_available / bau_replacement, not the target-gap stock).
         bau_stock[t] = bau_stock[t - 1] - bau_replacement[t] + avail
 
-        # 4b — target path: = BAU through end-of-as-is, then piecewise CAGR through the ordered target
-        # boundaries (test2: any number). Past the last target the target SHARES are held (counts scale
-        # with total HHs). With no targets at all, the target path just equals the BAU path.
-        if years[t] <= eay or not tgt_years:
-            tgt_unadj[:, t] = bau[:, t]; tgt[:, t] = bau[:, t]
-        elif years[t] > last_tgt_year:
-            for r in range(5):
-                tgt_unadj[r, t] = total_hh[t] * last_shares[r]
-                tgt[r, t] = total_hh[t] * last_shares[r]
-        else:
-            if seg_cagr is None:                                       # branch off the (new) BAU at end-of-as-is
-                bpoints = [(eay, [bau[r, eai] for r in range(5)])] + list(zip(tgt_years, tgt_counts))
-                seg_cagr = []
-                for k in range(1, len(bpoints)):
-                    (y0, c0), (y1, c1) = bpoints[k - 1], bpoints[k]
-                    dy = y1 - y0
-                    # A target SHARE of 0 means the rung empties by that year. The old guard required
-                    # c1 > 0 and silently HELD the rung at its previous level instead, which left a
-                    # phantom target (e.g. a basic target of 0% still reporting households) and let the
-                    # five target rungs sum to more than the population. Decay toward a negligible floor
-                    # so the rung lands at effectively zero and the remainder flows to the rungs the
-                    # target actually asks for.
-                    row = []
-                    for r in range(5):
-                        if dy <= 0 or c0[r] <= 0:
-                            row.append(0.0)
-                        else:
-                            c1r = c1[r] if c1[r] > 0 else c0[r] * 1e-9
-                            row.append((c1r / c0[r]) ** (1.0 / dy) - 1.0)
-                    seg_cagr.append(row)
-            seg = next((k for k, ty in enumerate(tgt_years) if years[t] <= ty), len(tgt_years) - 1)
-            chosen = seg_cagr[seg]
-            for r in range(5):
-                tgt_unadj[r, t] = tgt_unadj[r, t - 1] * (1.0 + chosen[r])
-            if not target_adjusted:
-                for r in range(5):
-                    tgt[r, t] = tgt_unadj[r, t]
-            else:
-                # Adjusted block: SM = unadjusted, Basic = plug (or total−SM when the lower rungs hit 0),
-                # lower rungs = (total − SM − Basic) × prior-year adjusted lower shares.
-                sm = min(tgt_unadj[0, t], total_hh[t])
-                rest = sum(tgt_unadj[r, t] for r in range(1, 5))
-                basic = (total_hh[t] - sm) if rest == 0.0 else min(tgt_unadj[1, t], total_hh[t] - sm)
-                remaining = max(0.0, total_hh[t] - sm - basic)
-                prior_lower = [tgt[r, t - 1] for r in LOWER]
-                psum = sum(prior_lower)
-                for j, r in enumerate(LOWER):
-                    tgt[r, t] = remaining * (prior_lower[j] / psum) if psum > 0 else 0.0
-                tgt[0, t], tgt[1, t] = sm, basic
+        # Fixed milestones were scheduled before resource-constrained coverage. With no future
+        # milestones, retain the legacy unspecified-target behavior (target equals BAU).
+        if not tgt_years:
+            tgt[:, t] = bau[:, t]
 
         # Service gaps describe coverage only. Investment needs are calculated after the full target
         # trajectory is known; the standing target-minus-simulated gap is never added to asset stock.
@@ -882,12 +818,14 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     target_program = target_transition_capex(
         tgt[0], tgt[1], cost_sm_t, cost_basic_t, nonhh_mult,
         implementation_capex=implementation_capex, capex_adder=capex_adder,
-        baseline_index=bi)
+        baseline_index=bi, total_households=total_hh)
     asset_program = annual_asset_requirements(
         target_program['expansion'], opening_stock, depr, baseline_index=bi,
         expansion_by_service=[target_program['expansion_sm'], target_program['expansion_basic']],
         opening_assets_by_service=[opening_sm, max(0.0, opening_stock - opening_sm)],
-        implementation_capex=implementation_capex)
+        implementation_capex=implementation_capex, service_households=tgt[:2],
+        service_upgrades=target_program['sm_upgrades'],
+        service_downgrades=target_program['sm_downgrades'])
     new_capex_total = target_program['expansion']
     new_capex_by_service = np.asarray(
         [target_program['expansion_sm'], target_program['expansion_basic']], dtype=float)
@@ -1006,8 +944,14 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # cost-side lever as (BAU unit cost − scenario unit cost) × households connected, rather than
         # re-deriving the ramp outside the engine where it would drift from this logic.
         'cost_sm_t': cost_sm_t.tolist(),
+        'cost_basic_t': cost_basic_t.tolist(),
         'bau_hh': bau.tolist(),
         'target_hh': tgt.tolist(),
+        'target_service_shares': np.divide(tgt, total_hh, out=np.zeros_like(tgt), where=total_hh > 0).tolist(),
+        'target_new_sm_connections': target_program['new_sm_connections'].tolist(),
+        'target_new_basic_connections': target_program['new_basic_connections'].tolist(),
+        'target_sm_upgrades': target_program['sm_upgrades'].tolist(),
+        'target_sm_downgrades': target_program['sm_downgrades'].tolist(),
         # Reference for the GDP-target commitment input. This is the baseline
         # share of the TOTAL-spending series the commitment compares against,
         # not the capex budget (which can be cost-derived in from_cost mode).
@@ -1018,6 +962,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'opening_stock': opening_stock,
         'target_asset_stock': stock.tolist(),
         'target_asset_stock_by_service': need_stock_by_service.tolist(),
+        'target_asset_transfer_to_sm': asset_program['target_asset_transfer_to_sm'].tolist(),
+        'bau_asset_stock': bau_stock.tolist(),
+        'replacement_method': 'Simplified annual allowance: prior scheduled target asset value / asset life; no cohort renewal timing.',
         'household_gap': hh_gap.tolist(),
         'household_gap_basic': hh_gap_basic.tolist(),
         'scenario_service_gap': scenario_service_gap.tolist(),

@@ -73,6 +73,17 @@ def per_year_table(result, inputs, sector_key):
         f'Financing gap — BAU safely-managed ({cur} M)',
         f'Financing gap — BAU basic ({cur} M)',
         f'Financing gap — with interventions ({cur} M)',
+        'Target basic (M HH)',
+        'Target new basic connections (M HH)',
+        'Target new safely-managed connections (M HH)',
+        'Target basic-to-safely-managed upgrades (M HH)',
+        'Target safely-managed-to-basic transitions (M HH)',
+        f'Target expansion — scenario costs ({cur} M)',
+        f'Target replacement allowance — scenario costs, approximate ({cur} M)',
+        f'Target asset stock — scenario costs ({cur} M)',
+        f'Target asset transfer, basic to safely managed — scenario costs ({cur} M)',
+        f'Simulated BAU asset stock ({cur} M)',
+        f'Simulated intervention asset stock ({cur} M)',
     ]
     rows = []
     for i, y in enumerate(years):
@@ -88,6 +99,17 @@ def per_year_table(result, inputs, sector_key):
             round(g('financing_gap_by_service', i), 4),
             round((sec.get('financing_gap_by_service') or [[], []])[1][i], 4) if sec.get('financing_gap_by_service') else 0.0,
             round(g('scenario_financing_gap', i, rung0=False), 4),
+            round((sec.get('target_hh') or [[], []])[1][i], 6),
+            round(g('target_new_basic_connections', i, rung0=False), 6),
+            round(g('target_new_sm_connections', i, rung0=False), 6),
+            round(g('target_sm_upgrades', i, rung0=False), 6),
+            round(g('target_sm_downgrades', i, rung0=False), 6),
+            round(g('scenario_new_capex_total', i, rung0=False), 4),
+            round(g('scenario_replacement_capex', i, rung0=False), 4),
+            round(g('scenario_target_asset_stock', i, rung0=False), 4),
+            round(g('scenario_target_asset_transfer_to_sm', i, rung0=False), 4),
+            round(g('bau_asset_stock', i, rung0=False), 4),
+            round(g('scenario_bau_asset_stock', i, rung0=False), 4),
         ])
     return headers, rows
 

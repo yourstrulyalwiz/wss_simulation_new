@@ -161,9 +161,12 @@ year's household total, with Basic as the plug.
 
 Equal to the BAU through the baseline year, then a **piecewise CAGR** from the baseline counts
 through each target boundary's counts (`target share × that year's households`). Past the last
-target, the target shares are held. Both sectors then apply the "adjusted" block: safely-managed
-is taken as computed, Basic is the plug, and the three lower rungs share the remainder in their
-prior-year proportions.
+target, the target shares are held. Zero-start categories use linear count interpolation because
+CAGR from zero is undefined. Positive-to-zero categories retain the existing near-zero geometric
+decline but reach exactly zero at the milestone. At every milestone all five counts equal the
+entered shares times projected households. In intermediate years Safely Managed and Basic are
+bounded by total households, and the lower categories share the remainder in their interpolated
+proportions. The five mutually exclusive counts sum to projected households.
 
 ### 4c — Asset stock
 
@@ -173,7 +176,9 @@ Two distinct pathways are maintained:
   milestones. Opening assets are valued at the baseline:
   `(SM_HH × SM_cost + Basic_HH × Basic_cost) × (1 + non-HH multiplier)`. Each year's scheduled
   target expansion is added once. Replacement maintains existing assets and is not added again to
-  the target stock.
+  the target stock. Existing Basic assets are transferred at their average booked value when
+  households upgrade to Safely Managed (and conversely for downgrades); this changes attribution,
+  not total stock or investment expenditure.
 - **Resource-constrained pathway (B):** the BAU or intervention coverage supported by available
   resources, using its own asset/replacement calculation. Its achieved coverage does not determine
   target-path investment requirements.
@@ -193,11 +198,18 @@ investment_need[t]   = target_expansion[t] + replacement[t] + implementation_cap
 financing_gap[t]     = max(0, investment_need[t] − available_financing[t])
 ```
 
-Target additions are positive changes between consecutive target years, not the outstanding
-target-minus-simulated gap. When Basic households move to Safely Managed, the overlapping movement
-is an upgrade priced at `max(0, SM_cost − Basic_cost)`; other new households are priced at the
-relevant full connection cost. The cost-side interventions can change these unit costs without
-changing the specified target milestones.
+Target transitions are scheduled annually, not inferred from the target-minus-simulated gap.
+Because aggregate shares do not identify gross household movements, the model assumes net new
+households adopt the current year's target mix. It then allocates changes among continuing
+households: overlapping Basic reductions and Safely Managed increases are upgrades, and the
+reverse movement is a downgrade. This identifies upgrades obscured by population growth.
+Upgrades cost `max(0, SM_cost − Basic_cost)`; new connections use the relevant full unit cost;
+downgrades do not buy a second connection. The cost-side interventions can change unit costs
+without changing specified milestones.
+
+The annual replacement allowance is an approximation. Booked assets are retained: this simplified
+schedule does not model asset-age cohorts, retirements, or relocation/reuse of spare capacity.
+Replacement spends money to maintain capacity, not to create additional stock.
 
 Available financing counts public capital, other capital, directly reinvested utility cash, loan
 proceeds, and prior positive cash carry once. Unfunded requirements do not become additional asset

@@ -271,9 +271,11 @@ that lands exactly on the first target. It repeats the exercise between consecut
 the final target year, the tool holds the target shares constant, so counts continue to grow with
 the population.[^25]
 
-The target path applies the same balancing rule as the BAU scenario. Safely managed comes from the
-interpolation. Basic takes the remainder. The lower levels share what is left in their prior-year
-proportions.
+The target path retains household-count growth-rate interpolation where it is defined. A category
+starting at zero uses linear interpolation; a category ending at zero approaches a negligible
+floor geometrically and is exactly zero at its milestone. Safely Managed and Basic are bounded by
+total households; the lower levels share the remainder in their interpolated proportions. At each
+milestone all five categories match the entered shares times projected households.
 
 ## Step 8. Measure the service gap in households
 
@@ -289,6 +291,12 @@ The target investment pathway and resource-constrained coverage simulation are s
 Investment need prices each year's target additions once, including incremental Basic-to-Safely
 Managed upgrades, and includes non-household infrastructure, replacement of the prior target asset
 stock, and implementation costs. The remaining coverage gap is not repeatedly added to that stock.
+Net new households adopt the current year's target mix; movements of continuing households are
+calculated separately, so population growth does not hide Basic-to-Safely Managed upgrades.
+Existing Basic assets supporting an upgrade transfer into Safely Managed without a second
+investment charge. Replacement is a simplified annual allowance on the prior scheduled asset
+value, not additional capacity. This approximation retains assets and does not model retirements,
+asset-age cohorts, or reuse of spare capacity.
 
 Projected BAU and intervention financing determines simulated coverage independently. Subtracting
 available financing from annual target investment need gives the financing gap, floored at zero.

@@ -5,14 +5,72 @@ from __future__ import annotations
 import numpy as np
 
 
+def target_household_trajectory(years, households, baseline_counts, baseline_index, milestones):
+    """Interpolate fixed milestone counts, preserving count-CAGR where it is defined.
+
+    Zero-start categories grow linearly. Positive-to-zero categories retain the existing
+    near-zero geometric decline, but land exactly at zero at their milestone.
+    """
+    years = np.asarray(years, dtype=int)
+    households = np.asarray(households, dtype=float)
+    result = np.zeros((len(baseline_counts), len(years)))
+    bi = int(baseline_index)
+    points = [(int(years[bi]), np.asarray(baseline_counts, dtype=float))]
+    normalized = []
+    for year, shares in sorted(milestones, key=lambda point: point[0]):
+        shares = np.asarray(shares, dtype=float)
+        if np.any(shares < 0) or not np.all(np.isfinite(shares)) or shares.sum() <= 0:
+            raise ValueError("Target shares must be finite, non-negative, and sum to a positive value.")
+        shares = shares / shares.sum()
+        if int(year) <= years[bi]:
+            continue
+        # Legacy inputs can retain a later milestone after shortening the forecast window.
+        # Preserve the previous endpoint-household clipping instead of rejecting those scenarios.
+        idx = min(int(np.searchsorted(years, int(year))), len(years) - 1)
+        points.append((int(year), shares * households[idx]))
+        normalized.append(shares)
+    if len(points) == 1:
+        raise ValueError("At least one future target milestone is required.")
+    result[:, bi] = baseline_counts
+    for t in range(bi + 1, len(years)):
+        year = years[t]
+        if year >= points[-1][0]:
+            result[:, t] = normalized[-1] * households[t]
+            continue
+        seg = next(k for k in range(1, len(points)) if year <= points[k][0])
+        y0, c0 = points[seg - 1]
+        y1, c1 = points[seg]
+        fraction = (year - y0) / (y1 - y0)
+        if year == y1:
+            result[:, t] = c1
+            continue
+        raw = np.zeros(len(c0))
+        for rung in range(len(c0)):
+            if c0[rung] > 0:
+                end = c1[rung] if c1[rung] > 0 else c0[rung] * 1e-9
+                raw[rung] = c0[rung] * (end / c0[rung]) ** fraction
+            else:
+                raw[rung] = c1[rung] * fraction
+        # Preserve the existing SM-first/Basic-next balancing; use the interpolated lower
+        # categories for the remainder, so all five exclusive categories sum to households.
+        result[0, t] = min(raw[0], households[t])
+        result[1, t] = min(raw[1], max(0.0, households[t] - result[0, t]))
+        remaining = max(0.0, households[t] - result[:2, t].sum())
+        lower = raw[2:]
+        weights = lower / lower.sum() if lower.sum() > 0 else np.full(len(lower), 1 / len(lower))
+        result[2:, t] = remaining * weights
+    return result
+
+
 def target_transition_capex(target_sm, target_basic, cost_sm, cost_basic, nonhousehold_multiplier,
-                            implementation_capex=None, capex_adder=0.0, baseline_index=0):
+                            implementation_capex=None, capex_adder=0.0, baseline_index=0,
+                            total_households=None):
     """Cost positive annual target transitions once, including Basic→SM upgrades.
 
     Counts are millions of households and per-household costs are in model currency.
-    When Basic shrinks as Safely Managed grows, the overlapping movement is priced as
-    an upgrade (the incremental cost over a Basic connection), not as a second new
-    connection. Other positive target changes are new connections.
+    With household totals, new households adopt the current target mix and continuing
+    households transition separately. This identifies upgrades even when Basic counts
+    rise due to growth. Without totals, use the legacy net-count transition convention.
     """
     sm = np.asarray(target_sm, dtype=float)
     basic = np.asarray(target_basic, dtype=float)
@@ -31,19 +89,33 @@ def target_transition_capex(target_sm, target_basic, cost_sm, cost_basic, nonhou
     new_sm = np.zeros(n)
     new_basic = np.zeros(n)
     upgrades = np.zeros(n)
+    downgrades = np.zeros(n)
+    totals = None if total_households is None else np.asarray(total_households, dtype=float)
     expansion_sm = np.zeros(n)
     expansion_basic = np.zeros(n)
     expansion = np.zeros(n)
     for t in range(max(0, int(baseline_index)) + 1, n):
-        sm_increase = max(0.0, sm[t] - sm[t - 1])
-        total_service_increase = max(
-            0.0, (sm[t] + basic[t]) - (sm[t - 1] + basic[t - 1]))
-        basic_reduction = max(0.0, basic[t - 1] - basic[t])
-        upgrades[t] = min(sm_increase, basic_reduction)
-        new_sm[t] = sm_increase - upgrades[t]
-        # Positive service growth not already priced as a new SM connection is new Basic service.
-        # This also avoids pricing a downgrade from SM to Basic as a new connection.
-        new_basic[t] = max(0.0, total_service_increase - new_sm[t])
+        if totals is None:
+            sm_increase = max(0.0, sm[t] - sm[t - 1])
+            basic_reduction = max(0.0, basic[t - 1] - basic[t])
+            upgrades[t] = min(sm_increase, basic_reduction)
+            downgrades[t] = min(max(0.0, basic[t] - basic[t - 1]),
+                                max(0.0, sm[t - 1] - sm[t]))
+            new_sm[t] = sm_increase - upgrades[t]
+            total_service_increase = max(
+                0.0, (sm[t] + basic[t]) - (sm[t - 1] + basic[t - 1]))
+            new_basic[t] = max(0.0, total_service_increase - new_sm[t])
+        else:
+            previous, current = max(0.0, totals[t - 1]), max(0.0, totals[t])
+            retained = min(previous, current)
+            growth = max(0.0, current - previous)
+            shares = np.array([sm[t], basic[t]]) / current if current else np.zeros(2)
+            prior = np.array([sm[t - 1], basic[t - 1]]) * (retained / previous if previous else 0)
+            changes = shares * retained - prior
+            upgrades[t] = min(max(0.0, changes[0]), max(0.0, -changes[1]))
+            downgrades[t] = min(max(0.0, changes[1]), max(0.0, -changes[0]))
+            new_sm[t] = growth * shares[0] + max(0.0, changes[0] - upgrades[t])
+            new_basic[t] = growth * shares[1] + max(0.0, changes[1] - downgrades[t])
 
         unit_sm = max(0.0, sm_cost[t])
         unit_basic = max(0.0, basic_cost[t])
@@ -59,6 +131,7 @@ def target_transition_capex(target_sm, target_basic, cost_sm, cost_basic, nonhou
         "new_sm_connections": new_sm,
         "new_basic_connections": new_basic,
         "sm_upgrades": upgrades,
+        "sm_downgrades": downgrades,
         "expansion_sm": expansion_sm,
         "expansion_basic": expansion_basic,
         "expansion": expansion,
@@ -68,7 +141,8 @@ def target_transition_capex(target_sm, target_basic, cost_sm, cost_basic, nonhou
 
 def annual_asset_requirements(expansion, opening_assets, replacement_rate, baseline_index=0,
                               expansion_by_service=None, opening_assets_by_service=None,
-                              implementation_capex=None):
+                              implementation_capex=None, service_households=None,
+                              service_upgrades=None, service_downgrades=None):
     """Apply annual replacement to the prior target-asset stock, without adding replacement twice."""
     expansion = np.asarray(expansion, dtype=float)
     n = len(expansion)
@@ -89,6 +163,10 @@ def annual_asset_requirements(expansion, opening_assets, replacement_rate, basel
     replacement = np.zeros(n)
     replacement_by_service = np.zeros((2, n))
     need = np.zeros(n)
+    asset_transfer = np.zeros(n)
+    upgrades = np.zeros(n) if service_upgrades is None else np.asarray(service_upgrades, dtype=float)
+    downgrades = np.zeros(n) if service_downgrades is None else np.asarray(service_downgrades, dtype=float)
+    service_hh = None if service_households is None else np.asarray(service_households, dtype=float)
     for t in range(max(0, baseline_index), n):
         if t == baseline_index:
             stock[t] = float(opening_assets)
@@ -98,10 +176,19 @@ def annual_asset_requirements(expansion, opening_assets, replacement_rate, basel
         replacement_by_service[:, t] = np.maximum(0.0, stock_by_service[:, t - 1] * replacement_rate)
         stock[t] = stock[t - 1] + expansion[t]
         stock_by_service[:, t] = stock_by_service[:, t - 1] + expansion_services[:, t]
+        if service_hh is not None:
+            # Existing Basic base assets move with upgraded households. This is a book-value
+            # transfer, not additional expenditure or additional system capacity.
+            up_share = min(1.0, upgrades[t] / service_hh[1, t - 1]) if service_hh[1, t - 1] > 0 else 0.0
+            down_share = min(1.0, downgrades[t] / service_hh[0, t - 1]) if service_hh[0, t - 1] > 0 else 0.0
+            asset_transfer[t] = (stock_by_service[1, t - 1] * up_share -
+                                 stock_by_service[0, t - 1] * down_share)
+            stock_by_service[:, t] += np.array([asset_transfer[t], -asset_transfer[t]])
         need[t] = expansion[t] + replacement[t] + max(0.0, implementation[t])
     return {
         "target_asset_stock": stock,
         "target_asset_stock_by_service": stock_by_service,
+        "target_asset_transfer_to_sm": asset_transfer,
         "replacement": replacement,
         "replacement_by_service": replacement_by_service,
         "implementation_capex": implementation[:n],

@@ -5,3 +5,4 @@
 - [Programme financing timing](programme-financing-timing.md) — reconcile carry once; annual shortfalls, programme requirements, and terminal service gaps are separate.
 - [Intervention accounting](intervention-accounting.md) — agreed sequence, shared collected-revenue attribution, and separation of capital, recurring cash and funded physical benefits.
 - [Borrowing assumptions](borrowing-assumptions.md) — separate entity pools, established cash only, fixed contracts, and explicit reserves and post-horizon conversion assumptions.
+- [Exogenous volume scope](exogenous-volume-scope.md) — connection-revenue feedback is deferred; upgrades are not automatically new customers and population growth applies once.

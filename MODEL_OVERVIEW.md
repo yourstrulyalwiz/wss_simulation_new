@@ -310,8 +310,8 @@ are different quantities and must not be added into one recurring-cash total.
 ### 6.1 Collection efficiency and the shared collected-revenue ledger
 
 Ramps the collected-to-billed ratio from current to target between a start and target year. The
-additional cash each year is `billed_volume × tariff × (ratio[t] − baseline_ratio)`, and 100% of
-it is recycled into capex. Billed volume **scales with population** off its anchor year (or a
+additional cash each year is `billed_volume × tariff × (ratio[t] − baseline_ratio)`, allocated
+through the additional-net-cash control. Billed volume **scales with population** off its anchor year (or a
 fixed compound rate if supplied). This baseline billed volume is exogenous.
 Scenario billed volume additionally includes NRW commercial billing recovery and the
 recovered physical water explicitly allocated to additional service/sales.
@@ -520,9 +520,39 @@ and national scopes.
   household-count-based rather than cost-based, a carry-over from the source workbook.
 - **Planned investments are not used.** The five-period planned-investment inputs remain in the
   schema and the UI but no longer feed the calculation; the budget is derived (§4).
-- **Volumes scale exogenously** with population (or a fixed rate), not with the connections the
-  levers fund — deliberate, to avoid circularity, but it means volume growth is not endogenous to
-  coverage.
+- **Volumes remain exogenous for this release.** See the assumptions and extension boundary below.
 - **Income distribution is static** in real terms over the forecast.
 - **National is additive.** Urban and Rural are summed; there is no migration or reallocation
   between them beyond what the entered population series already implies.
+
+### Exogenous volume assumptions and deferred connection-revenue feedback
+
+Preserve entered billed and NRW system-input volumes. For an annual volume `Q_anchor`:
+
+- Default growth (`None`): `Q[t] = Q_anchor × population[t] / population[anchor]`.
+- An explicit fixed rate `g`: `Q[t] = Q_anchor × (1 + g)^(year[t] − anchor year)`.
+  This replaces population scaling; it is not multiplied by it. Explicit zero means flat volume.
+
+Shared tariff/collection billed volume uses the existing tariff-volume input and the tariff
+start year as anchor, falling back to the collection start year. NRW system-input volume uses
+the NRW start year and its independently entered growth option. An absent anchor uses the
+baseline; an out-of-window anchor is clamped to the model window. Historical/forecast gating
+is unchanged. A zero-population anchor retains the existing zero-volume result.
+The population trajectory already includes its own projection; do not compound that growth again.
+
+Tariff and collection consume the same projected billed-volume base. NRW can add commercial
+billing recovery and explicitly allocated service sales, while production-avoidance savings
+use only the reduced-production volume. Those are established intervention assumptions—not
+revenue inferred from funded connections. They remain separate from coverage and loan proceeds.
+
+Neither additional connections nor Basic→Safely-managed upgrades automatically create paying
+customers, billable consumption, revenue, or connection-driven operating costs. An upgrade may
+improve an existing customer's service; it is not a new-customer assumption.
+
+**Deferred extension, outside this release:** introduce an explicit customer/consumption
+projection at the volume boundary, distinguishing existing billable customers, genuine new
+customers, upgrades of existing customers, and non-paying connections. Feed those consumption
+volumes into the existing tariff/collection ledger and explicit volume-driven operating-cost
+assumptions. Preserve one population-growth treatment and separate physical service transitions
+from customer transitions. Loan capacity must not recursively borrow against hypothetical
+loan-funded future receipts. No endogenous feedback or new consumption assumptions are enabled now.

@@ -21,6 +21,7 @@ from model.finance import (
     tariff_collection_cash, target_household_trajectory, intervention_output,
 )
 from model.gap_attribution import attribute_gap
+from model.volumes import exogenous_volume_factors
 
 RUNGS = ["Safely managed", "Basic", "Limited", "Unimproved", "No Service"]
 LOWER = [2, 3, 4]   # Limited, Unimproved, No Service
@@ -544,13 +545,12 @@ def _sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_b
     # Combined tariff/collection revenue uses one exogenous billed-volume base for both interventions.
     # Keep the existing population/fixed-growth convention; do not infer billable connections from
     # simulated coverage or compound population growth twice.
-    population = ctx['population']
-    def _vol_factor(t, anchor_year, growth):
-        ai = int(np.clip((anchor_year or by) - msy, 0, n - 1))
-        if growth is not None:
-            return (1.0 + float(growth)) ** (years[t] - years[ai])
-        pa = population[ai]
-        return (population[t] / pa) if pa > 0 else 0.0
+    billed_growth = exogenous_volume_factors(
+        years, ctx['population'], anchor_year=tariff_start or ce_start,
+        baseline_year=by, growth_rate=ce_vol_growth)
+    nrw_growth = exogenous_volume_factors(
+        years, ctx['population'], anchor_year=nrw_start,
+        baseline_year=by, growth_rate=nrw_vol_growth)
 
     def _ramp(values, current, target, start, end, enabled, lower=None, upper=None):
         out = np.full(n, float(current))
@@ -582,7 +582,7 @@ def _sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_b
     for t in range(bi + 1, n):
         if ctx['forecast_flag'][t] <= 0:
             continue
-        billed_volume[t] = common_volume * _vol_factor(t, tariff_start or ce_start, ce_vol_growth)
+        billed_volume[t] = common_volume * billed_growth[t]
     collection_cash, tariff_cash = tariff_collection_cash(
         billed_volume, tariff_current, tariff_scenario, ce_current_ratio,
         collection_scenario, tariff_enabled=tariff_enabled,
@@ -629,7 +629,7 @@ def _sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_b
                 continue
             red = nrw_reduction[t]
             red_benefit = nrw_reduction[t - lag] if t - lag >= 0 else 0.0
-            volume_factor = _vol_factor(t, nrw_start, nrw_vol_growth)
+            volume_factor = nrw_growth[t]
             total_recovered = red_benefit * nrw_vol_m3yr * volume_factor
             physical_recovered = total_recovered * physical_share
             service_volume = physical_recovered * service_share
@@ -652,7 +652,7 @@ def _sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_b
             cap_now = red * nrw_vol_m3day * volume_factor
             cap_prev = (
                 nrw_reduction[t - 1] * nrw_vol_m3day
-                * _vol_factor(t - 1, nrw_start, nrw_vol_growth)) if t > 0 else 0.0
+                * nrw_growth[t - 1]) if t > 0 else 0.0
             nrw_implementation[t] = (
                 nrw_capex_unit_m3day * max(0.0, cap_now - cap_prev) / 1_000_000.0)
             upgrade_flow = max(0.0, nrw_upgrade_cum[t] - nrw_upgrade_cum[t - 1])

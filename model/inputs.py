@@ -351,8 +351,9 @@ class WaterInterventionInputs(BaseModel):
     ce_target_ratio: float = 0.98
     ce_water_sold_mld: float = 240.0         # volume of water sold at ce_start_year (the anchor year)
     ce_current_tariff: float = 32.0          # local currency per m3
-    # Volume grows each forecast year off the ce_start_year value. None → scale with population
-    # (the default); a number → fixed compound real growth rate (e.g. 0.03 = 3%/yr).
+    # Shared tariff/collection billed volume uses tariff_start_year, falling back to
+    # ce_start_year. None → population ratio ONCE; a number → fixed compound volume
+    # growth INSTEAD (including zero = flat). No connection/upgrade-revenue feedback.
     ce_vol_growth: Optional[float] = None
 
     # NRW reduction (#119-#126) — reduce non-revenue water; the recovered PHYSICAL water upgrades basic

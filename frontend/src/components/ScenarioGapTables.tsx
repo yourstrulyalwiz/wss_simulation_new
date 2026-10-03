@@ -13,6 +13,7 @@ export type FinanceYear = {
   bauAvailable: number; scenarioAvailable: number;
   offBudgetLoans: number; offBudgetGrants: number;
   bauGap: number; scenarioGap: number;
+  planned: number; catchUp: number; outstanding: number; endlineRequirement: number; stock: number;
   replacementReserved: number; coverageReplacement: number;
   expansionAvailable: number; purchaseCapital: number; unallocatedCapital: number; cashDeficit: number;
   services: [RungFinance, RungFinance];  // Safely Managed, Basic (exclusive)
@@ -32,10 +33,14 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
   currency: string;
 }) {
   if (!rows.length) return null;
-  const m = `${currency} M/yr`, b = `B ${currency}/yr`;
-  // All columns are annual flows; the dashboard summary above already shows
-  // cumulative gaps, so this table does not mix annual and cumulative units.
+  const m = `${currency} M`, b = `B ${currency}`;
+  // Monetary balances and within-year flows are explicitly distinguished.
   const summary: Column[] = [
+    { title: `Planned expansion — annual flow (${b})`, value: r => r.planned, unit: 'money' },
+    { title: `Catch-up before funding — snapshot (${b})`, value: r => r.catchUp, unit: 'money' },
+    { title: `Outstanding expansion — closing balance (${b})`, value: r => r.outstanding, unit: 'money' },
+    { title: `Endline requirement incl. accumulated shortfalls (${b})`, value: r => r.endlineRequirement, unit: 'money' },
+    { title: `Gross funded asset stock — balance (${b})`, value: r => r.stock, unit: 'money' },
     { title: `BAU gap (${b})`, value: r => r.bauGap, unit: 'money' },
     { title: `SM residual new-service cost (${b})`, value: r => r.services[0].newScenario, unit: 'money' },
     { title: `SM replacement (${b})`, value: r => r.services[0].replacementScenario, unit: 'money' },
@@ -51,7 +56,7 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
     { title: `Replacement credit (${b})`, value: r =>
       r.services[0].fundedScenario + r.services[1].fundedScenario, unit: 'money' },
     { title: `Expansion capital available (${b})`, value: r => r.expansionAvailable, unit: 'money' },
-    { title: `Modeled connection purchases, pre-cap (${b})`, value: r => r.purchaseCapital, unit: 'money' },
+    { title: `Actual funded connection purchases — flow (${b})`, value: r => r.purchaseCapital, unit: 'money' },
     { title: `Unallocated positive expansion capital (${b})`, value: r => r.unallocatedCapital, unit: 'money' },
     { title: `Cash deficit (${b})`, value: r => r.cashDeficit, unit: 'money' },
     { title: `Off-budget microfinance loans (${b})`, value: r => r.offBudgetLoans, unit: 'money' },

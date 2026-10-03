@@ -225,7 +225,7 @@ def _fill_investment(slide, b, cur):
     if note is not None:
         _set_full_text(note, (
             f"Residual-ledger subtotal: {bn(b['total_need_m'])} billion {cur} to {b['last_target_year']}.\n"
-            f"Remaining financing gap: {bn(b['financing_gap_m'])} billion {cur}.\n"
+            f"Endline requirement (closing expansion + accumulated shortfalls): {bn(b['financing_gap_m'])} billion {cur}. Period-end balances are not additive.\n"
             "Gap = residual new-service cost + replacement requirement − replacement credit + cash deficit.\n"
             "Available capital has already financed modeled connections; no second credit applies.\n"
             "Replacement reserve uses coverage stock; reported obligations use target-needs stock.\n"

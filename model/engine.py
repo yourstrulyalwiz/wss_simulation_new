@@ -243,6 +243,9 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
     bau['scenario_hh'] = scn['bau_hh']                                  # SM path WITH interventions
     bau['scenario_financing_gap'] = scn['financing_gap']
     bau['scenario_total_investment_need'] = scn['total_investment_need']
+    from model.expansion_ledger import ExpansionLedger
+    for key in ExpansionLedger(0, 0, 0).series:
+        bau['scenario_' + key] = scn[key]
     # The dashboard's scenario spending tables must use the scenario's own
     # obligations and allocation, not BAU need minus an intervention cash total.
     for key in ('new_capex_by_service', 'replacement_by_service',

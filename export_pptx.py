@@ -53,7 +53,8 @@ def _sector_summary(result, inputs, sk):
     return {
         'end': years[e], 'curCov': cov(bau, bi), 'bauCov': cov(bau, e), 'scnCov': cov(scn, e), 'tgtCov': cov(tgt, e),
         'addHH': max(0.0, (min(total[e], scn[e]) - min(total[e], bau[e]))),
-        'gapBau': cum(sec.get('financing_gap') or []), 'gapScn': cum(sec.get('scenario_financing_gap') or []),
+        'gapBau': sec['endline_financing_requirement'][e],
+        'gapScn': sec['scenario_endline_financing_requirement'][e],
     }
 
 
@@ -154,7 +155,7 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None) -> io.By
         red = (1 - d['gapScn'] / d['gapBau']) * 100 if d['gapBau'] else 0
         txt = (f"{label}: safely-managed coverage reaches {_pct(d['scnCov'])} with the current interventions by "
                f"{d['end']} (vs {_pct(d['bauCov'])} business-as-usual and a {_pct(d['tgtCov'])} target) — "
-               f"{d['addHH']:.2f} M more households. Cumulative financing gap falls from {_b(d['gapBau'])} to "
+               f"{d['addHH']:.2f} M more households. Endline financing requirement changes from {_b(d['gapBau'])} to "
                f"{_b(d['gapScn'])} B {cur} ({red:.0f}% lower).")
         p = tf.add_paragraph(); set_p(p, txt, 12.5, RGBColor(0x33, 0x41, 0x55), bullet=True)
 
@@ -164,6 +165,28 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None) -> io.By
         ('sanitation', 'Sanitation', SAN_INTV, 'san_coverage', 'san_gap'),
     ]:
         d = _sector_summary(result, inputs, sk)
+        ledger_slide = prs.slides.add_slide(blank)
+        slide_title(ledger_slide, f'{name} — funding flows and balances',
+                    'Flows sum since baseline; end balances include opening work and are not additive.')
+        sec = result[sk]
+        ledger_rows = []
+        for label, field, balance in (
+            ('Planned expansion — annual flows', 'annual_planned_expansion_cost', False),
+            ('Replacement — annual flows', 'replacement_capex', False),
+            ('Catch-up before funding — final-year snapshot', 'catch_up_requirement', True),
+            ('Outstanding expansion — closing balance', 'closing_outstanding_expansion', True),
+            ('Unpaid replacement — annual flows', 'unfunded_replacement', False),
+            ('Negative cash — annual flows', 'cash_deficit', False),
+            ('Endline requirement — balance + all shortfalls', 'endline_financing_requirement', True),
+            ('Gross funded assets — closing stock', 'funded_asset_stock', True),
+        ):
+            vals = []
+            for prefix in ('', 'scenario_'):
+                series = sec[prefix + field]
+                value = series[-1] if balance else sum(series)
+                vals.append(_b(value))
+            ledger_rows.append([label, *vals])
+        add_table(ledger_slide, .6, 1.5, 12, ['Accounting item', f'BAU ({cur} B)', f'Scenario ({cur} B)'], ledger_rows)
 
         # 3a. coverage chart + written summary
         s = prs.slides.add_slide(blank)
@@ -195,7 +218,7 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None) -> io.By
             set_p(tf.paragraphs[0], 'No interventions enabled for this sector.', 12, GREY)
         tf = textbox(s, 8.3, 6.2, 4.7, 1.0)
         red = (1 - d['gapScn'] / d['gapBau']) * 100 if d['gapBau'] else 0
-        set_p(tf.paragraphs[0], f'Cumulative gap: {_b(d["gapBau"])} → {_b(d["gapScn"])} B {cur} ({red:.0f}% lower).', 11.5, INK, bold=True)
+        set_p(tf.paragraphs[0], f'Endline requirement: {_b(d["gapBau"])} → {_b(d["gapScn"])} B {cur} ({red:.0f}% lower). Closing expansion plus shortfalls since baseline; balances are not additive.', 11.5, INK, bold=True)
 
     output = io.BytesIO()
     prs.save(output)

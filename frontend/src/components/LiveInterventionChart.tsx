@@ -121,7 +121,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         setSummary({
           // Compare the full-scenario SM / gap against the PURE BAU (bau_hh / financing_gap).
           endline: years[e], addHH: Math.max(0, (+full.scenario_hh[rung][e]) - (+bau.bau_hh[rung][e])),
-          gapBau: cum(bau.financing_gap), gapIntv: cum(full.scenario_financing_gap),
+          gapBau: bau.endline_financing_requirement[e], gapIntv: full.scenario_endline_financing_requirement[e],
           cur: inputs?.country_config?.currency || 'LCU',
         });
         setError(null);
@@ -220,7 +220,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       {error && <div style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>{error}</div>}
       {summary && (
         <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: `3px solid ${C.scenario}`, borderRadius: 6, padding: '8px 12px', lineHeight: 1.55, marginBottom: 10 }}>
-          <b>Impact.</b> By {summary.endline}, the enabled interventions serve <b>{sig(summary.addHH)} M</b> more {rungName} households and cut the cumulative financing gap from <b>{sig(summary.gapBau)}</b> to <b>{sig(summary.gapIntv)} M {summary.cur}</b>
+          <b>Impact.</b> By {summary.endline}, the enabled interventions serve <b>{sig(summary.addHH)} M</b> more {rungName} households and change the endline financing requirement from <b>{sig(summary.gapBau)}</b> to <b>{sig(summary.gapIntv)} M {summary.cur}</b>
           {summary.gapBau > 0 && <> (a <b>{Math.round((1 - summary.gapIntv / summary.gapBau) * 100)}%</b> reduction)</>}.
         </div>
       )}

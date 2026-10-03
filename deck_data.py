@@ -266,21 +266,28 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
         periods.append((f'{ft + 1}–{lt}', ft + 1, lt))
     periods.append((f'Total {by + 1}–{lt}', by + 1, lt))
     inv_rows = [
-        ('Residual new-service cost (A)', 'new_capex_total'),
-        ('Replacement capex needed (B)', 'replacement_capex'),
-        ('Residual-ledger subtotal (C = A + B)', 'total_investment_need'),
-        ('Replacement credit (D)', 'replacement_credit'),
-        ('Cash deficit (E)', 'cash_deficit'),
-        ('Remaining financing gap (C − D + E)', 'financing_gap'),
+        ('Annual planned expansion — sum of flows', 'annual_planned_expansion_cost'),
+        ('Replacement requirement — sum of flows', 'replacement_capex'),
+        ('Closing outstanding expansion — end balance', 'closing_outstanding_expansion'),
+        ('Catch-up before funding — end-year snapshot', 'catch_up_requirement'),
+        ('Replacement credit — sum of flows', 'replacement_credit'),
+        ('Unpaid replacement — sum of flows', 'unfunded_replacement'),
+        ('Negative cash — sum of flows', 'cash_deficit'),
+        ('Endline requirement incl. all prior shortfalls', 'endline_financing_requirement'),
         ('Total available capital (reporting only)', 'available_total'),
         ('Coverage-stock replacement basis', 'bau_replacement_capex'),
         ('Replacement funding reserved', 'replacement_reserved'),
-        ('Modeled connection purchases (pre-cap)', 'connection_purchase_capital'),
+        ('Funded expansion — sum of flows', 'sector_funded_expansion'),
+        ('External expansion — sum of flows', 'externally_funded_expansion'),
+        ('Gross funded stock — end balance', 'funded_asset_stock'),
         ('Unallocated positive expansion capital', 'unallocated_positive_capital'),
     ]
     investment = {
         'periods': [p[0] for p in periods],
-        'rows': [(lbl, [_rng(sec.get(f), years, lo, hi) for _, lo, hi in periods]) for lbl, f in inv_rows],
+        'rows': [(lbl, [(_at(sec[f], _idx(years, hi)) if f in (
+            'closing_outstanding_expansion', 'catch_up_requirement',
+            'endline_financing_requirement', 'funded_asset_stock') else
+            _rng(sec.get(f), years, lo, hi)) for _, lo, hi in periods]) for lbl, f in inv_rows],
     }
 
     rows = intervention_rows(passes, enabled, has_custom, sk, years, by)
@@ -301,7 +308,7 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
         },
     }
 
-    tot_need = _rng(sec.get('total_investment_need'), years, by + 1, lt)
+    tot_need = _rng(sec['annual_planned_expansion_cost'], years, by + 1, lt) + _rng(sec['replacement_capex'], years, by + 1, lt)
     bau_inv = _rng(sec.get('bau_available'), years, by + 1, lt)
     # Households per year the target implies, against the rate actually achieved over the actuals
     # window — the pair the coverage slide's talking points compare.
@@ -324,7 +331,7 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
         'gap_end': max(0.0, _at(tgt, lti, 0) - _at(bau, lti, 0)),
         'total_need_m': tot_need, 'bau_investment_m': bau_inv,
         'replacement_credit_m': _rng(sec.get('replacement_credit'), years, by + 1, lt),
-        'financing_gap_m': _rng(sec.get('financing_gap'), years, by + 1, lt),
+        'financing_gap_m': _at(sec['endline_financing_requirement'], _idx(years, lt)),
     }
 
 

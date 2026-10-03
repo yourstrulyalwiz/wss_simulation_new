@@ -219,7 +219,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const scnGap = sum((r, i) => (secOf(r).scenario_financing_gap || [])[i] || 0);
           const tEnd = totalHH[endIdx] || 0;
           const covPct = (a: number[]) => tEnd > 0 ? Math.min(tEnd, a[endIdx]) / tEnd : 0;
-          const cumGap = (a: number[]) => years.reduce((s2, y, i) => s2 + (y > baseYr ? (a[i] || 0) : 0), 0);
+          const endRequirement = (key: string) => sum((r, i) => secOf(r)[key][i])[endIdx];
           // Current (baseline-year) safely-managed coverage — BAU at the baseline = the actual.
           const baseIdx = Math.max(0, years.indexOf(baseYr));
           const tBase = totalHH[baseIdx] || 0;
@@ -251,6 +251,11 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           }));
           const financeRows: FinanceYear[] = years.flatMap((year, i) => year <= baseYr ? [] : [{
             year, total: totalHH[i], bauAvailable: bauInv[i], scenarioAvailable: scnInv[i],
+            planned: ledger('scenario_annual_planned_expansion_cost')[i],
+            catchUp: ledger('scenario_catch_up_requirement')[i],
+            outstanding: ledger('scenario_closing_outstanding_expansion')[i],
+            endlineRequirement: ledger('scenario_endline_financing_requirement')[i],
+            stock: ledger('scenario_funded_asset_stock')[i],
             offBudgetLoans: loanCum[i] - (loanCum[i - 1] || 0),
             offBudgetGrants: grantCum[i] - (grantCum[i - 1] || 0),
             bauGap: bauGap[i], scenarioGap: scnGap[i],
@@ -270,26 +275,31 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             })) as [FinanceYear['services'][0], FinanceYear['services'][1]],
           }]);
           const periods = buildPeriods(years, baseYr);
-          const invRow = (label: string, arr: number[], strong = false) =>
-            ({ label, strong, vals: periods.map(p => sumRange(arr, years, p.lo, p.hi) / 1000) });
+          const invRow = (label: string, arr: number[], strong = false, balance = false) =>
+            ({ label, strong, vals: periods.map(p => (balance ? arr[Math.max(0, years.filter(y => y <= p.hi).length - 1)] : sumRange(arr, years, p.lo, p.hi)) / 1000) });
           const inv: InvTable = { periods, rows: [
-            invRow('Residual new-service cost (A)', newCap),
-            invRow('Replacement capex (B)', repl),
-            invRow('Residual-ledger subtotal (C = A + B)', totNeed, true),
-            invRow('Replacement credit (D)', ledger('replacement_credit')),
-            invRow('Cash deficit (E)', ledger('cash_deficit')),
-            invRow('Remaining financing gap (C − D + E)', bauGap, true),
+            invRow('Planned expansion — annual flows', ledger('annual_planned_expansion_cost')),
+            invRow('Replacement — annual flows', repl),
+            invRow('Closing outstanding expansion — end balance', ledger('closing_outstanding_expansion'), false, true),
+            invRow('Catch-up before funding — end-year snapshot', ledger('catch_up_requirement'), false, true),
+            invRow('Replacement credit — annual flows', ledger('replacement_credit')),
+            invRow('Unpaid replacement — annual flows', ledger('unfunded_replacement')),
+            invRow('Negative cash — annual flows', ledger('cash_deficit')),
+            invRow('Endline requirement incl. all prior shortfalls', ledger('endline_financing_requirement'), true, true),
+            invRow('Gross funded asset stock — end balance', ledger('funded_asset_stock'), false, true),
+            invRow('Sector-funded expansion — annual flows', ledger('sector_funded_expansion')),
+            invRow('Externally funded expansion — annual flows', ledger('externally_funded_expansion')),
             invRow('Total available capital (reporting only)', bauInv),
             invRow('Coverage-stock replacement basis', ledger('bau_replacement_capex')),
             invRow('Replacement funding reserved', ledger('replacement_reserved')),
-            invRow('Modeled connection purchases (pre-cap)', ledger('connection_purchase_capital')),
+            invRow('Actual funded connection purchases', ledger('connection_purchase_capital')),
             invRow('Unallocated positive expansion capital', ledger('unallocated_positive_capital')),
           ] };
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
           return { inv, unit, basicRows, financeRows, sum: {
             endline: years[endIdx], curCov, bauCov: covPct(bau), scnCov: covPct(scn), tgtCov: covPct(tgt),
             addHH: Math.max(0, Math.min(tEnd, scn[endIdx]) - Math.min(tEnd, bau[endIdx])),
-            gapBauCum: cumGap(bauGap), gapScnCum: cumGap(scnGap),
+            gapBauCum: endRequirement('endline_financing_requirement'), gapScnCum: endRequirement('scenario_endline_financing_requirement'),
           } };
         };
         setBoth({ water: build('water_supply'), sanitation: build('sanitation') });
@@ -327,7 +337,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         const endIdx = years.length - 1;
         const nBuiltin = enabled.length;                           // passes[1..nBuiltin] built-in; passes[nBuiltin+1] = customs
         const smY = (rl: any[], sk: string, i: number) => rl.reduce((a, r) => a + (r[sk].scenario_hh[0][i] || 0), 0);
-        const gapY = (rl: any[], sk: string, i: number) => rl.reduce((a, r) => a + ((r[sk].scenario_financing_gap || [])[i] || 0), 0);
+        const gapY = (rl: any[], sk: string, i: number) => rl.reduce((a, r) => a + r[sk].scenario_endline_financing_requirement[i], 0);
         const totY = (i: number) => passes[0].reduce((a: number, r: any) => a + (r.total_hh[i] || 0), 0);
         const tgtY = (sk: string, i: number) => passes[0].reduce((a: number, r: any) => a + (r[sk].target_hh[0][i] || 0), 0);
         const cashCum = (rl: any[], sk: string, f: string) => rl.reduce((a, r) =>
@@ -346,13 +356,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             en.forEach(d => {
               const idx = idxOf(d);
               covRow[d.label] = +Math.max(0, smY(passes[idx + 1], sk, i) - smY(passes[idx], sk, i)).toFixed(4);
-              const red = Math.max(0, gapY(passes[idx], sk, i) - gapY(passes[idx + 1], sk, i));
+              const red = gapY(passes[idx], sk, i) - gapY(passes[idx + 1], sk, i);
               gapRow[d.label] = +(red / 1000).toFixed(4);          // M → B
               sumRed += red;
             });
             if (hasCustoms) {
               covRow['Custom interventions'] = +Math.max(0, smY(passes[nBuiltin + 1], sk, i) - smY(passes[nBuiltin], sk, i)).toFixed(4);
-              const redC = Math.max(0, gapY(passes[nBuiltin], sk, i) - gapY(passes[nBuiltin + 1], sk, i));
+              const redC = gapY(passes[nBuiltin], sk, i) - gapY(passes[nBuiltin + 1], sk, i);
               gapRow['Custom interventions'] = +(redC / 1000).toFixed(4);
               sumRed += redC;
             }
@@ -363,7 +373,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const all: ContribBand[] = en.map(d => ({ key: d.label, label: d.label, color: d.color }));
           if (hasCustoms) all.push({ key: 'Custom interventions', label: 'Custom interventions', color: P.custom });
           // keep only bands that actually move either chart (an enabled-but-unparameterised lever adds 0)
-          const bands = all.filter(b => covRows.some(r => (r[b.key] || 0) > 1e-4) || gapRows.some(r => (r[b.key] || 0) > 1e-4));
+          const bands = all.filter(b => covRows.some(r => (r[b.key] || 0) > 1e-4) || gapRows.some(r => Math.abs(r[b.key] || 0) > 1e-4));
           return { covRows, gapRows, bands };
         };
         setContrib({ water: buildContrib(WATER_INTV, 'water_supply'), sanitation: buildContrib(SAN_INTV, 'sanitation') });
@@ -509,6 +519,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const exRows = inv.rows.map(r => [r.label, ...r.vals.map(v => +v.toFixed(4))]);
     return (
       <div style={{ marginTop: 8 }}>
+        <p style={{ fontSize: 11 }}>Flows are summed within each period. Closing balances include opening outstanding work; endline requirements include shortfalls since baseline. Adjacent period-end balances must not be added.</p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f' }}>Investment gap (BAU, {cur} b)</div>
           <TableExport filename="investment_gap" sheetName="Investment gap" headers={exHeaders} rows={exRows} compact />
@@ -604,7 +615,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <span style={{ fontSize: 11, color: '#64748b' }}>· {scopeName}</span>
         </div>
         <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '3px solid #0ea5e9', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55, marginBottom: 12 }}>
-          <b>By {s.sum.endline}</b>, safely-managed coverage increases from <b>{pct(s.sum.bauCov)}</b> (BAU) to <b>{pct(s.sum.scnCov)}</b> with the current interventions — <b>{sig3(s.sum.addHH)} M</b> more households — against a target of <b>{pct(s.sum.tgtCov)}</b>. The cumulative financing gap narrows from <b>{sigB(s.sum.gapBauCum)}</b> to <b>{sigB(s.sum.gapScnCum)} B {cur}</b>.
+          <b>By {s.sum.endline}</b>, safely-managed coverage increases from <b>{pct(s.sum.bauCov)}</b> (BAU) to <b>{pct(s.sum.scnCov)}</b> with the current interventions — <b>{sig3(s.sum.addHH)} M</b> more households — against a target of <b>{pct(s.sum.tgtCov)}</b>. The endline financing requirement changes from <b>{sigB(s.sum.gapBauCum)}</b> to <b>{sigB(s.sum.gapScnCum)} B {cur}</b>.
         </div>
         {noImpact && (
           <div style={{ fontSize: 10.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '5px 9px', marginBottom: 10 }}>
@@ -619,8 +630,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <BasicCoverageChart title={`${label} — basic coverage`} rows={basicData} isShare={isShare} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_basic_coverage`}
             captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
-          <StackChart title={`${label} — annual financing gap`} subtitle="Interventions stack up from zero; the space up to the dashed line (total BAU gap) is the gap remaining"
-            data={gapData} yLabel={`Financing gap (B ${cur}/yr)`}
+          <StackChart title={`${label} — year-end financing requirement`} subtitle="Closing expansion balance plus unpaid replacement and negative cash accumulated since baseline. Year-end balances are not additive."
+            data={gapData} yLabel={`Year-end requirement (B ${cur})`}
             bands={csBands} lines={gapLines} fmt={gapFmt}
             filename={`${scopeName}_${secKey}_financing_gap`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} />
         </div>

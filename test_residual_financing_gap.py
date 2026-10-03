@@ -15,13 +15,13 @@ from model.gap_attribution import attribute_gap
 from model.water_supply import sector_bau
 
 
-def fixture(available, replacement, *, sanitation=False, years=2, fully_sm_target=False):
+def fixture(available, replacement, *, sanitation=False, years=2, fully_sm_target=False, opening_stock=300000):
     # 100 SM + 200 Basic; target 200 SM + 100 Basic: exactly 100 upgrades.
     # All amounts are converted to the engine's millions convention.
     ctx = {
         'n': years, 'bi': 0, 'years': np.arange(2025, 2025 + years),
-        'total_hh': np.full(years, 300 / 1e6),
-        'population': np.full(years, 900 / 1e6),
+        'total_hh': np.full(years, opening_stock / 1000 / 1e6),
+        'population': np.full(years, opening_stock * 3 / 1000 / 1e6),
         'forecast_flag': np.array([0.] + [1.] * (years - 1)),
         'perf_flag': np.array([0.] + [1.] * (years - 1)),
         'end_asis_year': 2025, 'gdp_real_local': np.ones(years),
@@ -34,7 +34,7 @@ def fixture(available, replacement, *, sanitation=False, years=2, fully_sm_targe
         tgt2=[1, 0, 0, 0, 0] if fully_sm_target else [2/3, 1/3, 0, 0, 0],
         cost_sm=1000, cost_basic=1000,
         full_budget=np.zeros(years), capex_pct=1, growth_capex_pct=0,
-        planned_list=[], nonhh_pct=0, asset_life=300000/replacement if replacement else float('inf'),
+        planned_list=[], nonhh_pct=0, asset_life=opening_stock/replacement if replacement else float('inf'),
         capex_adder=0, hist_all_proportional=not sanitation,
         target_adjusted=sanitation, basic_share=0,
         extra_cash=np.array([0.] + [available / 1e6] * (years - 1)),
@@ -58,7 +58,7 @@ class ResidualFinancingGapTests(unittest.TestCase):
                     self.assertAlmostEqual(sum(r[1] for r in sec['financing_gap_by_service']) * 1e6, gap)
                     self.assertAlmostEqual(sec['connection_purchase_capital'][1] * 1e6, upgrades * 1000)
 
-    def test_unequal_stock_bases_reserve_and_credit_are_capped_separately(self):
+    def test_replacement_bases_now_use_the_same_funded_stock(self):
         for available in (0, 5000, 40000, 500000):
             sec = fixture(available, 10000, years=4)
             for i in (2, 3):
@@ -68,9 +68,8 @@ class ResidualFinancingGapTests(unittest.TestCase):
                 self.assertAlmostEqual(sec['replacement_credit'][i], credit)
                 self.assertAlmostEqual(sec['financing_gap'][i],
                     sec['new_capex_total'][i] + max(sec['replacement_capex'][i] - credit, 0))
-            self.assertNotEqual(sec['bau_replacement_capex'][2], sec['replacement_capex'][2])
-        # With surplus cash the coverage-stock reserve exceeds the reported need.
-        self.assertGreater(sec['replacement_reserved'][2], sec['replacement_credit'][2])
+            self.assertEqual(sec['bau_replacement_capex'][2], sec['replacement_capex'][2])
+        self.assertEqual(sec['replacement_reserved'][2], sec['replacement_credit'][2])
 
     def test_fully_funded_target_does_not_recredit_excess_capital(self):
         for sanitation in (False, True):
@@ -110,19 +109,20 @@ class ResidualFinancingGapTests(unittest.TestCase):
         deck = Presentation(build_deck({'urban': inputs}))
         investment_tables = [
             sh.table for slide in deck.slides for sh in slide.shapes
-            if sh.has_table and any('Remaining financing gap' in cell.text
+            if sh.has_table and any('Endline requirement incl.' in cell.text
                                    for row in sh.table.rows for cell in row.cells)]
         self.assertGreaterEqual(len(investment_tables), 2)
         for table in investment_tables:
             labels = [row.cells[0].text for row in table.rows]
-            self.assertIn('Replacement credit (D)', labels)
-            self.assertIn('Cash deficit (E)', labels)
+            self.assertIn('Replacement credit — sum of flows', labels)
+            self.assertIn('Negative cash — sum of flows', labels)
             # Values are displayed in billions, to one decimal.
-            a, b, d, e, gap = [float(table.cell(labels.index(label), len(table.columns)-1).text.replace(',', ''))
-                              for label in ('Residual new-service cost (A)', 'Replacement capex needed (B)',
-                                            'Replacement credit (D)', 'Cash deficit (E)',
-                                            'Remaining financing gap (C − D + E)')]
-            self.assertAlmostEqual(gap, a + b - d + e, delta=0.21)
+            a, b, e, gap = [float(table.cell(labels.index(label), len(table.columns)-1).text.replace(',', ''))
+                           for label in ('Closing outstanding expansion — end balance',
+                                         'Unpaid replacement — sum of flows',
+                                         'Negative cash — sum of flows',
+                                         'Endline requirement incl. all prior shortfalls')]
+            self.assertAlmostEqual(gap, a + b + e, delta=0.21)
         texts = '\n'.join(sh.text for slide in deck.slides for sh in slide.shapes if sh.has_text_frame)
         self.assertNotIn('current spending covers', texts)
         self.assertNotIn('a gap of about', texts)

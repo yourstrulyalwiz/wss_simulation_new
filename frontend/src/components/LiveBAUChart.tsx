@@ -283,7 +283,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         // ── Headline summary ──
         const cov = (arr: number[]) => totEnd > 0 ? Math.min(totEnd, arr[endIdx]) / totEnd : 0;
         const covPop = (arr: number[]) => popEnd > 0 ? Math.min(totEnd, arr[endIdx]) / totEnd : 0;   // ≈ share of population
-        const tin = sum((res, i) => (secOf(res).total_investment_need || [])[i] || 0);
+        const tin = sum((res, i) => secOf(res).annual_planned_expansion_cost[i] + secOf(res).replacement_capex[i]);
         let cumNeed = 0; years.forEach((y: number, i: number) => { if (y > baseYr) cumNeed += tin[i] || 0; });
         setSummary({
           costSM: datasets.length === 1 ? secOf(base)[showMoney ? 'cost_per_hh' : 'cost_basic'] : null,
@@ -353,12 +353,12 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   };
   // Forecast data table (per year) — for its own ⤓ CSV / ⤓ Excel.
   const tableHeaders = ['Year', 'Total households (M)', `${rungNameRaw} BAU (M)`, `Target ${rungLabel} (M)`, 'Service Gap (M HH)',
-    `${rungLabel} residual new-service cost (${endAnno?.cur || 'LCU'} M/yr)`,
+    `${rungLabel} closing outstanding expansion (${endAnno?.cur || 'LCU'} M)`,
     `${rungLabel} replacement need (${endAnno?.cur || 'LCU'} M/yr)`,
     `${rungLabel} replacement credit (${endAnno?.cur || 'LCU'} M/yr)`,
     `${rungLabel} cash deficit (${endAnno?.cur || 'LCU'} M/yr)`,
-    `${rungLabel} financing gap (${endAnno?.cur || 'LCU'} M/yr)`,
-    `Sector-wide financing gap (${endAnno?.cur || 'LCU'} M/yr)`];
+    `${rungLabel} closing expansion + current shortfalls (${endAnno?.cur || 'LCU'} M)`,
+    `Sector-wide closing expansion + current shortfalls (${endAnno?.cur || 'LCU'} M)`];
   const tableExportRows = tableRows.map((r: any) => [r.year, round3(r.total), round3(r.bau), round3(r.tgt), round3(r.gapHH),
     round3(r.newNeed), round3(r.replacement), round3(r.funded), round3(r.deficit), round3(r.serviceGap),
     r.finGap == null ? '' : round3(r.finGap)]);
@@ -556,7 +556,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         return (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '3px solid #2563eb', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55 }}>
-              <b>Summary.</b> Under business-as-usual, {summary.rungLabel} {sectorLabel.toLowerCase()} reaches <b>{pct(summary.bauPop)}</b> of the population by {summary.endline}, against a target of <b>{pct(summary.tgtPop)}</b>{summary.gapEnd > 0.0005 ? <> — a shortfall of <b>{sig3(summary.gapEnd)} M households</b></> : null}. The attributed <b>{summary.rungLabel}</b> annual financing gap at {summary.endline} is <b>{money(summary.serviceGapEnd)}/yr</b>; the <b>sector-wide</b> annual gap is <b>{money(summary.finGapEnd)}/yr</b>. Cumulative sector-wide residual-ledger subtotal (new-service cost + replacement) is <b>{sigB(summary.cumNeed)} B {cur}</b> ({summary.firstForecast}–{summary.endline}).
+              <b>Summary.</b> Under business-as-usual, {summary.rungLabel} {sectorLabel.toLowerCase()} reaches <b>{pct(summary.bauPop)}</b> of the population by {summary.endline}, against a target of <b>{pct(summary.tgtPop)}</b>{summary.gapEnd > 0.0005 ? <> — a shortfall of <b>{sig3(summary.gapEnd)} M households</b></> : null}. The attributed <b>{summary.rungLabel}</b> closing expansion plus current-year shortfall at {summary.endline} is <b>{money(summary.serviceGapEnd)}</b>; the <b>sector-wide</b> balance is <b>{money(summary.finGapEnd)}</b>. Total annual planned expansion and replacement flows are <b>{sigB(summary.cumNeed)} B {cur}</b> ({summary.firstForecast}–{summary.endline}). Outstanding balances are not additive across years.
               {summary.costSM != null && <> Weighted {summary.rungLabel} cost per household: <b>{sig3(summary.costSM)} {cur}</b>.</>}
             </div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 5, lineHeight: 1.45 }}>
@@ -676,8 +676,8 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
                      `${rungLabel} replacement need (B ${endAnno?.cur || 'LCU'}/yr)`,
                      `${rungLabel} replacement credit (B ${endAnno?.cur || 'LCU'}/yr)`,
                      `${rungLabel} cash deficit (B ${endAnno?.cur || 'LCU'}/yr)`,
-                     `${rungLabel} financing gap (B ${endAnno?.cur || 'LCU'}/yr)`,
-                     `Sector-wide financing gap (B ${endAnno?.cur || 'LCU'}/yr)`].map((h, i) => (
+                     `${rungLabel} closing expansion + current shortfalls (B ${endAnno?.cur || 'LCU'})`,
+                     `Sector-wide closing expansion + current shortfalls (B ${endAnno?.cur || 'LCU'})`].map((h, i) => (
                     <th key={i} style={{ padding: '5px 10px', textAlign: i === 0 ? 'left' : 'right', fontWeight: 700, whiteSpace: 'nowrap', position: i === 0 ? 'sticky' : undefined, left: i === 0 ? 0 : undefined, background: '#f1f5f9' }}>{h}</th>
                   ))}
                 </tr>

@@ -17,6 +17,7 @@ That already produces a distinct sanitation BAU; the sanitation-specific diverge
 import numpy as np
 
 from model.gap_attribution import attribute_gap
+from model.expansion_ledger import ExpansionLedger
 
 RUNGS = ["Safely managed", "Basic", "Limited", "Unimproved", "No Service"]
 LOWER = [2, 3, 4]   # Limited, Unimproved, No Service
@@ -632,6 +633,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     # 4c — opening asset stock (booked at the baseline year)
     opening_stock = (bau[0, bi] * cost_sm + bau[1, bi] * cost_basic) * (1.0 + nonhh_mult)
     opening_sm = bau[0, bi] * cost_sm * (1.0 + nonhh_mult)
+    ledger = ExpansionLedger(bau[0, bi], bau[1, bi], n)
+    ledger.series['funded_asset_stock'][bi] = opening_stock
 
     # BAU forecast (4a), targets (4b) and investment need (4d) are computed together in ONE forward
     # pass, because the BAU additional safely-managed HH depend on the BAU replacement capex:
@@ -650,16 +653,14 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     expansion_capital_available = np.zeros(n); connection_purchase_capital = np.zeros(n)
     unallocated_positive_capital = np.zeros(n)
     cash_deficit_by_service = np.zeros((2, n))
-    # These residual ledgers do not alter the BAU stock or connection projections.
+    # Replacement obligations follow gross funded assets, by service.
     # `funded_by_service` remains a compatibility alias for replacement credit only.
     need_stock_by_service = np.zeros((2, n))
     new_capex_by_service = np.zeros((2, n))
     replacement_by_service = np.zeros((2, n))
     funded_by_service = np.zeros((2, n))
     financing_gap_by_service = np.zeros((2, n))
-    # BAU's OWN asset stock + its depreciation, kept SEPARATE from `stock` (which accumulates the
-    # target-gap capex nc_total). The BAU 4a replacement depreciates THIS, so the BAU counterfactual
-    # never depends on the target path — this fixes the cross-scenario circularity.
+    # Compatibility alias for funded stock. Neither alias includes outstanding work.
     bau_stock = np.zeros(n); bau_replacement = np.zeros(n)
 
     # Microfinance + means-based grant (affordability lever): per-year SM connections and grant spend,
@@ -693,12 +694,11 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         prior_stock = stock[t - 1]
         # Depreciation starts the FIRST forecast year (baseline+1, e.g. 2026), matching excel2 — which
         # depreciates the existing stock from baseline+1, NOT the later performance-improvement year (2028).
-        replacement[t] = prior_stock * depr if ff > 0 else 0.0        # TARGET-stock depreciation → 4d only
+        replacement[t] = prior_stock * depr if ff > 0 else 0.0
         replacement_by_service[0, t] = need_stock_by_service[0, t - 1] * depr if ff > 0 else 0.0
         replacement_by_service[1, t] = replacement[t] - replacement_by_service[0, t]
         # 4a — additional safely-managed HH funded by (BAU investment − replacement), household share only.
-        # BAU replacement depreciates the BAU's OWN stock (baseline existing stock + BAU's own additions),
-        # NOT the target-gap stock — so the BAU counterfactual is independent of the target path.
+        # Both replacement series use the same opening funded assets.
         bau_replacement[t] = bau_stock[t - 1] * depr if ff > 0 else 0.0
         # Collection-efficiency cash: billed volume scales with population (or a fixed growth rate) off
         # its anchor year — exogenous, so it grows with coverage without a circular dependency on the
@@ -737,17 +737,23 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             new_sm = pool_basic
             room = max(0.0, pool_lower - new_basic)
             new_basic += min(room, (spare / cost_basic_t[t]) if cost_basic_t[t] > 0 else 0.0)
-        # Reporting only: purchases before existing SM target caps. Include the
-        # corresponding non-household share, not off-budget/NRW household flows.
+        # Physical upgrades reuse infrastructure, and share the same eligible
+        # Basic pool with funded upgrades. Never pay for capped-out connections.
+        nrw_upg = max(0.0, nrw_upgrade_cum[t] - nrw_upgrade_cum[t - 1])
+        room_sm = max(0.0, sm_cap[t] - bau[0, t - 1]) if (nrw_enabled or afford_enabled) else pool_basic
+        nrw_upg = min(nrw_upg, pool_basic, room_sm)
+        actual_sm = min(new_sm, max(0.0, min(pool_basic, room_sm) - nrw_upg))
+        released = (new_sm - actual_sm) * cost_sm_t[t]
+        new_sm = actual_sm
+        if cost_basic_t[t] > 0:
+            new_basic += min(max(0.0, pool_lower - new_basic), released / cost_basic_t[t])
+        # Actual paid purchases, including the corresponding non-household share.
         connection_purchase_capital[t] = (
             (new_sm * cost_sm_t[t] + new_basic * cost_basic_t[t]) / hh_share
             if hh_share > 0 else 0.0)
         unallocated_positive_capital[t] = max(
             0.0, expansion_capital_available[t] - connection_purchase_capital[t])
-        nrw_upg = nrw_upgrade_cum[t] - nrw_upgrade_cum[t - 1]          # water-enabled basic→SM upgrades this year
         budget_sm = budget_sm + new_sm + nrw_upg                      # SM from the budget + NRW only (no levers)
-        if nrw_enabled:
-            budget_sm = min(budget_sm, sm_cap[t])                     # cap at the SM target → basic stays ≥ its target
         # ── Microfinance affordability intervention (with self-finance carve-out + means-based grant) ──
         # Addresses the gap the budget leaves (sm_cap − budget_sm). To keep the shares meaningful, only the
         # INCREMENT of that gap beyond the high-water mark already partitioned (`new_gap`) is handled each year
@@ -761,10 +767,11 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         loan_fee = connection_fee if connection_fee > 0 else cost_sm_t[t]
         in_window = (not afford_start or afford_start <= years[t] <= afford_end)
         if ff > 0 and np.isfinite(sm_cap[t]) and in_window and afford_enabled:
-            gap_target = max(0.0, sm_cap[t] - budget_sm)
+            gap_target = max(0.0, sm_cap[t] - budget_sm - mf_cum - grant_cum)
             new_gap = gap_target - gap_served_hw
             if new_gap > 1e-15:
                 gap_served_hw = gap_target
+                new_gap = min(new_gap, max(0.0, pool_basic - new_sm - nrw_upg))
                 bracket_gap = [new_gap * max(0.0, float(gs)) for gs in afford_gap_shares]
                 # Self-financers (isolated): the top `selffin_share` of the new gap, richest bracket first.
                 if selffin_share > 0:
@@ -788,7 +795,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # Total SM = budget + microfinance/grant connections (self-financers are ISOLATED, not added). Capped at
         # the SM target; the cap only engages when NRW or the lever is active so the pure-BAU pass is unchanged.
         sm_total = budget_sm + mf_cum + grant_cum
-        sm_level = min(sm_total, sm_cap[t]) if (nrw_enabled or afford_enabled) else sm_total
+        sm_level = sm_total
         if True:
             # ── Explicit named flows ───────────────────────────────────────────────────────────────────
             # Households move between NAMED rungs instead of being redistributed by a proportional squeeze.
@@ -811,11 +818,16 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                 bau[r, t] = max(0.0, bau[r, t] + resid * share)
             for r in range(5):
                 unadj[r] = bau[r, t]                                   # keep the unadjusted vector in step
-        # BAU stock roll-forward (final workbook C|Urban Water r29 = X29 + budget − replacement): the
-        # existing stock DEPRECIATES and the FULL capex budget is added each year — so an underfunded
-        # sector (budget < replacement) sees the stock, and next year's replacement, DECLINE. Independent
-        # of the target path (driven by bau_available / bau_replacement, not the target-gap stock).
-        bau_stock[t] = bau_stock[t - 1] - bau_replacement[t] + avail
+        # Gross funded asset roll-forward, deliberately replacing the workbook's
+        # depreciating-stock convention. Replacement does not duplicate assets.
+        external_cost = (mf_flow[t] + grant_flow[t]) * cost_sm_t[t]
+        # Gross funded capital proxy: replacement maintains existing assets.
+        # Neither unpaid replacement nor negative cash destroys asset stock.
+        paid_by_service = np.array([new_sm * cost_sm_t[t], new_basic * cost_basic_t[t]]) / hh_share if hh_share > 0 else np.zeros(2)
+        paid_by_service[0] += external_cost
+        need_stock_by_service[:, t] = need_stock_by_service[:, t - 1] + paid_by_service
+        stock[t] = prior_stock + paid_by_service.sum()
+        bau_stock[t] = stock[t]
 
         # 4b — target path: = BAU through end-of-as-is, then piecewise CAGR through the ordered target
         # boundaries (test2: any number). Past the last target the target SHARES are held (counts scale
@@ -873,19 +885,32 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # the basic shortfall at the basic unit cost alongside the safely-managed one. Under a 100%
         # safely-managed target the basic gap is zero, so this term vanishes and the pre-split numbers hold.
         gap_b = max(0.0, tgt[1, t] - bau[1, t]); hh_gap_basic[t] = gap_b
-        nc_hh = ((gap * cost_sm_t[t] + gap_b * cost_basic_t[t] + capex_adder)
-                 if (gap > 0 or gap_b > 0) else 0.0)
-        nc_total = nc_hh * (1.0 + nonhh_mult); new_capex_total[t] = nc_total
-        # Distribute the shared capex adder in proportion to the two directly
-        # priced shortfalls; apply the same non-household multiplier to each.
-        sm_direct, basic_direct = gap * cost_sm_t[t], gap_b * cost_basic_t[t]
-        direct = sm_direct + basic_direct
-        new_capex_by_service[0, t] = (sm_direct + capex_adder * sm_direct / direct) * (1.0 + nonhh_mult) if direct > 0 else 0.0
-        new_capex_by_service[1, t] = nc_total - new_capex_by_service[0, t]
-        booked = opening_stock if years[t] == by else 0.0
-        stock[t] = booked + prior_stock + nc_total
-        need_stock_by_service[0, t] = need_stock_by_service[0, t - 1] + new_capex_by_service[0, t]
-        need_stock_by_service[1, t] = stock[t] - need_stock_by_service[0, t]
+        # Price outstanding transition households, not exclusive Basic shortfall.
+        # Replacement is attributed to opening funded capital, not target need.
+        replacement_credit[t] = replacement_reserved[t]
+        unpaid_by_service = replacement_by_service[:, t] * (
+            1 - replacement_credit[t] / replacement[t]) if replacement[t] > 0 else np.zeros(2)
+        cash_deficit[t] = max(-avail, 0.0)
+        due_cost = np.maximum(np.array([tgt[0, t], sum(tgt[:2, t])]) - ledger.base - ledger.delivered, 0) * np.array([cost_sm_t[t], cost_basic_t[t]])
+        weights = due_cost + replacement_by_service[:, t]
+        sm_share = weights[0] / weights.sum() if weights.sum() > 0 else 1.0 - bs
+        cash_deficit_by_service[:, t] = cash_deficit[t] * np.array([sm_share, 1 - sm_share])
+        closing, ancillary_paid = ledger.step(
+            t, tgt[:, t], np.array([cost_sm_t[t], cost_basic_t[t]]) * (1 + nonhh_mult),
+            [new_sm, new_basic], [mf_flow[t] + grant_flow[t], 0], [nrw_upg, 0],
+            replacement=replacement[t], unpaid_by_service=unpaid_by_service,
+            deficit_by_service=cash_deficit_by_service[:, t],
+            ancillary_cost=capex_adder * (1 + nonhh_mult),
+            spare_capital=unallocated_positive_capital[t], asset_stock=stock[t],
+            sector_capital=connection_purchase_capital[t], external_capital=external_cost)
+        stock[t] += ancillary_paid
+        bau_stock[t] = stock[t]
+        # The fixed shared ancillary asset retains its service attribution.
+        need_stock_by_service[:, t] += ledger.series['ancillary_paid_by_service'][:, t]
+        unallocated_positive_capital[t] -= ancillary_paid
+        nc_total = float(closing.sum())
+        new_capex_total[t] = nc_total
+        new_capex_by_service[:, t] = closing
         total_need[t] = (nc_total + replacement[t]) if (ff > 0 or pf > 0) else 0.0
         if ff > 0 or pf > 0:
             replacement_credit[t] = min(replacement_reserved[t], max(replacement[t], 0.0))
@@ -900,10 +925,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             financing_gap_by_service[1, t] = basic_gap
             funded_by_service[0, t] = sm_paid
             funded_by_service[1, t] = basic_paid
-            needs = new_capex_by_service[:, t] + replacement_by_service[:, t]
-            sm_share = needs[0] / sum(needs) if sum(needs) > 0 else 1.0 - bs
-            cash_deficit_by_service[0, t] = cash_deficit[t] * sm_share
-            cash_deficit_by_service[1, t] = cash_deficit[t] - cash_deficit_by_service[0, t]
+            # Use the same cash attribution in annual and accumulated ledgers.
+            financing_gap_by_service[:, t] = closing + unpaid_by_service + cash_deficit_by_service[:, t]
 
     # Affordability lever running totals (cumulative over the forecast).
     selffin_upgrade_cum = np.cumsum(selffin_flow)
@@ -956,6 +979,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             float(full_budget_in[bi] / ctx['gdp_real_local'][bi])
             if ctx['gdp_real_local'][bi] > 0 else None
         ),
+        **ledger.result(),
         'opening_stock': opening_stock,
         'household_gap': hh_gap.tolist(),
         'household_gap_basic': hh_gap_basic.tolist(),

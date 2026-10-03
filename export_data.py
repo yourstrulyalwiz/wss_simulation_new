@@ -75,7 +75,17 @@ def per_year_table(result, inputs, sector_key):
         f'Financing gap — with interventions ({cur} M)',
     ]
     ledger_fields = [
-        ('Residual new-service cost', 'new_capex_total'),
+        ('Annual planned expansion cost — flow', 'annual_planned_expansion_cost'),
+        ('Catch-up requirement before funding — snapshot', 'catch_up_requirement'),
+        ('Closing outstanding expansion — balance', 'closing_outstanding_expansion'),
+        ('Endline financing requirement — balance plus accumulated shortfalls', 'endline_financing_requirement'),
+        ('Gross funded asset stock — balance', 'funded_asset_stock'),
+        ('Sector-funded expansion — flow', 'sector_funded_expansion'),
+        ('Externally funded expansion — flow', 'externally_funded_expansion'),
+        ('Fixed ancillary outstanding — balance', 'ancillary_outstanding'),
+        ('Fixed ancillary paid — flow', 'ancillary_paid'),
+        ('Capital credited to due expansion — flow', 'capital_credited_to_due_expansion'),
+        ('Closing outstanding expansion (legacy residual new-service cost)', 'new_capex_total'),
         ('Reported replacement requirement', 'replacement_capex'),
         ('Coverage-stock replacement basis', 'bau_replacement_capex'),
         ('Replacement funding reserved', 'replacement_reserved'),
@@ -84,7 +94,7 @@ def per_year_table(result, inputs, sector_key):
         ('Cash deficit', 'cash_deficit'),
         ('Total available capital', 'available_total'),
         ('Expansion capital available', 'expansion_capital_available'),
-        ('Modeled connection purchases, pre-cap', 'connection_purchase_capital'),
+        ('Actual funded connection purchases', 'connection_purchase_capital'),
         ('Unallocated positive expansion capital', 'unallocated_positive_capital'),
     ]
     headers += [f'{label} — {pass_label} ({cur} M)'
@@ -155,15 +165,14 @@ def intervention_breakdown(inputs, sector_key, defs):
         return sum((arr[i] or 0.0) for i, y in enumerate(years) if y > by)
 
     def gap_cum(res):
-        arr = res[sector_key].get('scenario_financing_gap') or []
-        return sum((arr[i] or 0.0) for i, y in enumerate(years) if y > by)
+        return res[sector_key]['scenario_endline_financing_requirement'][e]
 
     out = []
     for idx, (key, label, rkey) in enumerate(enabled):
         before, after = passes[idx], passes[idx + 1]
         add_hh = max(0.0, sm_end(after) - sm_end(before))                 # millions
         res = (cash_cum(after, rkey) - cash_cum(before, rkey)) / 1000.0 if rkey else None  # M → B
-        gap_closed = max(0.0, gap_cum(before) - gap_cum(after)) / 1000.0  # M → B
+        gap_closed = (gap_cum(before) - gap_cum(after)) / 1000.0  # signed change; M → B
         out.append((label, round(add_hh, 5), (round(res, 4) if res is not None else None), round(gap_closed, 4)))
     return out
 

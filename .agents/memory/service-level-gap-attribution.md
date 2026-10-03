@@ -9,4 +9,4 @@ Recognize only replacement funding reserved by the coverage calculation, capped 
 
 **Why:** The user explicitly requested removal of duplicate capital credit while preserving coverage and asset calculations. Investment preferences need not match replacement obligations; coverage-stock replacement and target-needs replacement have different bases.
 
-**How to apply:** Use this residual identity in both BAU and scenarios: remaining financing gap = residual new-service cost + replacement requirement − replacement credit + cash deficit. Keep available capital and pre-cap modeled connection purchases separate from ledger credits. Do not describe the residual subtotal as a gross investment requirement or automatically apply excess positive capital to residual costs. Annual standing-gap costing, delivery shortfalls and backlog tracking remain outside this correction.
+**How to apply:** Preserve the single-credit identity in both BAU and scenarios. The later funded-assets/carry-forward decision supersedes the original exclusion of backlog tracking; see [Funded assets](funded-assets.md). Do not sum closing expansion balances across years.

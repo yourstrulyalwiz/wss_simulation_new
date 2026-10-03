@@ -1,0 +1,32 @@
+Please update the existing WSS financing simulation tool according to the specification below. Implement the changes in stages, with accounting corrections completed before adding borrowing.
+
+This is an update to the existing application, not a rebuild. First inspect the current code, calculation flow, saved-scenario structure, and connected Git branch. Work on the current designated working branch; do not switch branches or merge into main.
+
+The issues described below were identified in an earlier review of another code snapshot. Verify whether each issue exists in this branch before changing it.
+
+## 1. Objective and scope
+
+The tool should help users understand:
+
+- What investment is required over time to achieve WSS coverage targets.
+- How budget execution, operational efficiency, and capex efficiency affect financing and access gaps.
+- How additional net utility cash can be reinvested directly or committed to servicing a loan that finances investment earlier.
+- What additional public financing would still be required after these interventions.
+
+Keep the tool as a forward-looking scenario model.
+
+The final methodological decision is to EXCLUDE actual-delivery monitoring and catch-up replanning. Retain the simulated BAU and intervention coverage projections, but do not introduce actual-versus-plan reporting, implementation tracking workflows, or automatic rescheduling of missed investments.
+
+Preserve existing geographical scopes, separate Water Supply and Sanitation inputs, historical data, target milestones, saved scenarios, and exports.
+
+## 2. Correct investment requirements and financing-gap accounting first
+
+Maintain two distinct calculation pathways:
+
+A. Target investment pathway:
+The infrastructure additions and replacement expenditure required each year to achieve the specified coverage milestones.
+
+B. Resource-constrained scenario pathway:
+The coverage that projected BAU or intervention resources can support.
+
+Investment requirements must come from A. Simulated achieved coverage comes from B. Do not repeatedly add the difference between target coverage and simulated coverage to an asset stock.

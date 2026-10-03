@@ -82,10 +82,17 @@ class ScenarioGapCompositionTests(unittest.TestCase):
                             self.assertAlmostEqual(
                                 sec['scenario_available_total'][i],
                                 sum(sec[name][i] for name in (
-                                    'scenario_available_capex', 'scenario_collection_cash',
-                                    'scenario_tariff_cash', 'scenario_nrw_net',
-                                    'scenario_financial_commitment_cash',
-                                    'scenario_exogenous_injection_cash', 'scenario_nrw_link_cash')),
+                                    'scenario_public_capital', 'scenario_other_capital',
+                                    'scenario_cash_allocated_to_direct_investment',
+                                    'scenario_loan_drawdown'))
+                                + (sec['scenario_cash_carry_forward'][i - 1] if i > 0 else 0.0),
+                                places=5)
+                            self.assertAlmostEqual(
+                                sec['scenario_additional_net_utility_cash'][i],
+                                sum(sec[name][i] for name in (
+                                    'scenario_collection_cash', 'scenario_tariff_cash',
+                                    'scenario_nrw_net', 'scenario_nrw_link_cash',
+                                    'scenario_custom_revenue_cash')),
                                 places=5)
                             if case_idx == 0:
                                 self.assertAlmostEqual(sec['scenario_financing_gap'][i],

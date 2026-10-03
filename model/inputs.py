@@ -331,6 +331,13 @@ class WaterInterventionInputs(BaseModel):
     fin_injection_amount: float = 0.0      # local-currency millions
     fin_injection_start_year: int = 2026
     fin_injection_end_year: int = 2040
+    cash_allocation_alpha: float = 0.0
+    borrow_drawdown_year: int = 2028
+    borrow_interest_rate: float = 0.08
+    borrow_term_years: int = 10
+    borrow_min_dscr: float = 1.2
+    borrow_ceiling: float = 0.0
+    existing_debt_service: float = 0.0
 
     # Increased collection efficiency (#113-#118)
     ce_start_year: int = 2028
@@ -352,6 +359,8 @@ class WaterInterventionInputs(BaseModel):
     nrw_target_pct: float = 0.15
     nrw_treatment_cost_pct_capex: float = 0.40   # #123 water treatment cost as % of total capex (BAU adder)
     nrw_physical_loss_pct: float = 0.50          # #124 physical losses as % of total NRW (only physical → new water)
+    nrw_commercial_loss_pct: float = 0.50        # share of NRW reduction attributable to commercial losses
+    nrw_service_allocation_pct: float = 0.50      # recovered physical water allocated to service upgrades
     nrw_lag_years: int = 1                       # #125 years between the works/spend and the recovered-water benefit
     nrw_capex_unit_cost_usd: float = 510.0       # #126 USD(2023) per m3/day (legacy; superseded by the local unit below)
     # test2 simplified NRW lever inputs:
@@ -364,6 +373,7 @@ class WaterInterventionInputs(BaseModel):
     nrw_value_basis: str = 'tariff'              # value the recovered water at 'tariff' or 'production' cost
     nrw_tariff: float = 32.0                      # water tariff, local currency per m³ (value if basis='tariff')
     nrw_production_cost: float = 20.0             # avoided production cost, local currency per m³ (if basis='production')
+    nrw_maintenance_cost_annual: float = 0.0      # recurring NRW programme maintenance, local currency/year
 
     # Increased capital-expenditure efficiency (#127-#128).
     # test2 redefinition: capex efficiency = capital that becomes new service ÷ allocated capital budget
@@ -455,6 +465,13 @@ class SanitationInterventionInputs(BaseModel):
     fin_injection_amount: float = 0.0
     fin_injection_start_year: int = 2026
     fin_injection_end_year: int = 2040
+    cash_allocation_alpha: float = 0.0
+    borrow_drawdown_year: int = 2028
+    borrow_interest_rate: float = 0.08
+    borrow_term_years: int = 10
+    borrow_min_dscr: float = 1.2
+    borrow_ceiling: float = 0.0
+    existing_debt_service: float = 0.0
 
     # Increased collection efficiency (#143-#146)
     ce_start_year: int = 2027
@@ -583,9 +600,11 @@ class CustomIntervention(BaseModel):
     output_quantity: float = 0.0    # output produced per year, in output_unit
     output_value: float = 0.0       # value per unit of output (currency/unit)
     # Cost reduction
-    outputs_affected: str = 'sm'    # which cost it reduces (only the safely-managed connection cost drives the forecast)
+    outputs_affected: str = 'sm'    # 'sm' | 'basic' | 'both'
     cost_effect_mode: str = 'pct'   # 'pct' (fraction off) | 'flat' (currency amount off the per-HH cost)
     cost_effect: float = 0.0        # the % (fraction) or flat amount
+    water_allocation_share: float = 0.5
+    sanitation_allocation_share: float = 0.5
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -607,6 +626,7 @@ class InterventionToggles(BaseModel):
     ws_microfinance_enabled: bool = True
     ws_financial_commitment_enabled: bool = False
     ws_exogenous_injection_enabled: bool = False
+    ws_borrowing_enabled: bool = False
     # Sanitation
     san_collection_efficiency_enabled: bool = True
     san_capital_efficiency_enabled: bool = True
@@ -619,6 +639,7 @@ class InterventionToggles(BaseModel):
     san_nrw_link_enabled: bool = False
     san_financial_commitment_enabled: bool = False
     san_exogenous_injection_enabled: bool = False
+    san_borrowing_enabled: bool = False
 
 
 # ──────────────────────────────────────────────────────────────────────────

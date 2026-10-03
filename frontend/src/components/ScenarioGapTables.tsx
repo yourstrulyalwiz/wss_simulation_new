@@ -10,6 +10,9 @@ export type RungFinance = {
 export type FinanceYear = {
   year: number; total: number;
   bauAvailable: number; scenarioAvailable: number;
+  scenarioNeed: number; implementationCapex: number;
+  utilityCashDirect: number; utilityCashCommitted: number;
+  loanDrawdown: number; loanDebtService: number; loanInterest: number; loanClosingDebt: number;
   offBudgetLoans: number; offBudgetGrants: number;
   bauGap: number; scenarioGap: number;
   services: [RungFinance, RungFinance];  // Safely Managed, Basic (exclusive)
@@ -38,16 +41,22 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
     { title: `SM replacement (${b})`, value: r => r.services[0].replacementScenario, unit: 'money' },
     { title: `Basic new-service need (${b})`, value: r => r.services[1].newScenario, unit: 'money' },
     { title: `Basic replacement (${b})`, value: r => r.services[1].replacementScenario, unit: 'money' },
-    { title: `Scenario total investment need (${b})`, value: r =>
-      r.services.reduce((sum, s) => sum + s.newScenario + s.replacementScenario, 0), unit: 'money' },
+    { title: `Implementation and programme costs (${b})`, value: r => r.implementationCapex, unit: 'money' },
+    { title: `Scenario total investment need (${b})`, value: r => r.scenarioNeed, unit: 'money' },
     { title: `BAU sector capex available (${b})`, value: r => r.bauAvailable, unit: 'money' },
-    { title: `Additional effective sector capex (${b})`, value: r => r.scenarioAvailable - r.bauAvailable, unit: 'money' },
-    { title: `Scenario sector capex available (${b})`, value: r => r.scenarioAvailable, unit: 'money' },
+    { title: `Additional financing versus BAU (${b})`, value: r => r.scenarioAvailable - r.bauAvailable, unit: 'money' },
+    { title: `Scenario total financing available (${b})`, value: r => r.scenarioAvailable, unit: 'money' },
+    { title: `Utility cash reinvested (${b})`, value: r => r.utilityCashDirect, unit: 'money' },
+    { title: `Utility cash committed to debt (${b})`, value: r => r.utilityCashCommitted, unit: 'money' },
+    { title: `New loan proceeds (${b})`, value: r => r.loanDrawdown, unit: 'money' },
+    { title: `New-loan debt service (${b})`, value: r => r.loanDebtService, unit: 'money' },
+    { title: `New-loan interest (${b})`, value: r => r.loanInterest, unit: 'money' },
+    { title: `Closing new-loan balance (${b})`, value: r => r.loanClosingDebt, unit: 'money' },
     { title: `Sector capex applied to need (${b})`, value: r =>
       r.services[0].fundedScenario + r.services[1].fundedScenario, unit: 'money' },
-    { title: `Unused sector capex (${b})`, value: r => Math.max(0, r.scenarioAvailable -
+    { title: `Unused scenario financing (${b})`, value: r => Math.max(0, r.scenarioAvailable -
       r.services[0].fundedScenario - r.services[1].fundedScenario), unit: 'money' },
-    { title: `Negative sector funding balance (${b})`, value: r => Math.max(0, -r.scenarioAvailable), unit: 'money' },
+    { title: `Negative net funding balance (${b})`, value: r => Math.max(0, -r.scenarioAvailable), unit: 'money' },
     { title: `Off-budget microfinance loans (${b})`, value: r => r.offBudgetLoans, unit: 'money' },
     { title: `Off-budget grants spent (${b})`, value: r => r.offBudgetGrants, unit: 'money' },
     { title: `SM remaining gap (${b})`, value: r => r.services[0].gapScenario, unit: 'money' },

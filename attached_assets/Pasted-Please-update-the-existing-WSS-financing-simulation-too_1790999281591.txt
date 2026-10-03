@@ -1,0 +1,324 @@
+Please update the existing WSS financing simulation tool according to the specification below. Implement the changes in stages, with accounting corrections completed before adding borrowing.
+
+This is an update to the existing application, not a rebuild. First inspect the current code, calculation flow, saved-scenario structure, and connected Git branch. Work on the current designated working branch; do not switch branches or merge into main.
+
+The issues described below were identified in an earlier review of another code snapshot. Verify whether each issue exists in this branch before changing it.
+
+## 1. Objective and scope
+
+The tool should help users understand:
+
+- What investment is required over time to achieve WSS coverage targets.
+- How budget execution, operational efficiency, and capex efficiency affect financing and access gaps.
+- How additional net utility cash can be reinvested directly or committed to servicing a loan that finances investment earlier.
+- What additional public financing would still be required after these interventions.
+
+Keep the tool as a forward-looking scenario model.
+
+The final methodological decision is to EXCLUDE actual-delivery monitoring and catch-up replanning. Retain the simulated BAU and intervention coverage projections, but do not introduce actual-versus-plan reporting, implementation tracking workflows, or automatic rescheduling of missed investments.
+
+Preserve existing geographical scopes, separate Water Supply and Sanitation inputs, historical data, target milestones, saved scenarios, and exports.
+
+## 2. Correct investment requirements and financing-gap accounting first
+
+Maintain two distinct calculation pathways:
+
+A. Target investment pathway:
+The infrastructure additions and replacement expenditure required each year to achieve the specified coverage milestones.
+
+B. Resource-constrained scenario pathway:
+The coverage that projected BAU or intervention resources can support.
+
+Investment requirements must come from A. Simulated achieved coverage comes from B. Do not repeatedly add the difference between target coverage and simulated coverage to an asset stock.
+
+### Annual target investment programme
+
+Use the existing baseline and user-entered target milestones to construct the annual target trajectory. Preserve the current interpolation method where appropriate and explain it in the Guide.
+
+Convert annual target service shares into household counts using projected households.
+
+Calculate explicit annual service transitions, including new basic service and upgrades to safely managed service. Account for population growth and mutually exclusive service categories. Do not treat every increase in safely managed households as a new connection, and do not cost the same transition twice.
+
+Cost each year's required transitions once using applicable unit costs, technology choices, and eligible capex-efficiency adjustments.
+
+Maintain a separate hypothetical target asset schedule representing the infrastructure assumed to exist along the fully funded target pathway.
+
+Calculate replacement requirements from this scheduled asset base, not from repeatedly accumulated unmet needs. Retain the existing simplified annual replacement allowance if appropriate, clearly labelled as an approximation. Replacement maintains capacity; it must not repeatedly add the same capacity to asset stock.
+
+Keep this target asset schedule separate from assets supporting simulated BAU/intervention coverage.
+
+### Financing gap
+
+Use:
+
+Required investment[t]
+= Scheduled expansion and upgrade capex[t]
++ Scheduled replacement capex[t]
++ Separately identified intervention implementation capex[t], where applicable.
+
+Count each cost only once.
+
+Available investment financing[t]
+= Usable public capital financing[t]
++ Other eligible capital financing[t]
++ Direct internal reinvestment[t]
++ Loan drawdowns[t]
++ Available carried-forward investment cash[t], where applicable.
+
+Financing gap[t]
+= max(0, Required investment[t] - Available investment financing[t]).
+
+Do not first spend financing to reduce the coverage gap and then subtract that same financing again from the cost of the remaining gap.
+
+Report service gaps separately:
+
+Service gap[t] = target coverage[t] - simulated coverage[t],
+with unmet coverage floored at zero for display.
+
+Distinguish annual financing shortfalls, cumulative programme financing requirements, and terminal service gaps. Do not sum repeated snapshots of an outstanding backlog as separate investment requirements.
+
+Define the treatment of annual surpluses and carry-forward cash explicitly. Carry-forward funds must be reconciled and counted only once.
+
+## 3. Organize interventions around the team's agreed sequence
+
+Present the principal intervention groups in this order:
+
+1. Budget execution improvement.
+2. Operational efficiency:
+   - Collection efficiency.
+   - NRW reduction.
+3. Capex efficiency:
+   - Unit-cost reductions.
+   - Optimised technology selection, where already supported.
+4. Residual additional public financing requirement.
+
+Retain tariff reform, microfinance, and existing custom interventions as additional options. Preserve their existing functionality unless an accounting correction is needed.
+
+Make the distinctions clear:
+
+- Budget execution increases the usable share of an allocated budget.
+- Operational efficiency can generate additional collected revenue or recurring operating savings.
+- Capex efficiency reduces investment costs.
+- Additional public financing is a separate capital funding source.
+
+Budget execution gains and capex savings must not be classified as recurring utility cash available for debt service.
+
+Show the residual public financing requirement as an output. Do not automatically assume the government supplies it or close the gap. If an additional-public-financing input is provided, show the residual before and after that explicit contribution.
+
+Where intervention contributions are shown sequentially, use the order above, label them as order-dependent marginal effects, and reconcile them with the combined scenario.
+
+## 4. Reconcile intervention cash and physical benefits
+
+Use a common intervention output structure separating:
+
+- Additional collected revenue.
+- Recurring operating savings.
+- Additional recurring operating costs.
+- Implementation capex.
+- Physical service benefits.
+- Unit-cost adjustments.
+
+### Tariff and collection efficiency
+
+Use consistent volume, tariff, and collection assumptions.
+
+Calculate combined incremental collected revenue as:
+
+DeltaRevenue[t]
+= Q_scenario[t] × Tariff_scenario[t] × Collection_scenario[t]
+- Q_BAU[t] × Tariff_BAU[t] × Collection_BAU[t].
+
+Do not assume that the entire tariff increase is collected when collection efficiency is below 100%.
+
+Individual contribution displays must reconcile with this combined result using a documented attribution order. Do not double-count interaction effects.
+
+### NRW
+
+Separate physical-loss recovery from commercial-loss recovery.
+
+Allocate recovered physical water explicitly between:
+
+- Additional service/sales.
+- Reduced production.
+- A user-defined combination.
+
+Allocation shares must total 100%.
+
+Only the portion used for reduced production generates avoided production costs. Only the portion used for additional service can support the corresponding physical service benefit.
+
+Commercial-loss recovery improves billing of existing consumption; it does not create physical water.
+
+Apply collection efficiency to additional billed revenue, and reconcile NRW-related revenue with the shared revenue calculation so it is not added twice.
+
+Do not assume recovered water automatically creates new connections without any necessary connection or upgrade costs.
+
+Keep NRW implementation capex and recurring maintenance costs separate.
+
+### Custom interventions
+
+Check and correct the following if present:
+
+- “Both sectors” duplicates the full cash benefit in Water Supply and Sanitation.
+- Switching sector tabs changes saved intervention assignments.
+- “Safely managed only” cost reductions also affect basic-service costs.
+
+A shared cash benefit must be counted once, using explicit sector allocations or a clearly defined shared pool.
+
+## 5. Add net-cash allocation and a simple borrowing module
+
+Add a user-facing “Use of additional net utility cash” control with three modes:
+
+1. Reinvest all — default.
+2. Partially allocate to debt financing.
+3. Allocate all eligible cash to debt financing.
+
+Represent this using alpha, the share of eligible additional net cash committed to debt financing:
+
+- Reinvest all: alpha = 0.
+- Partial allocation: 0 < alpha < 1.
+- Full allocation: alpha = 1.
+
+Eligible cash must reflect additional collected revenue and recurring operating savings, net of associated operating costs and relevant prior obligations.
+
+Keep implementation capex in the investment account and finance it explicitly. Do not also deduct the same implementation cost a second time elsewhere.
+
+Negative cash effects must remain visible and reduce resources; they must not disappear through a positive-only calculation.
+
+Where baseline utility financial information is unavailable, label borrowing capacity as an incremental estimate conditional on baseline obligations being covered. Do not imply that a full utility creditworthiness assessment has been performed.
+
+### Initial loan structure
+
+Start with one fixed-rate, local-currency loan per explicitly defined borrowing entity/pool, with annual level debt-service payments.
+
+Include editable inputs for:
+
+- Borrowing entity and eligible cash streams.
+- Drawdown year.
+- Interest rate.
+- Repayment term.
+- Minimum debt-service coverage ratio.
+- Borrowing ceiling.
+- Existing debt-service obligations, if known.
+
+Do not hard-code a five- or six-year loan term.
+
+Avoid automatically pooling unrelated Water Supply, Sanitation, Urban, or Rural cash streams. Make any pooling assumption explicit and prevent duplication in aggregates.
+
+Size borrowing against the committed eligible cash over the repayment period, subject to the coverage cushion, borrowing ceiling, and eligible investment need. Do not borrow more than the investment requirement that remains after other financing.
+
+Use a consistent real/nominal treatment: nominal debt schedules must use appropriately converted nominal cash flows, with results converted back to the model's reporting basis as needed.
+
+For this first release, size borrowing using established intervention cash streams. Do not introduce recursive borrowing based on revenue expected from loan-financed future connections.
+
+### Annual accounting
+
+Track:
+
+- Loan drawdowns.
+- Opening and closing debt.
+- Interest.
+- Principal repayment.
+- Total scheduled debt service.
+- Cash allocated to direct investment.
+- Cash committed to debt financing.
+- Retained cash/reserves, if used.
+- Debt-service shortfalls.
+
+Loan proceeds are capital financing, not operating revenue.
+
+The same cash cannot finance direct reinvestment and debt service simultaneously.
+
+Define the treatment of committed cash exceeding scheduled debt service, including any reserve accumulation or release. Do not silently count it in both accounts.
+
+Once a loan is drawn, revenue shortfalls must not automatically reduce contractual repayments. Show any reserve use and remaining repayment shortfall explicitly.
+
+Extend the debt schedule through maturity, even when maturity is beyond the coverage projection horizon. Disclose assumptions for cash flows beyond that horizon and show outstanding debt at the projection end.
+
+## 6. Keep endogenous connection-revenue feedback outside this release
+
+Preserve and clearly document the existing exogenous volume-growth assumptions for now.
+
+Structure the calculations so a later extension can connect simulated billable connections and consumption to revenue and operating costs.
+
+Do not automatically assume every basic-to-safely-managed upgrade creates a new paying customer, and do not apply population growth twice.
+
+This extension is not required for the current update.
+
+## 7. Update the interface, Guide, saved scenarios, and exports
+
+Retain the existing tab structure where practical.
+
+Place the cash-allocation and borrowing controls in a clearly identified section of Intervention Design.
+
+Update Results Dashboard to show:
+
+- BAU and intervention coverage and service gaps.
+- Annual expansion/upgrade and replacement requirements.
+- Intervention implementation costs.
+- Financing sources, including direct reinvestment and borrowing.
+- Annual and cumulative financing gaps.
+- Residual additional public financing required.
+- Additional net operating cash.
+- Debt service, outstanding debt, and any repayment shortfall.
+
+Use consistent calculations across charts, tables, PowerPoint, Excel, and CSV exports.
+
+Update the Guide and Tool Overview to explain the revised methodology, financing choices, replacement approximation, and borrowing assumptions.
+
+Maintain backward compatibility with existing saved scenarios. Default older scenarios to reinvest-all/no-new-borrowing. Clearly identify assumptions that cannot be migrated unambiguously.
+
+## 8. Required validation
+
+Add focused tests covering:
+
+1. Financing counted once:
+   Investment requirement 100 and available financing 40 must produce a financing gap of 60, not 20.
+
+2. Target investment schedule:
+   With opening assets of 100, expansion of 20 spread equally over five years, constant unit costs, and a 10% opening-stock annual replacement allowance:
+   - Expansion = 4, 4, 4, 4, 4.
+   - Replacement = 10, 10.4, 10.8, 11.2, 11.6.
+   - Total requirement = 74.
+   - Financing of 10 per year gives a cumulative programme gap of 24.
+   Do not repeatedly add the same unmet expansion to asset stock.
+
+3. Tariff/collection reconciliation:
+   Volume 100, tariff increasing from 10 to 12, and collection increasing from 80% to 90% must produce additional collected revenue of 280.
+
+4. NRW:
+   The same physical volume cannot simultaneously generate avoided-production savings and additional-service volume.
+
+5. Custom interventions:
+   Shared benefits are counted once, sector assignments persist, and service-specific cost reductions affect only the selected services.
+
+6. Borrowing:
+   Alpha = 0 reproduces the corrected reinvestment-only scenario.
+   Cash and debt balances reconcile annually.
+   Loan proceeds are not revenue.
+   Contractual debt service remains visible under revenue shortfalls.
+   Debt remains tracked through maturity.
+
+7. Integration:
+   Sector/geographical aggregates, saved-scenario migration, charts, tables, and exports remain consistent.
+
+## 9. Implementation and completion report
+
+Proceed in this order:
+
+A. Inspect the current implementation and capture reproducible reference scenarios.
+B. Correct investment, financing-gap, and intervention accounting.
+C. Verify the corrected reinvestment-only benchmark.
+D. Add cash allocation and borrowing.
+E. Update the interface, documentation, persistence, and exports.
+F. Run validation and summarize the results.
+
+Do not stop after providing a plan. Implement the update, resolving routine technical choices using the existing application structure.
+
+At completion, report:
+- Which suspected issues were present in this branch.
+- What changed and where.
+- Which results changed because of accounting corrections versus borrowing.
+- Tests performed and their results.
+- Remaining assumptions or limitations.
+
+Avoid unrelated redesigns or changes to existing user inputs.

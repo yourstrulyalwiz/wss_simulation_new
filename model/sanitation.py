@@ -31,6 +31,7 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
     san_mf_on = bool(getattr(tog, 'san_microfinance_enabled', False)) if tog is not None else False
     san_financial_on = bool(getattr(tog, 'san_financial_commitment_enabled', False)) if tog is not None else False
     san_injection_on = bool(getattr(tog, 'san_exogenous_injection_enabled', False)) if tog is not None else False
+    san_borrowing_on = bool(getattr(tog, 'san_borrowing_enabled', False)) if tog is not None else False
     # Cost-side levers (test2): capex efficiency (unit-cost discount) + optimised technology selection →
     # per-year SM cost factor. Gated by their toggles, so the BAU pass keeps cost_factor = 1.0.
     san_costeff_on = bool(getattr(tog, 'san_costeff_enabled', False)) if tog is not None else False
@@ -73,12 +74,14 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
         _charge = float(getattr(si, 'nrw_link_sewer_charge', 0.0) or 0.0)
         _coll = float(getattr(si, 'nrw_link_collection_rate', 0.0) or 0.0)
         nrw_link_cash = _rv * _ret * _charge * _coll
-    # Custom interventions (sanitation + 'both'): new-revenue net cash adds to the sanitation capex on top
-    # of the NRW-linked revenue; cost-reduction customs compose into the SM cost factor.
-    cust_cash, cust_cf = custom_streams(ctx, inputs.period, cost_sm,
-                                        getattr(inputs, 'custom_interventions', None) or [], 'sanitation')
-    cost_factor = cost_factor * cust_cf
-    extra_cash = nrw_link_cash + cust_cash
+    # Custom intervention cash, implementation capex, and SM/Basic cost factors are separate ledgers.
+    cost_basic_base = cost_no_treatment(sc)
+    cust_revenue, cust_implementation, cust_cf_sm, cust_cf_basic = custom_streams(
+        ctx, inputs.period, cost_sm, cost_basic_base,
+        getattr(inputs, 'custom_interventions', None) or [], 'sanitation')
+    cost_factor = cost_factor * cust_cf_sm
+    cost_factor_basic = cost_factor_basic * cust_cf_basic
+    extra_cash = nrw_link_cash
     bracket_income = [br.income_monthly for br in inputs.income_distribution.brackets]
     _mld_to_m3 = inputs.constants.days_in_year / inputs.constants.cubic_meter_liters
     # 4d adder (sheet r178 = gap*cost + G166*(treat%*NRW%*phys%)). Unlike water — which multiplies the
@@ -104,10 +107,20 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
         targets=_target_points(st, inputs.period),
         cost_sm=cost_sm, cost_basic=cost_no_treatment(sc),
         cost_factor=cost_factor,                               # test2: capex-efficiency + optimised-technology SM cost discount
-        cost_factor_basic=cost_factor_basic * cust_cf,
+        cost_factor_basic=cost_factor_basic,
         basic_share=float(getattr(si, 'basic_share', 0.0) or 0.0),
         financial_enabled=san_financial_on,
         injection_enabled=san_injection_on,
+        borrowing_enabled=san_borrowing_on,
+        borrowing_settings={
+            'cash_allocation_alpha': getattr(si, 'cash_allocation_alpha', 0.0),
+            'drawdown_year': getattr(si, 'borrow_drawdown_year', 0),
+            'interest_rate': getattr(si, 'borrow_interest_rate', 0.0),
+            'term_years': getattr(si, 'borrow_term_years', 0),
+            'minimum_dscr': getattr(si, 'borrow_min_dscr', 1.0),
+            'borrowing_ceiling': getattr(si, 'borrow_ceiling', 0.0),
+            'existing_debt_service': getattr(si, 'existing_debt_service', 0.0),
+        },
         financial_settings={
             'gdp_enabled': si.fin_gdp_enabled, 'gdp_start_year': si.fin_gdp_start_year,
             'gdp_target_share': si.fin_gdp_target_share,
@@ -179,8 +192,10 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
         selffinance_enabled=san_mf_on,
         selffinance_share=float(getattr(si, 'mf_selffinance_share', 0.0) or 0.0),
         connection_fee=float(getattr(si, 'mf_connection_fee', 0.0) or 0.0),
-        # Water-NRW-linked sewer revenue + custom new-revenue net cash → sanitation capex (0 when off).
+        # Water-NRW-linked sewer revenue; custom streams are kept in their own ledgers.
         extra_cash=extra_cash,
+        custom_revenue=cust_revenue,
+        custom_implementation_capex=cust_implementation,
     )
     res['sector'] = 'sanitation'
     return res

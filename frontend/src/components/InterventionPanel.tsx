@@ -366,17 +366,6 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
         tariff: !!t.san_tariff_enabled,
       };
 
-  // Keep custom interventions on the sector selected by the top toggle (leave any set to "Both" alone)
-  const prevSector = React.useRef(sectorTab);
-  React.useEffect(() => {
-    if (prevSector.current === sectorTab) return;
-    prevSector.current = sectorTab;
-    const ci = inputs.custom_interventions || [];
-    if (ci.some((c: any) => c.sector !== 'both' && c.sector !== sectorTab)) {
-      onChange({ ...inputs, custom_interventions: ci.map((c: any) => c.sector === 'both' ? c : { ...c, sector: sectorTab }) });
-    }
-  }, [sectorTab]);
-
   return (
     <div style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'hidden' }}>
       {/* Left: intervention controls */}
@@ -413,15 +402,27 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           <InterventionToggle label="Exogenous Injection of Funds" checked={inputs.toggles?.ws_exogenous_injection_enabled ?? false} onChange={v => toggleIntv('ws_exogenous_injection_enabled', v)} onFocus={() => onSectionFocus?.('ws_exogenous_injection')}>
             {injectionFields('water_interventions')}
           </InterventionToggle>
+          <InterventionToggle label="Borrowing and cash allocation" checked={inputs.toggles?.ws_borrowing_enabled ?? false} onChange={v => toggleIntv('ws_borrowing_enabled', v)} onFocus={() => onSectionFocus?.('ws_borrowing')}>
+            <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
+              α = 0 reinvests all eligible utility cash. Higher α reserves more cash for debt service; new borrowing is capped by repayment capacity and the remaining investment gap.
+            </div>
+            <F label="Cash allocated to debt service (α)" value={inputs.water_interventions.cash_allocation_alpha} onChange={v => u('water_interventions','cash_allocation_alpha',Math.max(0,Math.min(1,v)))} isPercent unit="%" tip="Share of eligible utility cash committed to debt service while the loan is outstanding. 0% means reinvest all cash." />
+            <F label="Loan drawdown year" value={inputs.water_interventions.borrow_drawdown_year} onChange={v => u('water_interventions','borrow_drawdown_year',v)} />
+            <F label="Real interest rate" value={inputs.water_interventions.borrow_interest_rate} onChange={v => u('water_interventions','borrow_interest_rate',Math.max(0,v))} isPercent unit="%" />
+            <F label="Repayment term" value={inputs.water_interventions.borrow_term_years} onChange={v => u('water_interventions','borrow_term_years',Math.max(1,Math.round(v)))} unit="years" />
+            <F label="Minimum debt-service coverage ratio" value={inputs.water_interventions.borrow_min_dscr} onChange={v => u('water_interventions','borrow_min_dscr',Math.max(1,v))} step={0.1} tip="Minimum eligible cash divided by annual debt service." />
+            <F label="Borrowing ceiling" value={inputs.water_interventions.borrow_ceiling} onChange={v => u('water_interventions','borrow_ceiling',Math.max(0,v))} unit={`${CUR} mn`} tip="Maximum loan principal. Enter 0 for no separate ceiling." />
+            <F label="Existing annual debt service" value={inputs.water_interventions.existing_debt_service} onChange={v => u('water_interventions','existing_debt_service',Math.max(0,v))} unit={`${CUR} mn`} tip="Existing annual debt service deducted when sizing repayment capacity." />
+          </InterventionToggle>
 
           <InterventionToggle label="Collection efficiency" checked={inputs.toggles?.ws_collection_efficiency_enabled ?? false} onChange={v => toggleIntv('ws_collection_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('ws_ce')}>
             <F label="Improvement start year" value={inputs.water_interventions.ce_start_year} onChange={v => u('water_interventions','ce_start_year',v)} tip="Year the collection efficiency improvement begins" />
             <F label="Target year" value={inputs.water_interventions.ce_target_year} onChange={v => u('water_interventions','ce_target_year',v)} tip="Year the target collection ratio is achieved" />
             <F label="Current collection ratio" value={inputs.water_interventions.ce_current_ratio} onChange={v => u('water_interventions','ce_current_ratio',v)} isPercent unit="%" tip="Current revenue collected ÷ revenue billed. Represents how much of what is billed is actually collected." />
             <F label="Target collection ratio" value={inputs.water_interventions.ce_target_ratio} onChange={v => u('water_interventions','ce_target_ratio',v)} isPercent unit="%" tip="Target collection ratio for the model end year" />
-            <F label="Volume sold (at start year)" value={inputs.water_interventions.ce_water_sold_mld} onChange={v => u('water_interventions','ce_water_sold_mld',v)} unit="MLD" tip="Volume of water sold/billed at the start year, in million litres per day. It grows each forecast year — with population by default, or at the growth rate below if you set one." />
-            <F label="Volume growth rate" value={inputs.water_interventions.ce_vol_growth} onChange={v => u('water_interventions','ce_vol_growth',v)} isPercent unit="%" placeholder="population" tip="Annual real growth of the billed volume from the start year. Leave blank to scale with population; enter a rate to override (e.g. 3%)." />
-            <F label="Current tariff" value={inputs.water_interventions.ce_current_tariff} onChange={v => u('water_interventions','ce_current_tariff',v)} unit={`${CUR}/m3`} tip="Current average water tariff per cubic metre" />
+            <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
+              Collection and tariff reform share the billed-volume and current-tariff inputs in the Tariff reform section.
+            </div>
           </InterventionToggle>
 
           <InterventionToggle label="NRW reduction" checked={inputs.toggles?.ws_nrw_enabled ?? false} onChange={v => toggleIntv('ws_nrw_enabled', v)} onFocus={() => onSectionFocus?.('ws_nrw')}>
@@ -446,17 +447,10 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
             <F label="Volume growth rate" value={inputs.water_interventions.nrw_vol_growth} onChange={v => u('water_interventions','nrw_vol_growth',v)} isPercent unit="%" placeholder="population" tip="Annual real growth of the system input volume from the start year. Leave blank to scale with population; enter a rate to override (e.g. 3%)." />
             <F label="Water per basic→SM upgrade" value={inputs.water_interventions.nrw_water_per_upgrade || 0} onChange={v => u('water_interventions','nrw_water_per_upgrade',v)} step={5} unit="m³/HH/yr" tip="Extra water a basic household needs each year to become safely managed. Recovered physical water ÷ this = households upgraded." />
             <F label="Cost of fixing" value={inputs.water_interventions.nrw_capex_unit_cost_local || 0} onChange={v => u('water_interventions','nrw_capex_unit_cost_local',v)} step={1000} unit={`${CUR}/m³/day`} tip="Capital cost to recover one cubic metre per day of lost water — leak detection, pipe and meter replacement. Charged as the losses are cut." />
-            <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-              <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }} title="How to value the recovered water: as tariff revenue from sales, or as the production cost you no longer have to spend.">Value recovered water at</label>
-              <select value={inputs.water_interventions.nrw_value_basis || 'tariff'} onChange={e => u('water_interventions','nrw_value_basis', e.target.value)}
-                style={{ width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, border: '1px solid #F0D070', background: '#FFF9E6', color: '#3A4452', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }}>
-                <option value="tariff">Water tariff — revenue from sales</option>
-                <option value="production">Cost of production — cost avoided</option>
-              </select>
-            </div>
-            {(inputs.water_interventions.nrw_value_basis || 'tariff') === 'production'
-              ? <F label="Production cost" value={inputs.water_interventions.nrw_production_cost || 0} onChange={v => u('water_interventions','nrw_production_cost',v)} step={0.5} unit={`${CUR}/m³`} tip="Recovering water avoids producing this much fresh water, per cubic metre." />
-              : <F label="Water tariff" value={inputs.water_interventions.nrw_tariff || 0} onChange={v => u('water_interventions','nrw_tariff',v)} step={0.5} unit={`${CUR}/m³`} tip="The recovered water is sold at this price, per cubic metre." />}
+            <F label="Recovered-water tariff" value={inputs.water_interventions.nrw_tariff || 0} onChange={v => u('water_interventions','nrw_tariff',v)} step={0.5} unit={`${CUR}/m³`} tip="Commercial losses recovered through metering and billing are valued at this tariff and the scenario collection ratio." />
+            <F label="Avoided production cost" value={inputs.water_interventions.nrw_production_cost || 0} onChange={v => u('water_interventions','nrw_production_cost',v)} step={0.5} unit={`${CUR}/m³`} tip="Physical water allocated to reduced production saves this cost per cubic metre." />
+            <F label="Physical water allocated to service" value={inputs.water_interventions.nrw_service_allocation_pct ?? 0.5} onChange={v => u('water_interventions','nrw_service_allocation_pct',v)} isPercent unit="%" tip="Share of recovered physical water used for additional household service; the remainder reduces water production." />
+            <F label="Annual NRW maintenance cost" value={inputs.water_interventions.nrw_maintenance_cost_annual || 0} onChange={v => u('water_interventions','nrw_maintenance_cost_annual',v)} step={1000000} unit={CUR} tip="Recurring annual operating and maintenance cost for the NRW programme, in local currency." />
           </InterventionToggle>
 
           <InterventionToggle label="Budget execution improvement" checked={inputs.toggles?.ws_capital_efficiency_enabled ?? false} onChange={v => toggleIntv('ws_capital_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('ws_budget_exec')}>
@@ -485,7 +479,7 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           <InterventionToggle label="Tariff reform" checked={inputs.toggles?.ws_tariff_enabled ?? false} onChange={v => toggleIntv('ws_tariff_enabled', v)} onFocus={() => onSectionFocus?.('ws_tariff')}>
             <F label="Improvement start year" value={inputs.water_interventions.tariff_start_year} onChange={v => u('water_interventions','tariff_start_year',v)} tip="Year the tariff starts rising" />
             <F label="Target year" value={inputs.water_interventions.tariff_target_year} onChange={v => u('water_interventions','tariff_target_year',v)} tip="Year the target tariff is reached; it rises linearly from the start year to here, then holds." />
-            <F label="Volume sold (at start year)" value={inputs.water_interventions.tariff_volume_mld} onChange={v => u('water_interventions','tariff_volume_mld',v)} unit="MLD" tip="Volume of water sold/billed at the start year, in million litres per day. Grows with population over the forecast." />
+            <F label="Shared billed volume (at start year)" value={inputs.water_interventions.tariff_volume_mld} onChange={v => u('water_interventions','tariff_volume_mld',v)} unit="MLD" tip="Shared base volume for both tariff reform and collection-efficiency revenue. Grows with population over the forecast unless a fixed volume-growth rate is supplied." />
             <F label="Current tariff" value={inputs.water_interventions.tariff_current} onChange={v => u('water_interventions','tariff_current',v)} step={0.5} unit={`${CUR}/m3`} tip="Current average water tariff per cubic metre" />
             <F label="Target tariff" value={inputs.water_interventions.tariff_target} onChange={v => u('water_interventions','tariff_target',v)} step={0.5} unit={`${CUR}/m3`} tip="Target average water tariff per cubic metre. The extra revenue (volume × tariff rise) is recycled into capex for new service." />
           </InterventionToggle>
@@ -505,6 +499,18 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           </InterventionToggle>
           <InterventionToggle label="Exogenous Injection of Funds" checked={inputs.toggles?.san_exogenous_injection_enabled ?? false} onChange={v => toggleIntv('san_exogenous_injection_enabled', v)} onFocus={() => onSectionFocus?.('san_exogenous_injection')}>
             {injectionFields('sanitation_interventions')}
+          </InterventionToggle>
+          <InterventionToggle label="Borrowing and cash allocation" checked={inputs.toggles?.san_borrowing_enabled ?? false} onChange={v => toggleIntv('san_borrowing_enabled', v)} onFocus={() => onSectionFocus?.('san_borrowing')}>
+            <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
+              α = 0 reinvests all eligible utility cash. Higher α reserves more cash for debt service; new borrowing is capped by repayment capacity and the remaining investment gap.
+            </div>
+            <F label="Cash allocated to debt service (α)" value={inputs.sanitation_interventions.cash_allocation_alpha} onChange={v => u('sanitation_interventions','cash_allocation_alpha',Math.max(0,Math.min(1,v)))} isPercent unit="%" tip="Share of eligible utility cash committed to debt service while the loan is outstanding. 0% means reinvest all cash." />
+            <F label="Loan drawdown year" value={inputs.sanitation_interventions.borrow_drawdown_year} onChange={v => u('sanitation_interventions','borrow_drawdown_year',v)} />
+            <F label="Real interest rate" value={inputs.sanitation_interventions.borrow_interest_rate} onChange={v => u('sanitation_interventions','borrow_interest_rate',Math.max(0,v))} isPercent unit="%" />
+            <F label="Repayment term" value={inputs.sanitation_interventions.borrow_term_years} onChange={v => u('sanitation_interventions','borrow_term_years',Math.max(1,Math.round(v)))} unit="years" />
+            <F label="Minimum debt-service coverage ratio" value={inputs.sanitation_interventions.borrow_min_dscr} onChange={v => u('sanitation_interventions','borrow_min_dscr',Math.max(1,v))} step={0.1} tip="Minimum eligible cash divided by annual debt service." />
+            <F label="Borrowing ceiling" value={inputs.sanitation_interventions.borrow_ceiling} onChange={v => u('sanitation_interventions','borrow_ceiling',Math.max(0,v))} unit={`${CUR} mn`} tip="Maximum loan principal. Enter 0 for no separate ceiling." />
+            <F label="Existing annual debt service" value={inputs.sanitation_interventions.existing_debt_service} onChange={v => u('sanitation_interventions','existing_debt_service',Math.max(0,v))} unit={`${CUR} mn`} tip="Existing annual debt service deducted when sizing repayment capacity." />
           </InterventionToggle>
 
           <InterventionToggle label="Collection efficiency" checked={inputs.toggles?.san_collection_efficiency_enabled ?? false} onChange={v => toggleIntv('san_collection_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('san_ce')}>
@@ -581,7 +587,7 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', margin: '0 0 8px' }}>Custom Interventions</h3>
           <div onClick={() => onSectionFocus?.('custom_interventions')}>
             <div style={{ fontSize: 11, color: '#155e75', background: '#ecfeff', border: '1px solid #a5f3fc', padding: '6px 8px', borderRadius: 4, marginBottom: 8, lineHeight: 1.5 }}>
-              You can add interventions not covered above as custom interventions. Two types are supported: <b>New revenue source</b> — invest to produce an output whose net value funds new safely-managed service — and <b>Cost reduction</b> — lower the per-household service cost. Pick each one's sector and tick its box to switch it on.
+              Custom interventions keep their saved sector assignment when you switch tabs. Implementation costs are tracked separately from recurring revenue; cost reductions can target SM, Basic, or both.
             </div>
             {(inputs.custom_interventions || []).map((ci: any, idx: number) => {
               const updateCI = (field: string, val: any) => {
@@ -622,6 +628,20 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
                       </select>
                     </div>
                   </div>
+                  {ci.sector === 'both' && ci.intervention_type === 'new_revenue' && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px 14px', marginBottom: 8 }}>
+                    <F label="Water share" value={ci.water_allocation_share ?? 0.5} onChange={v => {
+                      const water = Math.max(0, Math.min(1, v));
+                      const arr = [...inputs.custom_interventions];
+                      arr[idx] = { ...arr[idx], water_allocation_share: water, sanitation_allocation_share: 1 - water };
+                      onChange({ ...inputs, custom_interventions: arr });
+                    }} isPercent unit="%" tip="Allocation of this intervention's implementation cost and recurring revenue to Water Supply. Sanitation receives the remainder." />
+                    <F label="Sanitation share" value={ci.sanitation_allocation_share ?? 0.5} onChange={v => {
+                      const sanitation = Math.max(0, Math.min(1, v));
+                      const arr = [...inputs.custom_interventions];
+                      arr[idx] = { ...arr[idx], sanitation_allocation_share: sanitation, water_allocation_share: 1 - sanitation };
+                      onChange({ ...inputs, custom_interventions: arr });
+                    }} isPercent unit="%" tip="Allocation to Sanitation. Water Supply receives the remainder; the two shares always sum to 100%." />
+                  </div>}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px 14px', alignItems: 'start' }}>
                     {ci.intervention_type === 'cost_reduction' ? (<>
                       <F label="Start year" value={ci.start_year} onChange={v => updateCI('start_year', v)} tip="Year the cost reduction takes effect; the lower cost is held from then on." />
@@ -629,6 +649,8 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
                         <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Outputs affected</label>
                         <select value={ci.outputs_affected || 'sm'} onChange={e => updateCI('outputs_affected', e.target.value)} style={{ ...miniInput, cursor: 'pointer' }}>
                           <option value="sm">Safely-managed service</option>
+                          <option value="basic">Basic service</option>
+                          <option value="both">SM and Basic service</option>
                         </select>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -655,8 +677,8 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
                       <F label="When output happens" value={ci.output_start_year} onChange={v => updateCI('output_start_year', v)} tip="Year output (and its revenue) starts, continuing through the forecast end." />
                       <F label={`Output quantity (per yr)`} value={ci.output_quantity} onChange={v => updateCI('output_quantity', v)} step={1000} unit={ci.output_unit || 'units'} tip="Output produced each year, in the unit above." />
                       <F label="Output value" value={ci.output_value} onChange={v => updateCI('output_value', v)} step={1} unit={`${CUR}/${ci.output_unit || 'unit'}`} tip="Value per unit of output. Quantity × value = annual revenue; the net (revenue − implementation cost) funds new safely-managed service." />
-                      <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
-                        Net cash each year = output quantity × value (from {ci.output_start_year || 'the output year'}) − cost spread over {ci.cost_years || 0} yr{(ci.cost_years === 1) ? '' : 's'} → folded into {ci.sector === 'both' ? "each sector's" : ci.sector} capex for new service.
+                        <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
+                        Recurring revenue = output quantity × value from {ci.output_start_year || 'the output year'}. Implementation cost is spread over {ci.cost_years || 0} year{ci.cost_years === 1 ? '' : 's'} and tracked separately. Both-sector cash is allocated using the shares above.
                       </div>
                     </>)}
                   </div>
@@ -675,6 +697,7 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
                 start_year: 2028, end_year: 2040,
                 implement_cost: 0, cost_years: 3, output_unit: 'm³', output_start_year: 2028, output_quantity: 0, output_value: 0,
                 outputs_affected: 'sm', cost_effect_mode: 'pct', cost_effect: 0.1,
+                water_allocation_share: 0.5, sanitation_allocation_share: 0.5,
                 color: colors[existing.length % colors.length],
               }] });
             }} style={{ width: '100%', padding: '8px', border: '1px dashed #9333ea', borderRadius: 6, background: 'none', cursor: 'pointer', fontSize: 12, color: '#9333ea', fontWeight: 500 }}>

@@ -245,14 +245,34 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
     bau['scenario_total_investment_need'] = scn['total_investment_need']
     # The dashboard's scenario spending tables must use the scenario's own
     # obligations and allocation, not BAU need minus an intervention cash total.
-    for key in ('new_capex_by_service', 'replacement_by_service',
-                'funded_by_service', 'financing_gap_by_service',
-                'new_capex_total', 'replacement_capex', 'available_total'):
-        bau['scenario_' + key] = scn[key]
+    for key in (
+        'new_capex_by_service', 'replacement_by_service', 'funded_by_service',
+        'financing_gap_by_service', 'implementation_capex_by_service',
+        'new_capex_total', 'replacement_capex', 'available_total',
+        'total_investment_need', 'cumulative_investment_requirement',
+        'cumulative_financing_gap', 'financing_gap_before_additional_public',
+        'available_before_additional_public', 'cash_carry_forward',
+        'financing_gap_before_borrowing', 'available_before_borrowing',
+        'target_asset_stock', 'target_asset_stock_by_service', 'scenario_service_gap',
+        'public_capital', 'other_capital', 'additional_net_utility_cash',
+        'cash_allocated_to_direct_investment', 'cash_committed_to_debt',
+        'loan_drawdown', 'loan_opening_debt', 'loan_closing_debt',
+        'loan_interest', 'loan_principal_paid', 'loan_debt_service',
+        'loan_debt_service_shortfall', 'loan_cash_reserve',
+        'implementation_capex', 'custom_revenue_cash', 'custom_implementation_capex',
+        'shared_revenue_cash', 'billed_volume', 'nrw_commercial_cash',
+        'nrw_production_savings', 'nrw_maintenance_cost', 'nrw_implementation_capex',
+        'nrw_service_upgrade_capex', 'nrw_commercial_recovered_vol',
+        'nrw_recovered_phys_total_vol',
+    ):
+        if key in scn:
+            bau['scenario_' + key] = scn[key]
     bau['scenario_collection_cash'] = scn['collection_cash']            # collection-efficiency revenue (scenario)
     bau['scenario_tariff_cash'] = scn['tariff_cash']                    # tariff-reform revenue (scenario)
     bau['scenario_financial_commitment_cash'] = scn.get('financial_commitment_cash', [])
     bau['scenario_exogenous_injection_cash'] = scn.get('exogenous_injection_cash', [])
+    bau['scenario_loan_principal'] = scn.get('loan_principal', 0.0)
+    bau['scenario_loan_end_year'] = scn.get('loan_end_year')
     bau['scenario_nrw_net'] = scn.get('nrw_net', [])                    # NRW money ledger (scenario)
     bau['scenario_nrw_upgrade_hh'] = scn.get('nrw_upgrade_hh', [])      # NRW basic→SM upgrades (scenario)
     bau['scenario_selffinance_upgrade_hh'] = scn.get('selffinance_upgrade_hh', [])  # self-financed connections (scenario)

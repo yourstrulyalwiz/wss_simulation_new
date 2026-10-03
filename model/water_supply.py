@@ -267,7 +267,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     so replacement (depreciation of the existing stock) is funded first, and only the household share
     buys new connections. `growth_capex_pct` and `planned_list` are kept for the caller signature but
     are no longer used. NOTE: this deliberately DIVERGES from the reference workbook's BAU (which grew
-    SM on the %GDP capex budget alone); the 4d investment-need / financing-gap formulas are unchanged."""
+    SM on the %GDP capex budget alone). The financing gap uses a residual ledger:
+    remaining new-service cost + unpaid replacement + negative net cash."""
     n, bi, years, total_hh = ctx['n'], ctx['bi'], ctx['years'], ctx['total_hh']
     msy, by = period.model_start_year, period.baseline_year
     t1y, t2y = period.target1_year, period.target2_year
@@ -644,8 +645,13 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     hh_gap = np.zeros(n); hh_gap_basic = np.zeros(n); new_capex_total = np.zeros(n); stock = np.zeros(n)
     replacement = np.zeros(n); total_need = np.zeros(n); financing_gap = np.zeros(n)
     available_total = np.zeros(n)  # effective budget plus all signed intervention cash reaching the gap calculation
-    # These are target-need accounting ledgers. They do not alter the BAU stock
-    # used to project household connections or the existing sector-wide figures.
+    replacement_reserved = np.zeros(n); replacement_credit = np.zeros(n)
+    unfunded_replacement = np.zeros(n); cash_deficit = np.zeros(n)
+    expansion_capital_available = np.zeros(n); connection_purchase_capital = np.zeros(n)
+    unallocated_positive_capital = np.zeros(n)
+    cash_deficit_by_service = np.zeros((2, n))
+    # These residual ledgers do not alter the BAU stock or connection projections.
+    # `funded_by_service` remains a compatibility alias for replacement credit only.
     need_stock_by_service = np.zeros((2, n))
     new_capex_by_service = np.zeros((2, n))
     replacement_by_service = np.zeros((2, n))
@@ -708,6 +714,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # later (surplus funds new connections). All the lever terms are 0 when their lever is off.
         avail = bau_available[t] + collection_cash[t] + tariff_cash[t] + nrw_net[t] + financial_cash[t] + injection_cash[t] + extra_cash_arr[t]
         available_total[t] = avail
+        replacement_reserved[t] = min(max(avail, 0.0), max(bau_replacement[t], 0.0))
+        expansion_capital_available[t] = max(0.0, avail - replacement_reserved[t])
         # ── Investment split (test2) ───────────────────────────────────────────────────────────────────
         # Replacement is funded first, then the remainder is split: `basic_share` buys BASIC service for
         # households at limited-and-below, the rest buys SAFELY MANAGED for households at basic-and-below.
@@ -729,6 +737,13 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             new_sm = pool_basic
             room = max(0.0, pool_lower - new_basic)
             new_basic += min(room, (spare / cost_basic_t[t]) if cost_basic_t[t] > 0 else 0.0)
+        # Reporting only: purchases before existing SM target caps. Include the
+        # corresponding non-household share, not off-budget/NRW household flows.
+        connection_purchase_capital[t] = (
+            (new_sm * cost_sm_t[t] + new_basic * cost_basic_t[t]) / hh_share
+            if hh_share > 0 else 0.0)
+        unallocated_positive_capital[t] = max(
+            0.0, expansion_capital_available[t] - connection_purchase_capital[t])
         nrw_upg = nrw_upgrade_cum[t] - nrw_upgrade_cum[t - 1]          # water-enabled basic→SM upgrades this year
         budget_sm = budget_sm + new_sm + nrw_upg                      # SM from the budget + NRW only (no levers)
         if nrw_enabled:
@@ -852,7 +867,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                     tgt[r, t] = remaining * (prior_lower[j] / psum) if psum > 0 else 0.0
                 tgt[0, t], tgt[1, t] = sm, basic
 
-        # 4d — investment need & financing gap (formulas UNCHANGED; only the BAU inputs differ)
+        # 4d — residual new-service costs; expansion funding has already bought connections.
         gap = max(0.0, tgt[0, t] - bau[0, t]); hh_gap[t] = gap
         # Basic is a costed objective once investment can be directed to it, so the investment need prices
         # the basic shortfall at the basic unit cost alongside the safely-managed one. Under a 100%
@@ -872,17 +887,23 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         need_stock_by_service[0, t] = need_stock_by_service[0, t - 1] + new_capex_by_service[0, t]
         need_stock_by_service[1, t] = stock[t] - need_stock_by_service[0, t]
         total_need[t] = (nc_total + replacement[t]) if (ff > 0 or pf > 0) else 0.0
-        shortfall = total_need[t] - avail          # collection-efficiency cash reduces the financing gap
-        financing_gap[t] = shortfall if ((ff > 0 or pf > 0) and shortfall > 0) else 0.0
         if ff > 0 or pf > 0:
+            replacement_credit[t] = min(replacement_reserved[t], max(replacement[t], 0.0))
+            unfunded_replacement[t] = max(replacement[t] - replacement_credit[t], 0.0)
+            cash_deficit[t] = max(-avail, 0.0)
+            financing_gap[t] = max(0.0, nc_total + unfunded_replacement[t] + cash_deficit[t])
             sm_gap, basic_gap, sm_paid, basic_paid = attribute_gap(
                 new_capex_by_service[0, t], new_capex_by_service[1, t],
                 replacement_by_service[0, t], replacement_by_service[1, t],
-                avail, basic_share)
+                replacement_credit[t], basic_share, cash_deficit[t])
             financing_gap_by_service[0, t] = sm_gap
             financing_gap_by_service[1, t] = basic_gap
             funded_by_service[0, t] = sm_paid
             funded_by_service[1, t] = basic_paid
+            needs = new_capex_by_service[:, t] + replacement_by_service[:, t]
+            sm_share = needs[0] / sum(needs) if sum(needs) > 0 else 1.0 - bs
+            cash_deficit_by_service[0, t] = cash_deficit[t] * sm_share
+            cash_deficit_by_service[1, t] = cash_deficit[t] - cash_deficit_by_service[0, t]
 
     # Affordability lever running totals (cumulative over the forecast).
     selffin_upgrade_cum = np.cumsum(selffin_flow)
@@ -943,9 +964,18 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'replacement_capex': replacement.tolist(),
         'replacement_by_service': replacement_by_service.tolist(),
         'bau_replacement_capex': bau_replacement.tolist(),
-        'total_investment_need': total_need.tolist(),
+        'total_investment_need': total_need.tolist(),  # compatibility: residual new cost + reported replacement, NOT gross need
         'financing_gap': financing_gap.tolist(),
         'funded_by_service': funded_by_service.tolist(),
+        'replacement_reserved': replacement_reserved.tolist(),
+        'replacement_credit': replacement_credit.tolist(),
+        'replacement_credit_by_service': funded_by_service.tolist(),
+        'unfunded_replacement': unfunded_replacement.tolist(),
+        'cash_deficit': cash_deficit.tolist(),
+        'cash_deficit_by_service': cash_deficit_by_service.tolist(),
+        'expansion_capital_available': expansion_capital_available.tolist(),
+        'connection_purchase_capital': connection_purchase_capital.tolist(),
+        'unallocated_positive_capital': unallocated_positive_capital.tolist(),
         'financing_gap_by_service': financing_gap_by_service.tolist(),
     }
 

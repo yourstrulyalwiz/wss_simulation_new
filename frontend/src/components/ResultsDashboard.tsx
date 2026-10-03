@@ -230,6 +230,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const totNeed = sum((r, i) => secOf(r).total_investment_need?.[i] || 0);
           const bauInv = sum((r, i) => secOf(r).bau_available?.[i] || 0);
           const scnInv = sum((r, i) => secOf(r).scenario_available_total[i]);
+          const ledger = (key: string) => sum((r, i) => secOf(r)[key][i]);
           const loanCum = sum((r, i) => secOf(r).scenario_mf_loan_volume[i]);
           const grantCum = sum((r, i) => secOf(r).scenario_grant_spend[i]);
           const rungSeries = (key: string, rung: number) => sum((r, i) => secOf(r)[key][rung][i]);
@@ -245,29 +246,44 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             replacementScenario: rungSeries('scenario_replacement_by_service', rung),
             fundedScenario: rungSeries('scenario_funded_by_service', rung),
             gapScenario: rungSeries('scenario_financing_gap_by_service', rung),
+            deficitBau: rungSeries('cash_deficit_by_service', rung),
+            deficitScenario: rungSeries('scenario_cash_deficit_by_service', rung),
           }));
           const financeRows: FinanceYear[] = years.flatMap((year, i) => year <= baseYr ? [] : [{
             year, total: totalHH[i], bauAvailable: bauInv[i], scenarioAvailable: scnInv[i],
             offBudgetLoans: loanCum[i] - (loanCum[i - 1] || 0),
             offBudgetGrants: grantCum[i] - (grantCum[i - 1] || 0),
             bauGap: bauGap[i], scenarioGap: scnGap[i],
+            replacementReserved: ledger('scenario_replacement_reserved')[i],
+            coverageReplacement: ledger('scenario_bau_replacement_capex')[i],
+            expansionAvailable: ledger('scenario_expansion_capital_available')[i],
+            purchaseCapital: ledger('scenario_connection_purchase_capital')[i],
+            unallocatedCapital: ledger('scenario_unallocated_positive_capital')[i],
+            cashDeficit: ledger('scenario_cash_deficit')[i],
             services: rungData.map(d => ({
               bau: d.bau[i], scenario: d.scenario[i], target: d.target[i],
               newBau: d.newBau[i], replacementBau: d.replacementBau[i],
               fundedBau: d.fundedBau[i], gapBau: d.gapBau[i],
               newScenario: d.newScenario[i], replacementScenario: d.replacementScenario[i],
               fundedScenario: d.fundedScenario[i], gapScenario: d.gapScenario[i],
+              deficitBau: d.deficitBau[i], deficitScenario: d.deficitScenario[i],
             })) as [FinanceYear['services'][0], FinanceYear['services'][1]],
           }]);
           const periods = buildPeriods(years, baseYr);
           const invRow = (label: string, arr: number[], strong = false) =>
             ({ label, strong, vals: periods.map(p => sumRange(arr, years, p.lo, p.hi) / 1000) });
           const inv: InvTable = { periods, rows: [
-            invRow('Investment for new households (A)', newCap),
+            invRow('Residual new-service cost (A)', newCap),
             invRow('Replacement capex (B)', repl),
-            invRow('Total investment need (C = A + B)', totNeed, true),
-            invRow('BAU investment (D)', bauInv),
-            invRow('Financing gap (C − D)', bauGap, true),
+            invRow('Residual-ledger subtotal (C = A + B)', totNeed, true),
+            invRow('Replacement credit (D)', ledger('replacement_credit')),
+            invRow('Cash deficit (E)', ledger('cash_deficit')),
+            invRow('Remaining financing gap (C − D + E)', bauGap, true),
+            invRow('Total available capital (reporting only)', bauInv),
+            invRow('Coverage-stock replacement basis', ledger('bau_replacement_capex')),
+            invRow('Replacement funding reserved', ledger('replacement_reserved')),
+            invRow('Modeled connection purchases (pre-cap)', ledger('connection_purchase_capital')),
+            invRow('Unallocated positive expansion capital', ledger('unallocated_positive_capital')),
           ] };
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
           return { inv, unit, basicRows, financeRows, sum: {

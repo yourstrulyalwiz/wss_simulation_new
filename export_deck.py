@@ -214,15 +214,22 @@ def _fill_investment(slide, b, cur):
             delete_table_columns(t, list(range(want, len(t.columns))))
         for j, lbl in enumerate(periods):
             set_cell(t, 0, j + 1, f'{lbl}\n({cur} b)')
-        for i, (_, vals) in enumerate(b['investment']['rows']):
+        while len(t.rows) < len(b['investment']['rows']) + 1:
+            clone_table_row(t, 1, len(t.rows) - 1)
+        for i, (label, vals) in enumerate(b['investment']['rows']):
+            set_cell(t, i + 1, 0, label)
             for j, v in enumerate(vals[:len(periods)]):
                 set_cell(t, i + 1, j + 1, bn(v))
-    replace_tokens(slide, {
-        '[target year]': str(b['last_target_year']),
-        '[X]': bn(b['total_need_m']),
-        '[Y]': f"{b['covered_pct'] * 100:.0f}",
-        '[cur]': cur,
-    })
+        fit_table(t, _room_below(slide, _table_shape(slide, 'Table 501')))
+    note = find_shape(slide, 'T503')
+    if note is not None:
+        _set_full_text(note, (
+            f"Residual-ledger subtotal: {bn(b['total_need_m'])} billion {cur} to {b['last_target_year']}.\n"
+            f"Remaining financing gap: {bn(b['financing_gap_m'])} billion {cur}.\n"
+            "Gap = residual new-service cost + replacement requirement − replacement credit + cash deficit.\n"
+            "Available capital has already financed modeled connections; no second credit applies.\n"
+            "Replacement reserve uses coverage stock; reported obligations use target-needs stock.\n"
+            "Connection purchases are pre-cap allocations, not actual delivery."))
 
 
 def _fill_interventions(slide, b, cur):
@@ -364,17 +371,16 @@ def _fill_exec(slide, d, cur, lt):
             name = 'water' if sk == 'water_supply' else 'san.'
             parts.append(f"{bn(b['bau_investment_m'], 0)}b {name}")
             need_parts.append(f"{bn(b['total_need_m'], 0)}b {name}")
-        ratio = _gap_multiple(blocks)
-        replace_tokens(inv, {
-            '[X]': f"{cur} " + ' + '.join(parts),
-            '[Y]': '—',
-            '[1st forecast year]': str(d['baseline_year'] + 1),
-            '[end year]': str(lt),
-            '[target]': 'the targets',
-            '[number]': f"{cur} " + ' + '.join(need_parts),
-            '[Z]': f'{ratio:,.1f}',
-        })
-        _strip_usd(inv)
+        gap_parts = []
+        for sk in DD.SECTORS:
+            b = _widest(blocks, sk)
+            if b:
+                gap_parts.append(f"{bn(b['financing_gap_m'], 0)}b {'water' if sk == 'water_supply' else 'san.'}")
+        _set_full_text(inv, (
+            f"Residual financing ({d['baseline_year'] + 1}–{lt})\n"
+            f"Available capital: {cur} {' + '.join(parts)}.\n"
+            f"Residual-ledger subtotal: {cur} {' + '.join(need_parts)}; "
+            f"remaining gap: {cur} {' + '.join(gap_parts)}."))
 
     # Card 2 — the resources each reform mobilises, summed across the scopes shown.
     res = find_shape(slide, 'TextBox 507')
@@ -424,12 +430,13 @@ def _widest(blocks, sk):
     return None
 
 
-def _gap_multiple(blocks) -> float:
-    """Total investment need ÷ BAU investment, across the headline scope's two sectors."""
-    sc = _headline_scope(blocks)
-    need = sum(b['total_need_m'] for (s, _), b in blocks.items() if s == sc)
-    bau = sum(b['bau_investment_m'] for (s, _), b in blocks.items() if s == sc)
-    return (need / bau) if bau else 0.0
+def _set_full_text(shape, text):
+    """Replace all paragraphs, not just the first, while retaining template styles."""
+    lines = text.split('\n')
+    for i, line in enumerate(lines):
+        set_text(shape, line, para_idx=i)
+    for para in list(shape.text_frame.paragraphs)[len(lines):]:
+        para._p.getparent().remove(para._p)
 
 
 def _strip_usd(shape):

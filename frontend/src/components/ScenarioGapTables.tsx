@@ -5,6 +5,7 @@ export type RungFinance = {
   bau: number; scenario: number; target: number;
   newBau: number; replacementBau: number; fundedBau: number; gapBau: number;
   newScenario: number; replacementScenario: number; fundedScenario: number; gapScenario: number;
+  deficitBau: number; deficitScenario: number;
 };
 
 export type FinanceYear = {
@@ -12,6 +13,8 @@ export type FinanceYear = {
   bauAvailable: number; scenarioAvailable: number;
   offBudgetLoans: number; offBudgetGrants: number;
   bauGap: number; scenarioGap: number;
+  replacementReserved: number; coverageReplacement: number;
+  expansionAvailable: number; purchaseCapital: number; unallocatedCapital: number; cashDeficit: number;
   services: [RungFinance, RungFinance];  // Safely Managed, Basic (exclusive)
 };
 
@@ -34,20 +37,23 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
   // cumulative gaps, so this table does not mix annual and cumulative units.
   const summary: Column[] = [
     { title: `BAU gap (${b})`, value: r => r.bauGap, unit: 'money' },
-    { title: `SM new-service need (${b})`, value: r => r.services[0].newScenario, unit: 'money' },
+    { title: `SM residual new-service cost (${b})`, value: r => r.services[0].newScenario, unit: 'money' },
     { title: `SM replacement (${b})`, value: r => r.services[0].replacementScenario, unit: 'money' },
-    { title: `Basic new-service need (${b})`, value: r => r.services[1].newScenario, unit: 'money' },
+    { title: `Basic residual new-service cost (${b})`, value: r => r.services[1].newScenario, unit: 'money' },
     { title: `Basic replacement (${b})`, value: r => r.services[1].replacementScenario, unit: 'money' },
-    { title: `Scenario total investment need (${b})`, value: r =>
+    { title: `Scenario residual-ledger subtotal (${b})`, value: r =>
       r.services.reduce((sum, s) => sum + s.newScenario + s.replacementScenario, 0), unit: 'money' },
     { title: `BAU sector capex available (${b})`, value: r => r.bauAvailable, unit: 'money' },
     { title: `Additional effective sector capex (${b})`, value: r => r.scenarioAvailable - r.bauAvailable, unit: 'money' },
     { title: `Scenario sector capex available (${b})`, value: r => r.scenarioAvailable, unit: 'money' },
-    { title: `Sector capex applied to need (${b})`, value: r =>
+    { title: `Coverage-stock replacement basis (${b})`, value: r => r.coverageReplacement, unit: 'money' },
+    { title: `Replacement funding reserved (${b})`, value: r => r.replacementReserved, unit: 'money' },
+    { title: `Replacement credit (${b})`, value: r =>
       r.services[0].fundedScenario + r.services[1].fundedScenario, unit: 'money' },
-    { title: `Unused sector capex (${b})`, value: r => Math.max(0, r.scenarioAvailable -
-      r.services[0].fundedScenario - r.services[1].fundedScenario), unit: 'money' },
-    { title: `Negative sector funding balance (${b})`, value: r => Math.max(0, -r.scenarioAvailable), unit: 'money' },
+    { title: `Expansion capital available (${b})`, value: r => r.expansionAvailable, unit: 'money' },
+    { title: `Modeled connection purchases, pre-cap (${b})`, value: r => r.purchaseCapital, unit: 'money' },
+    { title: `Unallocated positive expansion capital (${b})`, value: r => r.unallocatedCapital, unit: 'money' },
+    { title: `Cash deficit (${b})`, value: r => r.cashDeficit, unit: 'money' },
     { title: `Off-budget microfinance loans (${b})`, value: r => r.offBudgetLoans, unit: 'money' },
     { title: `Off-budget grants spent (${b})`, value: r => r.offBudgetGrants, unit: 'money' },
     { title: `SM remaining gap (${b})`, value: r => r.services[0].gapScenario, unit: 'money' },
@@ -86,18 +92,20 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
       { title: `${name} — BAU (M)`, value: r => r.services[rung].bau, unit: 'hh' },
       { title: `Target ${prefix} (M)`, value: r => r.services[rung].target, unit: 'hh' },
       { title: 'Service Gap (M HH)', value: r => Math.max(0, r.services[rung].target - r.services[rung].bau), unit: 'hh' },
-      { title: `${prefix} new-service need (${m})`, value: r => r.services[rung].newBau, unit: 'money' },
+      { title: `${prefix} residual new-service cost (${m})`, value: r => r.services[rung].newBau, unit: 'money' },
       { title: `${prefix} replacement need (${m})`, value: r => r.services[rung].replacementBau, unit: 'money' },
-      { title: `${prefix} attributed funding (${m})`, value: r => r.services[rung].fundedBau, unit: 'money' },
+      { title: `${prefix} replacement credit (${m})`, value: r => r.services[rung].fundedBau, unit: 'money' },
+      { title: `${prefix} cash deficit (${m})`, value: r => r.services[rung].deficitBau, unit: 'money' },
       { title: `${prefix} financing gap (${m})`, value: r => r.services[rung].gapBau, unit: 'money' },
       { title: `Sector-wide financing gap (${m})`, value: r => r.bauGap, unit: 'money' },
       // Scenario obligations and attributed funding are computed in the scenario
       // model pass, not inferred by subtracting money from the BAU gap.
       { title: `${prefix} with interventions (M)`, value: r => r.services[rung].scenario, unit: 'hh' },
       { title: 'Scenario service gap (M HH)', value: r => Math.max(0, r.services[rung].target - r.services[rung].scenario), unit: 'hh' },
-      { title: `${prefix} scenario new-service need (${m})`, value: r => r.services[rung].newScenario, unit: 'money' },
+      { title: `${prefix} scenario residual new-service cost (${m})`, value: r => r.services[rung].newScenario, unit: 'money' },
       { title: `${prefix} scenario replacement need (${m})`, value: r => r.services[rung].replacementScenario, unit: 'money' },
-      { title: `${prefix} scenario attributed funding (${m})`, value: r => r.services[rung].fundedScenario, unit: 'money' },
+      { title: `${prefix} scenario replacement credit (${m})`, value: r => r.services[rung].fundedScenario, unit: 'money' },
+      { title: `${prefix} scenario cash deficit (${m})`, value: r => r.services[rung].deficitScenario, unit: 'money' },
       { title: `${prefix} remaining gap (${m})`, value: r => r.services[rung].gapScenario, unit: 'money' },
       { title: `${prefix} gap change, BAU − scenario (${m})`, value: r => r.services[rung].gapBau - r.services[rung].gapScenario, unit: 'money' },
       { title: `Sector additional effective capex (${m})`, value: r => r.scenarioAvailable - r.bauAvailable, unit: 'money' },
@@ -124,11 +132,14 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
         headers={summaryHeaders} rows={summaryExport} compact />
     </div>
     <div style={{ fontSize: 10.5, color: '#475569', lineHeight: 1.5, marginBottom: 7 }}>
-      New-service and replacement needs are shown separately for both service levels. Additional effective sector
+      Remaining financing gap = residual new-service cost + replacement requirement − replacement credit + cash deficit.
+      New-service costs already reflect funded connections and receive no second capital credit. Additional effective sector
       capex is scenario available minus BAU available (net of execution and cash effects); cost-saving interventions
-      instead lower the need. Sector capex covers replacement first, then new service using the configured split,
-      with unused allocations transferable. Available capex can exceed what is applied to need; the excess is
-      shown as unused. A negative funding balance increases the attributed gap. Off-budget microfinance loans and
+      instead lower residual costs. Replacement reserved uses the coverage-stock basis; credit is capped at the
+      reported replacement obligation and allocated by service replacement shares. Expansion purchases include
+      associated non-household capital and are reported before existing target caps, not as actual delivery.
+      Unallocated positive expansion capital is not credited against residual needs.
+      Cash deficits are allocated once by original need shares (investment split if needs are zero). Off-budget microfinance loans and
       grants fund connections outside the sector capex pool: they can lower scenario need, but must not be added
       again to sector available capex. The two attributed remaining gaps add to the sector total. A negative gap
       change means the shortfall grew; unlike the chart’s positive-only bands, these changes use the full scenario.

@@ -72,13 +72,17 @@ class ScenarioGapCompositionTests(unittest.TestCase):
                             available = sec['scenario_available_total'][i]
                             need = sec['scenario_total_investment_need'][i]
                             paid = rung_sum('scenario_funded_by_service')
-                            self.assertAlmostEqual(paid, min(max(available, 0), need), places=5)
+                            self.assertAlmostEqual(paid, sec['scenario_replacement_credit'][i], places=5)
+                            self.assertAlmostEqual(paid, min(max(available, 0),
+                                max(sec['scenario_bau_replacement_capex'][i], 0),
+                                max(sec['scenario_replacement_capex'][i], 0)), places=5)
                             self.assertAlmostEqual(need + max(0, -available),
                                                    paid + sec['scenario_financing_gap'][i], places=5)
                             self.assertAlmostEqual(
                                 sec['scenario_financing_gap'][i],
-                                max(0, sec['scenario_total_investment_need'][i] -
-                                    sec['scenario_available_total'][i]), places=5)
+                                sec['scenario_new_capex_total'][i] +
+                                sec['scenario_unfunded_replacement'][i] +
+                                sec['scenario_cash_deficit'][i], places=5)
                             self.assertAlmostEqual(
                                 sec['scenario_available_total'][i],
                                 sum(sec[name][i] for name in (

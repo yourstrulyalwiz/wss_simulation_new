@@ -266,11 +266,17 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
         periods.append((f'{ft + 1}–{lt}', ft + 1, lt))
     periods.append((f'Total {by + 1}–{lt}', by + 1, lt))
     inv_rows = [
-        ('Investment needed for new HHs (A)', 'new_capex_total'),
+        ('Residual new-service cost (A)', 'new_capex_total'),
         ('Replacement capex needed (B)', 'replacement_capex'),
-        ('Investment needed (C = A + B)', 'total_investment_need'),
-        ('BAU investment (D)', 'bau_available'),
-        ('Investment gap (C − D)', 'financing_gap'),
+        ('Residual-ledger subtotal (C = A + B)', 'total_investment_need'),
+        ('Replacement credit (D)', 'replacement_credit'),
+        ('Cash deficit (E)', 'cash_deficit'),
+        ('Remaining financing gap (C − D + E)', 'financing_gap'),
+        ('Total available capital (reporting only)', 'available_total'),
+        ('Coverage-stock replacement basis', 'bau_replacement_capex'),
+        ('Replacement funding reserved', 'replacement_reserved'),
+        ('Modeled connection purchases (pre-cap)', 'connection_purchase_capital'),
+        ('Unallocated positive expansion capital', 'unallocated_positive_capital'),
     ]
     investment = {
         'periods': [p[0] for p in periods],
@@ -317,7 +323,8 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
         'unserved_baseline': max(0.0, (total[bi] if bi < len(total) else 0.0) - _at(bau, bi, 0)),
         'gap_end': max(0.0, _at(tgt, lti, 0) - _at(bau, lti, 0)),
         'total_need_m': tot_need, 'bau_investment_m': bau_inv,
-        'covered_pct': (bau_inv / tot_need) if tot_need else 0.0,
+        'replacement_credit_m': _rng(sec.get('replacement_credit'), years, by + 1, lt),
+        'financing_gap_m': _rng(sec.get('financing_gap'), years, by + 1, lt),
     }
 
 

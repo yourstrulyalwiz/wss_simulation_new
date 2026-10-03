@@ -188,6 +188,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         const serviceNewNeed = rungSeries('new_capex_by_service');
         const serviceReplacement = rungSeries('replacement_by_service');
         const serviceFunded = rungSeries('funded_by_service');
+        const serviceDeficit = rungSeries('cash_deficit_by_service');
 
         const per = datasets[0]?.period || {};
         const baseYr = per.baseline_year ?? years[0];
@@ -216,7 +217,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           const gapHH = Math.max(0, t - b);
           return { year: y, total: tot, bau: b, tgt: t, gapHH,
             newNeed: serviceNewNeed[i], replacement: serviceReplacement[i],
-            funded: serviceFunded[i], serviceGap: serviceGap[i], finGap: finGapSeries[i] ?? null };
+            funded: serviceFunded[i], deficit: serviceDeficit[i], serviceGap: serviceGap[i], finGap: finGapSeries[i] ?? null };
         }).filter(Boolean) as any[];
         setTableRows(tblRows);
 
@@ -352,13 +353,14 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   };
   // Forecast data table (per year) — for its own ⤓ CSV / ⤓ Excel.
   const tableHeaders = ['Year', 'Total households (M)', `${rungNameRaw} BAU (M)`, `Target ${rungLabel} (M)`, 'Service Gap (M HH)',
-    `${rungLabel} new-service need (${endAnno?.cur || 'LCU'} M/yr)`,
+    `${rungLabel} residual new-service cost (${endAnno?.cur || 'LCU'} M/yr)`,
     `${rungLabel} replacement need (${endAnno?.cur || 'LCU'} M/yr)`,
-    `${rungLabel} attributed funding (${endAnno?.cur || 'LCU'} M/yr)`,
+    `${rungLabel} replacement credit (${endAnno?.cur || 'LCU'} M/yr)`,
+    `${rungLabel} cash deficit (${endAnno?.cur || 'LCU'} M/yr)`,
     `${rungLabel} financing gap (${endAnno?.cur || 'LCU'} M/yr)`,
     `Sector-wide financing gap (${endAnno?.cur || 'LCU'} M/yr)`];
   const tableExportRows = tableRows.map((r: any) => [r.year, round3(r.total), round3(r.bau), round3(r.tgt), round3(r.gapHH),
-    round3(r.newNeed), round3(r.replacement), round3(r.funded), round3(r.serviceGap),
+    round3(r.newNeed), round3(r.replacement), round3(r.funded), round3(r.deficit), round3(r.serviceGap),
     r.finGap == null ? '' : round3(r.finGap)]);
 
   const toolBtn: React.CSSProperties = {
@@ -554,11 +556,14 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         return (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '3px solid #2563eb', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55 }}>
-              <b>Summary.</b> Under business-as-usual, {summary.rungLabel} {sectorLabel.toLowerCase()} reaches <b>{pct(summary.bauPop)}</b> of the population by {summary.endline}, against a target of <b>{pct(summary.tgtPop)}</b>{summary.gapEnd > 0.0005 ? <> — a shortfall of <b>{sig3(summary.gapEnd)} M households</b></> : null}. The attributed <b>{summary.rungLabel}</b> annual financing gap at {summary.endline} is <b>{money(summary.serviceGapEnd)}/yr</b>; the <b>sector-wide</b> annual gap is <b>{money(summary.finGapEnd)}/yr</b>. Cumulative sector-wide investment need is <b>{sigB(summary.cumNeed)} B {cur}</b> ({summary.firstForecast}–{summary.endline}).
+              <b>Summary.</b> Under business-as-usual, {summary.rungLabel} {sectorLabel.toLowerCase()} reaches <b>{pct(summary.bauPop)}</b> of the population by {summary.endline}, against a target of <b>{pct(summary.tgtPop)}</b>{summary.gapEnd > 0.0005 ? <> — a shortfall of <b>{sig3(summary.gapEnd)} M households</b></> : null}. The attributed <b>{summary.rungLabel}</b> annual financing gap at {summary.endline} is <b>{money(summary.serviceGapEnd)}/yr</b>; the <b>sector-wide</b> annual gap is <b>{money(summary.finGapEnd)}/yr</b>. Cumulative sector-wide residual-ledger subtotal (new-service cost + replacement) is <b>{sigB(summary.cumNeed)} B {cur}</b> ({summary.firstForecast}–{summary.endline}).
               {summary.costSM != null && <> Weighted {summary.rungLabel} cost per household: <b>{sig3(summary.costSM)} {cur}</b>.</>}
             </div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 5, lineHeight: 1.45 }}>
-              Service-level gaps are funding attributions, not percentages of the total gap: existing assets determine replacement needs; available funds cover replacement first, then the Data Inputs split directs new-service funding. Unused funding rolls to the other service level. The two attributed gaps add up to the sector-wide gap.
+              Remaining financing gap = residual new-service cost + replacement requirement − replacement credit + cash deficit.
+              New-service costs already reflect funded connections; expansion capital is not credited again.
+              Replacement credit follows each service’s replacement obligations. Cash deficits follow original need shares,
+              or the investment split if needs are zero. The two attributed gaps add up to the sector-wide gap.
             </div>
           </div>
         );
@@ -667,9 +672,10 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
               <thead>
                 <tr style={{ background: '#f1f5f9', color: '#334155' }}>
                    {['Year', 'Total households (M)', `${rungNameRaw} — BAU (M)`, 'Target (M)', 'Service Gap (M HH)',
-                     `${rungLabel} new-service need (B ${endAnno?.cur || 'LCU'}/yr)`,
+                     `${rungLabel} residual new-service cost (B ${endAnno?.cur || 'LCU'}/yr)`,
                      `${rungLabel} replacement need (B ${endAnno?.cur || 'LCU'}/yr)`,
-                     `${rungLabel} attributed funding (B ${endAnno?.cur || 'LCU'}/yr)`,
+                     `${rungLabel} replacement credit (B ${endAnno?.cur || 'LCU'}/yr)`,
+                     `${rungLabel} cash deficit (B ${endAnno?.cur || 'LCU'}/yr)`,
                      `${rungLabel} financing gap (B ${endAnno?.cur || 'LCU'}/yr)`,
                      `Sector-wide financing gap (B ${endAnno?.cur || 'LCU'}/yr)`].map((h, i) => (
                     <th key={i} style={{ padding: '5px 10px', textAlign: i === 0 ? 'left' : 'right', fontWeight: 700, whiteSpace: 'nowrap', position: i === 0 ? 'sticky' : undefined, left: i === 0 ? 0 : undefined, background: '#f1f5f9' }}>{h}</th>
@@ -687,6 +693,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
                     <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.newNeed)}</td>
                     <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.replacement)}</td>
                     <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.funded)}</td>
+                    <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.deficit)}</td>
                     <td style={{ padding: '4px 10px', textAlign: 'right', color: '#b91c1c' }}>{sigB(r.serviceGap)}</td>
                     <td style={{ padding: '4px 10px', textAlign: 'right', color: '#b91c1c' }}>{r.finGap == null ? 'n/a' : sigB(r.finGap)}</td>
                   </tr>

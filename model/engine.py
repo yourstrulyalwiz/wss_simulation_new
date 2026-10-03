@@ -247,7 +247,11 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
     # obligations and allocation, not BAU need minus an intervention cash total.
     for key in ('new_capex_by_service', 'replacement_by_service',
                 'funded_by_service', 'financing_gap_by_service',
-                'new_capex_total', 'replacement_capex', 'available_total'):
+                'new_capex_total', 'replacement_capex', 'available_total',
+                'bau_replacement_capex', 'replacement_reserved', 'replacement_credit',
+                'replacement_credit_by_service', 'unfunded_replacement',
+                'cash_deficit', 'cash_deficit_by_service', 'expansion_capital_available',
+                'connection_purchase_capital', 'unallocated_positive_capital'):
         bau['scenario_' + key] = scn[key]
     bau['scenario_collection_cash'] = scn['collection_cash']            # collection-efficiency revenue (scenario)
     bau['scenario_tariff_cash'] = scn['tariff_cash']                    # tariff-reform revenue (scenario)

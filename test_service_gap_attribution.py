@@ -17,16 +17,16 @@ class GapAttributionTests(unittest.TestCase):
         self.assertEqual((sm_gap, basic_gap), (70, 50))
         self.assertEqual(sm_gap + basic_gap, 120)
 
-    def test_new_funding_split_rolls_surplus_to_other_service(self):
+    def test_residual_new_service_cost_gets_no_second_credit(self):
         for basic_share in (0.0, 0.4, 1.0):
             with self.subTest(basic_share=basic_share):
                 sm_gap, basic_gap, sm_paid, basic_paid = attribute_gap(
                     50, 10, 0, 0, 70, basic_share)
-                self.assertEqual((sm_gap, basic_gap), (0, 0))
-                self.assertEqual(sm_paid + basic_paid, 60)
+                self.assertEqual((sm_gap, basic_gap), (50, 10))
+                self.assertEqual(sm_paid + basic_paid, 0)
 
     def test_negative_available_still_reconciles(self):
-        sm_gap, basic_gap, sm_paid, basic_paid = attribute_gap(30, 10, 60, 0, -20, 0.4)
+        sm_gap, basic_gap, sm_paid, basic_paid = attribute_gap(30, 10, 60, 0, 0, 0.4, 20)
         self.assertEqual(sm_paid + basic_paid, 0)
         self.assertAlmostEqual(sm_gap + basic_gap, 120)
 

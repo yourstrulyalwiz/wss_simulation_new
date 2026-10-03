@@ -68,12 +68,37 @@ def per_year_table(result, inputs, sector_key):
         'Year', 'Total HH (M)',
         'BAU safely-managed (M HH)', 'Target safely-managed (M HH)', 'With-interventions safely-managed (M HH)',
         'Service gap (M HH)',
-        f'Investment need ({cur} M)', f'BAU investment ({cur} M)',
+        f'Residual-ledger subtotal ({cur} M)', f'Total BAU available capital ({cur} M)',
         f'Financing gap — BAU sector-wide ({cur} M)',
         f'Financing gap — BAU safely-managed ({cur} M)',
         f'Financing gap — BAU basic ({cur} M)',
         f'Financing gap — with interventions ({cur} M)',
     ]
+    ledger_fields = [
+        ('Residual new-service cost', 'new_capex_total'),
+        ('Reported replacement requirement', 'replacement_capex'),
+        ('Coverage-stock replacement basis', 'bau_replacement_capex'),
+        ('Replacement funding reserved', 'replacement_reserved'),
+        ('Replacement credit', 'replacement_credit'),
+        ('Unfunded replacement', 'unfunded_replacement'),
+        ('Cash deficit', 'cash_deficit'),
+        ('Total available capital', 'available_total'),
+        ('Expansion capital available', 'expansion_capital_available'),
+        ('Modeled connection purchases, pre-cap', 'connection_purchase_capital'),
+        ('Unallocated positive expansion capital', 'unallocated_positive_capital'),
+    ]
+    headers += [f'{label} — {pass_label} ({cur} M)'
+                for pass_label in ('BAU', 'scenario') for label, _ in ledger_fields]
+    attributed_fields = [
+        ('Residual new-service cost', 'new_capex_by_service'),
+        ('Replacement requirement', 'replacement_by_service'),
+        ('Replacement credit', 'replacement_credit_by_service'),
+        ('Cash deficit', 'cash_deficit_by_service'),
+        ('Remaining financing gap', 'financing_gap_by_service'),
+    ]
+    headers += [f'{label} — {pass_label} {service} ({cur} M)'
+                for pass_label in ('BAU', 'scenario') for service in ('safely-managed', 'basic')
+                for label, _ in attributed_fields]
     rows = []
     for i, y in enumerate(years):
         bau = g('bau_hh', i); scn = g('scenario_hh', i); tgt = g('target_hh', i)
@@ -89,6 +114,11 @@ def per_year_table(result, inputs, sector_key):
             round((sec.get('financing_gap_by_service') or [[], []])[1][i], 4) if sec.get('financing_gap_by_service') else 0.0,
             round(g('scenario_financing_gap', i, rung0=False), 4),
         ])
+        rows[-1] += [round(g(prefix + key, i, rung0=False), 4)
+                     for prefix in ('', 'scenario_') for _, key in ledger_fields]
+        rows[-1] += [round(sec[prefix + key][rung][i], 4)
+                     for prefix in ('', 'scenario_') for rung in (0, 1)
+                     for _, key in attributed_fields]
     return headers, rows
 
 

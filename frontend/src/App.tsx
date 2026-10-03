@@ -6,6 +6,7 @@ import ResultsDashboard from './components/ResultsDashboard';
 import LiveBAUChart from './components/LiveBAUChart';
 import { fetchDefaults, runCalculation } from './api';
 import { migrateInputCompatibility } from './inputCompatibility';
+import ScenarioCompatibilityNotice from './components/ScenarioCompatibilityNotice';
 
 // The BAU view stacks two charts with identical elements: Safely managed (rung 0) then Basic (rung 1).
 function BAUChartPair(props: { inputsList: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string }) {
@@ -519,6 +520,10 @@ export default function App() {
           </div>
         )}
 
+        {inputs && <div style={{ maxHeight: 160, overflowY: 'auto', padding: '0 16px' }}>
+          <ScenarioCompatibilityNotice notes={activeInputs.migration_reviewed ? [] : activeInputs.migration_notes || []}
+            onReviewed={() => handleSetActiveInputs({ ...activeInputs, migration_reviewed: true })} />
+        </div>}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         {activeTab === 0 && inputs && (
           <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection} />
@@ -666,12 +671,17 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
               <strong>BAU Scenario</strong> — Pick Water Supply or Sanitation, then work down the sections: <em>Unit Costs &amp; Technical Parameters</em> (enter technology prices as nominal, with a price index that converts them to real). These fields are shared with the Data Inputs tab. The BAU graph on the right updates live as you type.
             </li>
             <li style={{ marginBottom: 6 }}>
-              <strong>Intervention Design</strong> — Pick Water Supply or Sanitation, switch each intervention on or off with its toggle, and set its parameters, which include collection efficiency, NRW reduction, budget execution improvement, capex efficiency (a unit-cost discount), optimised technology selection, tariff reform, and microfinance (with a self-finance carve-out and a means-based grant inside it). Add your own under <em>Custom Interventions</em> at the bottom. The impact graph updates live.
+              <strong>Intervention Design</strong> — Pick Water Supply or Sanitation, switch each intervention on or off with its toggle, and set its parameters, which include collection efficiency, NRW reduction, budget execution improvement, capex efficiency (a unit-cost discount), optimised technology selection, tariff reform, and microfinance (with a self-finance carve-out and a means-based grant inside it). The cash-allocation and borrowing section stays visible when borrowing is off; its default is reinvest all (α = 0%) and no new loan. Add your own under <em>Custom Interventions</em> at the bottom. The impact graph updates live.
             </li>
             <li style={{ marginBottom: 0 }}>
-              <strong>Results Dashboard</strong> — Compare BAU and intervention scenarios. Toggle interventions and adjust the target years to see the impact on coverage and the financing gap. Export the whole scenario as PowerPoint, Excel, or CSV — or download any individual chart (PNG / JPG / Excel) or table (CSV / Excel) from its own button.
+              <strong>Results Dashboard</strong> — Compare BAU and intervention coverage, service gaps, scheduled annual costs, and financing. Annual and cumulative financing gaps are distinct from final-year service-gap snapshots. Public residuals before and after explicit contributions are outputs, not automatic funding. Downloads are available on each chart and table.
             </li>
           </ol>
+          <div style={{ marginTop: 12, padding: '10px 12px', border: '1px solid #dbeafe', borderRadius: 7, background: '#f8fbff', fontSize: 12, color: '#475569', lineHeight: 1.5 }}>
+            <strong style={{ color: '#1e3a5f' }}>Reading the forecast:</strong> A gross connection serves a new household; an upgrade moves a Basic household to Safely Managed service. Target-path replacement is an annual allowance based on prior-year target asset value divided by asset life, not a cohort retirement schedule. Costs, revenue and physical service effects are reported separately. Forecast need is independent of the simulated gap. Annual flows, cumulative totals and terminal coverage are different measures: later surpluses do not erase earlier shortfalls, and terminal service gaps are household snapshots.
+            <br /><br />
+            Cash can be reinvested fully, partly allocated to borrowing, or fully allocated to debt. Existing obligations are applied before α. Borrowing uses a nominal or real rate basis, a DSCR/need cap and reserve schedule; fixed contracts remain obligations, and cash flows beyond the horizon continue in flat-real terms using final-year inflation. Capacity is conditional where baseline financial data are incomplete; new connection revenue is not recursively assumed as borrowing capacity. Water volume uses population-ratio growth or a fixed annual growth rate, never both together.
+          </div>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
             <div style={{ flex: 1, padding: '8px 14px', background: '#f0f4ff', borderRadius: 8, fontSize: 12, color: '#312e81', border: '1px solid #c7d2fe', lineHeight: 1.45 }}>
@@ -776,7 +786,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
           <span style={gFieldLbl}>Targets:</span> A complete future service-level column sets a milestone. Target shares are multiplied by projected households in that year. The annual target path follows a constant household-count growth rate between the baseline and successive milestones, with the zero-category rules explained in the Service levels Guide.
         </div>
         <div style={gFieldWrap}>
-          <span style={gFieldLbl}>Financing gap:</span> Annual target investment need minus available financing, floored at zero. Target need includes scheduled new connections and upgrades, replacement of existing target-path assets, and separately identified implementation costs. NRW rehabilitation is an implementation cost; the household upgrades it enables are already priced in the target programme and are not added again as implementation costs. Need is separate from simulated coverage and does not repeatedly price the outstanding coverage gap.
+          <span style={gFieldLbl}>Financing gap:</span> Annual and cumulative gaps are returned by the calculation engine, not recomputed from a national aggregate. In Urban + Rural views, each area's canonical gap is summed; a surplus in one area does not offset another area's shortfall. Target need includes gross connections and Basic-to-Safely-Managed upgrades, replacement allowances, and separately identified implementation costs. NRW rehabilitation is an implementation cost; household upgrades it enables are already priced in the target programme. Forecast need is independent of the simulated financing gap and does not repeatedly price the outstanding coverage gap.
         </div>
         <div style={gFieldWrap}>
           <span style={gFieldLbl}>Available investment financing:</span> Usable public capital + other eligible capital (including household microfinance and grants) + direct internal reinvestment + loan drawdowns + opening carried investment cash. Components are added once. Cash reserved for debt service is not also available for direct investment. Financing used to simulate coverage is not subtracted from target requirements; the financing gap is calculated against the independently scheduled programme.
@@ -792,6 +802,18 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
         </div>
         <div style={gFieldWrap}>
           <span style={gFieldLbl}>Annual, cumulative, and terminal results:</span> Annual financing shortfalls compare each year's scheduled requirement with financing available that year. Cumulative programme requirements sum expansion/upgrades, replacement, and implementation costs once over forecast years. Cumulative shortfalls sum the annual financing gaps; later surpluses do not retroactively erase earlier shortfalls or automatically reschedule missed investment. Terminal service gaps compare target with simulated coverage in the final year, floored at zero for unmet-coverage display. They are household snapshots, not additional investment requirements.
+        </div>
+        <div style={gFieldWrap}>
+          <span style={gFieldLbl}>Borrowing and utility cash:</span> The cash-allocation mode is visible even when borrowing is off; the default is reinvest all (α = 0%, no new loan). When enabled, eligible additional net operating cash can be fully reinvested, partially allocated to debt service, or fully allocated to debt (α = 100%). Existing obligations are deducted before α; selected streams support borrowing, while excluded and negative stream effects still reduce direct resources. An explicitly fixed contract remains payable even at α = 0 or with borrowing disabled.
+        </div>
+        <div style={gFieldWrap}>
+          <span style={gFieldLbl}>Capacity and debt schedules:</span> A proposed loan is conditionally sized from eligible cash and the minimum DSCR, constrained by investment need and any entered ceiling. If baseline financial information is incomplete, capacity is an incremental estimate, not a creditworthiness assessment. Nominal loans have fixed nominal payments that are deflated for real reporting; real-basis schedules are reported in real values. Reserves and reserve releases follow the pool schedule. Each area-sector borrowing pool remains separate; matching names do not create pooled borrowing.
+        </div>
+        <div style={gFieldWrap}>
+          <span style={gFieldLbl}>Beyond the forecast:</span> A loan whose repayment extends beyond the model horizon keeps its remaining cash-flow schedule flat in real terms and uses the final forecast inflation rate to report nominal amounts. Connection revenue is not recursively added to borrowing capacity. Loan proceeds are capital financing, not operating revenue, and debt service/outstanding balances/shortfalls are separate from service coverage.
+        </div>
+        <div style={gFieldWrap}>
+          <span style={gFieldLbl}>Volume assumptions:</span> Water intervention volumes scale either by the population ratio or by a user-entered fixed annual growth rate; the fixed rate overrides population scaling. The model does not apply both growth assumptions at once.
         </div>
       </div>
     ),

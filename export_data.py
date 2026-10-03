@@ -242,14 +242,26 @@ def borrowing_tables(result, sector_key, currency):
 
 
 def scenario_csv(inputs):
+    from input_compatibility import migrate_input_compatibility
+    from reporting import annual_reporting_tables, assumption_rows
+    inputs = migrate_input_compatibility(inputs)
     result = calculate(coerce_to_engine(inputs))
     out = io.StringIO()
     w = csv.writer(out)
+    w.writerow(['Methodology and saved-scenario assumptions'])
+    w.writerow(['Assumption', 'Explanation'])
+    w.writerows(assumption_rows(inputs))
+    w.writerow([])
     for sk, name in [('water_supply', 'WATER SUPPLY'), ('sanitation', 'SANITATION')]:
         headers, rows = per_year_table(result, inputs, sk)
         w.writerow([name + ' — forecast (per year)'])
         w.writerow(headers)
         w.writerows(rows)
+        for table in annual_reporting_tables(result, inputs, sk):
+            w.writerow([])
+            w.writerow([name + ' — ' + table['title']])
+            w.writerow(table['headers'])
+            w.writerows(table['rows'])
         w.writerow([])
         bh, br = breakdown_table(inputs, sk, WATER_INTV if sk == 'water_supply' else SAN_INTV)
         w.writerow([name + ' — order-dependent marginal effects (reconcile to combined scenario)'])
@@ -267,12 +279,18 @@ def scenario_csv(inputs):
 
 def scenario_xlsx(inputs):
     from openpyxl import Workbook
+    from input_compatibility import migrate_input_compatibility
+    from reporting import annual_reporting_tables, assumption_rows
+    inputs = migrate_input_compatibility(inputs)
     result = calculate(coerce_to_engine(inputs))
     wb = Workbook()
     wb.remove(wb.active)
+    _write_sheet(wb, 'Methodology and migration', ['Assumption', 'Explanation'], assumption_rows(inputs))
     for sk, name in [('water_supply', 'Water'), ('sanitation', 'Sanitation')]:
         h, r = per_year_table(result, inputs, sk)
         _write_sheet(wb, f'{name} — forecast', h, r)
+        for index, table in enumerate(annual_reporting_tables(result, inputs, sk), 1):
+            _write_sheet(wb, f'{name} annual {index}', table['headers'], table['rows'])
         bh, br = breakdown_table(inputs, sk, WATER_INTV if sk == 'water_supply' else SAN_INTV)
         _write_sheet(wb, f'{name} — interventions', bh, br if br else [['(no interventions enabled)']])
         for index, (title, headers, rows) in enumerate(borrowing_tables(

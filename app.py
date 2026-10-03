@@ -98,7 +98,16 @@ def delete_profile(name: str):
 
 @app.post("/api/calculate")
 def run_calculation(inputs: dict = Body(...)):
-    return calculate(coerce_to_engine(inputs))
+    from input_compatibility import migrate_input_compatibility
+    from reporting import annual_reporting_tables
+    inputs = migrate_input_compatibility(inputs)
+    result = calculate(coerce_to_engine(inputs))
+    result['migration_notes'] = inputs.get('migration_notes', [])
+    result['reporting_tables'] = {
+        sector: annual_reporting_tables(result, inputs, sector)
+        for sector in ('water_supply', 'sanitation')
+    }
+    return result
 
 
 @app.post("/api/export/csv")

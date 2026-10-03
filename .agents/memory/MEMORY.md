@@ -6,3 +6,4 @@
 - [Intervention accounting](intervention-accounting.md) — agreed sequence, shared collected-revenue attribution, and separation of capital, recurring cash and funded physical benefits.
 - [Borrowing assumptions](borrowing-assumptions.md) — separate entity pools, established cash only, fixed contracts, and explicit reserves and post-horizon conversion assumptions.
 - [Exogenous volume scope](exogenous-volume-scope.md) — connection-revenue feedback is deferred; upgrades are not automatically new customers and population growth applies once.
+- [Saved-scenario compatibility](saved-scenario-compatibility.md) — safe legacy financing defaults; acknowledgment must preserve assumption notes in saves and exports.

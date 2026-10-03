@@ -72,7 +72,7 @@ interface Props {
 }
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
-type OutputRow = { key: string; label: string; kind: 'money' | 'physical' | 'volume' | 'factor' | 'ratio' | 'rate'; values: number[] };
+type OutputRow = { key: string; label: string; kind: 'money' | 'physical' | 'households' | 'volume' | 'factor' | 'ratio' | 'rate'; values: number[] };
 type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; outputRows: OutputRow[]; outputYears: number[] };
 type Both = { water: Series; sanitation: Series } | null;
 type Row = { key: string; label: string; addHH: number; effectLabel: string; resources: number | null };
@@ -157,8 +157,9 @@ function InterventionOutputTable({ rows, years, currency, sector, scope }: {
   const headers = ['Output / definition', 'Units', ...years.map(String)];
   const unitLabel = (kind: OutputRow['kind']) => kind === 'money' ? `${currency} M/yr`
     : kind === 'ratio' ? '%' : kind === 'rate' ? `${currency}/m³` : kind === 'factor' ? 'unit-cost factor' : kind === 'volume' ? 'MLD' : 'physical units/yr';
-  const rawRows = rows.map(r => [r.label, unitLabel(r.kind), ...r.values]);
-  const shownRows = rows.map(r => [r.label, unitLabel(r.kind), ...r.values.map(v => r.kind === 'ratio' ? `${(v * 100).toFixed(2)}%` : sig3(v))]);
+  const outputUnitLabel = (kind: OutputRow['kind']) => kind === 'households' ? 'million HH/yr' : unitLabel(kind);
+  const rawRows = rows.map(r => [r.label, outputUnitLabel(r.kind), ...r.values]);
+  const shownRows = rows.map(r => [r.label, outputUnitLabel(r.kind), ...r.values.map(v => r.kind === 'ratio' ? `${(v * 100).toFixed(2)}%` : sig3(v))]);
   return (
     <details style={{ margin: '10px 0 16px', border: '1px solid #dbe3ec', borderRadius: 6, background: '#fff' }}>
       <summary style={{ cursor: 'pointer', padding: '9px 12px', color: '#1e3a5f', fontSize: 12, fontWeight: 700 }}>
@@ -324,6 +325,20 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const grantCum = sum((r, i) => secOf(r).scenario_grant_spend[i]);
           const scenarioField = (key: string, i: number) =>
             resList.reduce((total, res) => total + (secOf(res)[`scenario_${key}`]?.[i] || 0), 0);
+          // Keep this signed engine output as reported. A missing canonical array stays unavailable;
+          // it is never inferred from revenues, costs, debt service, or a floored financing gap.
+          const signedOperatingCashKeys = [
+            'scenario_additional_net_utility_cash',
+            'scenario_additional_net_operating_cash',
+            'scenario_net_operating_cash',
+            'scenario_net_utility_cash',
+          ];
+          const signedOperatingCashKey = signedOperatingCashKeys.find(key =>
+            resList.some(res => Array.isArray(secOf(res)[key])));
+          const signedOperatingCash = (i: number): number | null => signedOperatingCashKey
+            ? resList.reduce((total, res) => total + (Array.isArray(secOf(res)[signedOperatingCashKey])
+              ? Number(secOf(res)[signedOperatingCashKey][i]) || 0 : 0), 0)
+            : null;
           const areaLabels = datasets.length > 1 ? ['Urban', 'Rural'] :
             [geoScope === 'national' ? 'National' : effScope === 'rural' ? 'Rural' : 'Urban'];
           const outputRows: OutputRow[] = [];
@@ -337,6 +352,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           addCombinedOutput('nrw-service-cash', 'NRW physical-service collected cash (included in shared revenue; not additive)', 'money', r => secOf(r).scenario_nrw_service_cash);
           addCombinedOutput('nrw-commercial-cash', 'NRW commercial-recovery collected cash (included in shared revenue; not additive)', 'money', r => secOf(r).scenario_nrw_commercial_cash);
           addCombinedOutput('nrw-production-volume', 'NRW recovered physical volume allocated to reduced production', 'volume', r => secOf(r).scenario_nrw_production_avoided_vol);
+          addCombinedOutput('new-sm-connections', 'Target-path new Safely Managed connections', 'households', r => secOf(r).scenario_target_new_sm_connections);
+          addCombinedOutput('new-basic-connections', 'Target-path new Basic connections', 'households', r => secOf(r).scenario_target_new_basic_connections);
+          addCombinedOutput('basic-sm-upgrades', 'Target-path Basic to Safely Managed upgrades', 'households', r => secOf(r).scenario_target_sm_upgrades);
           const interventionOutput = (r: any) => secOf(r).scenario_intervention_outputs || {};
           const prettify = (path: string) => path
             .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -396,6 +414,12 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           addPerAreaPath('tariff-path', 'Scenario tariff path', 'rate', r => secOf(r).scenario_tariff_path);
           addPerAreaPath('collection-path', 'Scenario collection path', 'ratio', r => secOf(r).scenario_collection_path);
           const rungSeries = (key: string, rung: number) => sum((r, i) => secOf(r)[key][rung][i]);
+          const rungHouseholdGap = (key: 'service_gap_display' | 'scenario_service_gap', rung: number) =>
+            years.map((_, i) => resList.reduce((total, res) => {
+              const sectorResult = secOf(res);
+              const canonical = sectorResult[key] || (key === 'scenario_service_gap' ? sectorResult.service_gap_display : undefined);
+              return total + (canonical?.[rung]?.[i] || 0);
+            }, 0));
           const rungData = [0, 1].map(rung => ({
             bau: rung === 0 ? bau : basicBau,
             scenario: rung === 0 ? scn : basicScn,
@@ -404,10 +428,12 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             replacementBau: rungSeries('replacement_by_service', rung),
             fundedBau: rungSeries('funded_by_service', rung),
             gapBau: rungSeries('financing_gap_by_service', rung),
+            gapBauHH: rungHouseholdGap('service_gap_display', rung),
             newScenario: rungSeries('scenario_new_capex_by_service', rung),
             replacementScenario: rungSeries('scenario_replacement_by_service', rung),
             fundedScenario: rungSeries('scenario_funded_by_service', rung),
             gapScenario: rungSeries('scenario_financing_gap_by_service', rung),
+            gapScenarioHH: rungHouseholdGap('scenario_service_gap', rung),
           }));
           const financeRows: FinanceYear[] = years.flatMap((year, i) => year <= baseYr ? [] : [{
             year, total: totalHH[i], bauAvailable: bauInv[i], scenarioAvailable: scnInv[i],
@@ -433,6 +459,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             loanDebtService: scenarioField('loan_debt_service', i),
             loanInterest: scenarioField('loan_interest', i),
             loanClosingDebt: scenarioField('loan_closing_debt', i),
+            loanDebtServiceShortfall: scenarioField('loan_debt_service_shortfall', i),
+            additionalNetOperatingCash: signedOperatingCash(i),
             offBudgetLoans: loanCum[i] - (loanCum[i - 1] || 0),
             offBudgetGrants: grantCum[i] - (grantCum[i - 1] || 0),
             bauGap: bauGap[i], scenarioGap: scnGap[i],
@@ -440,8 +468,10 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
               bau: d.bau[i], scenario: d.scenario[i], target: d.target[i],
               newBau: d.newBau[i], replacementBau: d.replacementBau[i],
               fundedBau: d.fundedBau[i], gapBau: d.gapBau[i],
+              gapBauHH: d.gapBauHH[i],
               newScenario: d.newScenario[i], replacementScenario: d.replacementScenario[i],
               fundedScenario: d.fundedScenario[i], gapScenario: d.gapScenario[i],
+              gapScenarioHH: d.gapScenarioHH[i],
             })) as [FinanceYear['services'][0], FinanceYear['services'][1]],
           }]);
           const periods = buildPeriods(years, baseYr);

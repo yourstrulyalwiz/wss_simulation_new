@@ -18,9 +18,11 @@ export type FinanceYear = {
   cumulativeResidualPublicBefore: number; cumulativeResidualPublicAfter: number;
   utilityCashDirect: number; utilityCashCommitted: number;
   loanDrawdown: number; loanDebtService: number; loanInterest: number; loanClosingDebt: number;
+  loanDebtServiceShortfall: number;
+  additionalNetOperatingCash: number | null;
   offBudgetLoans: number; offBudgetGrants: number;
   bauGap: number; scenarioGap: number;
-  services: [RungFinance, RungFinance];  // Safely Managed, Basic (exclusive)
+  services: [RungFinance & { gapBauHH: number; gapScenarioHH: number }, RungFinance & { gapBauHH: number; gapScenarioHH: number }];  // Safely Managed, Basic (exclusive)
 };
 
 const round3 = (v: number) => Number(v.toPrecision(3));
@@ -50,7 +52,6 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
     { title: `BAU sector capex available (${b})`, value: r => r.bauAvailable, unit: 'money' },
     { title: `Usable public capital (${b})`, value: r => r.publicCapital, unit: 'money' },
     { title: `Other eligible capital (${b})`, value: r => r.otherCapital, unit: 'money' },
-    { title: `Additional new financing versus BAU (${b})`, value: r => r.newFinancing - r.bauAvailable, unit: 'money' },
     { title: `New financing received, excludes carry (${b})`, value: r => r.newFinancing, unit: 'money' },
     { title: `Opening carried investment cash (B ${currency})`, value: r => r.openingCash, unit: 'money' },
     { title: `Scenario total financing available (${b})`, value: r => r.scenarioAvailable, unit: 'money' },
@@ -58,7 +59,11 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
     { title: `Utility cash committed to debt (${b})`, value: r => r.utilityCashCommitted, unit: 'money' },
     { title: `New loan proceeds (${b})`, value: r => r.loanDrawdown, unit: 'money' },
     { title: `New-loan debt service (${b})`, value: r => r.loanDebtService, unit: 'money' },
+    { title: `New-loan debt-service shortfall (${b})`, value: r => r.loanDebtServiceShortfall, unit: 'money' },
     { title: `New-loan interest (${b})`, value: r => r.loanInterest, unit: 'money' },
+    ...(rows.some(r => r.additionalNetOperatingCash !== null)
+      ? [{ title: `Additional net operating cash (${b}; signed)`, value: (r: FinanceYear) => r.additionalNetOperatingCash ?? 0, unit: 'money' as const }]
+      : []),
     { title: `Closing new-loan balance (B ${currency})`, value: r => r.loanClosingDebt, unit: 'money' },
     { title: `Financing applied to need (${b})`, value: r => r.financingApplied, unit: 'money' },
     { title: `Closing carried investment cash (B ${currency})`, value: r => r.closingCash, unit: 'money' },
@@ -73,7 +78,6 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
     { title: `SM remaining gap (${b})`, value: r => r.services[0].gapScenario, unit: 'money' },
     { title: `Basic remaining gap (${b})`, value: r => r.services[1].gapScenario, unit: 'money' },
     { title: `Total remaining gap (${b})`, value: r => r.scenarioGap, unit: 'money' },
-    { title: `Gap change, BAU − scenario (${b})`, value: r => r.bauGap - r.scenarioGap, unit: 'money' },
     { title: `Cumulative programme requirement to year (B ${currency})`, value: r => r.cumulativeNeed, unit: 'money' },
     { title: `Cumulative annual shortfalls to year (B ${currency})`, value: r => r.cumulativeShortfall, unit: 'money' },
   ];
@@ -107,7 +111,7 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
       { title: 'Total households (M)', value: r => r.total, unit: 'hh' },
       { title: `${name} — BAU (M)`, value: r => r.services[rung].bau, unit: 'hh' },
       { title: `Target ${prefix} (M)`, value: r => r.services[rung].target, unit: 'hh' },
-      { title: 'Service Gap (M HH)', value: r => Math.max(0, r.services[rung].target - r.services[rung].bau), unit: 'hh' },
+      { title: 'Service Gap (M HH)', value: r => r.services[rung].gapBauHH, unit: 'hh' },
       { title: `${prefix} new-service need (${m})`, value: r => r.services[rung].newBau, unit: 'money' },
       { title: `${prefix} replacement need (${m})`, value: r => r.services[rung].replacementBau, unit: 'money' },
       { title: `${prefix} attributed funding (${m})`, value: r => r.services[rung].fundedBau, unit: 'money' },
@@ -116,15 +120,12 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
       // Scenario obligations and attributed funding are computed in the scenario
       // model pass, not inferred by subtracting money from the BAU gap.
       { title: `${prefix} with interventions (M)`, value: r => r.services[rung].scenario, unit: 'hh' },
-      { title: 'Scenario service gap (M HH)', value: r => Math.max(0, r.services[rung].target - r.services[rung].scenario), unit: 'hh' },
+      { title: 'Scenario service gap (M HH)', value: r => r.services[rung].gapScenarioHH, unit: 'hh' },
       { title: `${prefix} scenario new-service need (${m})`, value: r => r.services[rung].newScenario, unit: 'money' },
       { title: `${prefix} scenario replacement need (${m})`, value: r => r.services[rung].replacementScenario, unit: 'money' },
       { title: `${prefix} scenario attributed funding (${m})`, value: r => r.services[rung].fundedScenario, unit: 'money' },
       { title: `${prefix} remaining gap (${m})`, value: r => r.services[rung].gapScenario, unit: 'money' },
-      { title: `${prefix} gap change, BAU − scenario (${m})`, value: r => r.services[rung].gapBau - r.services[rung].gapScenario, unit: 'money' },
-      { title: `Sector additional effective capex (${m})`, value: r => r.scenarioAvailable - r.bauAvailable, unit: 'money' },
       { title: `Sector remaining gap (${m})`, value: r => r.scenarioGap, unit: 'money' },
-      { title: `Sector gap change, BAU − scenario (${m})`, value: r => r.bauGap - r.scenarioGap, unit: 'money' },
     ];
     const headers = ['Year', ...columns.map(c => c.title)];
     const exportRows = rows.map(r => [r.year, ...columns.map(c => round3(c.value(r)))]);
@@ -163,6 +164,38 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
     return [p.label, ...periodFields.map(f => Number((f.value(inPeriod) / 1000).toFixed(6)))];
   });
 
+  // An annual reconciliation in the engine's native real currency millions. This is intentionally
+  // a transparent readout of returned annual/cumulative arrays, not a frontend reconstruction of
+  // financing accounting. It is useful alongside the wide per-year export table above.
+  const reconciliationRows: { label: string; value: (r: FinanceYear) => number; signed?: boolean }[] = [
+    { label: 'Annual programme requirement', value: r => r.scenarioNeed },
+    { label: 'Implementation costs', value: r => r.implementationCapex },
+    { label: 'Public capital source', value: r => r.publicCapital },
+    { label: 'Other eligible capital source', value: r => r.otherCapital },
+    { label: 'Direct utility-cash reinvestment', value: r => r.utilityCashDirect },
+    { label: 'Borrowing proceeds', value: r => r.loanDrawdown },
+    { label: 'New financing received (excludes opening carry)', value: r => r.newFinancing },
+    { label: 'Opening carried investment cash', value: r => r.openingCash },
+    { label: 'Financing applied to need', value: r => r.financingApplied },
+    { label: 'Annual financing gap', value: r => r.scenarioGap },
+    { label: 'Cumulative financing gaps to year', value: r => r.cumulativeShortfall },
+    { label: 'Public residual before explicit contribution', value: r => r.residualPublicBefore },
+    { label: 'Explicit additional public contribution', value: r => r.additionalPublicCapital },
+    { label: 'Public residual after explicit contribution', value: r => r.residualPublicAfter },
+    { label: 'New-loan debt service', value: r => r.loanDebtService },
+    { label: 'New-loan debt-service shortfall', value: r => r.loanDebtServiceShortfall },
+    { label: 'Closing new-loan outstanding balance', value: r => r.loanClosingDebt },
+    { label: 'Unfunded net cash outflows / shortfall', value: r => r.cashDeficit },
+  ];
+  const hasSignedOperatingCash = rows.some(r => r.additionalNetOperatingCash !== null);
+  if (hasSignedOperatingCash) reconciliationRows.splice(4, 0, {
+    label: 'Additional net operating cash (signed; canonical engine output)',
+    value: r => r.additionalNetOperatingCash ?? 0,
+    signed: true,
+  });
+  const reconciliationHeaders = ['Annual reconciliation · real currency millions', ...rows.map(r => String(r.year))];
+  const reconciliationExport = reconciliationRows.map(metric => [metric.label, ...rows.map(r => metric.value(r))]);
+
   return <div style={{ marginTop: 12, marginBottom: 18 }}>
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 4 }}>
       <b style={{ fontSize: 12, color: '#1e3a5f' }}>{label} — annual spending-gap composition · {scope}</b>
@@ -187,6 +220,34 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
       and unmet requirements are not automatically rescheduled. The additional public requirement is an output:
       before/after residuals hold all other scenario financing (including loans and direct utility cash) fixed and
       reconcile with a separate zero-opening-carry calculation. Explicit public contributions are not assumed.
+    </div>
+    <div style={{ margin: '8px 0 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+        <b style={{ fontSize: 11.5, color: '#1e3a5f' }}>Annual financing reconciliation · real {currency} millions</b>
+        <TableExport filename={`${scope}_${sector}_annual_financing_reconciliation`} sheetName="Annual reconciliation"
+          headers={reconciliationHeaders} rows={reconciliationExport} compact />
+      </div>
+      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 5 }}>
+        Forecast-year flows and balances are shown in real {currency} millions. Signed operating cash is preserved when the calculation returns its canonical array; cumulative shortfall is the engine's cumulative series.
+      </div>
+      <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 6 }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: Math.max(720, rows.length * 82), fontSize: 10.5 }}>
+          <thead><tr>{reconciliationHeaders.map((h, i) => <th key={h} style={{
+            padding: '6px 8px', whiteSpace: 'nowrap', textAlign: i === 0 ? 'left' : 'right',
+            background: '#f1f5f9', color: '#334155', position: i === 0 ? 'sticky' : undefined,
+            left: i === 0 ? 0 : undefined, minWidth: i === 0 ? 260 : 76,
+          }}>{h}</th>)}</tr></thead>
+          <tbody>{reconciliationRows.map((metric, ri) => <tr key={metric.label} style={{ background: ri % 2 ? '#fafbfc' : '#fff' }}>
+            <th scope="row" style={{ padding: '5px 8px', textAlign: 'left', whiteSpace: 'nowrap', color: '#1e3a5f',
+              fontWeight: metric.label.includes('gap') || metric.label.includes('residual') ? 650 : 500,
+              borderBottom: '1px solid #eef2f7', position: 'sticky', left: 0, background: ri % 2 ? '#fafbfc' : '#fff' }}>{metric.label}</th>
+            {rows.map(r => <td key={r.year} style={{ padding: '5px 8px', textAlign: 'right', whiteSpace: 'nowrap',
+              color: metric.signed && metric.value(r) < 0 ? '#b42318' : '#475569', borderBottom: '1px solid #eef2f7' }}>
+              {format(metric.value(r))}
+            </td>)}
+          </tr>)}</tbody>
+        </table>
+      </div>
     </div>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
       <b style={{ fontSize: 11.5, color: '#1e3a5f' }}>Additional public financing requirement — period totals</b>

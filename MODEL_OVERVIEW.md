@@ -556,3 +556,35 @@ volumes into the existing tariff/collection ledger and explicit volume-driven op
 assumptions. Preserve one population-growth treatment and separate physical service transitions
 from customer transitions. Loan capacity must not recursively borrow against hypothetical
 loan-funded future receipts. No endogenous feedback or new consumption assumptions are enabled now.
+
+### Interface, annual reports and saved-scenario compatibility
+
+The existing Data Inputs, BAU Scenario, Intervention Design and Results Dashboard tabs remain.
+Intervention Design identifies borrowing/cash allocation separately and displays its choices
+even with borrowing switched off. Results distinguish BAU/intervention coverage and annual
+unmet gaps, gross target connections/upgrades, expansion, replacement and implementation
+requirements, financing sources/carry, signed net utility cash, annual/cumulative shortfalls,
+residual public financing, and contractual debt results.
+
+The API and CSV, Excel and both PowerPoint paths use the same annual report definitions and
+the model's already-reconciled arrays; the dashboard charts and downloadable tables use those
+same engine fields. Shared annual reports export full-precision values in real currency
+millions and household millions. Nominal loan columns are explicitly identified. Debt-pool
+schedules continue through maturity but do not extend simulated coverage. National results
+sum the per-area flows and unmet gaps; a surplus in one area does not automatically finance
+another area's shortfall.
+
+Saved scenarios without a supported explicit loan-assumption format load as reinvest-all and
+no-new-borrowing. Prior allocation/enable choices are retained separately for review rather
+than silently activated. Saves already explicitly supporting the current financing choices
+retain those choices. Historical series, target milestones, geography, sectors and unrelated
+intervention inputs remain intact. Missing rate basis retains the legacy real-rate meaning,
+with a warning to verify whether nominal was intended. Baseline financial coverage, asset
+ages/retirements and paying-customer status cannot be inferred from saved targets. The legacy
+nested public injection follows its former commitment switch until independently edited.
+
+Visible compatibility notes explain these assumptions when older saves load. Acknowledging
+review hides the notice without deleting the notes: notes survive resaving and remain in
+CSV/Excel methodology sections and PowerPoint assumption appendices. Tool Overview and Guide
+explain forecast programme costing, the replacement approximation, financing modes, reserve
+and maturity assumptions, and the continuing exogenous volume boundary.

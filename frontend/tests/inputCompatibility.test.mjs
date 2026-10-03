@@ -33,7 +33,7 @@ test('legacy saved inputs keep history, milestones and sector settings, with bor
     assert.deepEqual(migrated[key], old[key]);
   }
   for (const section of ['water_interventions', 'sanitation_interventions']) {
-    for (const [key, value] of Object.entries(BORROWING_DEFAULTS)) assert.equal(migrated[section][key], value);
+    for (const [key, value] of Object.entries(BORROWING_DEFAULTS)) assert.deepEqual(migrated[section][key], value);
   }
   assert.equal(migrated.toggles.ws_borrowing_enabled, false);
   assert.equal(migrated.toggles.san_borrowing_enabled, false);
@@ -42,12 +42,12 @@ test('legacy saved inputs keep history, milestones and sector settings, with bor
   assert.deepEqual(migrateInputCompatibility(migrated), migrated, 'migration must be idempotent');
 });
 
-test('existing financing settings stay independent and are not overwritten', () => {
+test('supported unversioned financing settings stay independent and are not overwritten', () => {
   const old = {
     toggles: { ws_borrowing_enabled: true, san_borrowing_enabled: false,
       ws_financial_commitment_enabled: true, san_financial_commitment_enabled: false },
-    water_interventions: { cash_allocation_alpha: 0.7, borrow_interest_rate: 0, fin_injection_enabled: true },
-    sanitation_interventions: { cash_allocation_alpha: 0.2, borrow_interest_rate: null, fin_injection_enabled: true },
+    water_interventions: { cash_allocation_alpha: 0.7, borrow_interest_rate: 0, fin_injection_enabled: true, borrow_rate_basis: 'real', borrow_contract_principal: 0 },
+    sanitation_interventions: { cash_allocation_alpha: 0.2, borrow_interest_rate: null, fin_injection_enabled: true, borrow_rate_basis: 'nominal', borrow_contract_principal: 0 },
   };
   const migrated = migrateInputCompatibility(old);
   assert.equal(migrated.water_interventions.cash_allocation_alpha, 0.7);
@@ -58,6 +58,20 @@ test('existing financing settings stay independent and are not overwritten', () 
   assert.equal(migrated.toggles.san_borrowing_enabled, false);
   assert.equal(migrated.toggles.ws_exogenous_injection_enabled, true);
   assert.equal(migrated.toggles.san_exogenous_injection_enabled, false);
+});
+
+test('ambiguous legacy borrowing is not silently activated and review notes survive resaving', () => {
+  const old = { toggles: { ws_borrowing_enabled: true }, water_interventions: {
+    cash_allocation_alpha: .7, borrow_interest_rate: .06, tariff_target: 99,
+  }};
+  const migrated = migrateInputCompatibility(old);
+  assert.equal(migrated.toggles.ws_borrowing_enabled, false);
+  assert.equal(migrated.water_interventions.cash_allocation_alpha, 0);
+  assert.equal(migrated.water_interventions.tariff_target, 99);
+  assert.equal(migrated.water_interventions.borrow_interest_rate, .06);
+  assert.equal(migrated.legacy_financing_settings.water_interventions.cash_allocation_alpha, .7);
+  assert.ok(migrated.migration_notes.some(note => note.includes('interest basis was not recorded')));
+  assert.deepEqual(migrateInputCompatibility(JSON.parse(JSON.stringify(migrated))), migrated);
 });
 
 test('saved and live exports preserve national, urban, rural and combined scope selection', () => {

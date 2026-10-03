@@ -406,10 +406,29 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           <InterventionToggle order={11} label="Exogenous Injection of Funds" checked={inputs.toggles?.ws_exogenous_injection_enabled ?? false} onChange={v => toggleIntv('ws_exogenous_injection_enabled', v)} onFocus={() => onSectionFocus?.('ws_exogenous_injection')}>
             {injectionFields('water_interventions')}
           </InterventionToggle>
-          <InterventionToggle order={9} label="Borrowing and cash allocation" checked={inputs.toggles?.ws_borrowing_enabled ?? false} onChange={v => toggleIntv('ws_borrowing_enabled', v)} onFocus={() => onSectionFocus?.('ws_borrowing')}>
-            <BorrowingControls section={inputs.water_interventions} currency={CUR} areaSectorFallback={`${scopeLabel} Water Supply`}
-              onChange={(field, value) => u('water_interventions', field, value)} />
-          </InterventionToggle>
+          <div style={{ order: 9, marginBottom: 8, border: '1px solid #d7e8ee', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: inputs.toggles?.ws_borrowing_enabled ? '#eef2ff' : '#f1f8fb' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}>
+                <input type="checkbox" checked={inputs.toggles?.ws_borrowing_enabled ?? false}
+                  onChange={e => toggleIntv('ws_borrowing_enabled', e.target.checked)}
+                  onFocus={() => onSectionFocus?.('ws_borrowing')}
+                  style={{ width: 18, height: 18, accentColor: '#2563eb' }} />
+                <span style={{ fontSize: 13, color: '#1e3a5f', fontWeight: 700 }}>Borrowing and cash allocation</span>
+              </label>
+              <span style={{ fontSize: 10, fontWeight: 700, color: inputs.toggles?.ws_borrowing_enabled ? '#1d4ed8' : '#64748b' }}>
+                {inputs.toggles?.ws_borrowing_enabled ? 'BORROWING ON' : 'BORROWING OFF'}
+              </span>
+            </div>
+            <div style={{ padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px' }}>
+              <BorrowingControls section={inputs.water_interventions} currency={CUR} areaSectorFallback={`${scopeLabel} Water Supply`}
+                onChange={(field, value) => u('water_interventions', field, value)} />
+              <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#475569', padding: '6px 9px', background: '#f8fafc', borderRadius: 4, lineHeight: 1.45 }}>
+                {inputs.toggles?.ws_borrowing_enabled
+                  ? 'Borrowing is enabled. The selected cash-allocation mode controls eligible cash; it does not itself guarantee a loan draw.'
+                  : 'Borrowing is off. Cash allocation remains visible for planning; the default is full direct reinvestment (α = 0%), with no new loan sized.'}
+              </div>
+            </div>
+          </div>
 
           <InterventionToggle order={2} label="Collection efficiency" checked={inputs.toggles?.ws_collection_efficiency_enabled ?? false} onChange={v => toggleIntv('ws_collection_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('ws_ce')}>
             <F label="Improvement start year" value={inputs.water_interventions.ce_start_year} onChange={v => u('water_interventions','ce_start_year',v)} tip="Year the collection efficiency improvement begins" />
@@ -509,10 +528,29 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           <InterventionToggle order={11} label="Exogenous Injection of Funds" checked={inputs.toggles?.san_exogenous_injection_enabled ?? false} onChange={v => toggleIntv('san_exogenous_injection_enabled', v)} onFocus={() => onSectionFocus?.('san_exogenous_injection')}>
             {injectionFields('sanitation_interventions')}
           </InterventionToggle>
-          <InterventionToggle order={9} label="Borrowing and cash allocation" checked={inputs.toggles?.san_borrowing_enabled ?? false} onChange={v => toggleIntv('san_borrowing_enabled', v)} onFocus={() => onSectionFocus?.('san_borrowing')}>
-            <BorrowingControls section={inputs.sanitation_interventions} currency={CUR} areaSectorFallback={`${scopeLabel} Sanitation`}
-              onChange={(field, value) => u('sanitation_interventions', field, value)} />
-          </InterventionToggle>
+          <div style={{ order: 9, marginBottom: 8, border: '1px solid #d7e8ee', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: inputs.toggles?.san_borrowing_enabled ? '#eef2ff' : '#f1f8fb' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}>
+                <input type="checkbox" checked={inputs.toggles?.san_borrowing_enabled ?? false}
+                  onChange={e => toggleIntv('san_borrowing_enabled', e.target.checked)}
+                  onFocus={() => onSectionFocus?.('san_borrowing')}
+                  style={{ width: 18, height: 18, accentColor: '#2563eb' }} />
+                <span style={{ fontSize: 13, color: '#1e3a5f', fontWeight: 700 }}>Borrowing and cash allocation</span>
+              </label>
+              <span style={{ fontSize: 10, fontWeight: 700, color: inputs.toggles?.san_borrowing_enabled ? '#1d4ed8' : '#64748b' }}>
+                {inputs.toggles?.san_borrowing_enabled ? 'BORROWING ON' : 'BORROWING OFF'}
+              </span>
+            </div>
+            <div style={{ padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px' }}>
+              <BorrowingControls section={inputs.sanitation_interventions} currency={CUR} areaSectorFallback={`${scopeLabel} Sanitation`}
+                onChange={(field, value) => u('sanitation_interventions', field, value)} />
+              <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#475569', padding: '6px 9px', background: '#f8fafc', borderRadius: 4, lineHeight: 1.45 }}>
+                {inputs.toggles?.san_borrowing_enabled
+                  ? 'Borrowing is enabled. The selected cash-allocation mode controls eligible cash; it does not itself guarantee a loan draw.'
+                  : 'Borrowing is off. Cash allocation remains visible for planning; the default is full direct reinvestment (α = 0%), with no new loan sized.'}
+              </div>
+            </div>
+          </div>
 
           <InterventionToggle order={2} label="Collection efficiency" checked={inputs.toggles?.san_collection_efficiency_enabled ?? false} onChange={v => toggleIntv('san_collection_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('san_ce')}>
             <F label="Improvement start year" value={inputs.sanitation_interventions.ce_start_year} onChange={v => u('sanitation_interventions','ce_start_year',v)} tip="Year the collection efficiency improvement begins" />

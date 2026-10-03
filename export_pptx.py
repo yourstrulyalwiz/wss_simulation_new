@@ -206,6 +206,8 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None) -> io.By
         set_p(tf.add_paragraph(), f'Programme requirement: {_b(d["programmeNeed"])} B {cur}. Terminal unmet coverage: SM {d["unmetSm"]:.2f} M, Basic {d["unmetBasic"]:.2f} M HH.', 10.5, INK)
 
     from borrowing_deck import append_borrowing_slides
+    from reporting_deck import append_reporting_slides
+    append_reporting_slides(prs, result, inputs)
     append_borrowing_slides(prs, result, cur)
     output = io.BytesIO()
     prs.save(output)

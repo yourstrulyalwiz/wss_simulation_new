@@ -158,6 +158,7 @@ def _svc_with_targets(starts, bases, tgt_years_shares):
 def frontend_defaults() -> dict:
     """The frontend-shaped default inputs (what InputPanel.tsx reads), with validated values."""
     return {
+        'reporting_schema_version': 2,
         'country_config': {
             'country': 'Nepal', 'area': 'Kathmandu Valley', 'currency': 'NPR',
             'ws_serv1_name': 'Safely managed', 'ws_serv2_name': 'Basic', 'ws_serv3_name': 'Limited',
@@ -366,6 +367,8 @@ def _techmix_cost(iv: dict, costs: dict, mix_key: str = 'techmix_sm_tech_mix') -
 
 def financial_toggles(inputs: dict) -> dict:
     """Return toggles with pre-split injection settings migrated before attribution or calculation."""
+    from input_compatibility import migrate_input_compatibility
+    inputs = migrate_input_compatibility(inputs)
     tg = dict(inputs.get('toggles') or {})
     for prefix, section in [('ws', 'water_interventions'), ('san', 'sanitation_interventions')]:
         key = f'{prefix}_exogenous_injection_enabled'
@@ -383,6 +386,8 @@ def coerce_to_engine(inputs: dict) -> ModelInputs:
     (budget under macro.*, water_costs.network_cost_per_hh_*, water_service.serv1_ts,
     macro.inflation_nepal). Frontend markers are checked FIRST so demo-side additions (e.g. the
     tech-mix calculator fields) can never flip a demo payload into the engine path."""
+    from input_compatibility import migrate_input_compatibility
+    inputs = migrate_input_compatibility(inputs)
     inputs = {**inputs, 'toggles': financial_toggles(inputs)}
     macro = inputs.get('macro') or {}
     ws = inputs.get('water_service') or {}

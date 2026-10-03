@@ -232,6 +232,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const scnInv = sum((r, i) => secOf(r).scenario_available_total[i]);
           const loanCum = sum((r, i) => secOf(r).scenario_mf_loan_volume[i]);
           const grantCum = sum((r, i) => secOf(r).scenario_grant_spend[i]);
+          const scenarioField = (key: string, i: number) =>
+            resList.reduce((total, res) => total + (secOf(res)[`scenario_${key}`]?.[i] || 0), 0);
           const rungSeries = (key: string, rung: number) => sum((r, i) => secOf(r)[key][rung][i]);
           const rungData = [0, 1].map(rung => ({
             bau: rung === 0 ? bau : basicBau,
@@ -248,6 +250,14 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           }));
           const financeRows: FinanceYear[] = years.flatMap((year, i) => year <= baseYr ? [] : [{
             year, total: totalHH[i], bauAvailable: bauInv[i], scenarioAvailable: scnInv[i],
+            scenarioNeed: scenarioField('total_investment_need', i),
+            implementationCapex: scenarioField('implementation_capex', i),
+            utilityCashDirect: scenarioField('cash_allocated_to_direct_investment', i),
+            utilityCashCommitted: scenarioField('cash_committed_to_debt', i),
+            loanDrawdown: scenarioField('loan_drawdown', i),
+            loanDebtService: scenarioField('loan_debt_service', i),
+            loanInterest: scenarioField('loan_interest', i),
+            loanClosingDebt: scenarioField('loan_closing_debt', i),
             offBudgetLoans: loanCum[i] - (loanCum[i - 1] || 0),
             offBudgetGrants: grantCum[i] - (grantCum[i - 1] || 0),
             bauGap: bauGap[i], scenarioGap: scnGap[i],

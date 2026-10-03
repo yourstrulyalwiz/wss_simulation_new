@@ -167,22 +167,45 @@ prior-year proportions.
 
 ### 4c — Asset stock
 
-An opening stock is booked at the baseline year:
-`(SM_HH × SM_cost + Basic_HH × Basic_cost) × (1 + non-HH multiplier)`, and thereafter accumulates
-the gap-closing capex. Depreciation is straight-line at `1 / asset_life`.
+Two distinct pathways are maintained:
+
+- **Target investment pathway (A):** the hypothetical infrastructure required to follow the coverage
+  milestones. Opening assets are valued at the baseline:
+  `(SM_HH × SM_cost + Basic_HH × Basic_cost) × (1 + non-HH multiplier)`. Each year's scheduled
+  target expansion is added once. Replacement maintains existing assets and is not added again to
+  the target stock.
+- **Resource-constrained pathway (B):** the BAU or intervention coverage supported by available
+  resources, using its own asset/replacement calculation. Its achieved coverage does not determine
+  target-path investment requirements.
+
+The standing difference between target coverage and simulated achieved coverage is a service-gap
+indicator only. It is never repeatedly capitalized into either year's target additions or target
+asset stock. Replacement uses the prior year's target stock at `1 / asset_life`.
 
 ### 4d — Investment need and financing gap
 
 ```
-service_gap[t]      = max(0, target_SM[t] − BAU_SM[t])
-new_capex[t]        = (service_gap × SM_cost[t] + capex_adder) × (1 + non-HH multiplier)
-investment_need[t]  = new_capex[t] + replacement[t]
-financing_gap[t]    = max(0, investment_need[t] − avail[t])
+service_gap[t]       = max(0, target_SM[t] − simulated_SM[t])
+target_expansion[t]  = annual target additions/upgrades at that year's unit costs
+target_stock[t]      = target_stock[t−1] + target_expansion[t]
+replacement[t]       = target_stock[t−1] / asset_life
+investment_need[t]   = target_expansion[t] + replacement[t] + implementation_capex[t]
+financing_gap[t]     = max(0, investment_need[t] − available_financing[t])
 ```
+
+Target additions are positive changes between consecutive target years, not the outstanding
+target-minus-simulated gap. When Basic households move to Safely Managed, the overlapping movement
+is an upgrade priced at `max(0, SM_cost − Basic_cost)`; other new households are priced at the
+relevant full connection cost. The cost-side interventions can change these unit costs without
+changing the specified target milestones.
+
+Available financing counts public capital, other capital, directly reinvested utility cash, loan
+proceeds, and prior positive cash carry once. Unfunded requirements do not become additional asset
+stock or automatic catch-up obligations. Cumulative need and gap sum the annual amounts.
 
 `non-HH multiplier = non-HH% / (1 − non-HH%)` grosses the household investment up to include the
 non-household share of the system. The `capex_adder` is a small water-treatment allowance derived
-from the NRW parameters (cost-based for water; for sanitation it is scaled off the baseline
+from the NRW parameters, applied when there is positive target expansion (cost-based for water; for sanitation it is scaled off the baseline
 household count instead, making it negligible — a quirk inherited from the source workbook).
 
 ---

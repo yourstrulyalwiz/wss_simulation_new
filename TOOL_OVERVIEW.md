@@ -6,10 +6,28 @@ Governments that set water and sanitation targets need to know three things. How
 spending carry them? What does the remaining shortfall cost? Which interventions close it? The WSS
 Strategic Scenarios Tool answers all three questions for one country or region at a time.
 
+### Scope and methodological boundary
+
+This is a **forward-looking scenario model**, not a delivery-monitoring system. It retains simulated
+BAU and intervention coverage projections, annual investment requirements, and remaining financing
+and access gaps. Users can compare directly reinvesting additional net utility cash with committing
+cash to repay a loan that finances investment earlier, and identify the additional public capital
+still required.
+
+Actual-versus-plan delivery reports, implementation-tracking workflows, catch-up replanning, and
+automatic rescheduling of missed investment are **excluded**. Historical observations remain inputs
+for the forecast; simulated future coverage is not a claim that infrastructure has been delivered.
+
+Existing national, urban, rural, and combined urban/rural scopes, separate Water Supply and Sanitation
+inputs, historical series, target milestones, saved scenarios, and export formats are retained.
+Saved inputs created before borrowing was introduced default to reinvesting all additional utility
+cash, with new borrowing switched off.
+
 The tool projects two futures side by side. The **business-as-usual scenario** continues today's
 budgets at today's performance. The **target path** follows the service targets the government has
-adopted. The distance between the two is the **service gap**, counted in households. The cost of
-closing that gap, less the money already available, is the **financing gap**.
+adopted. The distance between the two is the **service gap**, counted in households. Annual
+investment requirements come from additions and replacement along the target pathway; the part
+not covered by available financing is the **financing gap**.
 
 The tool then tests interventions against those gaps. Eight built-in interventions, plus any number
 the user defines, each do one of three things. They raise capital, they cut the cost of a
@@ -265,12 +283,16 @@ zero.[^26] A sector already meeting its target reports no gap.
 This is the tool's central result. It converts an abstract coverage target into a countable number
 of households, which is the form a minister can act on.
 
-## Step 9. Price the gap and net off the money available
+## Step 9. Price the target pathway and net off financing
 
-Closing the gap costs the gap households multiplied by the price of a connection. The tool grosses
-that figure up for non-household customers, on the same logic as Step 6.[^27] Adding the
-replacement charge gives total investment need. Subtracting the capital available gives the
-financing gap, floored at zero.[^26]
+The target investment pathway and resource-constrained coverage simulation are separate.
+Investment need prices each year's target additions once, including incremental Basic-to-Safely
+Managed upgrades, and includes non-household infrastructure, replacement of the prior target asset
+stock, and implementation costs. The remaining coverage gap is not repeatedly added to that stock.
+
+Projected BAU and intervention financing determines simulated coverage independently. Subtracting
+available financing from annual target investment need gives the financing gap, floored at zero.
+Positive unused cash can be carried forward; missed investments are not automatically rescheduled.
 
 The financing gap is not the cost of the targets. It is the part of that cost the sector cannot
 currently fund. A sector can carry a large investment need and a small financing gap if its budget

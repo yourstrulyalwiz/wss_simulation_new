@@ -5,6 +5,7 @@ import InterventionPanel from './components/InterventionPanel';
 import ResultsDashboard from './components/ResultsDashboard';
 import LiveBAUChart from './components/LiveBAUChart';
 import { fetchDefaults, runCalculation } from './api';
+import { migrateInputCompatibility } from './inputCompatibility';
 
 // The BAU view stacks two charts with identical elements: Safely managed (rung 0) then Basic (rung 1).
 function BAUChartPair(props: { inputsList: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string }) {
@@ -15,20 +16,6 @@ function BAUChartPair(props: { inputsList: any[]; sector: 'water' | 'sanitation'
       <LiveBAUChart {...props} rung={1} />
     </>
   );
-}
-
-// Older saved sessions/profiles kept injection as an option under the financial master switch.
-// Give each area an independent switch without altering settings that already use the new one.
-function migrateInjectionToggle(area: any) {
-  if (!area) return area;
-  const toggles = { ...(area.toggles || {}) };
-  for (const [prefix, section] of [['ws', 'water_interventions'], ['san', 'sanitation_interventions']]) {
-    const key = `${prefix}_exogenous_injection_enabled`;
-    if (!(key in toggles)) {
-      toggles[key] = !!(toggles[`${prefix}_financial_commitment_enabled`] && area[section]?.fin_injection_enabled);
-    }
-  }
-  return { ...area, toggles };
 }
 
 export default function App() {
@@ -65,23 +52,23 @@ export default function App() {
     let session: any = null;
     try { session = JSON.parse(localStorage.getItem('wss_working_bundle') || 'null'); } catch { /* corrupt — ignore */ }
     if (session?.inputs) {
-      setAltInputs(Object.fromEntries(Object.entries(session.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])));
+      setAltInputs(Object.fromEntries(Object.entries(session.altInputs || {}).map(([key, area]) => [key, migrateInputCompatibility(area)])));
       const sc = session.scope || {};
       if (sc.scopeMode) setScopeMode(sc.scopeMode);
       if (typeof sc.areaUrban === 'boolean') setAreaUrban(sc.areaUrban);
       if (typeof sc.areaRural === 'boolean') setAreaRural(sc.areaRural);
-      setInputs(migrateInjectionToggle(session.inputs));
+      setInputs(migrateInputCompatibility(session.inputs));
     } else {
-      fetchDefaults().then(v => setInputs(migrateInjectionToggle(v))).catch(() => {});
+      fetchDefaults().then(v => setInputs(migrateInputCompatibility(v))).catch(() => {});
     }
     refreshProfiles();
     const saved = localStorage.getItem('wss_demo_scenarios');
     if (saved) {
       try { setScenarios(JSON.parse(saved).map((sc: any) => ({
         ...sc, inputs: isBundle(sc.inputs) ? {
-          ...sc.inputs, inputs: migrateInjectionToggle(sc.inputs.inputs),
-          altInputs: Object.fromEntries(Object.entries(sc.inputs.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])),
-        } : migrateInjectionToggle(sc.inputs),
+          ...sc.inputs, inputs: migrateInputCompatibility(sc.inputs.inputs),
+          altInputs: Object.fromEntries(Object.entries(sc.inputs.altInputs || {}).map(([key, area]) => [key, migrateInputCompatibility(area)])),
+        } : migrateInputCompatibility(sc.inputs),
       }))); } catch { /* corrupt saved scenarios — ignore */ }
     }
   }, []);
@@ -106,7 +93,7 @@ export default function App() {
   }, []);
 
   const handleSetInputs = useCallback((newInputs: any) => {
-    setInputs(resizeMacroArrays(migrateInjectionToggle(newInputs)));
+    setInputs(resizeMacroArrays(migrateInputCompatibility(newInputs)));
   }, [resizeMacroArrays]);
 
   // ── Area bundle ────────────────────────────────────────────────────────────────────────────────
@@ -140,7 +127,7 @@ export default function App() {
       handleSetInputs(obj);
       return;
     }
-    setAltInputs(Object.fromEntries(Object.entries(obj.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])));
+    setAltInputs(Object.fromEntries(Object.entries(obj.altInputs || {}).map(([key, area]) => [key, migrateInputCompatibility(area)])));
     const sc = obj.scope || {};
     if (sc.scopeMode) setScopeMode(sc.scopeMode);
     if (typeof sc.areaUrban === 'boolean') setAreaUrban(sc.areaUrban);
@@ -789,7 +776,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
           <span style={gFieldLbl}>Targets:</span> Where you set a target year (a service-level column that adds up to 100%), the tool moves service levels toward that target and interpolates between consecutive targets.
         </div>
         <div style={gFieldWrap}>
-          <span style={gFieldLbl}>Financing gap:</span> The extra money needed each year to reach the target instead of BAU. It is based on the cost of connecting new households, and that unit cost comes from each rung's technology mix.
+          <span style={gFieldLbl}>Financing gap:</span> Annual target investment need minus available financing, floored at zero. Target need includes scheduled new connections and upgrades, replacement of existing target-path assets, and implementation costs. It is separate from simulated coverage and does not repeatedly price the outstanding coverage gap.
         </div>
       </div>
     ),

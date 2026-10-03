@@ -1,2 +1,3 @@
 - [Financial commitment semantics](financial-commitment-semantics.md) — added spending uses a total-spending base, then becomes effective capex through sector treatment.
 - [Service-level gap attribution](service-level-gap-attribution.md) — replacement follows each service level's asset obligations; the budget split is only for new service.
+- [Forward-looking scenario scope](scenario-scope.md) — exclude delivery monitoring and catch-up replanning; preserve inputs, scenarios and exports before accounting work.

@@ -33,8 +33,7 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
 }) {
   if (!rows.length) return null;
   const m = `${currency} M/yr`, b = `B ${currency}/yr`;
-  // All columns are annual flows; the dashboard summary above already shows
-  // cumulative gaps, so this table does not mix annual and cumulative units.
+  // Show annual flows and the explicitly labelled closing debt balance.
   const summary: Column[] = [
     { title: `BAU gap (${b})`, value: r => r.bauGap, unit: 'money' },
     { title: `SM new-service need (${b})`, value: r => r.services[0].newScenario, unit: 'money' },
@@ -51,8 +50,8 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
     { title: `New loan proceeds (${b})`, value: r => r.loanDrawdown, unit: 'money' },
     { title: `New-loan debt service (${b})`, value: r => r.loanDebtService, unit: 'money' },
     { title: `New-loan interest (${b})`, value: r => r.loanInterest, unit: 'money' },
-    { title: `Closing new-loan balance (${b})`, value: r => r.loanClosingDebt, unit: 'money' },
-    { title: `Sector capex applied to need (${b})`, value: r =>
+    { title: `Closing new-loan balance (B ${currency})`, value: r => r.loanClosingDebt, unit: 'money' },
+    { title: `Financing applied to need (${b})`, value: r =>
       r.services[0].fundedScenario + r.services[1].fundedScenario, unit: 'money' },
     { title: `Unused scenario financing (${b})`, value: r => Math.max(0, r.scenarioAvailable -
       r.services[0].fundedScenario - r.services[1].fundedScenario), unit: 'money' },
@@ -133,13 +132,13 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
         headers={summaryHeaders} rows={summaryExport} compact />
     </div>
     <div style={{ fontSize: 10.5, color: '#475569', lineHeight: 1.5, marginBottom: 7 }}>
-      New-service and replacement needs are shown separately for both service levels. Additional effective sector
-      capex is scenario available minus BAU available (net of execution and cash effects); cost-saving interventions
-      instead lower the need. Sector capex covers replacement first, then new service using the configured split,
-      with unused allocations transferable. Available capex can exceed what is applied to need; the excess is
-      shown as unused. A negative funding balance increases the attributed gap. Off-budget microfinance loans and
-      grants fund connections outside the sector capex pool: they can lower scenario need, but must not be added
-      again to sector available capex. The two attributed remaining gaps add to the sector total. A negative gap
+      New-service and replacement needs are shown separately for both service levels, with programme costs
+      included in total need. Additional financing is scenario total financing minus BAU capex; cost-saving
+      interventions instead lower the need. Total financing includes public capital, directly reinvested utility
+      cash, household microfinance and grants, loan proceeds, and carried cash, each counted once. Cash committed
+      to debt is not also reinvested. Loan proceeds, debt service, interest, and the closing debt balance are
+      itemized separately. Financing covers replacement first, then new service using the configured split,
+      with unused allocations transferable. The two attributed remaining gaps add to the sector total. A negative gap
       change means the shortfall grew; unlike the chart’s positive-only bands, these changes use the full scenario.
       Money is shown in billions; detailed forecast downloads use millions, as in the BAU tables.
     </div>

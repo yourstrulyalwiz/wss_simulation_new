@@ -8,6 +8,7 @@ import { yearAxisInterval } from '../chartAxis';
 import { linesFirstLegend } from './chartLegend';
 import ChartExport from './ChartExport';
 import TableExport from './TableExport';
+import { sumServiceGaps } from '../programmeFinance';
 
 /**
  * BAU vs Target chart driven by the LIVE calculation engine (validated cell-by-cell against the
@@ -181,6 +182,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         const pop = sum((res, i) => res.population[i]);
         const bau = sum((res, i) => secOf(res).bau_hh[rung][i]);
         const tgt = sum((res, i) => secOf(res).target_hh[rung][i]);
+        const unmetHH = sumServiceGaps(resList, sector === 'water' ? 'water_supply' : 'sanitation', false, rung);
         const finGapSeries = sum((res, i) => (secOf(res).financing_gap || [])[i] || 0);
         const rungSeries = (key: string) =>
           sum((res, i) => secOf(res)[key]?.[rung]?.[i] || 0);
@@ -213,7 +215,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           const tot = total[i] || 0;
           const b = Math.min(tot, bau[i]);
           const t = Math.min(tot, tgt[i]);
-          const gapHH = Math.max(0, t - b);
+          const gapHH = unmetHH[i];
           return { year: y, total: tot, bau: b, tgt: t, gapHH,
             newNeed: serviceNewNeed[i], replacement: serviceReplacement[i],
             funded: serviceFunded[i], serviceGap: serviceGap[i], finGap: finGapSeries[i] ?? null };
@@ -231,7 +233,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           year: years[endIdx],
           bau: +bauEnd.toFixed(4), tgt: +tgtEnd.toFixed(4),
           bauShare: totEnd > 0 ? bauEnd / totEnd : 0, tgtShare: totEnd > 0 ? tgtEnd / totEnd : 0,
-          gapHH: Math.max(0, tgtEnd - bauEnd), finGap: showMoney ? (finGapSeries[endIdx] ?? null) : null, cur: cur0,
+          gapHH: unmetHH[endIdx], finGap: showMoney ? (finGapSeries[endIdx] ?? null) : null, cur: cur0,
         });
 
         // test2: target years come from the service table — any forecast column whose 5 rung shares
@@ -265,7 +267,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
             year: yr,
             y: +t.toFixed(4), yShare: tot > 0 ? t / tot : 0,             // target point (callout anchor)
             bauCov: tot > 0 ? b / tot : 0, tgtCov: tot > 0 ? t / tot : 0,
-            svcGap: Math.max(0, t - b),
+            svcGap: unmetHH[ix],
           };
         }).filter(Boolean) as any[];
         setTargetPoints(points);
@@ -289,7 +291,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           currency: cur0, rungLabel, showMoney,
           endline: years[endIdx], baseline: baseYr, firstForecast: baseYr + 1,
           bauCov: cov(bau), tgtCov: cov(tgt), bauPop: covPop(bau), tgtPop: covPop(tgt),
-          gapEnd: Math.max(0, tgtEnd - bauEnd), finGapEnd: finGapSeries[endIdx] ?? null,
+          gapEnd: unmetHH[endIdx], finGapEnd: finGapSeries[endIdx] ?? null,
           serviceGapEnd: serviceGap[endIdx] ?? null,
           cumNeed,
         });

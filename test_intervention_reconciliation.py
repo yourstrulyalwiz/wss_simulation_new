@@ -2,6 +2,7 @@
 
 import copy
 import itertools
+import json
 import unittest
 
 import numpy as np
@@ -46,6 +47,9 @@ class InterventionReconciliationTests(unittest.TestCase):
             sec = self.run_model(inputs)['water_supply']
             field = lambda key: np.asarray(sec['scenario_' + key])
             recovered = field('nrw_recovered_phys_total_vol')
+            self.assertGreater(sum(recovered), 0)
+            np.testing.assert_allclose(field('nrw_recovered_phys_vol') +
+                                       field('nrw_production_avoided_vol'), recovered)
             np.testing.assert_allclose(field('nrw_recovered_phys_vol'), recovered * share)
             np.testing.assert_allclose(field('nrw_production_avoided_vol'), recovered * (1 - share))
             np.testing.assert_allclose(field('nrw_production_savings'),
@@ -128,6 +132,54 @@ class InterventionReconciliationTests(unittest.TestCase):
                                        base[sk]['scenario_additional_net_utility_cash'])
             self.assertGreater(sum(changed[sk]['scenario_available_capex']), sum(base[sk]['scenario_available_capex']))
             self.assertLess(sum(changed[sk]['scenario_total_investment_need']), sum(base[sk]['scenario_total_investment_need']))
+
+    def test_custom_sector_assignments_survive_save_load_and_shared_cash_counts_once(self):
+        from input_compatibility import migrate_input_compatibility
+        inputs = frontend_defaults()
+        inputs['custom_interventions'] = [{
+            'name': 'Shared recurring benefit', 'sector': 'both', 'enabled': True,
+            'intervention_type': 'new_revenue', 'start_year': 2026, 'cost_years': 2,
+            'implement_cost': 1000000, 'output_start_year': 2026,
+            'output_quantity': 1000000, 'output_value': 4,
+            'water_allocation_share': .25, 'sanitation_allocation_share': .75,
+        }]
+        saved = json.dumps(inputs)
+        loaded = migrate_input_compatibility(json.loads(saved))
+        self.assertEqual(loaded['custom_interventions'], inputs['custom_interventions'])
+        original, restored = self.run_model(inputs), self.run_model(loaded)
+        for sk in ('water_supply', 'sanitation'):
+            for key in ('scenario_hh', 'scenario_financing_gap', 'scenario_custom_revenue_cash',
+                        'scenario_custom_implementation_capex'):
+                np.testing.assert_allclose(restored[sk][key], original[sk][key])
+        total_cash = sum(np.asarray(restored[sk]['scenario_custom_revenue_cash'])
+                         for sk in ('water_supply', 'sanitation'))
+        np.testing.assert_allclose(total_cash, [4 if y >= 2026 else 0 for y in restored['years']])
+        total_cost = sum(sum(restored[sk]['scenario_custom_implementation_capex'])
+                         for sk in ('water_supply', 'sanitation'))
+        self.assertAlmostEqual(total_cost, 1)
+
+    def test_custom_cost_reductions_touch_only_selected_sector_and_service(self):
+        from input_compatibility import migrate_input_compatibility
+        base = self.run_model(frontend_defaults())
+        for assigned, selected in itertools.product(('water', 'sanitation'), ('sm', 'basic')):
+            with self.subTest(sector=assigned, service=selected):
+                inputs = frontend_defaults()
+                inputs['custom_interventions'] = [{
+                    'name': 'Selected cost reduction', 'sector': assigned, 'enabled': True,
+                    'intervention_type': 'cost_reduction', 'start_year': 2026,
+                    'outputs_affected': selected, 'cost_effect_mode': 'pct', 'cost_effect': .2,
+                }]
+                loaded = migrate_input_compatibility(json.loads(json.dumps(inputs)))
+                self.assertEqual(loaded['custom_interventions'], inputs['custom_interventions'])
+                result = self.run_model(loaded)
+                active = np.array(result['years']) >= 2026
+                for sk in ('water_supply', 'sanitation'):
+                    for service in ('sm', 'basic'):
+                        key = 'scenario_cost_sm_t' if service == 'sm' else 'scenario_cost_basic_t'
+                        expected = np.asarray(base[sk][key]).copy()
+                        if sk == ('water_supply' if assigned == 'water' else 'sanitation') and service == selected:
+                            expected[active] *= .8
+                        np.testing.assert_allclose(result[sk][key], expected)
 
     def test_residual_public_comparison_uses_separate_carry_not_loan_alias(self):
         inputs = frontend_defaults()

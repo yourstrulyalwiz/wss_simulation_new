@@ -52,13 +52,13 @@ def _sector_summary(result, inputs, sk):
     cum = lambda a: sum((a[i] or 0) for i, y in enumerate(years) if y > by)
     return {
         'end': years[e], 'curCov': cov(bau, bi), 'bauCov': cov(bau, e), 'scnCov': cov(scn, e), 'tgtCov': cov(tgt, e),
-        'addHH': max(0.0, (min(total[e], scn[e]) - min(total[e], bau[e]))),
+        'addHH': min(total[e], scn[e]) - min(total[e], bau[e]),
         'gapBau': cum(sec.get('financing_gap') or []), 'gapScn': cum(sec.get('scenario_financing_gap') or []),
         'programmeNeed': cum(sec['scenario_total_investment_need']),
         'residualBeforePublic': cum(sec['scenario_financing_gap_before_additional_public']),
         'additionalPublic': cum(sec['scenario_additional_public_capital']),
-        'unmetSm': max(0, tgt[e] - scn[e]),
-        'unmetBasic': max(0, sec['target_hh'][1][e] - sec['scenario_hh'][1][e]),
+        'unmetSm': sec['scenario_service_gap_display'][0][e],
+        'unmetBasic': sec['scenario_service_gap_display'][1][e],
     }
 
 

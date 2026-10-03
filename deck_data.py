@@ -264,7 +264,7 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
     service_gap = {
         'years': gap_years,
         'covered': [_at(bau, _idx(years, y), 0) for y in gap_years],
-        'gap': [max(0.0, _at(tgt, _idx(years, y), 0) - _at(bau, _idx(years, y), 0)) for y in gap_years],
+        'gap': [_at(sec['service_gap_display'], _idx(years, y), 0) for y in gap_years],
     }
 
     # Investment periods come from the target years, not the retired 5-year planned-investment blocks.

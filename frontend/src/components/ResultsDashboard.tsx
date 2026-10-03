@@ -13,7 +13,7 @@ import { captureImage } from './exportUtils';
 import BasicCoverageChart, { type BasicCoverageRow } from './BasicCoverageChart';
 import ScenarioGapTables, { type FinanceYear } from './ScenarioGapTables';
 import BorrowingPoolsTable from './BorrowingPoolsTable';
-import { closingCashAtPeriodEnd, cumulativeAnnualFlow } from '../programmeFinance';
+import { closingCashAtPeriodEnd, cumulativeAnnualFlow, sumServiceGaps } from '../programmeFinance';
 import { enabledInAnyArea, marginalPassInput } from '../interventionPasses';
 
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
@@ -415,11 +415,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           addPerAreaPath('collection-path', 'Scenario collection path', 'ratio', r => secOf(r).scenario_collection_path);
           const rungSeries = (key: string, rung: number) => sum((r, i) => secOf(r)[key][rung][i]);
           const rungHouseholdGap = (key: 'service_gap_display' | 'scenario_service_gap', rung: number) =>
-            years.map((_, i) => resList.reduce((total, res) => {
-              const sectorResult = secOf(res);
-              const canonical = sectorResult[key] || (key === 'scenario_service_gap' ? sectorResult.service_gap_display : undefined);
-              return total + (canonical?.[rung]?.[i] || 0);
-            }, 0));
+            sumServiceGaps(resList, secKey, key === 'scenario_service_gap', rung);
           const rungData = [0, 1].map(rung => ({
             bau: rung === 0 ? bau : basicBau,
             scenario: rung === 0 ? scn : basicScn,
@@ -498,8 +494,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
              residualPublicBefore: cumulativeResidualBefore[endIdx] || 0,
              residualPublicAfter: cumulativeResidualAfter[endIdx] || 0,
              additionalPublicCapital: cumGap(additionalPublic),
-            unmetSm: Math.max(0, tgt[endIdx] - scn[endIdx]),
-            unmetBasic: Math.max(0, basicTgt[endIdx] - basicScn[endIdx]),
+            unmetSm: rungHouseholdGap('scenario_service_gap', 0)[endIdx],
+            unmetBasic: rungHouseholdGap('scenario_service_gap', 1)[endIdx],
           } };
         };
         setBoth({ water: build('water_supply'), sanitation: build('sanitation') });

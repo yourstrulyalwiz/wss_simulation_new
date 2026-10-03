@@ -185,6 +185,75 @@ class BorrowingModuleTests(unittest.TestCase):
         np.testing.assert_allclose(first['scenario_additional_net_utility_cash'],
                                    second['scenario_additional_net_utility_cash'])
 
+    def test_alpha_zero_matches_corrected_reinvestment_only_in_both_sectors(self):
+        inputs = self.model_inputs()
+        inputs['toggles'].update(ws_borrowing_enabled=False, san_tariff_enabled=True,
+                                  san_borrowing_enabled=False)
+        inputs['water_interventions']['cash_allocation_alpha'] = 0
+        inputs['sanitation_interventions']['cash_allocation_alpha'] = 0
+        reinvest = self.run_model(inputs)
+        inputs['toggles'].update(ws_borrowing_enabled=True, san_borrowing_enabled=True)
+        alpha_zero = self.run_model(inputs)
+        for sk in ('water_supply', 'sanitation'):
+            self.assertEqual(alpha_zero[sk]['scenario_loan_principal'], 0)
+            for key in ('scenario_hh', 'scenario_total_investment_need', 'scenario_financing_gap',
+                        'scenario_new_capex_total', 'scenario_replacement_capex',
+                        'scenario_available_total', 'scenario_cash_carry_forward',
+                        'scenario_additional_net_utility_cash', 'scenario_cash_allocated_to_direct_investment'):
+                np.testing.assert_allclose(alpha_zero[sk][key], reinvest[sk][key])
+
+    def test_cash_reserves_and_debt_reconcile_annually_in_both_rate_bases_under_shortfalls(self):
+        for basis in ('real', 'nominal'):
+            with self.subTest(basis=basis):
+                actual = np.array([0, 60, 5, -10])
+                loan = self.schedule(alpha=.4, term_years=7, interest_rate=.08,
+                                     existing_debt_service=20, contracted_principal=120,
+                                     actual_cash=actual, price_index=[1, 1.1, 1.21, 1.331],
+                                     inflation_rate=.1, rate_basis=basis)
+                contract = self.schedule(alpha=.4, term_years=7, interest_rate=.08,
+                                         existing_debt_service=20, contracted_principal=120,
+                                         price_index=[1, 1.1, 1.21, 1.331],
+                                         inflation_rate=.1, rate_basis=basis)
+                s = loan['schedule']
+                np.testing.assert_allclose(s['debt_service'], contract['schedule']['debt_service'])
+                self.assertGreater(sum(s['debt_service_shortfall']), 0)
+                self.assertGreater(s['closing_debt'][-1], 0)
+                self.assertEqual(s['years'][-1], 2033)
+                self.assertEqual(len(loan['closing_debt']), 4)
+                self.assertEqual(loan['outstanding_at_projection_end'], s['closing_debt'][3])
+                prices = 1.1 ** np.arange(len(s['years']))
+                factor = prices if basis == 'nominal' else np.ones(len(prices))
+                realised = np.r_[actual, np.full(len(prices)-4, actual[-1])]
+                opening_debt = opening_reserve = 0
+                for i in range(len(prices)):
+                    f = factor[i]
+                    self.assertAlmostEqual(s['opening_debt'][i] * f, opening_debt)
+                    closing_debt = (opening_debt + s['drawdowns'][i] * f +
+                                    s['interest'][i] * f - s['debt_service_paid'][i] * f)
+                    self.assertAlmostEqual(s['closing_debt'][i] * f, closing_debt)
+                    closing_reserve = (opening_reserve + s['cash_committed_to_debt'][i] * f -
+                                       s['debt_service_paid'][i] * f - s['reserve_release'][i] * f)
+                    self.assertAlmostEqual(s['retained_cash_reserve'][i] * f, closing_reserve)
+                    self.assertAlmostEqual(realised[i], s['cash_allocated_to_direct_investment'][i] +
+                                           s['existing_debt_service_paid'][i] +
+                                           s['cash_committed_to_debt'][i] - s['reserve_release'][i])
+                    opening_debt, opening_reserve = closing_debt, closing_reserve
+
+    def test_loan_drawdown_is_capital_not_additional_operating_revenue(self):
+        inputs = self.model_inputs()
+        inputs['water_interventions']['cash_allocation_alpha'] = .5
+        borrowed = self.run_model(inputs)['water_supply']
+        inputs['toggles']['ws_borrowing_enabled'] = False
+        reinvest = self.run_model(inputs)['water_supply']
+        self.assertGreater(sum(borrowed['scenario_loan_drawdown']), 0)
+        np.testing.assert_allclose(borrowed['scenario_additional_net_utility_cash'],
+                                   reinvest['scenario_additional_net_utility_cash'])
+        np.testing.assert_allclose(borrowed['scenario_current_year_financing'],
+                                   np.asarray(borrowed['scenario_public_capital']) +
+                                   np.asarray(borrowed['scenario_other_capital']) +
+                                   np.asarray(borrowed['scenario_cash_allocated_to_direct_investment']) +
+                                   np.asarray(borrowed['scenario_loan_drawdown']))
+
     def test_invalid_settings_fail_explicitly(self):
         for options in ({'alpha': 1.1}, {'interest_rate': -1}, {'term_years': 0},
                         {'minimum_dscr': .5}, {'rate_basis': 'unknown'}):

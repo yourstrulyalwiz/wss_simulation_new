@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import LiveInterventionChart from './LiveInterventionChart';
 import NumInput from './NumInput';
 import ExportButtons from './ExportButtons';
+import BorrowingControls from './BorrowingControls';
 
 function Section({ title, children, defaultOpen = false, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; sectionKey?: string; onFocus?: (key: string) => void }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -406,16 +407,8 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
             {injectionFields('water_interventions')}
           </InterventionToggle>
           <InterventionToggle order={9} label="Borrowing and cash allocation" checked={inputs.toggles?.ws_borrowing_enabled ?? false} onChange={v => toggleIntv('ws_borrowing_enabled', v)} onFocus={() => onSectionFocus?.('ws_borrowing')}>
-            <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
-              α = 0 reinvests all eligible utility cash. Higher α reserves more cash for debt service; new borrowing is capped by repayment capacity and the remaining investment gap.
-            </div>
-            <F label="Cash allocated to debt service (α)" value={inputs.water_interventions.cash_allocation_alpha} onChange={v => u('water_interventions','cash_allocation_alpha',Math.max(0,Math.min(1,v)))} isPercent unit="%" tip="Share of eligible utility cash committed to debt service while the loan is outstanding. 0% means reinvest all cash." />
-            <F label="Loan drawdown year" value={inputs.water_interventions.borrow_drawdown_year} onChange={v => u('water_interventions','borrow_drawdown_year',v)} />
-            <F label="Real interest rate" value={inputs.water_interventions.borrow_interest_rate} onChange={v => u('water_interventions','borrow_interest_rate',Math.max(0,v))} isPercent unit="%" />
-            <F label="Repayment term" value={inputs.water_interventions.borrow_term_years} onChange={v => u('water_interventions','borrow_term_years',Math.max(1,Math.round(v)))} unit="years" />
-            <F label="Minimum debt-service coverage ratio" value={inputs.water_interventions.borrow_min_dscr} onChange={v => u('water_interventions','borrow_min_dscr',Math.max(1,v))} step={0.1} tip="Minimum eligible cash divided by annual debt service." />
-            <F label="Borrowing ceiling" value={inputs.water_interventions.borrow_ceiling} onChange={v => u('water_interventions','borrow_ceiling',Math.max(0,v))} unit={`${CUR} mn`} tip="Maximum loan principal. Enter 0 for no separate ceiling." />
-            <F label="Existing annual debt service" value={inputs.water_interventions.existing_debt_service} onChange={v => u('water_interventions','existing_debt_service',Math.max(0,v))} unit={`${CUR} mn`} tip="Existing annual debt service deducted when sizing repayment capacity." />
+            <BorrowingControls section={inputs.water_interventions} currency={CUR} areaSectorFallback={`${scopeLabel} Water Supply`}
+              onChange={(field, value) => u('water_interventions', field, value)} />
           </InterventionToggle>
 
           <InterventionToggle order={2} label="Collection efficiency" checked={inputs.toggles?.ws_collection_efficiency_enabled ?? false} onChange={v => toggleIntv('ws_collection_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('ws_ce')}>
@@ -517,16 +510,8 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
             {injectionFields('sanitation_interventions')}
           </InterventionToggle>
           <InterventionToggle order={9} label="Borrowing and cash allocation" checked={inputs.toggles?.san_borrowing_enabled ?? false} onChange={v => toggleIntv('san_borrowing_enabled', v)} onFocus={() => onSectionFocus?.('san_borrowing')}>
-            <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
-              α = 0 reinvests all eligible utility cash. Higher α reserves more cash for debt service; new borrowing is capped by repayment capacity and the remaining investment gap.
-            </div>
-            <F label="Cash allocated to debt service (α)" value={inputs.sanitation_interventions.cash_allocation_alpha} onChange={v => u('sanitation_interventions','cash_allocation_alpha',Math.max(0,Math.min(1,v)))} isPercent unit="%" tip="Share of eligible utility cash committed to debt service while the loan is outstanding. 0% means reinvest all cash." />
-            <F label="Loan drawdown year" value={inputs.sanitation_interventions.borrow_drawdown_year} onChange={v => u('sanitation_interventions','borrow_drawdown_year',v)} />
-            <F label="Real interest rate" value={inputs.sanitation_interventions.borrow_interest_rate} onChange={v => u('sanitation_interventions','borrow_interest_rate',Math.max(0,v))} isPercent unit="%" />
-            <F label="Repayment term" value={inputs.sanitation_interventions.borrow_term_years} onChange={v => u('sanitation_interventions','borrow_term_years',Math.max(1,Math.round(v)))} unit="years" />
-            <F label="Minimum debt-service coverage ratio" value={inputs.sanitation_interventions.borrow_min_dscr} onChange={v => u('sanitation_interventions','borrow_min_dscr',Math.max(1,v))} step={0.1} tip="Minimum eligible cash divided by annual debt service." />
-            <F label="Borrowing ceiling" value={inputs.sanitation_interventions.borrow_ceiling} onChange={v => u('sanitation_interventions','borrow_ceiling',Math.max(0,v))} unit={`${CUR} mn`} tip="Maximum loan principal. Enter 0 for no separate ceiling." />
-            <F label="Existing annual debt service" value={inputs.sanitation_interventions.existing_debt_service} onChange={v => u('sanitation_interventions','existing_debt_service',Math.max(0,v))} unit={`${CUR} mn`} tip="Existing annual debt service deducted when sizing repayment capacity." />
+            <BorrowingControls section={inputs.sanitation_interventions} currency={CUR} areaSectorFallback={`${scopeLabel} Sanitation`}
+              onChange={(field, value) => u('sanitation_interventions', field, value)} />
           </InterventionToggle>
 
           <InterventionToggle order={2} label="Collection efficiency" checked={inputs.toggles?.san_collection_efficiency_enabled ?? false} onChange={v => toggleIntv('san_collection_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('san_ce')}>

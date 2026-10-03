@@ -205,6 +205,8 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None) -> io.By
         set_p(p, f'Residual before / after explicit public capital: {_b(d["residualBeforePublic"])} / {_b(d["gapScn"])} B {cur}; explicit usable contribution: {_b(d["additionalPublic"])} B. Other financing held fixed.', 10, INK)
         set_p(tf.add_paragraph(), f'Programme requirement: {_b(d["programmeNeed"])} B {cur}. Terminal unmet coverage: SM {d["unmetSm"]:.2f} M, Basic {d["unmetBasic"]:.2f} M HH.', 10.5, INK)
 
+    from borrowing_deck import append_borrowing_slides
+    append_borrowing_slides(prs, result, cur)
     output = io.BytesIO()
     prs.save(output)
     output.seek(0)

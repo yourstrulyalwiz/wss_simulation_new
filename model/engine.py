@@ -168,6 +168,16 @@ def build_context(inputs: ModelInputs) -> dict:
     us_infl = _series_with_ongoing(inputs.macro.inflation_us, n, inputs.macro.inflation_us_ongoing)
     g_fcst = inputs.macro.gdp_growth_forecast   # fallback real growth if <2 historical points to average
 
+    # Debt conversion is independent of the GDP entry mode. Nominal debt must not
+    # silently use a flat index just because GDP was entered in real currency.
+    price_year = int(np.clip(p.real_price_year - p.model_start_year, 0, n - 1))
+    debt_price_index = np.ones(n)
+    if np.any(infl_local <= -1):
+        raise ValueError("Local inflation must be greater than -100%.")
+    for t in range(price_year - 1, -1, -1):
+        debt_price_index[t] = debt_price_index[t + 1] / (1 + infl_local[t + 1])
+    for t in range(price_year + 1, n):
+        debt_price_index[t] = debt_price_index[t - 1] * (1 + infl_local[t])
     real_gdp_input = list(inputs.macro.gdp_real_local or [])
     if any((v or 0) > 0 for v in real_gdp_input):
         # ── test2 primary path: REAL GDP in local currency is entered directly. No nominal-USD / FX /
@@ -208,6 +218,8 @@ def build_context(inputs: ModelInputs) -> dict:
         'gdp_nominal_usd': gdp_usd_proj, 'exchange_rate': fx,
         'inflation_local': infl_local, 'inflation_us': us_infl,
         'inflation_index': idx,
+        'debt_price_index': debt_price_index,
+        'borrowing_area': inputs.country_config.area,
     }
 
 
@@ -267,6 +279,8 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
         'loan_drawdown', 'loan_opening_debt', 'loan_closing_debt',
         'loan_interest', 'loan_principal_paid', 'loan_debt_service',
         'loan_debt_service_shortfall', 'loan_cash_reserve',
+        'borrowing_pools', 'eligible_net_cash', 'existing_debt_service_paid',
+        'loan_reserve_used', 'loan_reserve_release', 'loan_debt_service_paid',
         'implementation_capex', 'custom_revenue_cash', 'custom_implementation_capex',
         'shared_revenue_cash', 'billed_volume', 'nrw_commercial_cash',
         'nrw_production_savings', 'nrw_maintenance_cost', 'nrw_implementation_capex',

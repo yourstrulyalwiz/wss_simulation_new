@@ -384,6 +384,46 @@ Additional billed sales are a forecast volume assumption for existing and improv
 they are not inferred as new connections. Report funded physical upgrades separately from
 potential water capacity.
 
+### Additional net cash and borrowing
+
+The “Use of additional net utility cash” selector defaults to reinvest all (`alpha = 0`).
+Partial allocation uses `0 < alpha < 1`; full allocation uses `alpha = 1`. Selected
+established revenue/savings streams net their recurring costs. Negative unselected effects
+also reduce eligibility; all signed effects remain in the total cash account once. Entered
+prior annual debt obligations are deducted before alpha. Implementation capex stays in
+the investment requirement and is not subtracted from eligible recurring cash again.
+
+Each area/sector has one separate loan. Entity names never implicitly pool cash.
+New proposed borrowing is constrained by the smallest committed payment capacity over
+the entire repayment term, minimum DSCR, any positive user ceiling, and remaining
+investment need after other finance and carry. Loan proceeds are capital, not revenue.
+Physical coverage uses drawdowns plus cash allocated to direct investment, not the
+original cash before debt commitments. No additional revenue is inferred from those
+loan-financed connections.
+
+New scenarios default to nominal fixed-rate loans with level annual nominal payments
+starting the year after drawdown. Established real cash and principal are converted with
+the local price index; annual results are then deflated to reporting prices. Legacy saved
+rates retain real-rate semantics unless changed explicitly. The debt conversion index is
+independent of GDP input mode.
+
+An optional fixed contracted principal preserves agreed obligations when forecasts change;
+it is not resized against revised capacity or investment need. Surplus proceeds remain
+capital/carry, not new revenue. This is a forward-looking contract/stress assumption, not
+delivery monitoring. Unpaid contractual obligations produce reported shortfalls and
+outstanding debt. Unpaid interest accrues; no automatic refinancing is assumed.
+
+Committed cash accumulates in a separate zero-interest reserve and cannot also fund
+connections. Show reserve use, payment shortfalls, and reserve release explicitly.
+Surplus reserves return to direct investment only at maturity after loan obligations.
+An undrawn proposal does not withhold cash.
+
+Debt schedules extend through maturity beyond the coverage projection. After the
+projection, established net cash and prior obligations are held flat in real terms;
+inflation stays at the final projected rate. Show outstanding debt at projection end,
+source-pool maturity schedules and conditional incremental-estimate labels. Entering
+baseline information does not turn this module into a full utility credit assessment.
+
 ### 6.5 NRW-linked sanitation revenue — the one cross-sector lever
 
 The physical water that water-NRW recovers returns to the sewer as wastewater the sanitation

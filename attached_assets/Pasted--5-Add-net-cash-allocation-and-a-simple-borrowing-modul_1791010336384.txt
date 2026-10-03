@@ -1,0 +1,69 @@
+## 5. Add net-cash allocation and a simple borrowing module
+
+Add a user-facing “Use of additional net utility cash” control with three modes:
+
+1. Reinvest all — default.
+2. Partially allocate to debt financing.
+3. Allocate all eligible cash to debt financing.
+
+Represent this using alpha, the share of eligible additional net cash committed to debt financing:
+
+- Reinvest all: alpha = 0.
+- Partial allocation: 0 < alpha < 1.
+- Full allocation: alpha = 1.
+
+Eligible cash must reflect additional collected revenue and recurring operating savings, net of associated operating costs and relevant prior obligations.
+
+Keep implementation capex in the investment account and finance it explicitly. Do not also deduct the same implementation cost a second time elsewhere.
+
+Negative cash effects must remain visible and reduce resources; they must not disappear through a positive-only calculation.
+
+Where baseline utility financial information is unavailable, label borrowing capacity as an incremental estimate conditional on baseline obligations being covered. Do not imply that a full utility creditworthiness assessment has been performed.
+
+### Initial loan structure
+
+Start with one fixed-rate, local-currency loan per explicitly defined borrowing entity/pool, with annual level debt-service payments.
+
+Include editable inputs for:
+
+- Borrowing entity and eligible cash streams.
+- Drawdown year.
+- Interest rate.
+- Repayment term.
+- Minimum debt-service coverage ratio.
+- Borrowing ceiling.
+- Existing debt-service obligations, if known.
+
+Do not hard-code a five- or six-year loan term.
+
+Avoid automatically pooling unrelated Water Supply, Sanitation, Urban, or Rural cash streams. Make any pooling assumption explicit and prevent duplication in aggregates.
+
+Size borrowing against the committed eligible cash over the repayment period, subject to the coverage cushion, borrowing ceiling, and eligible investment need. Do not borrow more than the investment requirement that remains after other financing.
+
+Use a consistent real/nominal treatment: nominal debt schedules must use appropriately converted nominal cash flows, with results converted back to the model's reporting basis as needed.
+
+For this first release, size borrowing using established intervention cash streams. Do not introduce recursive borrowing based on revenue expected from loan-financed future connections.
+
+### Annual accounting
+
+Track:
+
+- Loan drawdowns.
+- Opening and closing debt.
+- Interest.
+- Principal repayment.
+- Total scheduled debt service.
+- Cash allocated to direct investment.
+- Cash committed to debt financing.
+- Retained cash/reserves, if used.
+- Debt-service shortfalls.
+
+Loan proceeds are capital financing, not operating revenue.
+
+The same cash cannot finance direct reinvestment and debt service simultaneously.
+
+Define the treatment of committed cash exceeding scheduled debt service, including any reserve accumulation or release. Do not silently count it in both accounts.
+
+Once a loan is drawn, revenue shortfalls must not automatically reduce contractual repayments. Show any reserve use and remaining repayment shortfall explicitly.
+
+Extend the debt schedule through maturity, even when maturity is beyond the coverage projection horizon. Disclose assumptions for cash flows beyond that horizon and show outstanding debt at the projection end.

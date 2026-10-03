@@ -647,6 +647,10 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A) ->
     for s in prs.slides:
         drop_prompt_shapes(s, canvas=(prs.slide_width, prs.slide_height))
 
+    from borrowing_deck import append_borrowing_slides
+    # Export actual source entities once, not again in the derived national aggregate.
+    for source_scope in area_inputs:
+        append_borrowing_slides(prs, d['results'][source_scope], cur, SCOPE_TITLE[source_scope])
     out = io.BytesIO()
     prs.save(out)
     out.seek(0)

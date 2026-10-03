@@ -321,107 +321,12 @@ def annuity_present_value_factor(rate, term):
 def loan_schedule(years, baseline_index, required, public_capital, other_capital, eligible_cash,
                   allocation_alpha, *, enabled=False, drawdown_year=0, interest_rate=0.0,
                   term_years=0, minimum_dscr=1.0, borrowing_ceiling=0.0,
-                  existing_debt_service=0.0, direct_cash_available=None):
-    """Size one real, fixed-rate loan against established cash and remaining target investment need.
-
-    Cash beyond the coverage horizon is held flat at the last projected real value. The loan is
-    drawn once in the selected year and repaid with level annual payments beginning the next year.
-    """
-    years = np.asarray(years, dtype=int)
-    n = len(years)
-    zeros = np.zeros(n)
-    result = {
-        "drawdowns": zeros.copy(), "opening_debt": zeros.copy(), "closing_debt": zeros.copy(),
-        "interest": zeros.copy(), "principal": zeros.copy(), "debt_service": zeros.copy(),
-        "cash_committed_to_debt": zeros.copy(), "cash_allocated_to_direct_investment": zeros.copy(),
-        "retained_cash_reserve": zeros.copy(), "debt_service_shortfall": zeros.copy(),
-        "loan_principal": 0.0, "loan_end_year": None,
-    }
-    alpha = float(np.clip(allocation_alpha, 0.0, 1.0))
-    cash = np.resize(np.asarray(eligible_cash, dtype=float), n)
-    result["cash_allocated_to_direct_investment"] = cash.copy()
-    if not enabled or alpha <= 0 or n == 0:
-        return result
-
-    draw = int(drawdown_year)
-    draw_idx = next((i for i, y in enumerate(years) if y == draw), None)
-    term = int(term_years)
-    if draw_idx is None or draw_idx <= baseline_index or term <= 0:
-        return result
-
-    committed = np.zeros(n)
-    direct = cash.copy()
-    end_year = draw + term
-    for i, year in enumerate(years):
-        if draw <= year <= end_year:
-            committed[i] = max(0.0, cash[i]) * alpha
-            direct[i] = cash[i] - committed[i]
-    rate = max(0.0, float(interest_rate))
-    dscr = max(1.0, float(minimum_dscr))
-    existing = max(0.0, float(existing_debt_service))
-    pay_years = list(range(draw_idx + 1, draw_idx + term + 1))
-    cash_for_year = []
-    for idx in pay_years:
-        value = committed[idx] if idx < n else (committed[-1] if n else 0.0)
-        cash_for_year.append(max(0.0, float(value)))
-    if not pay_years:
-        return result
-    annual_capacity = min(max(0.0, (v - existing) / dscr) for v in cash_for_year)
-    cash_capacity = annual_capacity * annuity_present_value_factor(rate, term)
-    ceiling = float(borrowing_ceiling)
-    if ceiling > 0:
-        cash_capacity = min(cash_capacity, ceiling)
-
-    req = np.resize(np.asarray(required, dtype=float), n)
-    public = np.resize(np.asarray(public_capital, dtype=float), n)
-    other = np.resize(np.asarray(other_capital, dtype=float), n)
-    # Drawdowns never exceed the target investment gaps remaining after public/other sources,
-    # directly reinvested cash, and any cash already carried forward before the loan.
-    direct_for_need = direct if direct_cash_available is None else np.resize(
-        np.asarray(direct_cash_available, dtype=float), n)
-    base_ledger = funding_ledger(
-        req, public, other, direct_for_need, baseline_index=baseline_index)
-    eligible_need = float(np.sum(base_ledger['gap'][draw_idx:]))
-    principal = max(0.0, min(cash_capacity, eligible_need))
-    if principal <= 0:
-        result["cash_allocated_to_direct_investment"] = cash.copy()
-        return result
-
-    pv = annuity_present_value_factor(rate, term)
-    annual_payment = principal / pv if pv > 0 else 0.0
-    result["loan_principal"] = principal
-    result["loan_end_year"] = draw + term
-    result["drawdowns"][draw_idx] = principal
-    result["cash_committed_to_debt"] = committed
-    result["cash_allocated_to_direct_investment"] = direct
-    reserve = 0.0
-    balance = 0.0
-    for i, year in enumerate(years):
-        result["opening_debt"][i] = balance
-        if year == draw:
-            balance += principal
-            reserve += committed[i]
-        if draw < year <= end_year:
-            interest = balance * rate
-            due = min(annual_payment, balance + interest)
-            available_for_service = max(0.0, reserve + committed[i] - existing)
-            paid = min(due, available_for_service)
-            shortfall = max(0.0, due - paid)
-            balance_before = balance
-            balance = max(0.0, balance + interest - paid)
-            principal_paid = max(0.0, min(balance_before, paid - interest))
-            reserve = max(0.0, available_for_service - paid)
-            result["interest"][i] = interest
-            result["principal"][i] = principal_paid
-            result["debt_service"][i] = due
-            result["debt_service_shortfall"][i] = shortfall
-            if year == end_year:
-                result["cash_allocated_to_direct_investment"][i] += reserve
-                reserve = 0.0
-        elif year > end_year:
-            # After maturity, the debt-commitment share and any reserve return to investment.
-            result["cash_allocated_to_direct_investment"][i] = cash[i] + reserve
-            reserve = 0.0
-        result["closing_debt"][i] = balance
-        result["retained_cash_reserve"][i] = reserve
-    return result
+                  existing_debt_service=0.0, direct_cash_available=None, **options):
+    """Compatibility entry point; debt accounting lives in model.borrowing."""
+    from model.borrowing import schedule_loan
+    return schedule_loan(
+        years, baseline_index, required, public_capital, other_capital, eligible_cash,
+        allocation_alpha, enabled=enabled, drawdown_year=drawdown_year,
+        interest_rate=interest_rate, term_years=term_years, minimum_dscr=minimum_dscr,
+        borrowing_ceiling=borrowing_ceiling, existing_debt_service=existing_debt_service,
+        direct_cash_available=direct_cash_available, **options)

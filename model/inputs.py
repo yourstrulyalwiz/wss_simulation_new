@@ -18,7 +18,7 @@ Structure notes:
     structure, not the numbers.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 
 
@@ -338,6 +338,11 @@ class WaterInterventionInputs(BaseModel):
     borrow_min_dscr: float = 1.2
     borrow_ceiling: float = 0.0
     existing_debt_service: float = 0.0
+    borrow_entity_name: str = ''
+    borrow_cash_streams: List[str] = Field(default_factory=lambda: ['collection', 'nrw', 'tariff', 'custom', 'nrw_link'])
+    borrow_rate_basis: str = 'real'
+    baseline_obligations_known: bool = False
+    borrow_contract_principal: float = 0.0
 
     # Increased collection efficiency (#113-#118)
     ce_start_year: int = 2028
@@ -472,6 +477,11 @@ class SanitationInterventionInputs(BaseModel):
     borrow_min_dscr: float = 1.2
     borrow_ceiling: float = 0.0
     existing_debt_service: float = 0.0
+    borrow_entity_name: str = ''
+    borrow_cash_streams: List[str] = Field(default_factory=lambda: ['collection', 'nrw', 'tariff', 'custom', 'nrw_link'])
+    borrow_rate_basis: str = 'real'
+    baseline_obligations_known: bool = False
+    borrow_contract_principal: float = 0.0
 
     # Increased collection efficiency (#143-#146)
     ce_start_year: int = 2027

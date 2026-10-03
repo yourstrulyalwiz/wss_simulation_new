@@ -12,6 +12,7 @@ import TableExport from './TableExport';
 import { captureImage } from './exportUtils';
 import BasicCoverageChart, { type BasicCoverageRow } from './BasicCoverageChart';
 import ScenarioGapTables, { type FinanceYear } from './ScenarioGapTables';
+import BorrowingPoolsTable from './BorrowingPoolsTable';
 import { closingCashAtPeriodEnd, cumulativeAnnualFlow } from '../programmeFinance';
 import { enabledInAnyArea, marginalPassInput } from '../interventionPasses';
 
@@ -210,6 +211,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   const [table, setTable] = useState<{ water: Row[]; sanitation: Row[] } | null>(null);
   const [contrib, setContrib] = useState<Contrib>(null);   // per-intervention stacked series
   const [error, setError] = useState<string | null>(null);
+  const [borrowingPools, setBorrowingPools] = useState<any[] | null>(null);
 
   // The dataset the user actually filled in. Same asymmetry deckAreas handles above: in national-ENTRY
   // mode the dataset being edited lives in altInputs.national and `inputs` is still the urban primary
@@ -240,11 +242,42 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // ── Fan charts: BAU vs the user's full designed scenario (interventions + customs) ──────────────
   useEffect(() => {
     if (!datasets.length || !datasets[0]) return;
+    setBorrowingPools(null);
     const h = setTimeout(() => {
       Promise.all(datasets.map((inp: any) =>
         fetch('/api/calculate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inp) })
           .then(r => { if (!r.ok) throw new Error('calc failed (' + r.status + ')'); return r.json(); })
       )).then(resList => {
+        // Keep the backend's schedules attached to their source area and sector. Never add pool
+        // metadata or maturity schedules together: matching entity names do not imply shared debt.
+        const poolRecords = resList.flatMap((res: any, areaIndex: number) => {
+          const fallbackArea = datasets.length > 1
+            ? (areaIndex === 0 ? 'Urban' : 'Rural')
+            : geoScope === 'national' ? 'National'
+              : effScope === 'rural' ? 'Rural' : 'Urban';
+          const found: any[] = [];
+          if (Array.isArray(res?.scenario_borrowing_pools)) {
+            res.scenario_borrowing_pools.forEach((pool: any) => found.push({ ...pool, _areaLabel: fallbackArea }));
+          }
+          ([
+            ['water_supply', 'Water Supply'],
+            ['sanitation', 'Sanitation'],
+          ] as const).forEach(([key, sectorName]) => {
+            const pools = res?.[key]?.scenario_borrowing_pools;
+            if (Array.isArray(pools)) pools.forEach((pool: any) => found.push({
+              ...pool, sector: pool.sector || sectorName,
+              _areaLabel: `${fallbackArea}${pool.area ? ` · ${pool.area}` : ''}`,
+            }));
+          });
+          const seen = new Set<string>();
+          return found.filter((pool: any) => {
+            const key = JSON.stringify([pool.area || pool._areaLabel, pool.sector, pool.entity_name, pool.loan_principal, pool.schedule?.years]);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        });
+        setBorrowingPools(poolRecords);
         const years: number[] = resList[0].years;
         const per = datasets[0]?.period || {};
         const baseYr = per.baseline_year ?? years[0];
@@ -441,7 +474,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         };
         setBoth({ water: build('water_supply'), sanitation: build('sanitation') });
         setError(null);
-      }).catch(e => { setBoth(null); setError(String(e)); });
+      }).catch(e => { setBoth(null); setBorrowingPools([]); setError(String(e)); });
     }, 350);
     return () => clearTimeout(h);
   }, [depKey]);
@@ -782,6 +815,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             filename={`${scopeName}_${secKey}_financing_gap`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} />
         </div>
         <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={cur} />
+        <BorrowingPoolsTable pools={borrowingPools} sector={secKey} currency={cur} scope={scopeName} />
         <InterventionOutputTable rows={s.outputRows} years={s.outputYears} currency={cur} sector={secKey} scope={scopeName} />
         {rows && rows.length > 0 && (
           <div style={{ marginTop: 8 }}>

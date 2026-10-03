@@ -4,3 +4,4 @@
 - [Annual target transitions](target-transition-assumptions.md) — population-cohort assumptions identify gross connections and upgrades; retained asset replacement is approximate.
 - [Programme financing timing](programme-financing-timing.md) — reconcile carry once; annual shortfalls, programme requirements, and terminal service gaps are separate.
 - [Intervention accounting](intervention-accounting.md) — agreed sequence, shared collected-revenue attribution, and separation of capital, recurring cash and funded physical benefits.
+- [Borrowing assumptions](borrowing-assumptions.md) — separate entity pools, established cash only, fixed contracts, and explicit reserves and post-horizon conversion assumptions.

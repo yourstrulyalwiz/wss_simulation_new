@@ -7,6 +7,12 @@ export const BORROWING_DEFAULTS = {
   borrow_min_dscr: 1.2,
   borrow_ceiling: 0,
   existing_debt_service: 0,
+  borrow_entity_name: '',
+  borrow_cash_streams: ['collection', 'nrw', 'tariff', 'custom', 'nrw_link'],
+  // Existing scenarios treated this rate as real. New backend defaults are nominal.
+  borrow_rate_basis: 'real',
+  baseline_obligations_known: false,
+  borrow_contract_principal: 0,
 };
 
 export function migrateInputCompatibility(area: any) {

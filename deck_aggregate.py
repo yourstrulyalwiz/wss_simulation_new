@@ -171,6 +171,14 @@ def aggregate(results: List[dict]) -> dict:
         for key, val in (secs[0] or {}).items():
             if key in _DERIVED_SECTOR:
                 continue
+            if key in ('borrowing_pools', 'scenario_borrowing_pools'):
+                # Loan entities and their maturity schedules are records, NOT additive cash.
+                # Equal entity labels never authorise cross-area pooling.
+                agg[key] = [pool for s in secs for pool in (s.get(key) or [])]
+                continue
+            if key in ('loan_end_year', 'scenario_loan_end_year'):
+                agg[key] = max((s.get(key) or 0 for s in secs), default=0) or None
+                continue
             if isinstance(val, list) and val and isinstance(val[0], list):
                 agg[key] = _sum_2d([s.get(key) for s in secs])
             elif isinstance(val, list):

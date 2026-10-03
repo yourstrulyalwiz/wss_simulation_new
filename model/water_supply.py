@@ -250,7 +250,46 @@ def affordability_close(bracket_gap, cost_sm, *, pct_income, interest, tenor, pa
     return mf_hh, grant_hh, grant_spend, mf_loan_volume
 
 
-def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_basic,
+def sector_bau(ctx, **kwargs):
+    """Apply debt/direct-investment allocations to coverage without borrowing against new sales."""
+    first = _sector_bau(ctx, **kwargs)
+    loan = first.pop('_loan_schedule')
+    cash = np.asarray(first['additional_net_utility_cash'])
+    allocated = loan['cash_allocated_to_direct_investment'] + loan['drawdowns']
+    if np.allclose(cash, allocated, atol=1e-10, rtol=0):
+        return first
+    # Target costs and established intervention cash are independent of loan-funded
+    # households. Freeze the contract; rerun only the simulated physical purchases.
+    result = _sector_bau(ctx, **kwargs, _coverage_cash=allocated, _loan_override=loan)
+    result.pop('_loan_schedule')
+    # Other household finance may change with funded coverage. A NEW proposal may
+    # shrink to the revised need, never grow recursively with loan-funded sales.
+    if not loan['is_fixed_contract'] and loan['loan_principal'] > 0:
+        for _ in range(20):
+            ledger = funding_ledger(
+                result['total_investment_need'], result['public_capital'],
+                result['other_capital'], loan['cash_allocated_to_direct_investment'],
+                baseline_index=ctx['bi'])
+            draw = kwargs['borrowing_settings']['drawdown_year']
+            remaining = sum(min(g, req) for y, g, req in zip(
+                ctx['years'], ledger['gap'], result['total_investment_need']) if y >= draw)
+            if loan['loan_principal'] <= remaining + 1e-7:
+                break
+            settings = {**kwargs['borrowing_settings'], 'borrowing_ceiling': remaining}
+            # Zero is the conventional unlimited ceiling, so disable a no-need proposal explicitly.
+            proposal = _sector_bau(ctx, **{**kwargs, 'borrowing_settings': settings,
+                                          'borrowing_enabled': remaining > 1e-9})
+            loan = proposal.pop('_loan_schedule')
+            result = _sector_bau(ctx, **kwargs,
+                                _coverage_cash=loan['cash_allocated_to_direct_investment'] + loan['drawdowns'],
+                                _loan_override=loan)
+            result.pop('_loan_schedule')
+        else:
+            raise ValueError("Borrowing and household financing did not reconcile to remaining investment need.")
+    return result
+
+
+def _sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_basic,
                full_budget, capex_pct, growth_capex_pct, planned_list, nonhh_pct, asset_life, capex_adder,
                hist_all_proportional, target_adjusted, execution_rate=1.0,
                basic_share=0.0, cost_factor_basic=None,
@@ -275,7 +314,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                selffinance_enabled=False, selffinance_share=0.0, connection_fee=0.0,
                financial_enabled=False, injection_enabled=False, financial_settings=None, financial_execution_rate=None,
                borrowing_enabled=False, borrowing_settings=None,
-                extra_cash=None, custom_revenue=None, custom_implementation_capex=None):
+                 extra_cash=None, custom_revenue=None, custom_implementation_capex=None,
+                 _coverage_cash=None, _loan_override=None):
     """Shared 4a-4d core. All HH and money values are in MILLIONS; costs in actual currency.
 
     `full_budget` is the sector's FULL budget per year in real terms, from EITHER %GDP mode
@@ -725,8 +765,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         bau_replacement[t] = bau_stock[t - 1] * depr if ff > 0 else 0.0
         # Public capital and additional net utility cash are distinct sources. Implementation capex is a
         # requirement and is paid before the remaining resources can support new simulated coverage.
+        coverage_cash = (additional_net_utility_cash[t] if _coverage_cash is None else _coverage_cash[t])
         avail = (bau_available[t] + financial_cash[t] + injection_cash[t]
-                 + additional_net_utility_cash[t] - implementation_capex[t])
+                 + coverage_cash - implementation_capex[t])
         available_total[t] = (
             bau_available[t] + financial_cash[t] + injection_cash[t]
             + additional_net_utility_cash[t])
@@ -878,8 +919,22 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     other_capital = mf_loan_flow + grant_spend_flow
     public_capital = bau_available + financial_cash + injection_cash
     bs = borrowing_settings or {}
-    loan = loan_schedule(
-        years, bi, total_need, public_capital, other_capital, additional_net_utility_cash,
+    streams = {
+        'collection': collection_cash, 'tariff': tariff_cash,
+        'nrw': nrw_commercial_cash + nrw_service_cash + nrw_production_savings - nrw_maintenance_cost,
+        'custom': custom_revenue_arr, 'nrw_link': extra_cash_arr,
+    }
+    selected = list(bs.get('cash_streams', streams.keys()))
+    if len(set(selected)) != len(selected) or any(key not in streams for key in selected):
+        raise ValueError("Borrowing eligible cash streams must be unique recognised intervention streams.")
+    eligible_cash = sum((streams[key] for key in selected), np.zeros(n))
+    # Selecting positive receipts must not hide the same entity's negative
+    # intervention cash effects. This changes eligibility, not the cash account:
+    # total utility cash already contains those costs exactly once.
+    eligible_cash += sum((np.minimum(0, value) for key, value in streams.items()
+                          if key not in selected), np.zeros(n))
+    loan = _loan_override if _loan_override is not None else loan_schedule(
+        years, bi, total_need, public_capital, other_capital, eligible_cash,
         float(bs.get('cash_allocation_alpha', 0.0) or 0.0),
         enabled=borrowing_enabled,
         drawdown_year=int(bs.get('drawdown_year', 0) or 0),
@@ -887,7 +942,36 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         term_years=int(bs.get('term_years', 0) or 0),
         minimum_dscr=float(bs.get('minimum_dscr', 1.0) or 1.0),
         borrowing_ceiling=float(bs.get('borrowing_ceiling', 0.0) or 0.0),
-        existing_debt_service=float(bs.get('existing_debt_service', 0.0) or 0.0))
+        existing_debt_service=(float(bs.get('existing_debt_service', 0.0) or 0.0)
+                               if borrowing_enabled else 0.0),
+        total_cash=additional_net_utility_cash,
+        price_index=ctx.get('debt_price_index', np.ones(n)),
+        inflation_rate=float(ctx.get('inflation_local', np.zeros(n))[-1]),
+        rate_basis=bs.get('rate_basis', 'real'),
+        contracted_principal=float(bs.get('contracted_principal', 0.0) or 0.0))
+    sector_name = bs.get('sector', 'water')
+    area_name = ctx.get('borrowing_area', 'Selected area')
+    pool = {
+        'enabled': bool(borrowing_enabled),
+        'entity_name': bs.get('entity_name') or f"{area_name} — {sector_name}",
+        'sector': sector_name, 'area': area_name, 'eligible_streams': selected,
+        'baseline_obligations_known': bool(bs.get('baseline_obligations_known', False)),
+        'capacity_label': ("Incremental estimate with entered baseline obligations; not a full credit assessment."
+                           if bs.get('baseline_obligations_known', False) else
+                           "Incremental estimate conditional on baseline obligations being covered; not a full credit assessment."),
+        'rate_basis': bs.get('rate_basis', 'real'),
+        'loan_principal': loan['loan_principal'], 'loan_end_year': loan['loan_end_year'],
+        'automatic_capacity': loan['automatic_capacity'], 'is_fixed_contract': loan['is_fixed_contract'],
+        'projection_end_year': int(years[-1]),
+        'outstanding_at_projection_end': loan['outstanding_at_projection_end'],
+        'post_horizon_assumption': (
+            "Established intervention cash and entered prior debt service held flat in real terms after "
+            "the projection; local inflation held at its final projected rate. No revenue from loan-funded connections."),
+        'reserve_policy': ("Committed cash exceeds or falls short of scheduled debt service through a separate "
+                           "zero-interest reserve. Reserves pay debt, never direct investment, until released at maturity "
+                           "after obligations. Unpaid interest accrues in outstanding debt; no automatic refinancing."),
+        'schedule': loan['schedule'],
+    }
     ledger = funding_ledger(
         total_need, public_capital, other_capital,
         loan['cash_allocated_to_direct_investment'], baseline_index=bi,
@@ -944,6 +1028,13 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     scenario_service_gap = np.maximum(0.0, service_gap_raw)
 
     return {
+        '_loan_schedule': loan,
+        'borrowing_pools': [pool],
+        'eligible_net_cash': loan['eligible_net_cash'].tolist(),
+        'existing_debt_service_paid': loan['existing_debt_service_paid'].tolist(),
+        'loan_reserve_used': loan['reserve_used'].tolist(),
+        'loan_reserve_release': loan['reserve_release'].tolist(),
+        'loan_debt_service_paid': loan['debt_service_paid'].tolist(),
         'rungs': RUNGS,
         'cost_per_hh': cost_sm,
         'cost_basic': cost_basic,
@@ -1176,6 +1267,9 @@ def calculate_water_supply(inputs, ctx):
             'minimum_dscr': getattr(nrw, 'borrow_min_dscr', 1.0),
             'borrowing_ceiling': getattr(nrw, 'borrow_ceiling', 0.0),
             'existing_debt_service': getattr(nrw, 'existing_debt_service', 0.0),
+            'entity_name': nrw.borrow_entity_name, 'cash_streams': nrw.borrow_cash_streams,
+            'rate_basis': nrw.borrow_rate_basis, 'baseline_obligations_known': nrw.baseline_obligations_known,
+            'contracted_principal': nrw.borrow_contract_principal, 'sector': 'water',
         },
         financial_settings={
             'gdp_enabled': nrw.fin_gdp_enabled, 'gdp_start_year': nrw.fin_gdp_start_year,

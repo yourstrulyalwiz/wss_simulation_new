@@ -174,6 +174,14 @@ def per_year_table(result, inputs, sector_key):
                 'nrw_production_avoided_vol', 'nrw_commercial_recovered_vol', 'nrw_upgrade_hh',
             )],
         ])
+    debt_fields = (
+        'eligible_net_cash', 'additional_net_utility_cash', 'existing_debt_service_paid',
+        'cash_committed_to_debt', 'loan_opening_debt', 'loan_interest', 'loan_principal_paid',
+        'loan_debt_service', 'loan_debt_service_paid', 'loan_closing_debt',
+        'loan_cash_reserve', 'loan_reserve_used', 'loan_reserve_release', 'loan_debt_service_shortfall')
+    headers += [f'{key.replace("_", " ").capitalize()} — scenario ({cur} M, real)' for key in debt_fields]
+    for i, row in enumerate(rows):
+        row += [round(g('scenario_' + key, i, rung0=False), 6) for key in debt_fields]
     return headers, rows
 
 
@@ -213,6 +221,26 @@ def breakdown_table(inputs, sector_key, defs):
 
 
 # ── whole-scenario CSV / XLSX (everything: per-year series + intervention breakdown, both sectors) ───
+def borrowing_tables(result, sector_key, currency):
+    """Preserve each pool, full maturity and assumptions rather than merging loan records."""
+    tables = []
+    for i, pool in enumerate(result[sector_key].get('scenario_borrowing_pools', [])):
+        if not pool.get('enabled') and not pool.get('loan_principal'):
+            continue
+        title = f'{sector_key} loan {i+1}: {pool["entity_name"]} — {pool["area"]}'
+        meta = [[key, ', '.join(value) if isinstance(value, list) else value]
+                for key, value in pool.items() if key != 'schedule']
+        tables.append((title + ' assumptions', ['Assumption', 'Value'], meta))
+        schedule = pool['schedule']
+        keys = [key for key in schedule if key != 'years']
+        headers = ['Year'] + [f'{key.replace("_", " ")} ({currency} M, '
+                               f'{"nominal" if key.startswith("nominal_") else "real"})' for key in keys]
+        rows = [[year] + [schedule[key][j] for key in keys]
+                for j, year in enumerate(schedule['years'])]
+        tables.append((title + ' through maturity', headers, rows))
+    return tables
+
+
 def scenario_csv(inputs):
     result = calculate(coerce_to_engine(inputs))
     out = io.StringIO()
@@ -227,6 +255,11 @@ def scenario_csv(inputs):
         w.writerow([name + ' — order-dependent marginal effects (reconcile to combined scenario)'])
         w.writerow(bh)
         w.writerows(br if br else [['(no interventions enabled)']])
+        for title, headers, rows in borrowing_tables(result, sk, inputs.get('country_config', {}).get('currency', 'LCU')):
+            w.writerow([])
+            w.writerow([title])
+            w.writerow(headers)
+            w.writerows(rows)
         w.writerow([]); w.writerow([])
     out.seek(0)
     return '﻿' + out.getvalue()   # BOM so Excel reads the UTF-8 (em-dashes, currency) correctly
@@ -242,6 +275,10 @@ def scenario_xlsx(inputs):
         _write_sheet(wb, f'{name} — forecast', h, r)
         bh, br = breakdown_table(inputs, sk, WATER_INTV if sk == 'water_supply' else SAN_INTV)
         _write_sheet(wb, f'{name} — interventions', bh, br if br else [['(no interventions enabled)']])
+        for index, (title, headers, rows) in enumerate(borrowing_tables(
+                result, sk, inputs.get('country_config', {}).get('currency', 'LCU'))):
+            _write_sheet(wb, f'{name} loan {index // 2 + 1} {"assumptions" if index % 2 == 0 else "maturity"}',
+                         headers, rows)
     return _save(wb)
 
 

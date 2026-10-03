@@ -121,6 +121,9 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
             'minimum_dscr': getattr(si, 'borrow_min_dscr', 1.0),
             'borrowing_ceiling': getattr(si, 'borrow_ceiling', 0.0),
             'existing_debt_service': getattr(si, 'existing_debt_service', 0.0),
+            'entity_name': si.borrow_entity_name, 'cash_streams': si.borrow_cash_streams,
+            'rate_basis': si.borrow_rate_basis, 'baseline_obligations_known': si.baseline_obligations_known,
+            'contracted_principal': si.borrow_contract_principal, 'sector': 'sanitation',
         },
         financial_settings={
             'gdp_enabled': si.fin_gdp_enabled, 'gdp_start_year': si.fin_gdp_start_year,

@@ -776,7 +776,16 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
           <span style={gFieldLbl}>Targets:</span> A complete future service-level column sets a milestone. Target shares are multiplied by projected households in that year. The annual target path follows a constant household-count growth rate between the baseline and successive milestones, with the zero-category rules explained in the Service levels Guide.
         </div>
         <div style={gFieldWrap}>
-          <span style={gFieldLbl}>Financing gap:</span> Annual target investment need minus available financing, floored at zero. Target need includes scheduled new connections and upgrades, replacement of existing target-path assets, and implementation costs. It is separate from simulated coverage and does not repeatedly price the outstanding coverage gap.
+          <span style={gFieldLbl}>Financing gap:</span> Annual target investment need minus available financing, floored at zero. Target need includes scheduled new connections and upgrades, replacement of existing target-path assets, and separately identified implementation costs. NRW rehabilitation is an implementation cost; the household upgrades it enables are already priced in the target programme and are not added again as implementation costs. Need is separate from simulated coverage and does not repeatedly price the outstanding coverage gap.
+        </div>
+        <div style={gFieldWrap}>
+          <span style={gFieldLbl}>Available investment financing:</span> Usable public capital + other eligible capital (including household microfinance and grants) + direct internal reinvestment + loan drawdowns + opening carried investment cash. Components are added once. Cash reserved for debt service is not also available for direct investment. Financing used to simulate coverage is not subtracted from target requirements; the financing gap is calculated against the independently scheduled programme.
+        </div>
+        <div style={gFieldWrap}>
+          <span style={gFieldLbl}>Surplus cash and reconciliation:</span> The programme starts with zero carried cash. Closing cash = max(0, opening cash + new financing − required investment); this becomes next year's opening cash, without interest. Opening cash + new financing + any unfunded net cash outflow = financing applied + closing cash. Signed negative cash flows reduce available financing; any deficit is separately reported. Cumulative new financing excludes opening carry, so the same cash is not counted again as a new receipt each year.
+        </div>
+        <div style={gFieldWrap}>
+          <span style={gFieldLbl}>Annual, cumulative, and terminal results:</span> Annual financing shortfalls compare each year's scheduled requirement with financing available that year. Cumulative programme requirements sum expansion/upgrades, replacement, and implementation costs once over forecast years. Cumulative shortfalls sum the annual financing gaps; later surpluses do not retroactively erase earlier shortfalls or automatically reschedule missed investment. Terminal service gaps compare target with simulated coverage in the final year, floored at zero for unmet-coverage display. They are household snapshots, not additional investment requirements.
         </div>
       </div>
     ),

@@ -2,3 +2,4 @@
 - [Service-level gap attribution](service-level-gap-attribution.md) — replacement follows each service level's asset obligations; the budget split is only for new service.
 - [Forward-looking scenario scope](scenario-scope.md) — exclude delivery monitoring and catch-up replanning; preserve inputs, scenarios and exports before accounting work.
 - [Annual target transitions](target-transition-assumptions.md) — population-cohort assumptions identify gross connections and upgrades; retained asset replacement is approximate.
+- [Programme financing timing](programme-financing-timing.md) — reconcile carry once; annual shortfalls, programme requirements, and terminal service gaps are separate.

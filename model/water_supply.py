@@ -607,8 +607,11 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                 nrw_maintenance_cost[t] = max(0.0, nrw_maintenance_annual) / 1_000_000.0
             nrw_net[t] = (
                 nrw_commercial_cash[t] + nrw_production_savings[t] - nrw_maintenance_cost[t])
-    implementation_capex = (
-        nrw_implementation + nrw_service_upgrade_capex + custom_implementation_arr)
+    # NRW rehabilitation enables the programme and is a distinct implementation cost.
+    # NRW-enabled household upgrades are already priced in scheduled target expansion.
+    # Their simulated-path purchase cost must not be added a second time to target need.
+    implementation_capex = nrw_implementation + custom_implementation_arr
+    simulated_implementation_and_upgrade_capex = implementation_capex + nrw_service_upgrade_capex
     additional_net_utility_cash = (
         shared_revenue_cash + nrw_net + extra_cash_arr + custom_revenue_arr)
 
@@ -697,7 +700,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # Public capital and additional net utility cash are distinct sources. Implementation capex is a
         # requirement and is paid before the remaining resources can support new simulated coverage.
         avail = (bau_available[t] + financial_cash[t] + injection_cash[t]
-                 + additional_net_utility_cash[t] - implementation_capex[t])
+                 + additional_net_utility_cash[t] - simulated_implementation_and_upgrade_capex[t])
         available_total[t] = (
             bau_available[t] + financial_cash[t] + injection_cash[t]
             + additional_net_utility_cash[t])
@@ -851,8 +854,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         existing_debt_service=float(bs.get('existing_debt_service', 0.0) or 0.0))
     ledger = funding_ledger(
         total_need, public_capital, other_capital,
-        loan['cash_allocated_to_direct_investment'], explicit_public=loan['drawdowns'],
-        baseline_index=bi)
+        loan['cash_allocated_to_direct_investment'], baseline_index=bi,
+        loan_drawdowns=loan['drawdowns'])
     available_total = ledger['available']
     financing_gap = ledger['gap']
     cumulative_requirement = ledger['cumulative_requirement']
@@ -877,7 +880,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         funded_by_service[0, t] = sm_paid
         funded_by_service[1, t] = basic_paid
 
-    scenario_service_gap = np.maximum(0.0, tgt - bau)
+    service_gap_raw = tgt - bau
+    scenario_service_gap = np.maximum(0.0, service_gap_raw)
 
     return {
         'rungs': RUNGS,
@@ -913,6 +917,15 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'available_before_borrowing': ledger['available_before_explicit_public'].tolist(),
         'financing_gap_before_borrowing': ledger['gap_before_explicit_public'].tolist(),
         'cash_carry_forward': ledger['cash_carry_forward'].tolist(),
+        'cash_opening': ledger['opening_cash'].tolist(),
+        'current_year_financing': ledger['fresh_financing'].tolist(),
+        'funded_investment': ledger['financing_applied'].tolist(),
+        'financing_cash_deficit': ledger['financing_cash_deficit'].tolist(),
+        'cash_drawn_from_carry': ledger['cash_drawn_from_carry'].tolist(),
+        'cash_added_to_carry': ledger['cash_added_to_carry'].tolist(),
+        'cumulative_new_financing': ledger['cumulative_new_financing'].tolist(),
+        'cumulative_financing_applied': ledger['cumulative_financing_applied'].tolist(),
+        'cash_carry_policy': 'Zero opening programme cash; unused financing carried forward without interest; no retroactive offset of annual shortfalls; no automatic backlog rescheduling.',
         'financial_commitment_cash': financial_cash.tolist(),  # GDP target + annual growth
         'exogenous_injection_cash': injection_cash.tolist(),   # separately attributable effective capex
         'nrw_net': nrw_net.tolist(),
@@ -968,6 +981,12 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'household_gap': hh_gap.tolist(),
         'household_gap_basic': hh_gap_basic.tolist(),
         'scenario_service_gap': scenario_service_gap.tolist(),
+        'service_gap_raw': service_gap_raw.tolist(),
+        'service_gap_display': scenario_service_gap.tolist(),
+        'terminal_service_gap': service_gap_raw[:, -1].tolist(),
+        'terminal_unmet_service_gap': scenario_service_gap[:, -1].tolist(),
+        'programme_investment_requirement': float(cumulative_requirement[-1]),
+        'programme_financing_shortfall': float(cumulative_financing_gap[-1]),
         'new_capex_total': new_capex_total.tolist(),
         'new_capex_by_service': new_capex_by_service.tolist(),
         'implementation_capex_by_service': implementation_by_service.tolist(),

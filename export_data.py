@@ -84,6 +84,24 @@ def per_year_table(result, inputs, sector_key):
         f'Target asset transfer, basic to safely managed — scenario costs ({cur} M)',
         f'Simulated BAU asset stock ({cur} M)',
         f'Simulated intervention asset stock ({cur} M)',
+        f'Implementation capex — scenario ({cur} M)',
+        f'Required investment — scenario ({cur} M)',
+        f'Usable public capital — scenario ({cur} M)',
+        f'Other eligible capital — scenario ({cur} M)',
+        f'Direct internal reinvestment — scenario ({cur} M)',
+        f'Loan drawdowns — scenario ({cur} M)',
+        f'New financing received — scenario, excludes carry ({cur} M)',
+        f'Opening carried investment cash — scenario ({cur} M)',
+        f'Total available investment financing — scenario, includes opening cash ({cur} M)',
+        f'Financing applied — scenario ({cur} M)',
+        f'Closing carried investment cash — scenario ({cur} M)',
+        f'Unfunded net cash outflows — scenario ({cur} M)',
+        f'Cumulative programme investment requirement — scenario, to year ({cur} M)',
+        f'Cumulative annual financing shortfalls — scenario, to year ({cur} M)',
+        f'Cumulative new financing — scenario, excludes repeated carry ({cur} M)',
+        'Scenario safely-managed service gap, signed (M HH)',
+        'Scenario safely-managed unmet coverage (M HH)',
+        'Scenario basic unmet coverage (M HH)',
     ]
     rows = []
     for i, y in enumerate(years):
@@ -110,6 +128,16 @@ def per_year_table(result, inputs, sector_key):
             round(g('scenario_target_asset_transfer_to_sm', i, rung0=False), 4),
             round(g('bau_asset_stock', i, rung0=False), 4),
             round(g('scenario_bau_asset_stock', i, rung0=False), 4),
+            *[round(g(f'scenario_{key}', i, rung0=False), 4) for key in (
+                'implementation_capex', 'total_investment_need', 'public_capital', 'other_capital',
+                'cash_allocated_to_direct_investment', 'loan_drawdown', 'current_year_financing',
+                'cash_opening', 'available_total', 'funded_investment', 'cash_carry_forward',
+                'financing_cash_deficit', 'cumulative_investment_requirement',
+                'cumulative_financing_gap', 'cumulative_new_financing',
+            )],
+            round(g('scenario_service_gap_raw', i), 6),
+            round(g('scenario_service_gap_display', i), 6),
+            round((sec.get('scenario_service_gap_display') or [[], []])[1][i], 6),
         ])
     return headers, rows
 

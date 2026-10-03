@@ -12,6 +12,7 @@ import TableExport from './TableExport';
 import { captureImage } from './exportUtils';
 import BasicCoverageChart, { type BasicCoverageRow } from './BasicCoverageChart';
 import ScenarioGapTables, { type FinanceYear } from './ScenarioGapTables';
+import { closingCashAtPeriodEnd, cumulativeAnnualFlow } from '../programmeFinance';
 
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
 function round3(v: number): number { return (!isFinite(v) || v === 0) ? 0 : Number(v.toPrecision(3)); }
@@ -219,7 +220,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const scnGap = sum((r, i) => (secOf(r).scenario_financing_gap || [])[i] || 0);
           const tEnd = totalHH[endIdx] || 0;
           const covPct = (a: number[]) => tEnd > 0 ? Math.min(tEnd, a[endIdx]) / tEnd : 0;
-          const cumGap = (a: number[]) => years.reduce((s2, y, i) => s2 + (y > baseYr ? (a[i] || 0) : 0), 0);
+          const cumGap = (a: number[]) => cumulativeAnnualFlow(a, years, baseYr);
           // Current (baseline-year) safely-managed coverage — BAU at the baseline = the actual.
           const baseIdx = Math.max(0, years.indexOf(baseYr));
           const tBase = totalHH[baseIdx] || 0;
@@ -228,6 +229,10 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const newCap = sum((r, i) => secOf(r).new_capex_total?.[i] || 0);
           const repl = sum((r, i) => secOf(r).replacement_capex?.[i] || 0);
           const totNeed = sum((r, i) => secOf(r).total_investment_need?.[i] || 0);
+          const impl = sum((r, i) => secOf(r).implementation_capex?.[i] || 0);
+          const freshBau = sum((r, i) => secOf(r).current_year_financing[i]);
+          const appliedBau = sum((r, i) => secOf(r).funded_investment[i]);
+          const closingBau = sum((r, i) => secOf(r).cash_carry_forward[i]);
           const bauInv = sum((r, i) => secOf(r).bau_available?.[i] || 0);
           const scnInv = sum((r, i) => secOf(r).scenario_available_total[i]);
           const loanCum = sum((r, i) => secOf(r).scenario_mf_loan_volume[i]);
@@ -251,6 +256,15 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const financeRows: FinanceYear[] = years.flatMap((year, i) => year <= baseYr ? [] : [{
             year, total: totalHH[i], bauAvailable: bauInv[i], scenarioAvailable: scnInv[i],
             scenarioNeed: scenarioField('total_investment_need', i),
+            publicCapital: scenarioField('public_capital', i),
+            otherCapital: scenarioField('other_capital', i),
+            newFinancing: scenarioField('current_year_financing', i),
+            openingCash: scenarioField('cash_opening', i),
+            closingCash: scenarioField('cash_carry_forward', i),
+            financingApplied: scenarioField('funded_investment', i),
+            cashDeficit: scenarioField('financing_cash_deficit', i),
+            cumulativeNeed: scenarioField('cumulative_investment_requirement', i),
+            cumulativeShortfall: scenarioField('cumulative_financing_gap', i),
             implementationCapex: scenarioField('implementation_capex', i),
             utilityCashDirect: scenarioField('cash_allocated_to_direct_investment', i),
             utilityCashCommitted: scenarioField('cash_committed_to_debt', i),
@@ -273,17 +287,25 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const invRow = (label: string, arr: number[], strong = false) =>
             ({ label, strong, vals: periods.map(p => sumRange(arr, years, p.lo, p.hi) / 1000) });
           const inv: InvTable = { periods, rows: [
-            invRow('Investment for new households (A)', newCap),
-            invRow('Replacement capex (B)', repl),
-            invRow('Total investment need (C = A + B)', totNeed, true),
-            invRow('BAU investment (D)', bauInv),
-            invRow('Financing gap (C − D)', bauGap, true),
+            invRow('Expansion and upgrades (A)', newCap),
+            invRow('Replacement allowance, approximate (B)', repl),
+            invRow('Implementation capex (C)', impl),
+            invRow('Programme investment requirement (A + B + C)', totNeed, true),
+            invRow('New financing received (excludes carry)', freshBau),
+            invRow('Financing applied to annual requirements', appliedBau),
+            { label: 'Closing investment cash (period-end balance)',
+              vals: periods.map(p => closingCashAtPeriodEnd(closingBau, years, p.lo, p.hi) / 1000) },
+            invRow('Sum of annual financing shortfalls', bauGap, true),
           ] };
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
           return { inv, unit, basicRows, financeRows, sum: {
             endline: years[endIdx], curCov, bauCov: covPct(bau), scnCov: covPct(scn), tgtCov: covPct(tgt),
             addHH: Math.max(0, Math.min(tEnd, scn[endIdx]) - Math.min(tEnd, bau[endIdx])),
             gapBauCum: cumGap(bauGap), gapScnCum: cumGap(scnGap),
+            requirementBau: cumGap(totNeed),
+            requirementScenario: cumGap(sum((r, i) => secOf(r).scenario_total_investment_need[i])),
+            unmetSm: Math.max(0, tgt[endIdx] - scn[endIdx]),
+            unmetBasic: Math.max(0, basicTgt[endIdx] - basicScn[endIdx]),
           } };
         };
         setBoth({ water: build('water_supply'), sanitation: build('sanitation') });
@@ -598,7 +620,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <span style={{ fontSize: 11, color: '#64748b' }}>· {scopeName}</span>
         </div>
         <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '3px solid #0ea5e9', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55, marginBottom: 12 }}>
-          <b>By {s.sum.endline}</b>, safely-managed coverage increases from <b>{pct(s.sum.bauCov)}</b> (BAU) to <b>{pct(s.sum.scnCov)}</b> with the current interventions — <b>{sig3(s.sum.addHH)} M</b> more households — against a target of <b>{pct(s.sum.tgtCov)}</b>. The cumulative financing gap narrows from <b>{sigB(s.sum.gapBauCum)}</b> to <b>{sigB(s.sum.gapScnCum)} B {cur}</b>.
+          <b>By {s.sum.endline}</b>, safely-managed coverage increases from <b>{pct(s.sum.bauCov)}</b> (BAU) to <b>{pct(s.sum.scnCov)}</b> with the current interventions — <b>{sig3(s.sum.addHH)} M</b> more households — against a target of <b>{pct(s.sum.tgtCov)}</b>.
+          <br />Cumulative programme investment requirement: <b>{sigB(s.sum.requirementBau)} B {cur}</b> (BAU costs) and <b>{sigB(s.sum.requirementScenario)} B {cur}</b> (scenario costs). Sum of annual financing shortfalls: <b>{sigB(s.sum.gapBauCum)} B {cur}</b> (BAU) and <b>{sigB(s.sum.gapScnCum)} B {cur}</b> (scenario).
+          <br />Terminal unmet coverage in {s.sum.endline}: <b>{sig3(s.sum.unmetSm)} M</b> Safely Managed households and <b>{sig3(s.sum.unmetBasic)} M</b> Basic households (exclusive categories). These are coverage snapshots, not additional investment requirements.
         </div>
         {noImpact && (
           <div style={{ fontSize: 10.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '5px 9px', marginBottom: 10 }}>

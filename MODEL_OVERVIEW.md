@@ -213,7 +213,39 @@ Replacement spends money to maintain capacity, not to create additional stock.
 
 Available financing counts public capital, other capital, directly reinvested utility cash, loan
 proceeds, and prior positive cash carry once. Unfunded requirements do not become additional asset
-stock or automatic catch-up obligations. Cumulative need and gap sum the annual amounts.
+stock or automatic catch-up obligations. Required investment is established before and independently
+of resource-constrained coverage; financing is not spent to reduce a coverage backlog and then
+subtracted again from a costed remaining backlog.
+
+```
+new_financing[t] = usable_public_capital[t] + other_eligible_capital[t]
+                 + direct_internal_reinvestment[t] + loan_drawdowns[t]
+opening_cash[t] = closing_cash[t-1]                  # starts at zero
+available_financing[t] = opening_cash[t] + new_financing[t]
+financing_applied[t] = min(investment_need[t], max(0, available_financing[t]))
+closing_cash[t] = max(0, available_financing[t] - investment_need[t])
+unfunded_net_cash_outflows[t] = max(0, -available_financing[t])
+opening_cash[t] + new_financing[t] + unfunded_net_cash_outflows[t]
+    = financing_applied[t] + closing_cash[t]
+```
+
+Unrestricted unused investment financing is carried forward without interest. Sources are counted
+on receipt; opening cash is not a new receipt. Debt-service reserves remain separate from investment
+cash until explicitly released to direct reinvestment. Signed negative net flows reduce financing
+and their unfunded portion is separately identified, rather than creating negative closing cash.
+Periods sum new financing flows but report only the final closing cash balance, never a sum of cash
+snapshots. Cumulative new financing minus cumulative financing applied, plus cumulative unfunded net
+cash outflows, equals closing cash.
+
+Cumulative programme requirements sum scheduled forecast-year costs once. Cumulative annual
+shortfalls sum `max(0, investment_need[t] - available_financing[t])`; later-year surpluses do not
+retroactively cancel earlier shortfalls, and earlier gaps are not added to later requirements.
+Terminal service gaps are the final-year signed target-minus-simulated household differences,
+with unmet coverage floored at zero for display. They are not financing requirements.
+
+NRW rehabilitation and custom intervention implementation are separately identified programme
+capex. NRW-enabled household upgrades are already included in scheduled target connection/upgrade
+costs: their simulated-path purchase diagnostic is not added again to programme implementation.
 
 `non-HH multiplier = non-HH% / (1 − non-HH%)` grosses the household investment up to include the
 non-household share of the system. The `capex_adder` is a small water-treatment allowance derived

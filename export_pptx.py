@@ -54,6 +54,9 @@ def _sector_summary(result, inputs, sk):
         'end': years[e], 'curCov': cov(bau, bi), 'bauCov': cov(bau, e), 'scnCov': cov(scn, e), 'tgtCov': cov(tgt, e),
         'addHH': max(0.0, (min(total[e], scn[e]) - min(total[e], bau[e]))),
         'gapBau': cum(sec.get('financing_gap') or []), 'gapScn': cum(sec.get('scenario_financing_gap') or []),
+        'programmeNeed': cum(sec['scenario_total_investment_need']),
+        'unmetSm': max(0, tgt[e] - scn[e]),
+        'unmetBasic': max(0, sec['target_hh'][1][e] - sec['scenario_hh'][1][e]),
     }
 
 
@@ -195,7 +198,8 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None) -> io.By
             set_p(tf.paragraphs[0], 'No interventions enabled for this sector.', 12, GREY)
         tf = textbox(s, 8.3, 6.2, 4.7, 1.0)
         red = (1 - d['gapScn'] / d['gapBau']) * 100 if d['gapBau'] else 0
-        set_p(tf.paragraphs[0], f'Cumulative gap: {_b(d["gapBau"])} → {_b(d["gapScn"])} B {cur} ({red:.0f}% lower).', 11.5, INK, bold=True)
+        set_p(tf.paragraphs[0], f'Sum of annual shortfalls: {_b(d["gapBau"])} → {_b(d["gapScn"])} B {cur}.', 11, INK, bold=True)
+        set_p(tf.add_paragraph(), f'Programme requirement: {_b(d["programmeNeed"])} B {cur}. Terminal unmet coverage: SM {d["unmetSm"]:.2f} M, Basic {d["unmetBasic"]:.2f} M HH.', 10.5, INK)
 
     output = io.BytesIO()
     prs.save(output)

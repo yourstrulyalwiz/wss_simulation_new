@@ -197,37 +197,72 @@ def annual_asset_requirements(expansion, opening_assets, replacement_rate, basel
 
 
 def funding_ledger(requirement, public_capital, other_capital, direct_cash, explicit_public=None,
-                   baseline_index=0):
+                   baseline_index=0, *, loan_drawdowns=None):
     """Fund each year's requirement once; carry only positive cash surpluses forward.
 
     Negative resource flows remain signed and reduce that year's available financing.
-    Repeated financing-gap snapshots are not rolled into later years.
+    Repeated financing-gap snapshots are not rolled into later years. Closing cash is
+    the next year's opening cash, not a new receipt. Surpluses earn no interest and
+    never retroactively offset earlier annual shortfalls. Opening programme cash is zero.
+    ``explicit_public`` is the legacy alias for the separately identified loan drawdowns.
     """
     need = np.asarray(requirement, dtype=float)
     n = len(need)
-    public = np.resize(np.asarray(public_capital, dtype=float), n)
-    other = np.resize(np.asarray(other_capital, dtype=float), n)
-    direct = np.resize(np.asarray(direct_cash, dtype=float), n)
-    explicit = np.zeros(n) if explicit_public is None else np.resize(np.asarray(explicit_public, dtype=float), n)
+    def annual(values):
+        arr = np.asarray(values, dtype=float)
+        if arr.ndim != 1 or len(arr) != n or not np.all(np.isfinite(arr)):
+            raise ValueError("Financing ledgers require one finite value per model year.")
+        return arr
+    need = annual(need)
+    if np.any(need < 0):
+        raise ValueError("Scheduled investment requirements cannot be negative.")
+    public, other, direct = map(annual, (public_capital, other_capital, direct_cash))
+    if explicit_public is not None and loan_drawdowns is not None:
+        raise ValueError("Supply loan drawdowns once, not also through the legacy alias.")
+    draws = loan_drawdowns if loan_drawdowns is not None else explicit_public
+    explicit = np.zeros(n) if draws is None else annual(draws)
     carry = np.zeros(n)
+    opening_cash = np.zeros(n)
+    fresh = np.zeros(n)
+    funded = np.zeros(n)
+    cash_deficit = np.zeros(n)
+    carry_drawn = np.zeros(n)
+    carry_added = np.zeros(n)
     available_before_explicit = np.zeros(n)
     available = np.zeros(n)
     gap_before_explicit = np.zeros(n)
     gap = np.zeros(n)
-    for t in range(max(0, baseline_index + 1), n):
+    first = max(0, baseline_index + 1)
+    programme_need = need.copy()
+    programme_need[:first] = 0
+    for t in range(first, n):
         opening = carry[t - 1] if t > 0 else 0.0
+        opening_cash[t] = opening
+        fresh[t] = public[t] + other[t] + direct[t] + explicit[t]
         available_before_explicit[t] = public[t] + other[t] + direct[t] + opening
         gap_before_explicit[t] = max(0.0, need[t] - available_before_explicit[t])
         available[t] = available_before_explicit[t] + explicit[t]
         gap[t] = max(0.0, need[t] - available[t])
         carry[t] = max(0.0, available[t] - need[t])
+        funded[t] = min(need[t], max(0.0, available[t]))
+        cash_deficit[t] = max(0.0, -available[t])
+        carry_drawn[t] = min(opening, max(0.0, need[t] - fresh[t]))
+        carry_added[t] = max(0.0, fresh[t] - need[t])
     return {
         "available_before_explicit_public": available_before_explicit,
         "available": available,
         "gap_before_explicit_public": gap_before_explicit,
         "gap": gap,
         "cash_carry_forward": carry,
-        "cumulative_requirement": np.cumsum(need),
+        "opening_cash": opening_cash,
+        "fresh_financing": fresh,
+        "financing_applied": funded,
+        "financing_cash_deficit": cash_deficit,
+        "cash_drawn_from_carry": carry_drawn,
+        "cash_added_to_carry": carry_added,
+        "cumulative_new_financing": np.cumsum(fresh),
+        "cumulative_financing_applied": np.cumsum(funded),
+        "cumulative_requirement": np.cumsum(programme_need),
         "cumulative_gap": np.cumsum(gap),
     }
 

@@ -298,6 +298,17 @@ investment charge. Replacement is a simplified annual allowance on the prior sch
 value, not additional capacity. This approximation retains assets and does not model retirements,
 asset-age cohorts, or reuse of spare capacity.
 
+Available investment financing adds usable public capital, other eligible capital, direct internal
+reinvestment, loan drawdowns, and opening carried investment cash once. Requirement remains the
+scheduled target programme, not the cost of whatever coverage backlog remains after simulated
+spending. Unused cash becomes next year's opening balance, without interest; new-financing totals
+exclude that opening balance. Opening cash plus new financing (plus any separately reported
+unfunded net cash outflows) equals financing applied plus closing cash. Closing cash is a stock and
+is not summed across years. Later surpluses do not retroactively erase earlier annual shortfalls
+or automatically reschedule missed investment. Cumulative programme requirements sum scheduled
+annual costs; cumulative shortfalls sum annual financing gaps. Terminal service gaps are final-year
+household snapshots and are reported separately, not costed again as investment requirements.
+
 Projected BAU and intervention financing determines simulated coverage independently. Subtracting
 available financing from annual target investment need gives the financing gap, floored at zero.
 Positive unused cash can be carried forward; missed investments are not automatically rescheduled.

@@ -782,6 +782,12 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
           <span style={gFieldLbl}>Available investment financing:</span> Usable public capital + other eligible capital (including household microfinance and grants) + direct internal reinvestment + loan drawdowns + opening carried investment cash. Components are added once. Cash reserved for debt service is not also available for direct investment. Financing used to simulate coverage is not subtracted from target requirements; the financing gap is calculated against the independently scheduled programme.
         </div>
         <div style={gFieldWrap}>
+          <span style={gFieldLbl}>Additional public financing requirement:</span> This is an output, not an automatic government source. The “before” residual independently reconciles the annual programme with other scenario financing held fixed (including direct utility cash and loans), using a separate zero-opening-carry calculation. Explicit public commitments and injections are then applied as capital only; “after” is the residual that remains. Capital contributions are not cash for debt service.
+        </div>
+        <div style={gFieldWrap}>
+          <span style={gFieldLbl}>Intervention sequence:</span> Budget execution releases more of the allocated capital budget; collection, NRW and tariffs affect recurring utility cash or savings; capex and technology improvements reduce investment costs. Additional options and custom interventions follow, then borrowing, then explicitly entered public capital.
+        </div>
+        <div style={gFieldWrap}>
           <span style={gFieldLbl}>Surplus cash and reconciliation:</span> The programme starts with zero carried cash. Closing cash = max(0, opening cash + new financing − required investment); this becomes next year's opening cash, without interest. Opening cash + new financing + any unfunded net cash outflow = financing applied + closing cash. Signed negative cash flows reduce available financing; any deficit is separately reported. Cumulative new financing excludes opening carry, so the same cash is not counted again as a new receipt each year.
         </div>
         <div style={gFieldWrap}>
@@ -966,6 +972,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
       <div>
         <p style={{ margin: '0 0 6px' }}>Each intervention has its own guide card below. Open an intervention on the left (▾ <strong>Show</strong>) or the sector toggle to jump to its guidance here.</p>
         <p style={{ margin: 0 }}><strong>How to use:</strong> tick an intervention's checkbox to switch it on (this adds it to the impact graph); click <strong>▾ Show</strong> to open its parameters and <strong>▴ Hide</strong> to collapse. The checkbox and the Show/Hide dropdown are independent — you can review parameters without enabling the intervention.</p>
+        <p style={{ margin: '6px 0 0' }}><strong>Calculation order:</strong> budget execution releases allocated capital; collection and NRW generate recurring cash or savings; capex efficiency and technology reduce investment costs. Tariff, microfinance and custom options follow, then borrowing and explicit public capital. Public commitments and injections are capital sources, not debt-service cash.</p>
       </div>
     ),
   },
@@ -993,6 +1000,18 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     title: 'Water · Tariff reform',
     content: 'Raises the tariff linearly from current to target over the start→target years; the extra revenue (billed volume × tariff rise) funds new service.',
   },
+  ws_borrowing: {
+    title: 'Water · Borrowing and cash allocation',
+    content: 'Borrowing is assessed after operational revenue, cost changes, tariffs, microfinance and custom interventions. Loan proceeds are capital financing; eligible utility cash reserved for debt service is not also counted as direct investment. Borrowing changes debt-service cash and is not a public contribution.',
+  },
+  ws_financial_commitment: {
+    title: 'Water · Public financial commitments',
+    content: 'Set an explicit additional public commitment using the GDP target and/or annual growth options. This is an entered capital source, not a debt-service cash flow. The residual public financing requirement is calculated separately after holding other scenario financing fixed; it is not automatically closed by this control.',
+  },
+  ws_exogenous_injection: {
+    title: 'Water · Public exogenous injection',
+    content: 'Enter an explicit one-time or recurring public capital injection. It is included only when enabled and is reported separately from the remaining public financing requirement. Capital injections do not service debt.',
+  },
   ws_microfinance: {
     title: 'Water · Microfinance',
     content: (
@@ -1012,6 +1031,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
       <div>
         <p style={{ margin: '0 0 6px' }}>Each intervention has its own guide card below. Open an intervention on the left (▾ <strong>Show</strong>) or the sector toggle to jump to its guidance here.</p>
         <p style={{ margin: 0 }}><strong>How to use:</strong> tick an intervention's checkbox to switch it on (this adds it to the impact graph); click <strong>▾ Show</strong> to open its parameters and <strong>▴ Hide</strong> to collapse. The checkbox and the Show/Hide dropdown are independent.</p>
+        <p style={{ margin: '6px 0 0' }}><strong>Calculation order:</strong> execution, collection and NRW-linked utility cash, capex efficiency and technology, then tariff, microfinance and custom options. Borrowing follows, with explicit public capital last. The public residual remains an output unless you enter and enable a contribution.</p>
       </div>
     ),
   },
@@ -1034,6 +1054,18 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
   san_nrw_link: {
     title: 'Sanitation · NRW-linked revenue',
     content: 'Links to the Water Supply → NRW reduction lever. The physical water that lever recovers returns to the sewer as wastewater the utility can charge for; set the return-to-sewer ratio, the sewer charge (per m³) and the collection rate, and the collected revenue funds new safely-managed sanitation service. It has no effect unless NRW reduction is switched on in the water supply interventions.',
+  },
+  san_borrowing: {
+    title: 'Sanitation · Borrowing and cash allocation',
+    content: 'Sanitation borrowing follows the operating, capex, tariff and custom interventions. Drawdowns are loan capital; debt service uses eligible utility cash that is kept separate from direct reinvestment.',
+  },
+  san_financial_commitment: {
+    title: 'Sanitation · Public financial commitments',
+    content: 'Use the GDP target and/or annual growth controls to enter an explicit additional public commitment. It is a capital source, not debt-service cash; residual public financing is shown as an output and is not automatically provided.',
+  },
+  san_exogenous_injection: {
+    title: 'Sanitation · Public exogenous injection',
+    content: 'Enter an explicit one-time or recurring public capital injection. It is counted only when enabled and reported separately from the residual requirement. Capital injection is not cash reserved to service debt.',
   },
   san_tariff: {
     title: 'Sanitation · Tariff reform',
@@ -1077,9 +1109,9 @@ const guideKeysByTab: Record<number, string[]> = {
   // Intervention Design — one card per intervention, grouped by sector. DataGuide filters this list to
   // the active sector (ws_* on water, san_* on sanitation) plus the shared custom-interventions card.
   2: [
-    'ws_interventions', 'ws_ce', 'ws_nrw', 'ws_budget_exec', 'ws_capex_eff', 'ws_techmix', 'ws_tariff', 'ws_microfinance',
-    'san_interventions', 'san_ce', 'san_budget_exec', 'san_capex_eff', 'san_techmix', 'san_nrw_link', 'san_tariff', 'san_microfinance',
-    'custom_interventions',
+    'ws_interventions', 'ws_budget_exec', 'ws_ce', 'ws_nrw', 'ws_capex_eff', 'ws_techmix', 'ws_tariff', 'ws_microfinance',
+    'san_interventions', 'san_budget_exec', 'san_ce', 'san_nrw_link', 'san_capex_eff', 'san_techmix', 'san_tariff', 'san_microfinance',
+    'custom_interventions', 'ws_borrowing', 'san_borrowing', 'ws_financial_commitment', 'san_financial_commitment', 'ws_exogenous_injection', 'san_exogenous_injection',
   ],
 };
 

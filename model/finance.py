@@ -5,6 +5,28 @@ from __future__ import annotations
 import numpy as np
 
 
+def intervention_output(n, *, revenue=None, savings=None, operating_costs=None,
+                        implementation=None, physical=None, unit_costs=None):
+    """Common annual output contract; money is LC millions, physical quantities carry named units.
+
+    Cost factors are adjustments, not recurring cash. Cash sources only enter the
+    utility ledger as revenue + operating savings - recurring operating costs.
+    """
+    def values(arr):
+        out = np.zeros(n) if arr is None else np.asarray(arr, dtype=float)
+        if out.shape != (n,) or not np.all(np.isfinite(out)):
+            raise ValueError("Intervention outputs require one finite value per model year.")
+        return out.tolist()
+    return {
+        "additional_collected_revenue": values(revenue),
+        "recurring_operating_savings": values(savings),
+        "recurring_operating_costs": values(operating_costs),
+        "implementation_capex": values(implementation),
+        "physical_service_benefits": {key: values(arr) for key, arr in (physical or {}).items()},
+        "unit_cost_adjustments": {key: values(arr) for key, arr in (unit_costs or {}).items()},
+    }
+
+
 def target_household_trajectory(years, households, baseline_counts, baseline_index, milestones):
     """Interpolate fixed milestone counts, preserving count-CAGR where it is defined.
 

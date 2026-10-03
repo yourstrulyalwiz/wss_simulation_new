@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 from deck_aggregate import aggregate, run_areas
 from demo_adapter import coerce_to_engine, financial_toggles
 from model.engine import calculate
+from model.intervention_order import ordered
 
 # Per-intervention definitions, mirroring the Results dashboard exactly — same labels, same colours,
 # same order (the order is load-bearing: attribution is marginal and cumulative, so a lever's measured
@@ -45,6 +46,10 @@ SAN_INTV = [
 INTV = {'water_supply': WATER_INTV, 'sanitation': SAN_INTV}
 CUSTOM_COLOR = 'ae4f0e'
 BAU_COLOR = '2563eb'
+WATER_INTV.append(('ws_borrowing_enabled', 'Borrowing', 'scenario_loan_drawdown', '0f766e', 'capital'))
+SAN_INTV.append(('san_borrowing_enabled', 'Borrowing', 'scenario_loan_drawdown', '0f766e', 'capital'))
+WATER_INTV[:] = ordered(WATER_INTV)
+SAN_INTV[:] = ordered(SAN_INTV)
 
 SECTORS = ('water_supply', 'sanitation')
 SCOPES = ('urban', 'rural', 'national')
@@ -121,14 +126,13 @@ def _run(fe: dict, toggles: dict, keep_customs: bool = False) -> dict:
 def cumulative_passes(area_fes: List[dict]) -> Tuple[List[dict], List[tuple], bool]:
     """Aggregated engine results for pass 0 (all levers off) then one per enabled lever.
 
-    The lever order is GLOBAL — every enabled water lever, then every enabled sanitation lever —
-    which is what the Results dashboard does and what the cross-sector NRW→sanitation link needs: it
-    can only score correctly when water's NRW lever is already on beneath it. `export_data`'s older
-    per-sector version measures that lever with water NRW off, so it reports ≈0.
+    The order is GLOBAL: execution, collection, NRW, capex costs and technology, additional
+    options, then explicit public capital. Water NRW precedes its sanitation dependency.
+    Effects are signed and order-dependent, never independent standalone impacts.
 
     Each pass is run for every area in `area_fes` and the results summed, so a National block is the
     roll-up of the same cumulative sequence rather than a separate attribution."""
-    defs = WATER_INTV + SAN_INTV
+    defs = ordered(WATER_INTV + SAN_INTV)
     original = [financial_toggles(fe) for fe in area_fes]
     enabled = [d for d in defs if any(tg.get(d[0]) for tg in original)]
     has_custom = any(any((c or {}).get('enabled') for c in (fe.get('custom_interventions') or []))
@@ -137,18 +141,22 @@ def cumulative_passes(area_fes: List[dict]) -> Tuple[List[dict], List[tuple], bo
     # Each area keeps its own selections. This matters for a synthesized National roll-up where, for
     # example, Rural enables a lever that Urban does not: the cumulative pass must not copy Urban's
     # toggle set onto Rural or omit Rural-only levers.
-    all_keys = {d[0] for d in defs}
+    all_keys = {k for tg in original for k in tg}
     accumulators = [{**tg, **{k: False for k in all_keys}} for tg in original]
     passes = [aggregate([_run(fe, acc) for fe, acc in zip(area_fes, accumulators)])]
-    for key, *_ in enabled:
-        for acc, tg in zip(accumulators, original):
-            acc[key] = bool(tg.get(key))
-        passes.append(aggregate([_run(fe, acc) for fe, acc in zip(area_fes, accumulators)]))
     if has_custom:
-        # Customs sit on top of every built-in lever and are reported as one aggregate band.
-        passes.append(aggregate([_run(fe, acc, keep_customs=True)
+        enabled = ordered(enabled + [('__custom', 'Custom interventions', None, CUSTOM_COLOR, 'custom')])
+    custom_on = False
+    for key, *_ in enabled:
+        if key == '__custom':
+            custom_on = True
+        for acc, tg in zip(accumulators, original):
+            if key != '__custom':
+                acc[key] = bool(tg.get(key))
+        passes.append(aggregate([_run(fe, acc, keep_customs=custom_on)
                                  for fe, acc in zip(area_fes, accumulators)]))
-    return passes, enabled, has_custom
+    # Customs are now an ordinary ordered step, not an unlabelled final pass.
+    return passes, enabled, False
 
 
 def _released(before: dict, after: dict, sk: str, kind: str, years, by) -> Optional[float]:
@@ -157,21 +165,14 @@ def _released(before: dict, after: dict, sk: str, kind: str, years, by) -> Optio
     execution — extra effective capital reaching service (allocated budget × execution efficiency).
                 Must read `scenario_available_capex`: the top-level `bau_available` is the frozen BAU
                 counterfactual and is identical in every pass, so it would score this lever at zero.
-    cost      — the per-household unit-cost saving times the households actually connected that year."""
+    cost      — reduction in independently scheduled target investment requirements."""
     b, a = before[sk], after[sk]
     if kind == 'execution':
-        return max(0.0, _rng(a.get('scenario_available_capex'), years, by + 1, years[-1])
-                   - _rng(b.get('scenario_available_capex'), years, by + 1, years[-1]))
+        return (_rng(a.get('scenario_available_capex'), years, by + 1, years[-1])
+                - _rng(b.get('scenario_available_capex'), years, by + 1, years[-1]))
     if kind == 'cost':
-        cb, ca = b.get('scenario_cost_sm_t') or [], a.get('scenario_cost_sm_t') or []
-        sm = a.get('scenario_hh') or []
-        total = 0.0
-        for i, y in enumerate(years):
-            if y <= by or i >= len(ca) or i >= len(cb):
-                continue
-            new_hh = max(0.0, _at(sm, i, 0) - _at(sm, i - 1, 0))     # M HH connected this year
-            total += (cb[i] - ca[i]) * new_hh                        # (LC/HH) × M HH = LC millions
-        return max(0.0, total)
+        return (_rng(b.get('scenario_total_investment_need'), years, by + 1, years[-1])
+                - _rng(a.get('scenario_total_investment_need'), years, by + 1, years[-1]))
     return None
 
 
@@ -180,19 +181,25 @@ def intervention_rows(passes, enabled, has_custom, sk: str, years, by) -> List[d
     e = len(years) - 1
     out = []
     for idx, (key, label, rkey, color, kind) in enumerate(enabled):
-        if not key.startswith('ws_' if sk == 'water_supply' else 'san_'):
-            continue
         before, after = passes[idx], passes[idx + 1]
-        add_hh = max(0.0, _at(after[sk].get('scenario_hh'), e, 0) - _at(before[sk].get('scenario_hh'), e, 0))
+        add_hh = _at(after[sk].get('scenario_hh'), e, 0) - _at(before[sk].get('scenario_hh'), e, 0)
         if rkey:
             money = (_rng(after[sk].get(rkey), years, by + 1, years[-1])
                      - _rng(before[sk].get(rkey), years, by + 1, years[-1]))
         else:
             money = _released(before, after, sk, kind, years, by)
-        band = [max(0.0, _at(after[sk].get('scenario_hh'), i, 0) - _at(before[sk].get('scenario_hh'), i, 0))
+        band = [_at(after[sk].get('scenario_hh'), i, 0) - _at(before[sk].get('scenario_hh'), i, 0)
                 for i in range(len(years))]
+        gap_effect = (_rng(before[sk].get('scenario_financing_gap'), years, by + 1, years[-1])
+                      - _rng(after[sk].get('scenario_financing_gap'), years, by + 1, years[-1]))
+        own_sector = key.startswith('ws_' if sk == 'water_supply' else 'san_') or key == '__custom'
+        if not own_sector:
+            if not any(abs(value) > 1e-9 for value in band) and abs(gap_effect) < 1e-9:
+                continue
+            label = ('Water · ' if key.startswith('ws_') else 'Sanitation · ') + label
         out.append({'key': key, 'label': label, 'color': color, 'kind': kind,
-                    'added_hh': add_hh, 'money_m': money, 'band': band})
+                    'added_hh': add_hh, 'money_m': money, 'band': band,
+                    'gap_effect_m': gap_effect})
     if has_custom:
         before, after = passes[-2], passes[-1]
         band = [max(0.0, _at(after[sk].get('scenario_hh'), i, 0) - _at(before[sk].get('scenario_hh'), i, 0))

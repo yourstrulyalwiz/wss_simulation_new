@@ -1035,20 +1035,37 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
 
       {/* ===== CUSTOM INTERVENTIONS ===== */}
       <Section title="9. Custom Interventions" cols={2} sectionKey="custom_interventions" onFocus={onSectionFocus}>
+        <div style={{ ...FULL, fontSize: 10.5, color: '#155e75', background: '#ecfeff', border: '1px solid #a5f3fc', padding: '7px 9px', borderRadius: 4 }}>
+          Shared custom-intervention settings. Sector assignment is saved on each item and is not changed by switching tabs. “Both” revenue uses explicit allocations that sum to 100%.
+        </div>
         {(inputs.custom_interventions || []).map((ci: any, idx: number) => {
+          const allocationWater = Math.max(0, Math.min(1, ci.water_allocation_share ?? 0.5));
           const updateCI = (field: string, val: any) => {
             const arr = [...inputs.custom_interventions];
-            arr[idx] = { ...arr[idx], [field]: val };
+            const current = arr[idx];
+            const allocation = Math.max(0, Math.min(1, current.water_allocation_share ?? 0.5));
+            const nextSector = field === 'sector' ? val : current.sector;
+            const nextType = field === 'intervention_type' ? val : current.intervention_type;
+            arr[idx] = { ...current, [field]: val,
+              ...(nextSector === 'both' && nextType === 'new_revenue'
+                ? { water_allocation_share: allocation, sanitation_allocation_share: 1 - allocation } : {}) };
+            onChange({ ...inputs, custom_interventions: arr });
+          };
+          const updateAllocation = (water: number) => {
+            const normalizedWater = Math.max(0, Math.min(1, water));
+            const arr = [...inputs.custom_interventions];
+            arr[idx] = { ...arr[idx], water_allocation_share: normalizedWater, sanitation_allocation_share: 1 - normalizedWater };
             onChange({ ...inputs, custom_interventions: arr });
           };
           return (
             <div key={idx} style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', marginBottom: 8, background: '#faf5ff' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                <input type="checkbox" checked={ci.enabled !== false} onChange={e => updateCI('enabled', e.target.checked)}
+                  title="Enable this intervention" style={{ width: 16, height: 16, accentColor: '#2563eb' }} />
                 <input type="color" value={ci.color || '#ae4f0e'} onChange={e => updateCI('color', e.target.value)}
                   style={{ width: 24, height: 24, border: 'none', cursor: 'pointer', borderRadius: 3 }} />
                 <input type="text" value={ci.name} onChange={e => updateCI('name', e.target.value)}
                   style={{ flex: 1, border: '1px solid #ccc', borderRadius: 3, padding: '3px 6px', fontSize: 12, fontWeight: 600 }} />
-                <Toggle label="" checked={ci.enabled} onChange={v => updateCI('enabled', v)} />
                 <button onClick={() => {
                   const arr = inputs.custom_interventions.filter((_: any, i: number) => i !== idx);
                   onChange({ ...inputs, custom_interventions: arr });
@@ -1068,42 +1085,62 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
                   <label style={{ fontSize: 10, color: '#64748b' }}>Type</label>
                   <select value={ci.intervention_type} onChange={e => updateCI('intervention_type', e.target.value)}
                     style={{ width: '100%', padding: '4px 6px', border: '1px solid #ccc', borderRadius: 4, fontSize: 10, background: '#fff', color: '#333', cursor: 'pointer' }}>
-                    <option value="fixed_annual">Fixed Annual Amount</option>
-                    <option value="revenue_stream">Revenue Stream (growing)</option>
-                    <option value="per_hh_subsidy">Per-HH Subsidy</option>
+                    <option value="new_revenue">New revenue source</option>
+                    <option value="cost_reduction">Cost reduction</option>
                   </select>
                 </div>
               </div>
-              <F label="Start year" value={ci.start_year} onChange={v => updateCI('start_year', v)}
-                min={inputs.period.baseline_year + 1} max={inputs.period.forecast_end_year} tip="Year this intervention begins" />
-              <F label="End year" value={ci.end_year} onChange={v => updateCI('end_year', v)}
-                min={ci.start_year} max={inputs.period.forecast_end_year} tip="Year this intervention ends" />
-              {ci.intervention_type === 'fixed_annual' && (
-                <F label={`Annual amount (${CUR} mill)`} value={ci.annual_amount} onChange={v => updateCI('annual_amount', v)}
-                  step={100} min={0} max={1000000} tip="Fixed annual cash amount in currency millions" />
-              )}
-              {ci.intervention_type === 'revenue_stream' && (<>
-                <F label={`Starting amount (${CUR} mill)`} value={ci.starting_amount} onChange={v => updateCI('starting_amount', v)}
-                  step={100} min={0} max={1000000} tip="Revenue in the first year, in currency millions" />
-                <F label="Annual growth rate" value={ci.growth_rate} onChange={v => updateCI('growth_rate', v)}
-                  isPercent unit="%" tip="Annual growth rate of the revenue stream" />
-              </>)}
-              {ci.intervention_type === 'per_hh_subsidy' && (
-                <F label={`Subsidy per HH (${CUR})`} value={ci.subsidy_per_hh} onChange={v => updateCI('subsidy_per_hh', v)}
-                  step={1000} min={0} max={10000000} tip="Cost subsidy per household connected" />
-              )}
+              {ci.sector === 'both' && ci.intervention_type === 'new_revenue' && <>
+                <F label="Water allocation share" value={allocationWater} onChange={v => {
+                  updateAllocation(v);
+                }} isPercent unit="%" tip="Share of implementation cost and recurring revenue assigned to Water; sanitation receives the remainder." />
+                <F label="Sanitation allocation share" value={1 - allocationWater} onChange={v => {
+                  updateAllocation(1 - v);
+                }} isPercent unit="%" tip="Share assigned to Sanitation; water receives the remainder." />
+                <div style={{ ...FULL, fontSize: 10, color: '#0369a1' }}>Sector allocation totals 100%.</div>
+              </>}
+              {ci.intervention_type === 'cost_reduction' ? <>
+                <F label="Start year" value={ci.start_year} onChange={v => updateCI('start_year', v)} />
+                <div>
+                  <label style={{ fontSize: 10, color: '#64748b' }}>Outputs affected</label>
+                  <select value={ci.outputs_affected || 'sm'} onChange={e => updateCI('outputs_affected', e.target.value)}
+                    style={{ width: '100%', padding: '4px 6px', border: '1px solid #ccc', borderRadius: 4, fontSize: 10, background: '#fff' }}>
+                    <option value="sm">Safely managed only</option><option value="basic">Basic only</option><option value="both">Both</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, color: '#64748b' }}>Cost effect type</label>
+                  <select value={ci.cost_effect_mode || 'pct'} onChange={e => updateCI('cost_effect_mode', e.target.value)}
+                    style={{ width: '100%', padding: '4px 6px', border: '1px solid #ccc', borderRadius: 4, fontSize: 10, background: '#fff' }}>
+                    <option value="pct">Percentage off</option><option value="flat">Flat amount off</option>
+                  </select>
+                </div>
+                {(ci.cost_effect_mode || 'pct') === 'pct'
+                  ? <F label="Unit-cost reduction" value={ci.cost_effect ?? 0} onChange={v => updateCI('cost_effect', v)} isPercent unit="%" tip="Applied only to the selected service categories; safely-managed only does not affect basic costs." />
+                  : <F label="Unit-cost reduction" value={ci.cost_effect ?? 0} onChange={v => updateCI('cost_effect', v)} unit={CUR} step={1000} tip="Flat unit-cost reduction for the selected service categories." />}
+              </> : <>
+                <F label="Implementation start year" value={ci.start_year} onChange={v => updateCI('start_year', v)} />
+                <F label="Implementation cost" value={ci.implement_cost ?? 0} onChange={v => updateCI('implement_cost', v)} unit={CUR} step={100000} tip="Total implementation capex, spread over the number of years below." />
+                <F label="Years cost occurs" value={ci.cost_years ?? 1} onChange={v => updateCI('cost_years', v)} unit="yrs" integer />
+                <div><label style={{ fontSize: 10, color: '#64748b' }}>Output unit</label><input type="text" value={ci.output_unit || ''} onChange={e => updateCI('output_unit', e.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '4px 6px', border: '1px solid #ccc', borderRadius: 4 }} /></div>
+                <F label="Output start year" value={ci.output_start_year ?? ci.start_year} onChange={v => updateCI('output_start_year', v)} />
+                <F label="Output quantity per year" value={ci.output_quantity ?? 0} onChange={v => updateCI('output_quantity', v)} step={1000} unit={ci.output_unit || 'units'} />
+                <F label="Output value per unit" value={ci.output_value ?? 0} onChange={v => updateCI('output_value', v)} unit={`${CUR}/${ci.output_unit || 'unit'}`} />
+              </>}
             </div>
           );
         })}
         <button onClick={() => {
           const existing = inputs.custom_interventions || [];
-          // Kept in sync with InterventionPanel — presets distinct from the built-in bands
-          // (chartColors INTV_PALETTE) and clear of the reserved blue/green.
+          // Use the same intervention schema as the Intervention Design editor.
           const colors = ['#9e17bf','#fb46a2','#c11632','#b6157d','#f23dd3'];
+          const start = inputs.period.baseline_year + 1;
           const newCI = {
-            name: 'New Intervention', enabled: true, sector: 'water', intervention_type: 'fixed_annual',
-            start_year: inputs.period.baseline_year + 3, end_year: inputs.period.baseline_year + 7,
-            annual_amount: 1000, starting_amount: 500, growth_rate: 0.05, subsidy_per_hh: 10000,
+            name: 'New revenue source', enabled: true, sector: 'water', intervention_type: 'new_revenue',
+            start_year: start, end_year: inputs.period.forecast_end_year,
+            implement_cost: 0, cost_years: 3, output_unit: 'm³', output_start_year: start, output_quantity: 0, output_value: 0,
+            outputs_affected: 'sm', cost_effect_mode: 'pct', cost_effect: 0.1,
+            water_allocation_share: 0.5, sanitation_allocation_share: 0.5,
             color: colors[existing.length % colors.length],
           };
           onChange({ ...inputs, custom_interventions: [...existing, newCI] });

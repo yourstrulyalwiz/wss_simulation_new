@@ -9,6 +9,7 @@ the sanitation sheet spec — there is no NRW concept here, so the new-capex add
 """
 
 import numpy as np
+from .finance import intervention_output
 from .water_supply import (sector_bau, sector_full_budget, cost_with_treatment, cost_no_treatment,
                            _target_points, build_cost_factor, custom_streams)
 
@@ -198,4 +199,9 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
         custom_implementation_capex=cust_implementation,
     )
     res['sector'] = 'sanitation'
+    res['intervention_outputs']['custom']['unit_cost_adjustments'] = {
+        'sm': cust_cf_sm.tolist(), 'basic': cust_cf_basic.tolist(),
+    }
+    res['intervention_outputs']['capex_efficiency'] = intervention_output(
+        ctx['n'], unit_costs={'sm': cost_factor / cust_cf_sm, 'basic': cost_factor_basic / cust_cf_basic})
     return res

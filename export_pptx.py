@@ -55,6 +55,8 @@ def _sector_summary(result, inputs, sk):
         'addHH': max(0.0, (min(total[e], scn[e]) - min(total[e], bau[e]))),
         'gapBau': cum(sec.get('financing_gap') or []), 'gapScn': cum(sec.get('scenario_financing_gap') or []),
         'programmeNeed': cum(sec['scenario_total_investment_need']),
+        'residualBeforePublic': cum(sec['scenario_financing_gap_before_additional_public']),
+        'additionalPublic': cum(sec['scenario_additional_public_capital']),
         'unmetSm': max(0, tgt[e] - scn[e]),
         'unmetBasic': max(0, sec['target_hh'][1][e] - sec['scenario_hh'][1][e]),
     }
@@ -170,7 +172,7 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None) -> io.By
 
         # 3a. coverage chart + written summary
         s = prs.slides.add_slide(blank)
-        slide_title(s, f'{name} — safely-managed coverage', 'BAU baseline plus each intervention’s contribution')
+        slide_title(s, f'{name} — safely-managed coverage', 'Order-dependent marginal effects; signed changes reconcile to the combined scenario')
         add_chart(s, cov_key, 0.5, 1.35, 7.6)
         tf = textbox(s, 8.4, 1.5, 4.5, 5.4)
         set_p(tf.paragraphs[0], f'By {d["end"]}', 15, INK, bold=True)
@@ -185,13 +187,13 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None) -> io.By
 
         # 3b. financing-gap chart + per-intervention contribution table
         s = prs.slides.add_slide(blank)
-        slide_title(s, f'{name} — financing gap & interventions', 'Grey = gap remaining · colours = closed by each lever')
+        slide_title(s, f'{name} — financing gap & interventions', 'Residual public financing is an output, not assumed government funding; order-dependent marginal effects')
         add_chart(s, gap_key, 0.5, 1.35, 7.6)
         bd = intervention_breakdown(inputs, sk, defs)
-        headers = ['Intervention', f'Added HH (M)', f'Resources ({cur} B)', f'Gap closed ({cur} B)']
+        headers = ['Marginal intervention', f'Change HH (M)', f'Cash/cost ({cur} B)', f'Gap reduction ({cur} B)']
         if bd:
             rows = [[lbl, f'{hh:.3f}', ('—' if res is None else f'{res:,.2f}'), f'{gap:,.2f}'] for (lbl, hh, res, gap) in bd]
-            rows.append(['Total', f'{sum(x[1] for x in bd):.3f}', f'{sum((x[2] or 0) for x in bd):,.2f}', f'{sum(x[3] for x in bd):,.2f}'])
+            rows.append(['Combined change', f'{sum(x[1] for x in bd):.3f}', 'Not additive', f'{sum(x[3] for x in bd):,.2f}'])
             add_table(s, 8.3, 1.5, 4.7, headers, rows, fontsize=10, total_last=True)
         else:
             tf = textbox(s, 8.3, 2.6, 4.7, 1.0)
@@ -199,6 +201,8 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None) -> io.By
         tf = textbox(s, 8.3, 6.2, 4.7, 1.0)
         red = (1 - d['gapScn'] / d['gapBau']) * 100 if d['gapBau'] else 0
         set_p(tf.paragraphs[0], f'Sum of annual shortfalls: {_b(d["gapBau"])} → {_b(d["gapScn"])} B {cur}.', 11, INK, bold=True)
+        p = tf.add_paragraph()
+        set_p(p, f'Residual before / after explicit public capital: {_b(d["residualBeforePublic"])} / {_b(d["gapScn"])} B {cur}; explicit usable contribution: {_b(d["additionalPublic"])} B. Other financing held fixed.', 10, INK)
         set_p(tf.add_paragraph(), f'Programme requirement: {_b(d["programmeNeed"])} B {cur}. Terminal unmet coverage: SM {d["unmetSm"]:.2f} M, Basic {d["unmetBasic"]:.2f} M HH.', 10.5, INK)
 
     output = io.BytesIO()

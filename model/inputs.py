@@ -371,7 +371,7 @@ class WaterInterventionInputs(BaseModel):
     nrw_water_per_upgrade: float = 100.0         # extra water for a basic→SM upgrade, m³ / household / year
     nrw_capex_unit_cost_local: float = 73_809.0  # "cost of fixing" — local currency per m³/day of NRW recovered
     nrw_value_basis: str = 'tariff'              # value the recovered water at 'tariff' or 'production' cost
-    nrw_tariff: float = 32.0                      # water tariff, local currency per m³ (value if basis='tariff')
+    nrw_tariff: float = 32.0                      # legacy saved field; NRW now uses shared tariff_current/path
     nrw_production_cost: float = 20.0             # avoided production cost, local currency per m³ (if basis='production')
     nrw_maintenance_cost_annual: float = 0.0      # recurring NRW programme maintenance, local currency/year
 
@@ -577,8 +577,8 @@ class CustomIntervention(BaseModel):
 
     'new_revenue'   — invest `implement_cost` (total, spread evenly over `cost_years` from `start_year`)
                       to produce `output_quantity` of `output_unit` each year from `output_start_year`,
-                      each unit worth `output_value`. The NET (revenue − cost) per year folds into that
-                      sector's capex (like the tariff/NRW cash levers) to build more safely-managed HH.
+                      each unit worth `output_value`. Revenue enters recurring utility cash;
+                      implementation cost is a separate capital requirement, not recurring cash.
     'cost_reduction'— from `start_year`, cut the safely-managed connection cost per HH by `cost_effect`
                       (a fraction when `cost_effect_mode`='pct', a flat currency amount when 'flat').
 

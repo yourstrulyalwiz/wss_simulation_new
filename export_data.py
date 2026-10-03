@@ -4,7 +4,8 @@ XLSX builders for the frontend's per-table and per-chart export buttons.
 All money is exported in the engine's native MILLIONS (full precision) with clear column labels; households
 in millions. The per-intervention breakdown mirrors the Results dashboard: cumulative engine passes over the
 enabled built-in toggles isolate each lever's marginal safely-managed households, mobilised resources, and
-financing-gap reduction. Customs are excluded from the itemisation (they still sit in the scenario totals)."""
+financing-gap reduction. Signed global passes include customs, cross-sector effects and borrowing,
+and reconcile to the full combined scenario in the agreed order."""
 
 import io
 import csv
@@ -14,6 +15,7 @@ import base64
 
 from demo_adapter import coerce_to_engine, financial_toggles
 from model.engine import calculate
+from model.intervention_order import ordered
 
 # key → (label, resource cash stream or None), in the same cumulative order the dashboard uses.
 WATER_INTV = [
@@ -38,6 +40,10 @@ SAN_INTV = [
     ('san_tariff_enabled', 'Tariff reform', 'scenario_tariff_cash'),
     ('san_microfinance_enabled', 'Microfinance', 'scenario_mf_loan_volume'),
 ]
+WATER_INTV.append(('ws_borrowing_enabled', 'Borrowing', 'scenario_loan_drawdown'))
+SAN_INTV.append(('san_borrowing_enabled', 'Borrowing', 'scenario_loan_drawdown'))
+WATER_INTV[:] = ordered(WATER_INTV)
+SAN_INTV[:] = ordered(SAN_INTV)
 
 
 def _cur(inputs):
@@ -102,6 +108,26 @@ def per_year_table(result, inputs, sector_key):
         'Scenario safely-managed service gap, signed (M HH)',
         'Scenario safely-managed unmet coverage (M HH)',
         'Scenario basic unmet coverage (M HH)',
+        f'Residual public financing before explicit contribution — other sources held fixed ({cur} M)',
+        f'Explicit additional usable public capital ({cur} M)',
+        f'Residual public financing after explicit contribution ({cur} M)',
+        f'Cumulative residual public financing before explicit contribution ({cur} M)',
+        f'Cumulative residual public financing after explicit contribution ({cur} M)',
+        'BAU billed volume (M m3)',
+        'Scenario billed volume (M m3)',
+        f'Shared additional collected revenue, includes NRW once ({cur} M)',
+        f'Collection-efficiency attributed revenue ({cur} M)',
+        f'NRW commercial billing attributed revenue ({cur} M)',
+        f'NRW physical-service sales attributed revenue ({cur} M)',
+        f'Tariff-reform attributed revenue ({cur} M)',
+        f'NRW recurring production savings ({cur} M)',
+        f'NRW recurring maintenance costs ({cur} M)',
+        f'NRW rehabilitation implementation capex ({cur} M)',
+        f'NRW funded upgrade capex, already in target transitions ({cur} M)',
+        'NRW physical water for service (M m3)',
+        'NRW physical water used to reduce production (M m3)',
+        'NRW recovered commercial billing volume, not physical water (M m3)',
+        'NRW funded upgrades, cumulative (M HH)',
     ]
     rows = []
     for i, y in enumerate(years):
@@ -138,6 +164,15 @@ def per_year_table(result, inputs, sector_key):
             round(g('scenario_service_gap_raw', i), 6),
             round(g('scenario_service_gap_display', i), 6),
             round((sec.get('scenario_service_gap_display') or [[], []])[1][i], 6),
+            *[round(g(f'scenario_{key}', i, rung0=False), 6) for key in (
+                'financing_gap_before_additional_public', 'additional_public_capital',
+                'financing_gap', 'cumulative_residual_public_before', 'cumulative_residual_public_after',
+                'billed_volume_bau', 'billed_volume_scenario', 'shared_revenue_cash',
+                'collection_cash', 'nrw_commercial_cash', 'nrw_service_cash', 'tariff_cash',
+                'nrw_production_savings', 'nrw_maintenance_cost', 'nrw_implementation_capex',
+                'nrw_service_upgrade_capex', 'nrw_recovered_phys_vol',
+                'nrw_production_avoided_vol', 'nrw_commercial_recovered_vol', 'nrw_upgrade_hh',
+            )],
         ])
     return headers, rows
 
@@ -151,46 +186,26 @@ def _run(inputs, toggles):
 
 
 def intervention_breakdown(inputs, sector_key, defs):
-    """[(label, added_hh_millions, resources_billions_or_None, gap_closed_billions), …] for enabled levers."""
-    toggles = financial_toggles(inputs)
-    enabled = [d for d in defs if toggles.get(d[0])]
-    if not enabled:
-        return []
-    off = {k: False for k in toggles}
-    # cumulative passes: BAU, then +each enabled lever
-    passes = [_run(inputs, dict(off))]
-    acc = dict(off)
-    for key, _, _ in enabled:
-        acc[key] = True
-        passes.append(_run(inputs, dict(acc)))
+    """Signed, order-dependent marginal effects; steps telescope to the complete combined scenario.
+
+    The legacy defs argument is retained. A shared global sequence includes cross-sector
+    dependencies, borrowing and customs, rather than losing them in isolated sector runs.
+    """
+    from deck_data import cumulative_passes, intervention_rows
+    passes, enabled, has_custom = cumulative_passes([inputs])
     years = passes[0]['years']
-    by = _baseline_year(inputs, years)
-    e = len(years) - 1
-
-    def sm_end(res):
-        return (res[sector_key]['scenario_hh'][0][e] or 0.0)
-
-    def cash_cum(res, field):
-        arr = res[sector_key].get(field) or []
-        return sum((arr[i] or 0.0) for i, y in enumerate(years) if y > by)
-
-    def gap_cum(res):
-        arr = res[sector_key].get('scenario_financing_gap') or []
-        return sum((arr[i] or 0.0) for i, y in enumerate(years) if y > by)
-
-    out = []
-    for idx, (key, label, rkey) in enumerate(enabled):
-        before, after = passes[idx], passes[idx + 1]
-        add_hh = max(0.0, sm_end(after) - sm_end(before))                 # millions
-        res = (cash_cum(after, rkey) - cash_cum(before, rkey)) / 1000.0 if rkey else None  # M → B
-        gap_closed = max(0.0, gap_cum(before) - gap_cum(after)) / 1000.0  # M → B
-        out.append((label, round(add_hh, 5), (round(res, 4) if res is not None else None), round(gap_closed, 4)))
-    return out
+    rows = intervention_rows(passes, enabled, has_custom, sector_key,
+                             years, _baseline_year(inputs, years))
+    return [(row['label'], row['added_hh'],
+             row['money_m'] / 1000 if row['money_m'] is not None else None,
+             row['gap_effect_m'] / 1000) for row in rows]
 
 
 def breakdown_table(inputs, sector_key, defs):
     cur = _cur(inputs)
-    headers = ['Intervention', 'Added safely-managed (M HH)', f'Resources generated ({cur} B)', f'Financing gap closed ({cur} B)']
+    headers = ['Order-dependent marginal intervention effect', 'Change in safely-managed (M HH)',
+               f'Cash or investment-cost effect, not additive ({cur} B)',
+               f'Reduction in annual financing shortfalls ({cur} B)']
     rows = []
     for label, add_hh, res, gap in intervention_breakdown(inputs, sector_key, defs):
         rows.append([label, add_hh, ('n/a' if res is None else res), gap])
@@ -209,7 +224,7 @@ def scenario_csv(inputs):
         w.writerows(rows)
         w.writerow([])
         bh, br = breakdown_table(inputs, sk, WATER_INTV if sk == 'water_supply' else SAN_INTV)
-        w.writerow([name + ' — contribution by intervention (cumulative to endline)'])
+        w.writerow([name + ' — order-dependent marginal effects (reconcile to combined scenario)'])
         w.writerow(bh)
         w.writerows(br if br else [['(no interventions enabled)']])
         w.writerow([]); w.writerow([])

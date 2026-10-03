@@ -272,6 +272,11 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
         'nrw_production_savings', 'nrw_maintenance_cost', 'nrw_implementation_capex',
         'nrw_service_upgrade_capex', 'nrw_commercial_recovered_vol',
         'nrw_recovered_phys_total_vol',
+        'nrw_service_cash', 'nrw_production_avoided_vol', 'nrw_potential_upgrade_hh',
+        'intervention_outputs', 'billed_volume_bau', 'billed_volume_scenario',
+        'tariff_path', 'collection_path', 'revenue_attribution_order',
+        'additional_public_capital', 'cumulative_residual_public_before',
+        'cumulative_residual_public_after',
     ):
         if key in scn:
             bau['scenario_' + key] = scn[key]

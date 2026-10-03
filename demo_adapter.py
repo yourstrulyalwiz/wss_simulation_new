@@ -546,9 +546,10 @@ def to_engine(fe: dict) -> ModelInputs:
         nrw_treatment_cost_pct_capex=float(wi.get('nrw_treatment_cost_pct_capex', 0.40) or 0.40),
         nrw_current_pct=float(wi.get('nrw_current_pct', 0.40) or 0.40),
         nrw_target_pct=float(wi.get('nrw_target_pct', 0.15) or 0.15),
-        nrw_physical_loss_pct=float(wi.get('nrw_physical_loss_pct', 0.50) or 0.50),
-        nrw_commercial_loss_pct=float(wi.get('nrw_commercial_loss_pct', 0.50) or 0.50),
-        nrw_service_allocation_pct=float(wi.get('nrw_service_allocation_pct', 0.50) or 0.50),
+        nrw_physical_loss_pct=float(wi.get('nrw_physical_loss_pct', 0.50)),
+        nrw_commercial_loss_pct=float(wi.get('nrw_commercial_loss_pct',
+                                           1.0 - float(wi.get('nrw_physical_loss_pct', 0.50)))),
+        nrw_service_allocation_pct=float(wi.get('nrw_service_allocation_pct', 0.50)),
         nrw_start_year=int(wi.get('nrw_start_year', 0) or 0),
         nrw_target_year=int(wi.get('nrw_target_year', 0) or 0),
         # Benefit lag (years): delay between the works/spend and the recovered water showing up. A cleared

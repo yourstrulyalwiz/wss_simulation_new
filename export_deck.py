@@ -260,8 +260,8 @@ def _fill_interventions(slide, b, cur):
             set_cell(t, i + 1, 1, 'n/a' if r['money_m'] is None else bn(r['money_m'], 2))
             set_cell(t, i + 1, 2, hh(r['added_hh'], 1))
         tot_money = sum((r['money_m'] or 0.0) for r in rows)
-        set_cell(t, n + 1, 0, 'Total')
-        set_cell(t, n + 1, 1, bn(tot_money, 2))
+        set_cell(t, n + 1, 0, 'Combined marginal change')
+        set_cell(t, n + 1, 1, 'Not additive')
         set_cell(t, n + 1, 2, hh(sum(r['added_hh'] for r in rows), 1))
         # Give the intervention names the width they need so they stop wrapping, then size the type
         # to whatever vertical room is actually left above the talking-points card.

@@ -26,7 +26,9 @@ _SHARED_TOP = ('years', 'end_asis_year', 'gdp_nominal_usd', 'gdp_nominal_local',
 
 # Intensive sector fields — re-derived below rather than summed or averaged.
 _DERIVED_SECTOR = ('rungs', 'sector', 'cost_per_hh', 'cost_basic', 'hist_cagr',
-                   'execution_rate', 'capex_efficiency', 'capex_efficiency_baseline')
+                   'execution_rate', 'capex_efficiency', 'capex_efficiency_baseline',
+                   'tariff_path', 'collection_path', 'scenario_tariff_path', 'scenario_collection_path',
+                   'intervention_outputs', 'scenario_intervention_outputs')
 
 
 def _sum_series(series_list: List[Optional[list]]) -> list:
@@ -194,6 +196,29 @@ def aggregate(results: List[dict]) -> dict:
             agg.get('budget_used') or [], agg.get('budget_allocated') or [], years, end_asis)
         agg['execution_rate'] = _wavg([s.get('execution_rate') or 0.0 for s in secs], w)
         agg['hist_cagr'] = _agg_hist_cagr(secs, years, end_asis)
+        for prefix in ('', 'scenario_'):
+            for path in ('tariff_path', 'collection_path'):
+                agg[prefix + path] = _budget_weighted(
+                    [s.get(prefix + path) for s in secs],
+                    [s.get(prefix + 'billed_volume_scenario') for s in secs])
+            output_key = prefix + 'intervention_outputs'
+            groups = {group for s in secs for group in (s.get(output_key) or {})}
+            agg[output_key] = {}
+            for group in groups:
+                outputs = [(s.get(output_key) or {}).get(group, {}) for s in secs]
+                combined = {}
+                for field in ('additional_collected_revenue', 'recurring_operating_savings',
+                              'recurring_operating_costs', 'implementation_capex'):
+                    combined[field] = _sum_series([output.get(field) for output in outputs])
+                for field in ('physical_service_benefits', 'unit_cost_adjustments'):
+                    names = {name for output in outputs for name in output.get(field, {})}
+                    combined[field] = {}
+                    for name in names:
+                        values = [output.get(field, {}).get(name) for output in outputs]
+                        combined[field][name] = (
+                            _budget_weighted(values, [r.get('total_hh') for r in results])
+                            if field == 'unit_cost_adjustments' else _sum_series(values))
+                agg[output_key][group] = combined
         out[sk] = agg
 
     return out

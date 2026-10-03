@@ -7,38 +7,41 @@ import ChartExport from './ChartExport';
 /**
  * Live intervention-impact chart. INCREMENTAL multi-pass compare: it POSTs /api/calculate once for the
  * pure BAU (every toggle off), then once more for each enabled intervention added CUMULATIVELY on top.
- * The marginal safely-managed households each pass adds become a STACKED band, one colour per
- * intervention, sitting on the grey BAU base — so the coloured stack is the extra coverage the enabled
- * interventions deliver, and the top of the stack is the full with-intervention scenario. Replaces the
+ * The marginal safely-managed household change at each pass becomes a STACKED band, one colour per
+ * intervention, sitting on the grey BAU base — so positive and negative bands preserve order-dependent
+ * effects, and the final stack resolves to the full with-intervention scenario. Replaces the
  * old synthetic StaticCharts.InterventionImpactChart.
  */
 import { C, INTV_PALETTE as P } from '../chartColors';
+import { enabledInAnyArea, marginalPassInput } from '../interventionPasses';
 import { yearAxisInterval } from '../chartAxis';
 import { linesFirstLegend } from './chartLegend';
 
-type Intv = [key: string, label: string, color: string];   // toggle key, legend label, band colour
+type Intv = [key: string, label: string, color: string, order: number];   // global toggle key, label, palette, order
 // Band palette excludes blue (BAU) and green (target) so those meanings stay reserved (see chartColors).
 const WATER_INTV: Intv[] = [
-  ['ws_financial_commitment_enabled', 'Financial commitments', P.financial],
-  ['ws_exogenous_injection_enabled', 'Exogenous injection of funds', P.injection],
-  ['ws_collection_efficiency_enabled', 'Collection efficiency', P.collection],
-  ['ws_capital_efficiency_enabled', 'Budget execution', P.budgetExec],
-  ['ws_costeff_enabled', 'Capex efficiency', P.capex],
-  ['ws_techmix_enabled', 'Optimised technology', P.techmix],
-  ['ws_nrw_enabled', 'NRW reduction', P.nrw],
-  ['ws_tariff_enabled', 'Tariff reform', P.tariff],
-  ['ws_microfinance_enabled', 'Microfinance', P.microfinance],
+  ['ws_capital_efficiency_enabled', 'Water · Budget execution', P.budgetExec, 10],
+  ['ws_collection_efficiency_enabled', 'Water · Collection efficiency', P.collection, 20],
+  ['ws_nrw_enabled', 'Water · NRW reduction', P.nrw, 30],
+  ['ws_costeff_enabled', 'Water · Capex efficiency', P.capex, 40],
+  ['ws_techmix_enabled', 'Water · Optimised technology', P.techmix, 50],
+  ['ws_tariff_enabled', 'Water · Tariff reform', P.tariff, 60],
+  ['ws_microfinance_enabled', 'Water · Microfinance', P.microfinance, 70],
+  ['ws_borrowing_enabled', 'Water · Borrowing', P.financial, 80],
+  ['ws_financial_commitment_enabled', 'Water · Public commitment', P.financial, 90],
+  ['ws_exogenous_injection_enabled', 'Water · Public injection', P.injection, 92],
 ];
 const SAN_INTV: Intv[] = [
-  ['san_financial_commitment_enabled', 'Financial commitments', P.financial],
-  ['san_exogenous_injection_enabled', 'Exogenous injection of funds', P.injection],
-  ['san_collection_efficiency_enabled', 'Collection efficiency', P.collection],
-  ['san_capital_efficiency_enabled', 'Budget execution', P.budgetExec],
-  ['san_costeff_enabled', 'Capex efficiency', P.capex],
-  ['san_techmix_enabled', 'Optimised technology', P.techmix],
-  ['san_nrw_link_enabled', 'NRW-linked revenue', P.nrw],
-  ['san_tariff_enabled', 'Tariff reform', P.tariff],
-  ['san_microfinance_enabled', 'Microfinance', P.microfinance],
+  ['san_capital_efficiency_enabled', 'Sanitation · Budget execution', P.budgetExec, 11],
+  ['san_collection_efficiency_enabled', 'Sanitation · Collection efficiency', P.collection, 21],
+  ['san_nrw_link_enabled', 'Sanitation · NRW-linked revenue', P.nrw, 31],
+  ['san_costeff_enabled', 'Sanitation · Capex efficiency', P.capex, 41],
+  ['san_techmix_enabled', 'Sanitation · Optimised technology', P.techmix, 51],
+  ['san_tariff_enabled', 'Sanitation · Tariff reform', P.tariff, 61],
+  ['san_microfinance_enabled', 'Sanitation · Microfinance', P.microfinance, 71],
+  ['san_borrowing_enabled', 'Sanitation · Borrowing', P.financial, 81],
+  ['san_financial_commitment_enabled', 'Sanitation · Public commitment', P.financial, 91],
+  ['san_exogenous_injection_enabled', 'Sanitation · Public injection', P.injection, 93],
 ];
 
 const zeroToggles = (t: any) => Object.fromEntries(Object.keys(t || {}).map(k => [k, false]));
@@ -65,39 +68,46 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const depKey = JSON.stringify(inputs) + '|' + sector;
   useEffect(() => {
     if (!inputs) return;
-    const list = sector === 'water' ? WATER_INTV : SAN_INTV;
-    const enabled = list.filter(([k]) => inputs?.toggles?.[k]);
-    // Enabled CUSTOM interventions that apply to this sector become trailing bands after the built-in ones.
+    const enabled: Intv[] = [...WATER_INTV, ...SAN_INTV]
+      .filter(([key]) => enabledInAnyArea([inputs], key))
+      .map(([key, label, color, order]) => [key, `${key.startsWith('ws_') ? 'Water' : 'Sanitation'} · ${label}`, color, order] as Intv)
+      .sort((a, b) => a[3] - b[3]);
+    // Include all customs: indirect cross-sector effects must reconcile too.
     const enabledCustoms: any[] = (inputs?.custom_interventions || [])
-      .filter((c: any) => c && c.enabled !== false && (c.sector === sector || c.sector === 'both'));
+      .filter((c: any) => c && c.enabled !== false);
     const h = setTimeout(() => {
       const post = (body: any) => fetch('/api/calculate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       }).then(r => { if (!r.ok) throw new Error('calc failed (' + r.status + ')'); return r.json(); });
       const secOf = (res: any) => sector === 'water' ? res.water_supply : res.sanitation;
       const off = zeroToggles(inputs?.toggles);
-      // Cross-sector prerequisite: the sanitation "NRW-linked revenue" lever only has recovered water to
-      // charge for when the WATER NRW lever is on, so keep ws_nrw_enabled at the user's setting in every
-      // sanitation pass (it doesn't affect any of the other sanitation levers). Without this the linked
-      // band would always read 0 on the sanitation chart even with water NRW switched on.
-      if (sector === 'sanitation') off.ws_nrw_enabled = !!inputs?.toggles?.ws_nrw_enabled;
-      // Cumulative payloads: [BAU] → +each toggle → +each custom. The baseline and toggle passes carry NO
-      // customs (custom_interventions:[]) so the grey base is the pure BAU and customs show as their own
-      // bands on top; customs are then added one-by-one over all toggles.
-      const payloads: any[] = [{ ...inputs, toggles: off, custom_interventions: [] }];
+      // Use the same global order as Results/exports. The baseline is pure BAU;
+      // customs persist in all subsequent borrowing and public-capital passes.
+      const payloads: any[] = [marginalPassInput(inputs, off, false)];
       let acc: any = { ...off };
-      enabled.forEach(([k]) => { acc = { ...acc, [k]: true }; payloads.push({ ...inputs, toggles: { ...acc }, custom_interventions: [] }); });
+      const bandDefs: Intv[] = [];
+      const beforeAdditional = enabled.filter(([, , , order]) => order < 80);
+      const afterAdditional = enabled.filter(([, , , order]) => order >= 80);
+      beforeAdditional.forEach(([k]) => {
+        acc = { ...acc, [k]: true };
+        payloads.push(marginalPassInput(inputs, acc, false));
+      });
+      bandDefs.push(...beforeAdditional);
       let accCustoms: any[] = [];
-      enabledCustoms.forEach((c: any) => { accCustoms = [...accCustoms, c]; payloads.push({ ...inputs, toggles: { ...acc }, custom_interventions: accCustoms }); });
-      // Combined stack order (toggles then customs) with UNIQUE labels for the chart dataKeys.
-      const bandDefs: Intv[] = [...enabled];
       const seen = new Set<string>(enabled.map(([, label]) => label));
       enabledCustoms.forEach((c: any, i: number) => {
         let label = ((c.name || '').trim()) || `Custom ${i + 1}`;
         while (seen.has(label)) label += ' ';
         seen.add(label);
-        bandDefs.push([`custom_${i}`, label, c.color || P.custom]);
+        bandDefs.push([`custom_${i}`, label, c.color || P.custom, 75 + i / 100]);
+        accCustoms = [...accCustoms, c];
+        payloads.push({ ...marginalPassInput(inputs, acc, false), custom_interventions: accCustoms });
       });
+      afterAdditional.forEach(([k]) => {
+        acc = { ...acc, [k]: true };
+        payloads.push(marginalPassInput(inputs, acc, true));
+      });
+      bandDefs.push(...afterAdditional);
       Promise.all(payloads.map(post)).then(results => {
         const years: number[] = results[0].years;
         // The engine returns a PURE BAU (`bau_hh`, invariant) plus the SCENARIO safely-managed path under
@@ -107,11 +117,11 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         const sm = results.map((r: any) => secOf(r).scenario_hh[rung]); // rung WITH the pass's levers
         const rows = years.map((y: number, i: number) => {
           const row: any = { year: +y, [baseKey]: +(+bauBase[i]).toFixed(4), 'Total households': +(+results[0].total_hh[i]).toFixed(4) };
-          bandDefs.forEach(([, label], p) => { row[label] = Math.max(0, +(sm[p + 1][i] - sm[p][i]).toFixed(4)); });
+          bandDefs.forEach(([, label], p) => { row[label] = +(sm[p + 1][i] - sm[p][i]).toFixed(4); });
           return row;
         });
         // Only stack levers that actually move the needle (an enabled-but-unparameterised one adds 0).
-        const contributing = bandDefs.filter(([, label]) => rows.some((r: any) => r[label] > 1e-4));
+        const contributing = bandDefs.filter(([, label]) => rows.some((r: any) => Math.abs(r[label] || 0) > 1e-4));
         setData(rows);
         setBands(contributing);
         const full = secOf(results[results.length - 1]);            // all enabled toggles + customs applied
@@ -120,12 +130,12 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         const cum = (a: number[]) => (a || []).reduce((s: number, v: number) => s + (+v || 0), 0);
         setSummary({
           // Compare the full-scenario SM / gap against the PURE BAU (bau_hh / financing_gap).
-          endline: years[e], addHH: Math.max(0, (+full.scenario_hh[rung][e]) - (+bau.bau_hh[rung][e])),
+          endline: years[e], addHH: (+full.scenario_hh[rung][e]) - (+bau.bau_hh[rung][e]),
           gapBau: cum(bau.financing_gap), gapIntv: cum(full.scenario_financing_gap),
           cur: inputs?.country_config?.currency || 'LCU',
         });
         setError(null);
-      }).catch((err: any) => setError(String(err)));
+      }).catch((err: any) => { setData([]); setBands([]); setSummary(null); setError(String(err)); });
     }, 350);
     return () => clearTimeout(h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -215,13 +225,15 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         </div>
       </div>
       <div style={{ fontSize: 10, color: '#334155', background: '#f1f5f9', padding: '4px 8px', borderRadius: 4, marginBottom: 8 }}>
-        Live engine output. The blue base is business-as-usual {rungName} coverage; each coloured band stacked on top is the extra coverage an enabled intervention delivers. Switch between absolute households and share of population above.
+        Live engine output. The blue base is business-as-usual {rungName} coverage; each coloured band is that intervention's signed, order-dependent household change. Switch between absolute households and share of population above.
       </div>
       {error && <div style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>{error}</div>}
       {summary && (
         <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: `3px solid ${C.scenario}`, borderRadius: 6, padding: '8px 12px', lineHeight: 1.55, marginBottom: 10 }}>
-          <b>Impact.</b> By {summary.endline}, the enabled interventions serve <b>{sig(summary.addHH)} M</b> more {rungName} households and cut the cumulative financing gap from <b>{sig(summary.gapBau)}</b> to <b>{sig(summary.gapIntv)} M {summary.cur}</b>
-          {summary.gapBau > 0 && <> (a <b>{Math.round((1 - summary.gapIntv / summary.gapBau) * 100)}%</b> reduction)</>}.
+          <b>Impact.</b> By {summary.endline}, the enabled interventions produce a net change of <b>{sig(summary.addHH)} M</b> {rungName} households. The cumulative financing gap changes from <b>{sig(summary.gapBau)}</b> to <b>{sig(summary.gapIntv)} M {summary.cur}</b>
+          {summary.gapBau > 0 && summary.gapIntv < summary.gapBau && <> (<b>{Math.round((1 - summary.gapIntv / summary.gapBau) * 100)}%</b> lower)</>}
+          {summary.gapIntv > summary.gapBau && summary.gapBau > 0 && <> (<b>{Math.round((summary.gapIntv / summary.gapBau - 1) * 100)}%</b> higher)</>}
+          {summary.gapIntv > summary.gapBau && summary.gapBau <= 0 && <> (a financing gap emerged)</>}.
         </div>
       )}
       <div ref={chartRef} style={{ background: '#fff' }}>

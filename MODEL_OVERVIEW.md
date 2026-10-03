@@ -282,13 +282,53 @@ A **safely-managed ceiling** protects the Basic target: interventions may close 
 gap but never overshoot the target path. (It only engages when NRW or the affordability lever is
 active, so the pure BAU is untouched.)
 
-### 6.1 Collection efficiency
+### Agreed intervention sequence and accounting categories
+
+Present budget execution first; operational efficiency (collection then NRW) second;
+capex efficiency (unit-cost reductions then supported technology selection) third;
+and residual additional public financing requirements as an output fourth.
+Tariff reform, microfinance, custom interventions and borrowing remain additional options.
+
+Budget execution releases usable **allocated capital**, not recurring utility cash.
+Operations produce collected revenue, recurring savings and recurring costs.
+Capex efficiency changes investment prices, not cash for debt service.
+Explicit public commitments and injections are separate capital sources.
+No government contribution is inferred to close a residual.
+
+Before/after public-financing comparisons hold other scenario sources, including loans
+and direct reinvestment, fixed. The before case removes explicit commitment/injection
+capital and independently recalculates carry from zero. It does not borrow closing cash
+from the after case. Annual residuals and sums of annual residuals remain distinct.
+
+Sequential displays are **order-dependent marginal effects**. Both sectors' execution,
+collection, NRW, costs and technology precede additional options (tariff, microfinance,
+customs, borrowing); explicit public capital comes last. Preserve negative effects and
+cross-sector dependencies. Signed household changes and financing-shortfall reductions
+sum to the full combined scenario minus BAU. Cash gained and investment costs avoided
+are different quantities and must not be added into one recurring-cash total.
+
+### 6.1 Collection efficiency and the shared collected-revenue ledger
 
 Ramps the collected-to-billed ratio from current to target between a start and target year. The
 additional cash each year is `billed_volume × tariff × (ratio[t] − baseline_ratio)`, and 100% of
 it is recycled into capex. Billed volume **scales with population** off its anchor year (or a
-fixed compound rate if supplied) — exogenous, so it grows with the system without creating a
-circular dependency on the connections it funds.
+fixed compound rate if supplied). This baseline billed volume is exogenous.
+Scenario billed volume additionally includes NRW commercial billing recovery and the
+recovered physical water explicitly allocated to additional service/sales.
+
+Combined additional collected revenue is exactly
+`Q_scenario × Tariff_scenario × Collection_scenario − Q_BAU × Tariff_BAU × Collection_BAU`.
+Revenue attribution uses collection at BAU volume and tariff first; NRW additional
+billing/sales at BAU tariff and scenario collection second; tariff change on the full
+scenario volume and collection third. These signed components sum to the combined
+change, including interactions once. The legacy independent NRW tariff is retained
+in saved inputs but no longer independently prices the same water.
+
+The common intervention output contract separates additional collected revenue,
+recurring operating savings, recurring operating costs, implementation capex,
+named physical benefits, and SM/Basic unit-cost adjustment factors. Only revenue plus
+recurring savings minus recurring costs enters additional utility cash. Shared collected
+revenue already includes NRW revenue: adding the NRW money ledger again would duplicate it.
 
 Sanitation inherits the ratio ramp and the water tariff from the water lever, applying its own
 `wastewater collected %` and `sewer tariff as % of water tariff`, on its own timing.
@@ -319,17 +359,30 @@ They compose by multiplication when both are on. Note these are distinct from bu
 Non-revenue water falls from current to target over the programme window. The lever is
 deliberately **physical first, financial second**:
 
-- Only the **physical** share of NRW is real recovered water. That water upgrades households:
-  `new SM = recovered physical volume ÷ water per upgrade`, capped at the safely-managed target.
-- A **money ledger** nets the value of *all* recovered water (at tariff, or at avoided production
-  cost) against the cost of fixing — capex on the incremental capacity recovered each year, which
-  keeps growing slowly as the network grows. The net folds into `avail` and **can be negative**,
-  in which case it is drawn from the budget before it funds anything.
+- Only the **physical** share is real recovered water. The user allocates it between
+  additional service/sales and reduced production; the shares are `service_share` and
+  `1 − service_share`, which total 100%. Physical/commercial loss shares also total 100%.
+- Only reduced-production water generates avoided production costs. Only service water
+  supports physical upgrade capacity: `potential upgrades = service volume ÷ water per upgrade`.
+  Commercial-loss recovery improves billing of existing consumption and creates no water.
+- Simulated upgrades reserve their incremental connection cost from available household
+  investment after implementation and replacement. They are limited by available funding,
+  eligible Basic households and the target; unfunded water capacity is not a free connection.
+  Dedicated NRW upgrade purchases and other purchases cannot serve the same household twice.
+- Both commercial billing recovery and service sales use the shared tariff/collection ledger.
+  NRW recurring cash is its attributed collected revenue plus production savings minus
+  recurring maintenance, and may be negative. Rehabilitation implementation capex is a
+  separate investment requirement, not a recurring operating cost or debt-service cash.
+  Target transitions already include their necessary upgrade costs: do not add the simulated
+  upgrade-purchase schedule to target implementation capex.
 - A **benefit lag** separates the works from the water: capex is charged on the works schedule,
   while the recovered volume and its value appear `nrw_lag_years` later. Other levers bake this
   delay into their start year; NRW models it explicitly.
 
 System input volume scales with population (or a fixed rate) off the NRW start year.
+Additional billed sales are a forecast volume assumption for existing and improved service;
+they are not inferred as new connections. Report funded physical upgrades separately from
+potential water capacity.
 
 ### 6.5 NRW-linked sanitation revenue — the one cross-sector lever
 

@@ -14,6 +14,8 @@ export type FinanceYear = {
   publicCapital: number; otherCapital: number; newFinancing: number;
   openingCash: number; closingCash: number; financingApplied: number; cashDeficit: number;
   cumulativeNeed: number; cumulativeShortfall: number;
+  residualPublicBefore: number; additionalPublicCapital: number; residualPublicAfter: number;
+  cumulativeResidualPublicBefore: number; cumulativeResidualPublicAfter: number;
   utilityCashDirect: number; utilityCashCommitted: number;
   loanDrawdown: number; loanDebtService: number; loanInterest: number; loanClosingDebt: number;
   offBudgetLoans: number; offBudgetGrants: number;
@@ -63,6 +65,11 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
     { title: `Unfunded net cash outflows (${b})`, value: r => r.cashDeficit, unit: 'money' },
     { title: `Off-budget microfinance loans (${b})`, value: r => r.offBudgetLoans, unit: 'money' },
     { title: `Off-budget grants spent (${b})`, value: r => r.offBudgetGrants, unit: 'money' },
+    { title: `Residual public financing requirement before explicit contribution (${b})`, value: r => r.residualPublicBefore, unit: 'money' },
+    { title: `Explicit additional public capital (${b})`, value: r => r.additionalPublicCapital, unit: 'money' },
+    { title: `Residual public financing requirement after explicit contribution (${b})`, value: r => r.residualPublicAfter, unit: 'money' },
+    { title: `Cumulative residual before explicit public capital (B ${currency})`, value: r => r.cumulativeResidualPublicBefore, unit: 'money' },
+    { title: `Cumulative residual after explicit public capital (B ${currency})`, value: r => r.cumulativeResidualPublicAfter, unit: 'money' },
     { title: `SM remaining gap (${b})`, value: r => r.services[0].gapScenario, unit: 'money' },
     { title: `Basic remaining gap (${b})`, value: r => r.services[1].gapScenario, unit: 'money' },
     { title: `Total remaining gap (${b})`, value: r => r.scenarioGap, unit: 'money' },
@@ -131,6 +138,30 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
       {table(headers.map(h => h.replace(`(${m})`, `(${b})`)), shown)}
     </div>;
   };
+  const firstYear = rows[0].year;
+  const lastYear = rows[rows.length - 1].year;
+  const cut = Math.min(2030, lastYear);
+  const periods = [
+    { label: `${firstYear}–${cut}`, lo: firstYear, hi: cut },
+    ...(lastYear > cut ? [{ label: `${cut + 1}–${lastYear}`, lo: cut + 1, hi: lastYear }] : []),
+    { label: `Total ${firstYear}–${lastYear}`, lo: firstYear, hi: lastYear },
+  ];
+  const periodFields = [
+    { label: `Residual before explicit public capital (B ${currency})`, value: (rs: FinanceYear[]) => rs.reduce((sum, r) => sum + r.residualPublicBefore, 0) },
+    { label: `Explicit additional public capital (B ${currency})`, value: (rs: FinanceYear[]) => rs.reduce((sum, r) => sum + r.additionalPublicCapital, 0) },
+    { label: `Residual after explicit public capital (B ${currency})`, value: (rs: FinanceYear[]) => rs.reduce((sum, r) => sum + r.residualPublicAfter, 0) },
+    { label: `Period-end cumulative residual before (B ${currency})`, value: (rs: FinanceYear[]) => rs[rs.length - 1]?.cumulativeResidualPublicBefore || 0 },
+    { label: `Period-end cumulative residual after (B ${currency})`, value: (rs: FinanceYear[]) => rs[rs.length - 1]?.cumulativeResidualPublicAfter || 0 },
+  ];
+  const periodHeaders = ['Period', ...periodFields.map(f => f.label)];
+  const periodRows = periods.map(p => {
+    const inPeriod = rows.filter(r => r.year >= p.lo && r.year <= p.hi);
+    return [p.label, ...periodFields.map(f => billions(f.value(inPeriod)))];
+  });
+  const periodExportRows = periods.map(p => {
+    const inPeriod = rows.filter(r => r.year >= p.lo && r.year <= p.hi);
+    return [p.label, ...periodFields.map(f => Number((f.value(inPeriod) / 1000).toFixed(6)))];
+  });
 
   return <div style={{ marginTop: 12, marginBottom: 18 }}>
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 4 }}>
@@ -144,17 +175,25 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
       cost-saving interventions instead lower the need. Total financing includes public capital, directly reinvested utility
       cash, household microfinance and grants, loan proceeds, and opening carried cash, each counted once.
       Source breakdowns are components of total financing, not additional amounts to add again. Cash committed
-      to debt is not also reinvested. Loan proceeds, debt service, interest, and the closing debt balance are
-      itemized separately. Financing covers replacement first, then new service using the configured split,
-      with unused allocations transferable. The two attributed remaining gaps add to the sector total. A negative gap
-      change means the shortfall grew; unlike the chart’s positive-only bands, these changes use the full scenario.
+       to debt is not also reinvested. Loan proceeds, debt service, interest, and the closing debt balance are
+       itemized separately. Financing covers replacement first, then new service using the configured split,
+       with unused allocations transferable. The two attributed remaining gaps add to the sector total. Marginal
+       intervention changes are order-dependent and signed: positive values reduce the shortfall, negative values widen it.
       Money is shown in billions; detailed forecast downloads use millions, as in the BAU tables.
       Closing investment cash is unused available financing and becomes next year's opening cash without
       interest. It is a balance, not a new financing flow. Opening cash + new financing + unfunded net cash
       outflows = financing applied + closing cash. Cumulative requirements and shortfalls sum scheduled annual
       flows, never repeated cash balances or service backlogs. Later surpluses do not erase earlier shortfalls,
-      and unmet requirements are not automatically rescheduled.
+      and unmet requirements are not automatically rescheduled. The additional public requirement is an output:
+      before/after residuals hold all other scenario financing (including loans and direct utility cash) fixed and
+      reconcile with a separate zero-opening-carry calculation. Explicit public contributions are not assumed.
     </div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+      <b style={{ fontSize: 11.5, color: '#1e3a5f' }}>Additional public financing requirement — period totals</b>
+      <TableExport filename={`${scope}_${sector}_public_financing_residual_periods`} sheetName="Public financing residuals"
+        headers={periodHeaders} rows={periodExportRows} compact />
+    </div>
+    {table(periodHeaders, periodRows)}
     {table(summaryHeaders, rows.map(r => [r.year, ...summary.map(c => billions(c.value(r)))]))}
     {rungTable(0)}
     {rungTable(1)}

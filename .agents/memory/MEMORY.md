@@ -3,3 +3,4 @@
 - [Forward-looking scenario scope](scenario-scope.md) — exclude delivery monitoring and catch-up replanning; preserve inputs, scenarios and exports before accounting work.
 - [Annual target transitions](target-transition-assumptions.md) — population-cohort assumptions identify gross connections and upgrades; retained asset replacement is approximate.
 - [Programme financing timing](programme-financing-timing.md) — reconcile carry once; annual shortfalls, programme requirements, and terminal service gaps are separate.
+- [Intervention accounting](intervention-accounting.md) — agreed sequence, shared collected-revenue attribution, and separation of capital, recurring cash and funded physical benefits.

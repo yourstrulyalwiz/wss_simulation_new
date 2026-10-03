@@ -18,7 +18,7 @@ import numpy as np
 
 from model.finance import (
     annual_asset_requirements, funding_ledger, loan_schedule, target_transition_capex,
-    tariff_collection_cash, target_household_trajectory,
+    tariff_collection_cash, target_household_trajectory, intervention_output,
 )
 from model.gap_attribution import attribute_gap
 
@@ -98,6 +98,11 @@ def custom_streams(ctx, period, base_sm_cost, base_basic_cost, customs, sector):
         if csec not in (sector, 'both'):
             continue
         if csec == 'both':
+            shares = [float(getattr(c, 'water_allocation_share', 0.5)),
+                      float(getattr(c, 'sanitation_allocation_share', 0.5))]
+            if (not np.all(np.isfinite(shares)) or min(shares) < 0 or max(shares) > 1
+                    or not np.isclose(sum(shares), 1.0)):
+                raise ValueError("Shared custom intervention sector allocations must total 100%.")
             allocation = float(np.clip(
                 getattr(c, 'water_allocation_share' if sector == 'water' else 'sanitation_allocation_share', 0.5),
                 0.0, 1.0))
@@ -553,15 +558,22 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     nrw_recovered_phys_total = np.zeros(n)
     nrw_commercial_vol = np.zeros(n)
     nrw_commercial_cash = np.zeros(n)
+    nrw_service_cash = np.zeros(n)
+    nrw_production_avoided_vol = np.zeros(n)
     nrw_production_savings = np.zeros(n)
     nrw_implementation = np.zeros(n)
     nrw_service_upgrade_capex = np.zeros(n)
     nrw_maintenance_cost = np.zeros(n)
     nrw_net = np.zeros(n)                         # recurring cash: commercial revenue + savings - maintenance
-    share_total = max(0.0, nrw_physical) + max(0.0, nrw_commercial)
-    physical_share = max(0.0, nrw_physical) / share_total if share_total else 0.5
-    commercial_share = max(0.0, nrw_commercial) / share_total if share_total else 0.5
-    service_share = float(np.clip(nrw_service_share, 0.0, 1.0))
+    if nrw_enabled and (
+        not np.all(np.isfinite([nrw_physical, nrw_commercial, nrw_service_share]))
+        or min(nrw_physical, nrw_commercial) < 0
+        or not np.isclose(nrw_physical + nrw_commercial, 1.0)
+        or not 0.0 <= nrw_service_share <= 1.0
+    ):
+        raise ValueError("NRW physical/commercial shares must total 100%; service allocation must be between 0% and 100%.")
+    physical_share, commercial_share = nrw_physical, nrw_commercial
+    service_share = float(nrw_service_share)
     if nrw_enabled and nrw_current > nrw_target and nrw_start:
         for t, y in enumerate(years):
             if y <= by or y < nrw_start:
@@ -585,6 +597,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             commercial_volume = total_recovered * commercial_share
             nrw_recovered_phys_total[t] = physical_recovered
             nrw_recovered_phys[t] = service_volume
+            nrw_production_avoided_vol[t] = production_volume
             nrw_commercial_vol[t] = commercial_volume
             nrw_upgrade_cum[t] = (
                 service_volume / nrw_water_per_upgrade if nrw_water_per_upgrade > 0 else 0.0)
@@ -592,8 +605,10 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                 nrw_upgrade_cum[t] = max(nrw_upgrade_cum[t], nrw_upgrade_cum[t - 1])
 
             nrw_production_savings[t] = production_volume * max(0.0, nrw_production_cost)
-            nrw_commercial_cash[t] = (
-                commercial_volume * max(0.0, nrw_tariff) * collection_scenario[t])
+            # NRW is attributed after collection, before tariff reform. Both physical-service
+            # sales and recovered billing use the shared BAU tariff and scenario collection.
+            nrw_commercial_cash[t] = commercial_volume * max(0.0, tariff_current) * collection_scenario[t]
+            nrw_service_cash[t] = service_volume * max(0.0, tariff_current) * collection_scenario[t]
             cap_now = red * nrw_vol_m3day * volume_factor
             cap_prev = (
                 nrw_reduction[t - 1] * nrw_vol_m3day
@@ -606,14 +621,25 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             if y >= nrw_start:
                 nrw_maintenance_cost[t] = max(0.0, nrw_maintenance_annual) / 1_000_000.0
             nrw_net[t] = (
-                nrw_commercial_cash[t] + nrw_production_savings[t] - nrw_maintenance_cost[t])
+                nrw_commercial_cash[t] + nrw_service_cash[t]
+                + nrw_production_savings[t] - nrw_maintenance_cost[t])
+    billed_volume_scenario = billed_volume + nrw_commercial_vol + nrw_recovered_phys
+    # Tariff reform is last: its interaction with recovered billed volumes belongs here,
+    # not also in NRW revenue. This telescopes to Qs*Ts*Cs - Qb*Tb*Cb.
+    _, tariff_cash = tariff_collection_cash(
+        billed_volume_scenario, tariff_current, tariff_scenario, ce_current_ratio,
+        collection_scenario, tariff_enabled=tariff_enabled, collection_enabled=False)
+    shared_revenue_cash = collection_cash + nrw_commercial_cash + nrw_service_cash + tariff_cash
     # NRW rehabilitation enables the programme and is a distinct implementation cost.
     # NRW-enabled household upgrades are already priced in scheduled target expansion.
     # Their simulated-path purchase cost must not be added a second time to target need.
     implementation_capex = nrw_implementation + custom_implementation_arr
-    simulated_implementation_and_upgrade_capex = implementation_capex + nrw_service_upgrade_capex
     additional_net_utility_cash = (
-        shared_revenue_cash + nrw_net + extra_cash_arr + custom_revenue_arr)
+        shared_revenue_cash + nrw_production_savings - nrw_maintenance_cost
+        + extra_cash_arr + custom_revenue_arr)
+    nrw_potential_upgrade_cum = nrw_upgrade_cum.copy()
+    nrw_upgrade_cum = np.zeros(n)
+    nrw_service_upgrade_capex[:] = 0.0
 
     # Forecast keeps a SELF-CONTAINED unadjusted series (sheet r36-40): each rung compounds from its
     # OWN prior unadjusted value (NOT the rescaled/adjusted prior), seeded at the baseline from the
@@ -700,7 +726,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # Public capital and additional net utility cash are distinct sources. Implementation capex is a
         # requirement and is paid before the remaining resources can support new simulated coverage.
         avail = (bau_available[t] + financial_cash[t] + injection_cash[t]
-                 + additional_net_utility_cash[t] - simulated_implementation_and_upgrade_capex[t])
+                 + additional_net_utility_cash[t] - implementation_capex[t])
         available_total[t] = (
             bau_available[t] + financial_cash[t] + injection_cash[t]
             + additional_net_utility_cash[t])
@@ -711,8 +737,19 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # paid for twice in one year. Money whose source pool is exhausted rolls over to the other rung.
         # basic_share = 0 is the default and reproduces the pre-split single-purchase behaviour exactly.
         invest = max(0.0, avail - bau_replacement[t]) * hh_share
+        # Recovered water alone does not buy an upgrade. Reserve the incremental connection
+        # cost from available household investment before buying any other connections.
+        potential_upgrades = max(0.0, nrw_potential_upgrade_cum[t] - nrw_potential_upgrade_cum[t - 1])
+        upgrade_unit_cost = max(0.0, cost_sm_t[t] - cost_basic_t[t])
+        upgrade_room = min(max(0.0, bau[1, t - 1]), max(0.0, sm_cap[t] - budget_sm))
+        nrw_upg = min(potential_upgrades, upgrade_room,
+                      invest / upgrade_unit_cost if upgrade_unit_cost > 0 else potential_upgrades)
+        upgrade_spend = nrw_upg * upgrade_unit_cost
+        invest -= upgrade_spend
+        nrw_service_upgrade_capex[t] = upgrade_spend * (1.0 + nonhh_mult)
+        nrw_upgrade_cum[t] = nrw_upgrade_cum[t - 1] + nrw_upg
         bs = float(np.clip(basic_share, 0.0, 1.0))
-        pool_basic = max(0.0, bau[1, t - 1])                            # eligible for a safely-managed upgrade
+        pool_basic = max(0.0, bau[1, t - 1] - nrw_upg)                   # do not buy the NRW upgrade twice
         pool_lower = sum(max(0.0, bau[r, t - 1]) for r in LOWER)        # eligible for a basic upgrade
         money_basic, money_sm = invest * bs, invest * (1.0 - bs)
         new_basic = money_basic / cost_basic_t[t] if cost_basic_t[t] > 0 else 0.0
@@ -725,7 +762,6 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             new_sm = pool_basic
             room = max(0.0, pool_lower - new_basic)
             new_basic += min(room, (spare / cost_basic_t[t]) if cost_basic_t[t] > 0 else 0.0)
-        nrw_upg = nrw_upgrade_cum[t] - nrw_upgrade_cum[t - 1]          # water-enabled basic→SM upgrades this year
         budget_sm = budget_sm + new_sm + nrw_upg                      # SM from the budget + NRW only (no levers)
         if nrw_enabled:
             budget_sm = min(budget_sm, sm_cap[t])                     # cap at the SM target → basic stays ≥ its target
@@ -856,10 +892,34 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         total_need, public_capital, other_capital,
         loan['cash_allocated_to_direct_investment'], baseline_index=bi,
         loan_drawdowns=loan['drawdowns'])
+    # Compare explicit public contributions using a second fully reconciled carry path.
+    # Hold the scenario's other financing and loan allocations fixed, not its carried cash.
+    additional_public_capital = financial_cash + injection_cash
+    before_public = funding_ledger(
+        total_need, bau_available, other_capital,
+        loan['cash_allocated_to_direct_investment'], baseline_index=bi,
+        loan_drawdowns=loan['drawdowns'])
     available_total = ledger['available']
     financing_gap = ledger['gap']
     cumulative_requirement = ledger['cumulative_requirement']
     cumulative_financing_gap = ledger['cumulative_gap']
+    outputs = {
+        'collection_efficiency': intervention_output(n, revenue=collection_cash),
+        'tariff_reform': intervention_output(n, revenue=tariff_cash),
+        'nrw': intervention_output(
+            n, revenue=nrw_commercial_cash + nrw_service_cash,
+            savings=nrw_production_savings, operating_costs=nrw_maintenance_cost,
+            implementation=nrw_implementation,
+            physical={
+                'water_for_service_million_m3': nrw_recovered_phys,
+                'water_production_avoided_million_m3': nrw_production_avoided_vol,
+                'commercial_billing_recovered_million_m3': nrw_commercial_vol,
+                'funded_upgrades_million_hh': np.diff(nrw_upgrade_cum, prepend=0.0),
+            }),
+        'custom': intervention_output(n, revenue=custom_revenue_arr,
+                                      implementation=custom_implementation_arr),
+        'nrw_link': intervention_output(n, revenue=extra_cash_arr),
+    }
 
     # Implementation capex is included in the sector-wide gap. Attribute it across service levels in
     # proportion to scheduled expansion (or 50/50 when there is no expansion) so the service components
@@ -933,6 +993,15 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'nrw_recovered_phys_total_vol': nrw_recovered_phys_total.tolist(),
         'nrw_commercial_recovered_vol': nrw_commercial_vol.tolist(),
         'nrw_commercial_cash': nrw_commercial_cash.tolist(),
+        'nrw_service_cash': nrw_service_cash.tolist(),
+        'nrw_production_avoided_vol': nrw_production_avoided_vol.tolist(),
+        'nrw_potential_upgrade_hh': nrw_potential_upgrade_cum.tolist(),
+        'intervention_outputs': outputs,
+        'billed_volume_bau': billed_volume.tolist(),
+        'billed_volume_scenario': billed_volume_scenario.tolist(),
+        'tariff_path': tariff_scenario.tolist(),
+        'collection_path': collection_scenario.tolist(),
+        'revenue_attribution_order': 'Collection at BAU volume/tariff; NRW recovered billing and physical-service sales at BAU tariff and scenario collection; tariff at full scenario volume and collection.',
         'nrw_production_savings': nrw_production_savings.tolist(),
         'nrw_maintenance_cost': nrw_maintenance_cost.tolist(),
         'nrw_implementation_capex': nrw_implementation.tolist(),
@@ -997,8 +1066,11 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'cumulative_investment_requirement': cumulative_requirement.tolist(),
         'financing_gap': financing_gap.tolist(),
         'cumulative_financing_gap': cumulative_financing_gap.tolist(),
-        'financing_gap_before_additional_public': ledger['gap_before_explicit_public'].tolist(),
-        'available_before_additional_public': ledger['available_before_explicit_public'].tolist(),
+        'financing_gap_before_additional_public': before_public['gap'].tolist(),
+        'available_before_additional_public': before_public['available'].tolist(),
+        'additional_public_capital': additional_public_capital.tolist(),
+        'cumulative_residual_public_before': before_public['cumulative_gap'].tolist(),
+        'cumulative_residual_public_after': ledger['cumulative_gap'].tolist(),
         'funded_by_service': funded_by_service.tolist(),
         'financing_gap_by_service': financing_gap_by_service.tolist(),
     }
@@ -1197,4 +1269,9 @@ def calculate_water_supply(inputs, ctx):
         connection_fee=float(getattr(nrw, 'mf_connection_fee', 0.0) or 0.0),
     )
     res['sector'] = 'water'
+    res['intervention_outputs']['custom']['unit_cost_adjustments'] = {
+        'sm': cust_cf_sm.tolist(), 'basic': cust_cf_basic.tolist(),
+    }
+    res['intervention_outputs']['capex_efficiency'] = intervention_output(
+        ctx['n'], unit_costs={'sm': cost_factor / cust_cf_sm, 'basic': cost_factor_basic / cust_cf_basic})
     return res

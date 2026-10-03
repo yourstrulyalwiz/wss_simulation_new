@@ -1,0 +1,57 @@
+## 4. Reconcile intervention cash and physical benefits
+
+Use a common intervention output structure separating:
+
+- Additional collected revenue.
+- Recurring operating savings.
+- Additional recurring operating costs.
+- Implementation capex.
+- Physical service benefits.
+- Unit-cost adjustments.
+
+### Tariff and collection efficiency
+
+Use consistent volume, tariff, and collection assumptions.
+
+Calculate combined incremental collected revenue as:
+
+DeltaRevenue[t]
+= Q_scenario[t] × Tariff_scenario[t] × Collection_scenario[t]
+- Q_BAU[t] × Tariff_BAU[t] × Collection_BAU[t].
+
+Do not assume that the entire tariff increase is collected when collection efficiency is below 100%.
+
+Individual contribution displays must reconcile with this combined result using a documented attribution order. Do not double-count interaction effects.
+
+### NRW
+
+Separate physical-loss recovery from commercial-loss recovery.
+
+Allocate recovered physical water explicitly between:
+
+- Additional service/sales.
+- Reduced production.
+- A user-defined combination.
+
+Allocation shares must total 100%.
+
+Only the portion used for reduced production generates avoided production costs. Only the portion used for additional service can support the corresponding physical service benefit.
+
+Commercial-loss recovery improves billing of existing consumption; it does not create physical water.
+
+Apply collection efficiency to additional billed revenue, and reconcile NRW-related revenue with the shared revenue calculation so it is not added twice.
+
+Do not assume recovered water automatically creates new connections without any necessary connection or upgrade costs.
+
+Keep NRW implementation capex and recurring maintenance costs separate.
+
+### Custom interventions
+
+Check and correct the following if present:
+
+- “Both sectors” duplicates the full cash benefit in Water Supply and Sanitation.
+- Switching sector tabs changes saved intervention assignments.
+- “Safely managed only” cost reductions also affect basic-service costs.
+
+A shared cash benefit must be counted once, using explicit sector allocations or a clearly defined shared pool.
+

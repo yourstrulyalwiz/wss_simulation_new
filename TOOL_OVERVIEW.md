@@ -363,12 +363,14 @@ user can run either without the other.
 ### The cash interventions recycle utility revenue into capital
 
 Increased collection efficiency and tariff reform share one mechanism. Both raise the revenue the
-utility earns on a volume of water or wastewater. Both recycle the whole increase into
-capital.[^29]
+utility collects on a volume of water or wastewater. Their combined increase is reconciled once,
+then reinvested by default; the cash-allocation control can instead commit a share to borrowing
+and debt-service reserves.[^29]
 
 Collection efficiency ramps the collected share of billed revenue from its current level to a
 target. Tariff reform ramps the tariff itself. In both cases the billed volume grows with
-population rather than with the connections the intervention funds.[^30] The choice is deliberate.
+population, or an explicitly entered fixed growth rate, rather than with the connections the
+intervention funds.[^30] These growth choices are mutually exclusive. The choice is deliberate.
 A volume that grew with coverage would depend on the very connections it was paying for.
 
 Sanitation runs both on its own terms. Its collection intervention inherits the water utility's

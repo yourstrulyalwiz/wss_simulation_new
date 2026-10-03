@@ -23,3 +23,23 @@ and Node dependencies available.
 
 The frontend integration checks exercise the data selectors used by charts and
 tables. They are not browser-click tests of save/load controls or download buttons.
+
+## Captured accounting and borrowing references
+
+`validation/financing_reference_scenarios.json` contains full synthetic inputs,
+source revisions and annual metrics for the original branch, the corrected
+pre-borrowing benchmark, current reinvestment-only, and alpha 0 / 0.5 / 1.
+`test_reference_scenarios.py` reruns the current cases and verifies benchmark
+preservation and the separation of borrowing from target requirements/revenue.
+
+To recapture the references without checking out or changing the working branch:
+
+```sh
+python tools/capture_financing_references.py
+```
+
+Historical replay extracts only model/adapter sources into temporary directories
+and requires the recorded original and pre-borrowing revisions in Git history.
+The references are diagnostic comparisons, not country investment forecasts.
+The completion report is in `docs/implementation_completion_report_complete.html`
+and contains an embedded download of the full-precision reference JSON.

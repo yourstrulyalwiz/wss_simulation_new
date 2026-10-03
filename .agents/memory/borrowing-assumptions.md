@@ -23,6 +23,12 @@ Use nominal fixed payments with cash/principal converted using local inflation, 
 
 **How to apply:** Keep debt conversion independent of whether GDP is entered in real or nominal currency. Display projection-end outstanding debt and full maturity schedules with the assumptions.
 
+Borrowing is not guaranteed to lower the sum of programme-year financing gaps even when it improves terminal coverage.
+
+**Why:** Upfront principal can fund service earlier while more additional utility cash is withheld for debt service/reserves across the coverage horizon. Obligations and reserve release may extend beyond that horizon.
+
+**How to apply:** Compare coverage, annual financing shortfalls, projection-end outstanding debt and full maturity schedules separately; do not treat a larger programme gap as proof that borrowing accounting is incorrect.
+
 When appending pages to a pruned/reordered PowerPoint template, do not assume the slide count provides a unique package-part address.
 
 **Why:** The PowerPoint library's count-based naming can collide with surviving higher-numbered template parts, producing duplicate ZIP entries and potentially broken decks.

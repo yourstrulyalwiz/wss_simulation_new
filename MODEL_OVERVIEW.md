@@ -19,7 +19,7 @@ It produces three linked quantities for each sector and each forecast year:
 |---|---|
 | **BAU coverage** | Households reaching *safely managed* service on current budgets and current performance |
 | **Service gap** | Target-path safely-managed households − BAU safely-managed households |
-| **Financing gap** | Investment needed to close that gap (plus asset replacement) − capital actually available |
+| **Financing gap** | Independently scheduled annual investment requirement − financing available, including opening carry once |
 
 On top of that baseline, eight built-in **interventions** (plus user-defined custom ones) are
 each modelled as a distinct mechanism that either raises the capital available, lowers the unit
@@ -143,7 +143,9 @@ avail = bau_available            (effective capex budget)
 Replacement is funded first, and only the household share of what remains buys connections:
 
 ```
-new_SM = max(0, avail − BAU_replacement) × (1 − non-HH%) ÷ SM_unit_cost[t]
+new_cash = max(0, avail − BAU_replacement)
+new_SM = new_cash × (1 − Basic_investment_share) × (1 − non-HH%) ÷ SM_unit_cost[t]
+new_Basic = new_cash × Basic_investment_share × (1 − non-HH%) ÷ Basic_unit_cost[t]
 ```
 
 - `BAU_replacement[t] = BAU_stock[t−1] ÷ asset_life`. The BAU keeps its **own** asset stock,
@@ -426,8 +428,9 @@ baseline information does not turn this module into a full utility credit assess
 
 ### 6.5 NRW-linked sanitation revenue — the one cross-sector lever
 
-The physical water that water-NRW recovers returns to the sewer as wastewater the sanitation
-utility can charge for:
+Only the physical recovery allocated to additional service is eligible for the linked sewer
+volume assumption. Water allocated to avoided production is not also supplied as service.
+The sanitation utility applies the return ratio and sewer charge to that service volume:
 
 ```
 revenue = recovered volume × return ratio × sewer charge × collection rate
@@ -507,14 +510,15 @@ and national scopes.
 
 ## 9. Assumptions and limitations worth stating up front
 
-- **Real terms throughout.** No inflation or exchange-rate chain when real GDP is entered directly.
-- **Capital only.** The coverage math is driven by capex; operations and maintenance appear only
-  as the revenue side of the tariff and collection levers. There is no O&M cost constraint on the
-  connections the model builds.
-- **Revenue is 100% recycled into capex.** Every cash lever assumes the full incremental revenue
-  becomes capital for new service.
-- **Only safely managed is purchased.** Basic is a residual; the model does not cost a deliberate
-  programme of Basic-level service.
+- **Real reporting, explicit nominal contracts.** Investment and operating cash are reported in
+  real local currency. Nominal debt contracts use local inflation independently of GDP input mode.
+- **Capital-driven coverage, not a full utility cash statement.** Explicit NRW maintenance and
+  custom recurring expenses reduce additional utility cash, but the tool does not model the full
+  ongoing operating-cost requirement of all existing and new connections.
+- **Reinvestment is the default, not compulsory.** Alpha zero reinvests available additional cash;
+  positive alpha commits a share to debt service/reserves. Cash cannot fund both uses.
+- **Safely Managed and Basic are costed separately.** Gross connections, incremental upgrades
+  and opening-stock replacement are scheduled independently of achieved coverage.
 - **Sanitation runs the water structure.** Different inputs, costs, targets and budget share — but
   no separate on-site / FSM / sewered treatment-sizing logic. The sanitation `capex_adder` is
   household-count-based rather than cost-based, a carry-over from the source workbook.

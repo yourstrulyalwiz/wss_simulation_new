@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "sS3Ib2QiJ8ybUM2UzCG7l"
+uri = "file://docs/implementation_completion_report_complete.html"
+type = "html"
+title = "WSS implementation and completion report"
+description = "Branch findings, accounting and borrowing comparisons, changed files, validation results and limitations. Includes an embedded download of six reproducible reference scenarios."
+logical_id = "a69bb6aa-543f-4e64-bb11-a9dbe7056d72"
+content_hash = "sha256:970e09d6844035f39cacfbacb5bc710c1f9a63b51672feb87e20117f606f1735"
+size = 449972
+mtime_ms = 1791014724152
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:94565d8f-9dcb-4d65-89b1-8d7c54095008/a69bb6aa-543f-4e64-bb11-a9dbe7056d72/54580e46-7c72-4290-bf6c-4be85f552123"
+storage_version_token = "1791014853243657"
+content_type = "text/html"

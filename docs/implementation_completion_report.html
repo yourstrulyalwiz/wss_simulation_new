@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WSS implementation and completion report</title>
+<style>
+body{margin:0;background:#f3f5f8;color:#172536;font:16px/1.65 system-ui,sans-serif}
+main{max-width:1050px;margin:35px auto;padding:38px;background:white;border:1px solid #dce3eb;border-radius:10px}
+h1,h2,h3{line-height:1.25;color:#123c60}h1{font-size:30px}h2{margin-top:35px}
+.note{padding:15px 20px;background:#edf5fc;border-left:4px solid #2674af}
+table{width:100%;border-collapse:collapse;font-size:14px;margin:18px 0}
+th,td{padding:10px;border:1px solid #dce3eb;text-align:left;vertical-align:top}th{background:#edf2f7}
+code{font-size:13px;background:#f1f4f7;padding:2px 5px;overflow-wrap:anywhere}
+li{margin-bottom:8px}.small{color:#536579;font-size:14px}.scroll{overflow-x:auto}
+a{color:#125b98} @media(max-width:700px){main{margin:0;padding:20px;border:0}table{min-width:650px}}
+@media print{body{background:white}main{border:0;margin:0;padding:0}h2{break-after:avoid}tr{break-inside:avoid}}
+</style></head><body><main>
+<h1>WSS implementation and completion report</h1>
+<p class="small">Working branch: <code>qiao-simulation-update</code> · Scope: forward-looking scenarios, corrected accounting, cash allocation and borrowing</p>
+<p class="note">Implementation is complete. Existing tabs, sector/geographic choices and user inputs are retained. No merge, manual commit, unrelated redesign or change to attached assets was performed.</p>
+
+<h2>1. Implementation sequence and evidence</h2>
+<ol type="A">
+<li><strong>Inspect and capture references:</strong> reviewed the original branch and corrected pre-borrowing model from Git history. Replayed both using the same synthetic inputs and captured current reinvestment-only and borrowing references. This final comparison is retrospective; accounting and borrowing were implemented in the earlier stages, not newly invented for this report.</li>
+<li><strong>Correct accounting:</strong> completed independent target investment schedules, opening-stock replacement, financing counted once, carry conservation and reconciled intervention benefits.</li>
+<li><strong>Verify reinvestment:</strong> current no-borrowing results match the captured corrected pre-borrowing benchmark; borrowing enabled with alpha zero reproduces those results.</li>
+<li><strong>Add allocation and borrowing:</strong> completed separate entity pools, eligibility/capacity limits, explicit contract assumptions, reserves, contractual service, payment shortfalls and schedules through maturity.</li>
+<li><strong>Update delivery surfaces:</strong> retained the interface structure, updated guidance, preserved/migrated saves, and reconciled CSV, Excel and both PowerPoint paths.</li>
+<li><strong>Validate and report:</strong> completed the required numerical, conservation, migration and integration regressions. The final test totals are recorded below.</li>
+</ol>
+
+<h2>2. Suspected issues found in this branch</h2>
+<div class="scroll"><table><thead><tr><th>Issue</th><th>Finding and correction</th></tr></thead><tbody>
+<tr><td>Investment need depended on achieved coverage</td><td>Present. Original sector calculations priced the remaining coverage shortfall after applying financing, then subtracted that financing again. Requirements now come from the independent annual target programme.</td></tr>
+<tr><td>Unmet expansion repeatedly enlarged target stock</td><td>Present. Original stock accumulation added the costed standing gap each year. Expansion/upgrades are now scheduled once; replacement uses opening booked assets.</td></tr>
+<tr><td>Tariff/collection arithmetic did not reconcile</td><td>Present in the Water reference: volume 100, tariff 10→12 and collection 80%→90% produced an uplift of 300 rather than 280. Joint collected revenue now reconciles to the product difference. The chosen Sanitation reference already produced 280; it should not be described as having the same revenue error.</td></tr>
+<tr><td>NRW benefits were not constrained to distinct uses</td><td>Present. The original recovered-water quantity fed potential physical upgrades without an explicit service-versus-production allocation or complete funding constraint. Service water, production avoidance, commercial recovery and funded physical upgrades are now separate.</td></tr>
+<tr><td>Custom benefit/cost attribution</td><td>Present. Shared options were passed in full to each selected sector and cost factors were not consistently service-specific. Shared allocations now count once, preserve sector assignments and apply only to selected unit costs.</td></tr>
+<tr><td>Geographic reporting cancellation and hidden negative effects</td><td>Present in reporting. Some summaries/deck sections clipped after aggregating areas; excess coverage could hide another area's shortfall. Canonical local gaps are now summed. A PowerPoint summary also floored negative coverage changes; signed changes are preserved.</td></tr>
+<tr><td>Borrowing, persistence and export coverage</td><td>The original branch did not contain the completed cash-allocation/borrowing module or its reporting and migration protections. These are additions, not historical debt-calculation corrections.</td></tr>
+</tbody></table></div>
+<p>Some safeguards already existed and were retained, notably separate BAU/scenario calculation passes. The audit does not claim that every suspected issue affected every sector or every input combination.</p>
+
+<h2>3. What changed and where</h2>
+<ul>
+<li><strong>Core programme and cash accounting:</strong> <code>model/finance.py</code>, <code>model/water_supply.py</code>, <code>model/sanitation.py</code>, <code>model/engine.py</code> and <code>model/gap_attribution.py</code>.</li>
+<li><strong>Borrowing and exogenous scope:</strong> <code>model/borrowing.py</code>, <code>model/volumes.py</code>, <code>model/inputs.py</code> and <code>demo_adapter.py</code>.</li>
+<li><strong>Interface:</strong> InterventionPanel/borrowing controls, ResultsDashboard, ScenarioGapTables, BorrowingPoolsTable, LiveBAUChart and the Guide/Tool Overview components. Cash-use choices stay visible when borrowing is off.</li>
+<li><strong>Persistence:</strong> <code>input_compatibility.py</code>, frontend <code>inputCompatibility.ts</code>, saved area bundles and visible compatibility notices. Review acknowledgment preserves assumption notes.</li>
+<li><strong>Reporting and exports:</strong> <code>reporting.py</code>, <code>export_data.py</code>, <code>deck_data.py</code>, <code>deck_aggregate.py</code>, <code>export_pptx.py</code>, <code>export_deck.py</code>, <code>reporting_deck.py</code> and <code>borrowing_deck.py</code>. Added annual reconciliation groups and full-maturity debt appendices; prevented duplicate PowerPoint package parts.</li>
+<li><strong>Documentation and references:</strong> <code>MODEL_OVERVIEW.md</code>, <code>TOOL_OVERVIEW.md</code>, <code>VALIDATION.md</code>, <code>tools/capture_financing_references.py</code> and <code>validation/financing_reference_scenarios.json</code>. This last step also removes stale claims that all revenue must be reinvested and only Safely Managed service is costed.</li>
+</ul>
+
+<h2>4. Results changed by accounting corrections</h2>
+<p>The reference fixes population/households, inflation/exchange conversion and public budget, and enables collection and tariff reform. It uses existing cost/service inputs. It is a diagnostic, <strong>not a country investment forecast</strong>. Forecast years are 2026–2040. Money below is <strong>billions of real NPR</strong>; the saved inputs/annual results retain full precision in millions.</p>
+<div class="scroll"><table><thead><tr><th>Metric</th><th>Original branch</th><th>Corrected reinvestment-only</th></tr></thead><tbody>
+<tr><td>Water programme investment requirement</td><td>246.217</td><td>175.226</td></tr>
+<tr><td>Water sum of annual financing shortfalls</td><td>241.717</td><td>171.026</td></tr>
+<tr><td>Sanitation programme investment requirement</td><td>276.531</td><td>22.993</td></tr>
+<tr><td>Sanitation sum of annual financing shortfalls</td><td>272.331</td><td>18.793</td></tr>
+<tr><td>Water first-year collected-revenue uplift</td><td>0.300</td><td>0.280</td></tr>
+</tbody></table></div>
+<p>No borrowing is present in either column. These are accounting/revenue-reconciliation differences. Terminal Safely Managed household counts in this particular reference are unchanged by the accounting corrections: approximately 128,432 Water and 19,437 Sanitation households. That is an observed property of this case, not a guarantee for other scenarios.</p>
+<p>The original and pre-borrowing source revisions are recorded in the JSON capture. Replaying the corrected pre-borrowing revision and comparing it with current reinvestment-only verifies benchmark preservation independently of switching a current toggle.</p>
+
+<h2>5. Results changed by borrowing</h2>
+<p>All target requirements and operating-revenue assumptions are held fixed. Both sector pools use 8% interest, 25-year nominal contracts drawn in 2026, zero reference inflation, no prior debt service and a 1.2 minimum DSCR. They are independent pools, not one shared national facility.</p>
+<div class="scroll"><table><thead><tr><th>Metric</th><th>Reinvestment / alpha 0</th><th>Alpha 0.5</th><th>Alpha 1</th></tr></thead><tbody>
+<tr><td>New principal per sector, real NPR billions</td><td>0</td><td>1.245</td><td>2.491</td></tr>
+<tr><td>Water annual-shortfall sum, real NPR billions</td><td>171.026</td><td>171.880</td><td>172.735</td></tr>
+<tr><td>Sanitation annual-shortfall sum, real NPR billions</td><td>18.793</td><td>19.648</td><td>20.503</td></tr>
+<tr><td>Water terminal SM households</td><td>128,432</td><td>134,135</td><td>144,404</td></tr>
+<tr><td>Sanitation terminal SM households</td><td>19,437</td><td>23,081</td><td>32,551</td></tr>
+<tr><td>2040 outstanding debt per sector, real NPR billions</td><td>0</td><td>0.833</td><td>1.666</td></tr>
+<tr><td>Contract maturity</td><td>No new debt</td><td>2051</td><td>2051</td></tr>
+</tbody></table></div>
+<p class="note"><strong>Interpretation:</strong> borrowing brings capital forward but commits additional cash to repayment/reserves. In this case it improves terminal coverage while increasing programme-year financing shortfalls; maturity and reserve release are beyond 2040. Loan proceeds are not operating revenue, and coverage improvement is not the same measure as a lower annual-shortfall sum.</p>
+
+<h2>6. Validation results</h2>
+<ul>
+<li><strong>84 Python tests passed</strong>, including three captured-reference regressions, required numerical examples, real/nominal debt and reserve conservation, adverse cash forecasts, custom selections, geographical reconciliation and both PowerPoint paths.</li>
+<li><strong>15 frontend tests passed</strong>, including real Python-to-frontend selector/report comparisons and save/migration equivalence.</li>
+<li><strong>TypeScript/Vite build and diff whitespace check passed.</strong> Existing non-blocking Pydantic namespace and large-bundle warnings remain.</li>
+<li>CSV/Excel annual rows match engine values at full precision. Both PowerPoint paths load and use unique ZIP parts; mixed-area template table cells match canonical annual reports.</li>
+<li>Application startup and a public-page screenshot were verified at the preceding validation milestone. This final step changes diagnostic scripts, tests and documentation, not production calculation/UI code.</li>
+</ul>
+<p>Exact fixtures include requirement 100 / financing 40 / gap 60; expansion 4 each year, replacement 10/10.4/10.8/11.2/11.6, total requirement 74 and programme gap 24; and joint tariff/collection uplift 280. No full browser-click test of save/load controls or download buttons has been performed.</p>
+
+<h2>7. Remaining assumptions and limitations</h2>
+<ul>
+<li>Forward-looking scenarios only: no delivery monitoring, catch-up replanning or automatic rescheduling of missed investment.</li>
+<li>Replacement is an opening-stock allowance, not asset-cohort retirement modelling; retained assets and downgrade/upgrade book transfers are approximate.</li>
+<li>Volumes remain exogenous. Use population growth once or a fixed rate, not both. Funded connections/upgrades do not automatically become paying customers; endogenous consumption, operating costs and connection-revenue feedback are deferred.</li>
+<li>The borrowing module is an incremental financing estimate, not a full utility credit assessment. Entered streams, prior obligations and fixed contracts determine its cash capacity and conditional disclosures.</li>
+<li>Committed reserves earn no interest. Unpaid contractual service/debt remains visible; no automatic refinancing or cross-pool subsidy is assumed.</li>
+<li>Debt is tracked through maturity beyond the coverage horizon. Post-horizon established cash and prior obligations are flat in real terms, with final projected inflation held constant; coverage is not extended to match debt maturity.</li>
+<li>National totals sum local flows and unmet gaps; surplus coverage or cash in one area cannot silently meet another area's obligations.</li>
+<li>Older unsupported saves default to reinvest-all/no-new-borrowing and retain previous choices for review. Missing rate basis retains legacy real-rate meaning with a warning rather than guessing nominal intent.</li>
+<li>Sanitation remains a simplified service/capital structure, not a separate full on-site/FSM/sewered treatment-sizing model.</li>
+</ul>
+
+<h2>8. Reproduce the evidence</h2>
+<p><code>python tools/capture_financing_references.py</code> replays the original and corrected historical models in temporary directories and captures current scenarios without switching the working branch. Historical replay requires those revisions to remain available in Git history.</p>
+<p><code>python -m unittest discover -p 'test_*.py'</code><br>
+<code>cd frontend &amp;&amp; npm test &amp;&amp; npm run build</code></p>
+<p>The captured JSON contains each full input set, annual metrics, units and source revisions. The test suite reruns current cases against those snapshots.</p>
+<!--REFERENCE_DOWNLOAD-->
+</main></body></html>

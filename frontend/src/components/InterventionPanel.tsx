@@ -580,6 +580,61 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           </InterventionCategories>
         </>}
 
+        {(() => {
+          const period = inputs.period || {};
+          const fallback = {
+            enabled: false, allocation_share: 0, annual_real_interest_rate: null,
+            disbursement_year: (period.baseline_year || 2025) + 1,
+            principal_grace_years: 0, maturity_year: period.forecast_end_year || 2040,
+            repayment_structure: 'annuity', loan_ceiling: null,
+          };
+          const debt = inputs.utility_debt?.[sectorTab] || fallback;
+          const updateDebt = (key: string, value: any) => onChange({
+            ...inputs,
+            utility_debt: {
+              ...(inputs.utility_debt || {}),
+              [sectorTab]: { ...debt, [key]: value },
+            },
+          });
+          const firstPrincipalYear = Number(debt.disbursement_year || fallback.disbursement_year)
+            + Number(debt.principal_grace_years || 0) + 1;
+          return (
+            <section style={{ marginTop: 12, border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', margin: '0 0 4px' }}>Utility debt financing</h3>
+                  <div style={{ fontSize: 11, lineHeight: 1.45, color: '#64748b' }}>
+                    The utility borrows for {sectorTab === 'water' ? 'water' : 'sanitation'} infrastructure. Annual debt service is sized only against this sector’s eligible tariff, collection and net NRW cash; loan proceeds cannot repay the loan.
+                  </div>
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, fontSize: 12, fontWeight: 600, color: '#334155' }}>
+                  <input type="checkbox" checked={!!debt.enabled} onChange={e => updateDebt('enabled', e.target.checked)} />
+                  Enable
+                </label>
+              </div>
+              {debt.enabled && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginTop: 12 }}>
+                <F label="Eligible-revenue allocation" value={debt.allocation_share ?? 0} onChange={v => updateDebt('allocation_share', v)} isPercent unit="%" tip="Share of positive eligible additional revenue, capped by available capital after replacement, that may support annual utility debt service." />
+                <F label="Annual real interest rate" value={debt.annual_real_interest_rate ?? undefined} onChange={v => updateDebt('annual_real_interest_rate', v)} isPercent unit="%" placeholder="Required" tip="Fixed annual interest rate in real terms. Enter the assumption used to size and schedule this loan." />
+                <F label="Disbursement year" value={debt.disbursement_year ?? fallback.disbursement_year} onChange={v => updateDebt('disbursement_year', v)} step={1} tip="One-time disbursement in a forecast year no later than the simulation end." />
+                <F label="Principal grace period" value={debt.principal_grace_years ?? 0} onChange={v => updateDebt('principal_grace_years', v)} step={1} unit="years" tip="Interest remains due during grace. Principal payments begin after the grace period." />
+                <F label="Final principal-payment year" value={debt.maturity_year ?? fallback.maturity_year} onChange={v => updateDebt('maturity_year', v)} step={1} tip="The last principal payment may fall after the simulation end; all such payments are included in loan sizing." />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500, minHeight: 32 }}>Repayment structure</label>
+                  <select value={debt.repayment_structure || 'annuity'} onChange={e => updateDebt('repayment_structure', e.target.value)}
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, border: '1px solid #F0D070', background: '#FFF9E6', color: '#3A4452', boxSizing: 'border-box', fontFamily: 'inherit' }}>
+                    <option value="annuity">Annuity</option>
+                    <option value="equal_principal">Equal principal</option>
+                  </select>
+                </div>
+                <F label="Optional maximum principal" value={debt.loan_ceiling ?? undefined} onChange={v => updateDebt('loan_ceiling', v)} step={100} unit={`${CUR} millions`} placeholder="No ceiling" tip="Optional cap on the single loan principal. Leave blank to size only from verified annual debt-service capacity." />
+                <div style={{ gridColumn: '1 / -1', fontSize: 11, lineHeight: 1.45, color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 5, padding: '7px 9px' }}>
+                  First principal payment: <b>{firstPrincipalYear}</b>. Grace-period interest is still payable. Unspent proceeds remain restricted to sector investment and are not treated as revenue.
+                </div>
+              </div>}
+            </section>
+          );
+        })()}
+
         {/* ===== CUSTOM INTERVENTIONS (always visible, no dropdown) ===== */}
         <div style={{ marginTop: 16, border: '1px solid #ddd', borderRadius: 8, background: '#fff', padding: '12px 14px' }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', margin: '0 0 8px' }}>Custom Interventions</h3>

@@ -244,7 +244,7 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
         add_chart(s, gap_key, 0.5, 1.35, 7.6)
         bd = intervention_breakdown(inputs, sk, defs)
         headers = ['Intervention — individual detail' if contribution_view == 'category' else 'Intervention',
-                   f'Added HH (M)', f'Resources ({cur} B)', f'Gap closed ({cur} B)']
+                   f'Added HH (M)', f'Resources / financing ({cur} B)', f'Gap closed ({cur} B)']
         if bd:
             rows = [[lbl, f'{hh:.3f}', ('—' if res is None else f'{res * money_factor:,.4f}'), f'{gap * money_factor:,.4f}'] for (lbl, hh, res, gap) in bd]
             rows.append(['Total', f'{sum(x[1] for x in bd):.3f}', f'{sum((x[2] or 0) for x in bd) * money_factor:,.4f}', f'{sum(x[3] for x in bd) * money_factor:,.4f}'])
@@ -255,6 +255,46 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
         tf = textbox(s, 8.3, 6.2, 4.7, 1.0)
         red = (1 - d['gapScn'] / d['gapBau']) * 100 if d['gapBau'] else 0
         set_p(tf.paragraphs[0], f'Endline requirement: {_b(d["gapBau"] * money_factor)} → {_b(d["gapScn"] * money_factor)} B {cur} ({red:.0f}% lower). Closing expansion plus shortfalls since baseline; balances are not additive. {currency_display.get("rate_note", "")} {currency_display.get("price_basis_note", "")}', 11.5, INK, bold=True)
+
+    # Utility loans are annual debt schedules, not household microfinance. Keep assumptions,
+    # annual service capacity, actual loan-funded investment, and restricted proceeds explicit.
+    for sk, name in [('water_supply', 'Water Supply'), ('sanitation', 'Sanitation')]:
+        debt = result[sk].get('scenario_utility_debt') or {}
+        if not debt.get('enabled'):
+            continue
+        summary_slide = prs.slides.add_slide(blank)
+        slide_title(summary_slide, f'{name} — utility debt assumptions and balances',
+                    'Borrowing is by the utility; loan proceeds are restricted to infrastructure and are not debt-service capacity.')
+        assumption_rows = [
+            ['Status', debt.get('status', '—')],
+            ['Allocation of eligible additional revenue', f"{float(debt.get('allocation_share') or 0) * 100:.1f}%"],
+            ['Annual real rate / repayment', f"{float(debt.get('annual_real_interest_rate') or 0) * 100:.2f}% / {debt.get('repayment_structure') or '—'}"],
+            ['Disbursement / grace / maturity', f"{debt.get('disbursement_year') or '—'} / {debt.get('principal_grace_years') or 0} years / {debt.get('maturity_year') or '—'}"],
+            ['Accepted principal', f"{_b(float(debt.get('accepted_principal') or 0) * money_factor)} B {cur}"],
+            ['Total interest / principal repaid', f"{_b(float(debt.get('total_interest') or 0) * money_factor)} / {_b(float(debt.get('total_principal_repaid') or 0) * money_factor)} B {cur}"],
+            ['Closing restricted proceeds', f"{_b(float(debt.get('closing_restricted_cash') or 0) * money_factor)} B {cur}"],
+            ['Sizing assumption', debt.get('tail_capacity_assumption') or 'Annual capacity verified against the scenario.'],
+        ]
+        add_table(summary_slide, .6, 1.35, 12, ['Assumption or balance', 'Value'], assumption_rows, fontsize=10)
+
+        schedule = debt.get('schedule') or []
+        headers = ['Year', f'Opening principal ({cur} B)', f'Disbursement ({cur} B)',
+                   f'Principal paid ({cur} B)', f'Interest ({cur} B)', f'Debt service ({cur} B)',
+                   f'Capacity ({cur} B)', f'Shortfall ({cur} B)',
+                   f'Loan investment ({cur} B)', f'Closing restricted cash ({cur} B)']
+        for start in range(0, len(schedule), 10):
+            page = schedule[start:start + 10]
+            slide = prs.slides.add_slide(blank)
+            slide_title(slide, f'{name} — utility debt annual schedule',
+                        f"Years {page[0]['year']}–{page[-1]['year']} · amounts in billions of {cur}")
+            rows = [[
+                row.get('year'),
+                *[f"{_b(float(row.get(field) or 0) * money_factor)}" for field in (
+                    'opening_principal', 'disbursement', 'principal_payment', 'interest_payment',
+                    'total_debt_service', 'annual_service_capacity', 'payment_shortfall',
+                    'investment_from_loan_proceeds', 'closing_restricted_cash')],
+            ] for row in page]
+            add_table(slide, .45, 1.45, 12.4, headers, rows, fontsize=7.5)
 
     output = io.BytesIO()
     prs.save(output)

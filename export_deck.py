@@ -339,7 +339,7 @@ def _fill_interventions(slide, b, cur, contribution_view='individual', money_fac
     t = _table(slide, 'Table 501')
     if t is not None:
         set_cell(t, 0, 0, 'Intervention — individual detail' if contribution_view == 'category' else 'Intervention')
-        set_cell(t, 0, 1, f'Resources generated ({cur} b)')
+        set_cell(t, 0, 1, f'Resources / financing ({cur} b)')
         set_cell(t, 0, 2, "Added HHs ('000)")
         # The template ships 4 lever rows between the header and the Total row; grow or shrink to fit.
         TEMPLATE_LEVER_ROWS = 4
@@ -384,7 +384,9 @@ def _fill_detail(slide, b, row, inputs, sk, source_cur, display_cur, money_facto
     title = find_shape(slide, 'Text 0')
     if title is not None:
         set_text(title, title.text_frame.text.replace('[intervention name]', row['label']))
-    if display_cur.upper() == 'USD' and source_cur.upper() != 'USD':
+    if row.get('key') == 'utility_debt_financing':
+        replace_tokens(slide, {'Resources generated: [X] billion': 'Loan principal accepted: [X] billion'})
+    elif display_cur.upper() == 'USD' and source_cur.upper() != 'USD':
         replace_tokens(slide, {'Resources generated: [X] billion': 'Resources generated: [X] billion USD'})
     replace_tokens(slide, {
         '[X]': 'n/a' if row['money_m'] is None else bn(row['money_m'] * money_factor, 2),
@@ -396,6 +398,87 @@ def _fill_detail(slide, b, row, inputs, sk, source_cur, display_cur, money_facto
         '[target value]': perf.get('target', 'n/a'),
         '[year]': str(perf.get('target_year') or b['end_year']),
     })
+
+
+def _append_utility_debt_slides(prs, blocks, display_currency, money_factor):
+    """Add a summary and paginated annual schedule for each scope/sector with utility borrowing."""
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+
+    for (scope, sector), block in blocks.items():
+        debt = block.get('utility_debt') or {}
+        if not debt.get('enabled'):
+            continue
+        sector_name = 'Water Supply' if sector == 'water_supply' else 'Sanitation'
+        scope_name = scope.title()
+        schedule = debt.get('schedule') or []
+        pages = [schedule[i:i + 12] for i in range(0, len(schedule), 12)] or [[]]
+        for page_index, page in enumerate(pages):
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            title = slide.shapes.add_textbox(Inches(.55), Inches(.25), Inches(12.2), Inches(.5))
+            title.text_frame.text = f'{scope_name} — {sector_name} utility debt financing'
+            title.text_frame.paragraphs[0].font.size = Pt(19)
+            title.text_frame.paragraphs[0].font.bold = True
+            title.text_frame.paragraphs[0].font.color.rgb = RGBColor(0x01, 0x49, 0x72)
+
+            if page_index == 0:
+                details = [f"Status: {debt.get('status', '—')}."]
+                for area_debt in debt.get('areas') or [debt]:
+                    details.append(
+                        f"{area_debt.get('area', scope_name)} — allocation "
+                        f"{float(area_debt.get('allocation_share') or 0) * 100:.1f}%, real rate "
+                        f"{float(area_debt.get('annual_real_interest_rate') or 0) * 100:.2f}%, "
+                        f"{area_debt.get('repayment_structure') or '—'}, disbursement "
+                        f"{area_debt.get('disbursement_year') or '—'}, grace "
+                        f"{area_debt.get('principal_grace_years') or 0} years, maturity "
+                        f"{area_debt.get('maturity_year') or '—'}."
+                    )
+                details.extend([
+                    f"Accepted principal: {bn(float(debt.get('accepted_principal') or 0) * money_factor)} B {display_currency} · total principal repaid: {bn(float(debt.get('total_principal_repaid') or 0) * money_factor)} B · total interest: {bn(float(debt.get('total_interest') or 0) * money_factor)} B",
+                    f"Closing restricted proceeds: {bn(float(debt.get('closing_restricted_cash') or 0) * money_factor)} B {display_currency}. Loan proceeds are not debt-service capacity.",
+                    str(debt.get('tail_capacity_assumption') or 'Annual debt service is checked against verified capacity.'),
+                ])
+                note = slide.shapes.add_textbox(Inches(.65), Inches(.9), Inches(12.0), Inches(1.25))
+                note.text_frame.word_wrap = True
+                for i, text in enumerate(details):
+                    p = note.text_frame.paragraphs[0] if i == 0 else note.text_frame.add_paragraph()
+                    p.text = text
+                    p.font.size = Pt(9)
+                    p.font.color.rgb = RGBColor(0x33, 0x41, 0x55)
+                top = 2.25
+            else:
+                years_text = f"Years {page[0]['year']}–{page[-1]['year']}" if page else 'No annual schedule'
+                subtitle = slide.shapes.add_textbox(Inches(.6), Inches(.85), Inches(12), Inches(.3))
+                subtitle.text_frame.text = f'{years_text} · amounts in billions of {display_currency}'
+                subtitle.text_frame.paragraphs[0].font.size = Pt(10)
+                top = 1.3
+
+            if page:
+                headers = ['Year', 'Opening principal', 'Disbursement', 'Principal paid',
+                           'Interest paid', 'Total service', 'Service capacity',
+                           'Shortfall', 'Loan-funded investment', 'Closing restricted cash']
+                values = [[row.get('year')] + [
+                    bn(float(row.get(field) or 0) * money_factor, 2) for field in (
+                        'opening_principal', 'disbursement', 'principal_payment', 'interest_payment',
+                        'total_debt_service', 'annual_service_capacity', 'payment_shortfall',
+                        'investment_from_loan_proceeds', 'closing_restricted_cash')]
+                    for row in page]
+                table = slide.shapes.add_table(len(values) + 1, len(headers), Inches(.35), Inches(top),
+                                               Inches(12.65), Inches(.29 * (len(values) + 1))).table
+                for row_index, row_values in enumerate([headers, *values]):
+                    for col_index, value in enumerate(row_values):
+                        cell = table.cell(row_index, col_index)
+                        cell.text = str(value)
+                        for para in cell.text_frame.paragraphs:
+                            para.font.size = Pt(7 if row_index == 0 else 7.5)
+                            para.font.bold = row_index == 0
+                            para.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF) if row_index == 0 else RGBColor(0x29, 0x34, 0x3B)
+                        if row_index == 0:
+                            cell.fill.solid()
+                            cell.fill.fore_color.rgb = RGBColor(0x01, 0x49, 0x72)
+                        elif row_index % 2:
+                            cell.fill.solid()
+                            cell.fill.fore_color.rgb = RGBColor(0xED, 0xF1, 0xF3)
 
 
 def _fill_exec(slide, d, cur, lt, money_factor=1.0):
@@ -604,7 +687,8 @@ def _contents_entries(prs, d, present, lever_rows):
                         'title': f'{SCOPE_TITLE[sc]} {SECTOR_TITLE[sk]}',
                         'range': f'Slides {start}–{end}'})
         n, i = end, i + 1
-    entries.append({'chip': '—', 'title': 'Appendices', 'range': f'Slides {n + 1}–{n + 2}'})
+    entries.append({'chip': '—', 'title': 'Appendices & utility debt schedules',
+                    'range': f'Slides {n + 1}–{len(prs.slides)}'})
     return entries
 
 
@@ -688,6 +772,7 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, co
         key_to_category = {
             'ws_financial_commitment_enabled': 'funding', 'ws_exogenous_injection_enabled': 'funding',
             'san_financial_commitment_enabled': 'funding', 'san_exogenous_injection_enabled': 'funding',
+            'utility_debt_financing': 'funding',
             'ws_collection_efficiency_enabled': 'operations', 'ws_nrw_enabled': 'operations',
             'san_collection_efficiency_enabled': 'operations', 'san_nrw_link_enabled': 'operations',
             'ws_capital_efficiency_enabled': 'investment', 'ws_costeff_enabled': 'investment', 'ws_techmix_enabled': 'investment',
@@ -796,6 +881,8 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, co
             scope_inputs = d['area_inputs'].get(sc) or d['inputs']
         for slide, row in zip(clones, rows):
             _fill_detail(slide, b, row, scope_inputs, sk, source_cur, display_cur, money_factor)
+
+    _append_utility_debt_slides(prs, d['blocks'], display_cur, money_factor)
 
     # ── contents + prompts ──────────────────────────────────────────────────────────────────────
     _rebuild_contents(prs.slides[IDX_CONTENTS], _contents_entries(prs, d, present, lever_rows),

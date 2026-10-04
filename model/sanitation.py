@@ -13,7 +13,7 @@ from .water_supply import (sector_bau, sector_full_budget, cost_with_treatment, 
                            _target_points, build_cost_factor, custom_streams)
 
 
-def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
+def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None, utility_debt_execution=None):
     # `nrw_recovered_vol` (M m³/yr per year) is the PHYSICAL water the WATER NRW lever recovers, threaded in
     # by the engine: 0 in the sanitation BAU pass and when the water NRW lever is off, the water scenario
     # volume otherwise. The NRW-linked sanitation-revenue lever charges a (partly-collected) sewer fee on it.
@@ -184,6 +184,9 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
         connection_fee=float(getattr(si, 'mf_connection_fee', 0.0) or 0.0),
         # Water-NRW-linked sewer revenue + custom new-revenue net cash → sanitation capex (0 when off).
         extra_cash=extra_cash,
+        eligible_nrw_cash=nrw_link_cash,
+        custom_cash=cust_cash,
+        utility_debt_execution=utility_debt_execution,
     )
     res['sector'] = 'sanitation'
     return res

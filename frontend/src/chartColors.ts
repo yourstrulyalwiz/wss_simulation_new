@@ -33,5 +33,6 @@ export const INTV_PALETTE = {
   microfinance: '#c5146a', // rose
   financial: '#0f766e',    // deep teal
   injection: '#b45309',    // dark amber — separate injection band
+  utilityDebt: '#334155',  // slate — utility borrowing, distinct from operating cash and household lending
   custom: '#ae4f0e',     // burnt-orange (default for custom interventions; user-overridable)
 };

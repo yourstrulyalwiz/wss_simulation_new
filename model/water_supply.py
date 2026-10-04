@@ -257,8 +257,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                afford_upfront_payable_ratio=0.0, afford_takeup=0.0, afford_gap_shares=None,
                afford_bracket_income=None, afford_grant_total=0.0,
                selffinance_enabled=False, selffinance_share=0.0, connection_fee=0.0,
-               financial_enabled=False, injection_enabled=False, financial_settings=None, financial_execution_rate=None,
-               extra_cash=None, revenue_base=None, revenue_volume=None):
+                financial_enabled=False, injection_enabled=False, financial_settings=None, financial_execution_rate=None,
+                extra_cash=None, eligible_nrw_cash=None, custom_cash=None, revenue_base=None, revenue_volume=None,
+                utility_debt_execution=None):
     """Shared 4a-4d core. All HH and money values are in MILLIONS; costs in actual currency.
 
     `full_budget` is the sector's FULL budget per year in real terms, from EITHER %GDP mode
@@ -301,6 +302,26 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     extra_cash_arr = np.zeros(n) if extra_cash is None else np.asarray(extra_cash, dtype=float)
     if extra_cash_arr.shape[0] < n:
         extra_cash_arr = np.concatenate([extra_cash_arr, np.zeros(n - extra_cash_arr.shape[0])])
+    eligible_nrw_cash_arr = (np.zeros(n) if eligible_nrw_cash is None
+                             else np.asarray(eligible_nrw_cash, dtype=float))
+    if eligible_nrw_cash_arr.shape[0] < n:
+        eligible_nrw_cash_arr = np.concatenate(
+            [eligible_nrw_cash_arr, np.zeros(n - eligible_nrw_cash_arr.shape[0])])
+    custom_cash_arr = np.zeros(n) if custom_cash is None else np.asarray(custom_cash, dtype=float)
+    if custom_cash_arr.shape[0] < n:
+        custom_cash_arr = np.concatenate([custom_cash_arr, np.zeros(n - custom_cash_arr.shape[0])])
+    debt_execution = utility_debt_execution or {}
+
+    def _debt_array(key):
+        values = np.asarray(debt_execution.get(key, np.zeros(n)), dtype=float)
+        if values.shape[0] < n:
+            values = np.concatenate([values, np.zeros(n - values.shape[0])])
+        return values[:n]
+
+    debt_disbursement_arr = _debt_array('disbursement')
+    debt_principal_arr = _debt_array('principal_payment')
+    debt_interest_arr = _debt_array('interest_payment')
+    debt_service_arr = _debt_array('debt_service')
     # Budget (capex_budget / bau_available / allocated / actual) is finalised AFTER the 4a history
     # block below — the 'from_cost' source derives the historical budget from the historical household
     # counts, which must be computed first. See "Budget finalisation" further down.
@@ -667,6 +688,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     unfunded_replacement = np.zeros(n); cash_deficit = np.zeros(n)
     expansion_capital_available = np.zeros(n); connection_purchase_capital = np.zeros(n)
     unallocated_positive_capital = np.zeros(n)
+    debt_cash_opening = np.zeros(n); debt_cash_closing = np.zeros(n)
+    debt_cash_available = np.zeros(n); debt_investment_used = np.zeros(n)
+    debt_cash_balance = 0.0
     cash_deficit_by_service = np.zeros((2, n))
     # Replacement obligations follow gross funded assets, by service.
     # `funded_by_service` remains a compatibility alias for replacement credit only.
@@ -726,15 +750,19 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # later (surplus funds new connections). All the lever terms are 0 when their lever is off.
         avail = bau_available[t] + collection_cash[t] + tariff_cash[t] + nrw_net[t] + financial_cash[t] + injection_cash[t] + extra_cash_arr[t]
         available_total[t] = avail
-        replacement_reserved[t] = min(max(avail, 0.0), max(bau_replacement[t], 0.0))
-        expansion_capital_available[t] = max(0.0, avail - replacement_reserved[t])
+        debt_cash_opening[t] = debt_cash_balance
+        debt_cash_available[t] = max(0.0, debt_cash_balance + debt_disbursement_arr[t])
+        cash_after_debt_service = avail - debt_service_arr[t]
+        replacement_reserved[t] = min(max(cash_after_debt_service, 0.0), max(bau_replacement[t], 0.0))
+        expansion_capital_available[t] = (
+            max(0.0, cash_after_debt_service - replacement_reserved[t]) + debt_cash_available[t])
         # ── Investment split (test2) ───────────────────────────────────────────────────────────────────
         # Replacement is funded first, then the remainder is split: `basic_share` buys BASIC service for
         # households at limited-and-below, the rest buys SAFELY MANAGED for households at basic-and-below.
         # Both flows are drawn from the PRIOR year's counts, so a household cannot climb two rungs and be
         # paid for twice in one year. Money whose source pool is exhausted rolls over to the other rung.
         # basic_share = 0 is the default and reproduces the pre-split single-purchase behaviour exactly.
-        invest = max(0.0, avail - bau_replacement[t]) * hh_share
+        invest = (max(0.0, cash_after_debt_service - bau_replacement[t]) + debt_cash_available[t]) * hh_share
         bs = float(np.clip(basic_share, 0.0, 1.0))
         pool_basic = max(0.0, bau[1, t - 1])                            # eligible for a safely-managed upgrade
         pool_lower = sum(max(0.0, bau[r, t - 1]) for r in LOWER)        # eligible for a basic upgrade
@@ -902,7 +930,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         replacement_credit[t] = replacement_reserved[t]
         unpaid_by_service = replacement_by_service[:, t] * (
             1 - replacement_credit[t] / replacement[t]) if replacement[t] > 0 else np.zeros(2)
-        cash_deficit[t] = max(-avail, 0.0)
+        cash_deficit[t] = max(-cash_after_debt_service, 0.0)
         due_cost = np.maximum(np.array([tgt[0, t], sum(tgt[:2, t])]) - ledger.base - ledger.delivered, 0) * np.array([cost_sm_t[t], cost_basic_t[t]])
         weights = due_cost + replacement_by_service[:, t]
         sm_share = weights[0] / weights.sum() if weights.sum() > 0 else 1.0 - bs
@@ -920,6 +948,12 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # The fixed shared ancillary asset retains its service attribution.
         need_stock_by_service[:, t] += ledger.series['ancillary_paid_by_service'][:, t]
         unallocated_positive_capital[t] -= ancillary_paid
+        ordinary_expansion_cash = max(0.0, cash_after_debt_service - bau_replacement[t])
+        actual_sector_investment = connection_purchase_capital[t] + ancillary_paid
+        debt_investment_used[t] = min(
+            debt_cash_available[t], max(0.0, actual_sector_investment - ordinary_expansion_cash))
+        debt_cash_balance = max(0.0, debt_cash_available[t] - debt_investment_used[t])
+        debt_cash_closing[t] = debt_cash_balance
         nc_total = float(closing.sum())
         new_capex_total[t] = nc_total
         new_capex_by_service[:, t] = closing
@@ -927,7 +961,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         if ff > 0 or pf > 0:
             replacement_credit[t] = min(replacement_reserved[t], max(replacement[t], 0.0))
             unfunded_replacement[t] = max(replacement[t] - replacement_credit[t], 0.0)
-            cash_deficit[t] = max(-avail, 0.0)
+            cash_deficit[t] = max(-cash_after_debt_service, 0.0)
             financing_gap[t] = max(0.0, nc_total + unfunded_replacement[t] + cash_deficit[t])
             sm_gap, basic_gap, sm_paid, basic_paid = attribute_gap(
                 new_capex_by_service[0, t], new_capex_by_service[1, t],
@@ -970,6 +1004,10 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'nrw_net': nrw_net.tolist(),                   # NRW money ledger (value − fixing cost) folded into capex
         'nrw_recovered_phys_vol': nrw_recovered_phys.tolist(),  # recovered physical water per year (M m³/yr) → wastewater
         'nrw_link_cash': extra_cash_arr.tolist(),      # caller-injected extra capex cash (san water-NRW-linked revenue)
+        'eligible_nrw_link_cash': eligible_nrw_cash_arr[:n].tolist(),
+        'custom_cash': custom_cash_arr[:n].tolist(),
+        'eligible_additional_revenue': (
+            collection_cash + tariff_cash + nrw_net + eligible_nrw_cash_arr[:n]).tolist(),
         'nrw_upgrade_hh': nrw_upgrade_cum.tolist(),    # cumulative basic→SM upgrades from recovered water (M HH)
         'selffinance_upgrade_hh': selffin_upgrade_cum.tolist(),  # cumulative self-financed SM connections (M HH)
         'mf_upgrade_hh': mf_upgrade_cum.tolist(),      # cumulative microfinance-alone SM connections (M HH)
@@ -1017,6 +1055,14 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'connection_purchase_capital': connection_purchase_capital.tolist(),
         'unallocated_positive_capital': unallocated_positive_capital.tolist(),
         'financing_gap_by_service': financing_gap_by_service.tolist(),
+        'utility_debt_disbursement': debt_disbursement_arr.tolist(),
+        'utility_debt_principal_payment': debt_principal_arr.tolist(),
+        'utility_debt_interest_payment': debt_interest_arr.tolist(),
+        'utility_debt_service': debt_service_arr.tolist(),
+        'utility_debt_cash_opening': debt_cash_opening.tolist(),
+        'utility_debt_cash_available': debt_cash_available.tolist(),
+        'utility_debt_investment_used': debt_investment_used.tolist(),
+        'utility_debt_cash_closing': debt_cash_closing.tolist(),
     }
 
 
@@ -1028,7 +1074,7 @@ def _target_points(tgt_inputs, per):
     return None
 
 
-def calculate_water_supply(inputs, ctx):
+def calculate_water_supply(inputs, ctx, utility_debt_execution=None):
     sl, wt, wc = inputs.water_service, inputs.water_targets, inputs.water_costs
     nrw = inputs.water_interventions
     b = inputs.wss_budget
@@ -1123,6 +1169,8 @@ def calculate_water_supply(inputs, ctx):
         },
         financial_execution_rate=b.execution_rate,
         extra_cash=cust_cash,                                  # custom new-revenue net cash → water capex
+        custom_cash=cust_cash,
+        utility_debt_execution=utility_debt_execution,
         full_budget=full_budget, capex_pct=ws_capex,
         growth_capex_pct=ws_capex,                             # water 4a uses the water CAPEX budget (I!326)
         hist_all_proportional=True,                            # water history I!143-147 = all-proportional

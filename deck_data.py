@@ -115,6 +115,10 @@ def _run(fe: dict, toggles: dict, keep_customs: bool = False) -> dict:
     f['toggles'] = dict(toggles)
     if not keep_customs:
         f['custom_interventions'] = []
+    debt = dict(f.get('utility_debt') or {})
+    debt['water'] = {**dict(debt.get('water') or {}), 'enabled': False}
+    debt['sanitation'] = {**dict(debt.get('sanitation') or {}), 'enabled': False}
+    f['utility_debt'] = debt
     return calculate(coerce_to_engine(f))
 
 
@@ -175,7 +179,7 @@ def _released(before: dict, after: dict, sk: str, kind: str, years, by) -> Optio
     return None
 
 
-def intervention_rows(passes, enabled, has_custom, sk: str, years, by) -> List[dict]:
+def intervention_rows(passes, enabled, has_custom, sk: str, years, by, final_result=None) -> List[dict]:
     """One row per enabled lever for this sector: marginal households, money, and per-year band."""
     e = len(years) - 1
     out = []
@@ -201,6 +205,18 @@ def intervention_rows(passes, enabled, has_custom, sk: str, years, by) -> List[d
         if add_hh > 1e-9 or any(v > 1e-9 for v in band):
             out.append({'key': '__custom', 'label': 'Custom interventions', 'color': CUSTOM_COLOR,
                         'kind': 'revenue', 'added_hh': add_hh, 'money_m': None, 'band': band})
+    debt = (final_result or {}).get(sk, {}).get('scenario_utility_debt') or {}
+    if debt.get('enabled') and float(debt.get('allocation_share') or 0) > 0:
+        before, after = passes[-1], final_result
+        band = [(_at(after[sk].get('scenario_hh'), i, 0) - _at(before[sk].get('scenario_hh'), i, 0))
+                for i in range(len(years))]
+        add_hh = _at(after[sk].get('scenario_hh'), e, 0) - _at(before[sk].get('scenario_hh'), e, 0)
+        out.append({
+            'key': 'utility_debt_financing', 'label': 'Utility debt financing',
+            'color': '#334155', 'kind': 'funding',
+            'added_hh': add_hh, 'money_m': float(debt.get('accepted_principal') or 0.0),
+            'band': band,
+        })
     return out
 
 
@@ -290,7 +306,7 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
             _rng(sec.get(f), years, lo, hi)) for _, lo, hi in periods]) for lbl, f in inv_rows],
     }
 
-    rows = intervention_rows(passes, enabled, has_custom, sk, years, by)
+    rows = intervention_rows(passes, enabled, has_custom, sk, years, by, final_result=result)
     base_band = [_at(passes[0][sk].get('scenario_hh'), i, 0) for i in range(len(years))]
     # Only show bands for levers that actually move the chart; an enabled-but-unparameterised lever
     # contributes a flat zero and would just add legend noise. It still appears in the table.
@@ -323,6 +339,7 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
         'first_target_year': ft, 'last_target_year': lt,
         'coverage': coverage, 'service_gap': service_gap, 'investment': investment,
         'interventions': interventions,
+        'utility_debt': sec.get('scenario_utility_debt') or {},
         'cov_now': share(bau, bi, [0]), 'cov_bau_end': share(bau, lti, [0]),
         'cov_tgt_end': share(tgt, lti, [0]),
         'cov_scn_end': (min(total[lti], _at(sec.get('scenario_hh'), lti, 0)) / total[lti]) if total[lti] else 0.0,
@@ -437,7 +454,17 @@ def build(area_inputs: Dict[str, dict]) -> dict:
             continue
         passes, enabled, has_custom = cumulative_passes(fes)
         for sk in SECTORS:
-            blocks[(scope, sk)] = block_data(results[scope], primary, sk, passes, enabled, has_custom)
+            block = block_data(results[scope], primary, sk, passes, enabled, has_custom)
+            debt = dict(block.get('utility_debt') or {})
+            debt_areas = [dict(a) for a in (debt.get('areas') or [debt])]
+            for i, debt_area in enumerate(debt_areas):
+                if not debt_area.get('area'):
+                    fe = fes[min(i, len(fes) - 1)]
+                    cc = fe.get('country_config') or {}
+                    debt_area['area'] = cc.get('area') or cc.get('country') or scope.title()
+            debt['areas'] = debt_areas
+            block['utility_debt'] = debt
+            blocks[(scope, sk)] = block
 
     years = results[next(iter(results))]['years']
     cc = primary.get('country_config') or {}

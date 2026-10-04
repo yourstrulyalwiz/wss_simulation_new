@@ -194,9 +194,42 @@ def aggregate(results: List[dict]) -> dict:
             agg.get('budget_used') or [], agg.get('budget_allocated') or [], years, end_asis)
         agg['execution_rate'] = _wavg([s.get('execution_rate') or 0.0 for s in secs], w)
         agg['hist_cagr'] = _agg_hist_cagr(secs, years, end_asis)
+        if any(s.get('scenario_utility_debt') for s in secs):
+            agg['scenario_utility_debt'] = _aggregate_utility_debt(
+                [s.get('scenario_utility_debt') or {} for s in secs])
         out[sk] = agg
 
     return out
+
+
+def _aggregate_utility_debt(summaries: List[dict]) -> dict:
+    """Sum debt balances and annual schedules without averaging area-specific loan assumptions."""
+    summaries = [s for s in summaries if s]
+    numeric = ('accepted_principal', 'requested_max_principal', 'total_interest',
+               'total_principal_repaid', 'closing_restricted_cash')
+    rows_by_year = {}
+    for summary in summaries:
+        for row in summary.get('schedule') or []:
+            year = int(row['year'])
+            target = rows_by_year.setdefault(year, {'year': year})
+            for key, value in row.items():
+                if key != 'year' and isinstance(value, (int, float)):
+                    target[key] = target.get(key, 0.0) + float(value or 0.0)
+    statuses = list(dict.fromkeys(s.get('status', 'disabled') for s in summaries))
+    enabled = [s for s in summaries if s.get('enabled')]
+    result = {
+        'schema_version': 1,
+        'status': ' · '.join(statuses),
+        'enabled': bool(enabled),
+        'verified_feasible': bool(enabled) and all(s.get('verified_feasible') for s in enabled),
+        'schedule': [rows_by_year[y] for y in sorted(rows_by_year)],
+        'areas': summaries,
+    }
+    for key in numeric:
+        result[key] = sum(float(s.get(key) or 0.0) for s in summaries)
+    result['tail_capacity_assumption'] = next(
+        (s.get('tail_capacity_assumption') for s in enabled if s.get('tail_capacity_assumption')), None)
+    return result
 
 
 def run_areas(area_inputs: Dict[str, dict]) -> Dict[str, dict]:

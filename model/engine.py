@@ -226,7 +226,8 @@ def _ui_aliases(sec):
     return sec
 
 
-def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, bau_kwargs=None, scn_kwargs=None):
+def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, bau_kwargs=None, scn_kwargs=None,
+                          debt_config=None, debt_asset_life=30):
     """Run a sector's calculation as TWO independent passes and merge them.
 
     BAU pass (`bau_inputs`, every intervention toggle forced OFF) is the canonical business-as-usual
@@ -238,8 +239,29 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
 
     `bau_kwargs` / `scn_kwargs` pass PER-PASS extra arguments to `calc_fn` (used to feed sanitation the
     water-NRW recovered volume: 0 in the BAU pass, the water scenario volume in the scenario pass)."""
+    from model.utility_debt import solve_scenario, validate_config
     bau = calc_fn(bau_inputs, ctx, **(bau_kwargs or {}))
-    scn = calc_fn(scn_inputs, ctx, **(scn_kwargs or {})) if any_toggle_on else bau
+    cfg = validate_config(debt_config, ctx['years'], scn_inputs.period.baseline_year)
+    if cfg.get('enabled'):
+        scn, _, debt_summary, scn_without_debt = solve_scenario(
+            calc_fn, scn_inputs, ctx, cfg, calc_kwargs=scn_kwargs,
+            asset_life=debt_asset_life)
+    else:
+        scn = calc_fn(scn_inputs, ctx, **(scn_kwargs or {})) if any_toggle_on else bau
+        scn_without_debt = scn
+        debt_summary = {
+            'schema_version': 1, 'status': 'disabled', 'enabled': False,
+            'verified_feasible': False, 'allocation_share': cfg['allocation_share'],
+            'annual_real_interest_rate': cfg.get('annual_real_interest_rate'),
+            'repayment_structure': cfg.get('repayment_structure'),
+            'disbursement_year': cfg.get('disbursement_year'),
+            'principal_grace_years': cfg.get('principal_grace_years', 0),
+            'maturity_year': cfg.get('maturity_year'), 'loan_ceiling': cfg.get('loan_ceiling'),
+            'accepted_principal': 0.0, 'requested_max_principal': 0.0,
+            'total_interest': 0.0, 'total_principal_repaid': 0.0,
+            'closing_restricted_cash': 0.0, 'schedule': [],
+        }
+    scn['utility_debt'] = debt_summary
     bau['scenario_hh'] = scn['bau_hh']                                  # SM path WITH interventions
     bau['scenario_financing_gap'] = scn['financing_gap']
     bau['scenario_total_investment_need'] = scn['total_investment_need']
@@ -256,6 +278,19 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
                 'cash_deficit', 'cash_deficit_by_service', 'expansion_capital_available',
                 'connection_purchase_capital', 'unallocated_positive_capital'):
         bau['scenario_' + key] = scn[key]
+    for key in (
+        'eligible_additional_revenue', 'eligible_nrw_link_cash', 'custom_cash',
+        'utility_debt_disbursement', 'utility_debt_principal_payment',
+        'utility_debt_interest_payment', 'utility_debt_service',
+        'utility_debt_cash_opening', 'utility_debt_cash_available',
+        'utility_debt_investment_used', 'utility_debt_cash_closing',
+    ):
+        bau['scenario_' + key] = scn.get(key, [])
+    bau['scenario_utility_debt'] = debt_summary
+    bau['scenario_without_utility_debt_hh'] = scn_without_debt['bau_hh']
+    bau['scenario_without_utility_debt_financing_gap'] = scn_without_debt['financing_gap']
+    bau['scenario_without_utility_debt_endline_financing_requirement'] = scn_without_debt[
+        'endline_financing_requirement']
     bau['scenario_collection_cash'] = scn['collection_cash']            # collection-efficiency revenue (scenario)
     bau['scenario_tariff_cash'] = scn['tariff_cash']                    # tariff-reform revenue (scenario)
     for key in ('billed_volume_million_m3', 'baseline_collected_revenue', 'collected_revenue', 'additional_collected_revenue'):
@@ -306,13 +341,19 @@ def calculate(inputs: ModelInputs) -> dict:
     # recovers. The recovered volume is 0 in the water BAU pass (NRW off) and the water scenario value in the
     # scenario pass; each is threaded into the MATCHING sanitation pass, so the sanitation BAU stays a pure
     # counterfactual (0 recovered) and only its scenario sees the water-NRW-linked sewer revenue.
-    water = _sector_with_scenario(calculate_water_supply, bau_inputs, inputs, ctx, any_toggle_on)
+    debt_inputs = getattr(inputs, 'utility_debt', None)
+    water_debt = getattr(debt_inputs, 'water', None) if debt_inputs is not None else None
+    sanitation_debt = getattr(debt_inputs, 'sanitation', None) if debt_inputs is not None else None
+    water = _sector_with_scenario(
+        calculate_water_supply, bau_inputs, inputs, ctx, any_toggle_on,
+        debt_config=water_debt, debt_asset_life=inputs.technical.ws_asset_life)
     nrw_vol_bau = water.get('nrw_recovered_phys_vol', [])
     nrw_vol_scn = water.get('scenario_nrw_recovered_phys_vol', nrw_vol_bau)
     sanitation = _sector_with_scenario(
         calculate_sanitation, bau_inputs, inputs, ctx, any_toggle_on,
         bau_kwargs={'nrw_recovered_vol': nrw_vol_bau},
-        scn_kwargs={'nrw_recovered_vol': nrw_vol_scn})
+        scn_kwargs={'nrw_recovered_vol': nrw_vol_scn},
+        debt_config=sanitation_debt, debt_asset_life=inputs.technical.san_asset_life)
     return {
         'years': ctx['years'].tolist(),
         'end_asis_year': ctx['end_asis_year'],

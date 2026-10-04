@@ -150,7 +150,10 @@ def intervention_breakdown(inputs, sector_key, defs):
     """[(label, added_hh_millions, resources_billions_or_None, gap_closed_billions), …] for enabled levers."""
     toggles = financial_toggles(inputs)
     enabled = [d for d in defs if toggles.get(d[0])]
-    if not enabled:
+    sector = 'water' if sector_key == 'water_supply' else 'sanitation'
+    debt_cfg = ((inputs.get('utility_debt') or {}).get(sector) or {})
+    debt_active = bool(debt_cfg.get('enabled')) and float(debt_cfg.get('allocation_share') or 0) > 0
+    if not enabled and not debt_active:
         return []
     # Same GLOBAL order as dashboard and branded deck, including intervening levers.
     from deck_data import cumulative_passes
@@ -177,12 +180,20 @@ def intervention_breakdown(inputs, sector_key, defs):
         res = (cash_cum(after, rkey) - cash_cum(before, rkey)) / 1000.0 if rkey else None  # M → B
         gap_closed = (gap_cum(before) - gap_cum(after)) / 1000.0  # signed change; M → B
         out.append((label, round(add_hh, 5), (round(res, 4) if res is not None else None), round(gap_closed, 4)))
+    if debt_active:
+        final_with_debt = calculate(coerce_to_engine(inputs))
+        no_debt = passes[-1]
+        debt_summary = final_with_debt[sector_key].get('scenario_utility_debt') or {}
+        add_hh = sm_end(final_with_debt) - sm_end(no_debt)
+        principal = float(debt_summary.get('accepted_principal') or 0.0) / 1000.0
+        gap_closed = (gap_cum(no_debt) - gap_cum(final_with_debt)) / 1000.0
+        out.append(('Utility debt financing', round(add_hh, 5), round(principal, 4), round(gap_closed, 4)))
     return out
 
 
 def breakdown_table(inputs, sector_key, defs):
     cur = _cur(inputs)
-    headers = ['Intervention', 'Added safely-managed (M HH)', f'Resources generated ({cur} B)', f'Financing gap closed ({cur} B)']
+    headers = ['Intervention', 'Added safely-managed (M HH)', f'Resources / financing ({cur} B)', f'Financing gap closed ({cur} B)']
     rows = []
     for label, add_hh, res, gap in intervention_breakdown(inputs, sector_key, defs):
         rows.append([label, add_hh, ('n/a' if res is None else res), gap])
@@ -231,6 +242,52 @@ def _currency_metadata(wb, currency_display, contribution_view):
     return ws
 
 
+def _utility_debt_tables(sec, currency):
+    debt = sec.get('scenario_utility_debt') or {}
+    summary_headers = ['Assumption or balance', 'Value', f'Amount ({currency} M)']
+    summary_rows = [
+        ['Status', debt.get('status', 'disabled'), ''],
+        ['Enabled', bool(debt.get('enabled')), ''],
+        ['Verified feasible', bool(debt.get('verified_feasible')), ''],
+        ['Eligible-revenue allocation share', debt.get('allocation_share', 0.0), ''],
+        ['Annual real interest rate', debt.get('annual_real_interest_rate'), ''],
+        ['Repayment structure', debt.get('repayment_structure'), ''],
+        ['Disbursement year', debt.get('disbursement_year'), ''],
+        ['Principal grace years', debt.get('principal_grace_years'), ''],
+        ['First principal-payment year', debt.get('first_principal_year'), ''],
+        ['Final principal-payment year', debt.get('maturity_year'), ''],
+        ['Optional loan ceiling', '', debt.get('loan_ceiling')],
+        ['Requested maximum principal', '', debt.get('requested_max_principal', 0.0)],
+        ['Accepted principal', '', debt.get('accepted_principal', 0.0)],
+        ['Total interest', '', debt.get('total_interest', 0.0)],
+        ['Total principal repaid', '', debt.get('total_principal_repaid', 0.0)],
+        ['Closing restricted loan cash', '', debt.get('closing_restricted_cash', 0.0)],
+        ['Post-target capacity assumption', debt.get('tail_capacity_assumption', ''), ''],
+    ]
+    fields = [
+        ('opening_principal', f'Opening principal ({currency} M)'),
+        ('disbursement', f'Disbursement ({currency} M)'),
+        ('principal_payment', f'Principal payment ({currency} M)'),
+        ('interest_payment', f'Interest payment ({currency} M)'),
+        ('total_debt_service', f'Total debt service ({currency} M)'),
+        ('eligible_additional_revenue', f'Eligible additional revenue ({currency} M)'),
+        ('pre_debt_available_capital', f'Pre-debt available capital ({currency} M)'),
+        ('replacement_requirement', f'Replacement requirement ({currency} M)'),
+        ('annual_service_capacity', f'Annual service capacity ({currency} M)'),
+        ('payment_shortfall', f'Payment shortfall ({currency} M)'),
+        ('closing_principal', f'Closing principal ({currency} M)'),
+        ('opening_restricted_cash', f'Opening restricted cash ({currency} M)'),
+        ('investment_from_loan_proceeds', f'Loan-funded investment ({currency} M)'),
+        ('closing_restricted_cash', f'Closing restricted cash ({currency} M)'),
+    ]
+    schedule_headers = ['Year', *[label for _, label in fields]]
+    schedule_rows = [
+        [row.get('year'), *[row.get(key, 0.0) for key, _ in fields]]
+        for row in (debt.get('schedule') or [])
+    ]
+    return (summary_headers, summary_rows), (schedule_headers, schedule_rows)
+
+
 # ── whole-scenario CSV / XLSX (everything: per-year series + intervention breakdown, both sectors) ───
 def scenario_csv(inputs, currency_display=None, contribution_view='individual'):
     result = calculate(coerce_to_engine(inputs))
@@ -260,6 +317,19 @@ def scenario_csv(inputs, currency_display=None, contribution_view='individual'):
             w.writerow([name + ' — source-currency monetary detail'])
             w.writerow(['Year', *[local_headers[i] for i in money_indexes]])
             w.writerows([[row[0], *[row[i] for i in money_indexes]] for row in local_rows])
+        debt_summary, debt_schedule = _utility_debt_tables(result[sk], _cur(inputs))
+        for label, table in [('utility debt assumptions and balances', debt_summary),
+                             ('utility debt annual schedule', debt_schedule)]:
+            dh, dr = table
+            source_h, source_r = dh, dr
+            dh, dr, debt_money_indexes = _currency_table(dh, dr, display)
+            w.writerow([name + ' — ' + label])
+            w.writerow(dh)
+            w.writerows(dr)
+            if converted_usd:
+                w.writerow([name + ' — ' + label + ' (source currency)'])
+                w.writerow(source_h)
+                w.writerows(source_r)
         w.writerow([])
         defs = WATER_INTV if sk == 'water_supply' else SAN_INTV
         if contribution_view == 'category':
@@ -313,6 +383,9 @@ def _category_contributions(inputs, sector_key, defs, factor=1.0):
         members = [(definition, row) for definition, row in
                    zip((definition for definition in defs if toggles.get(definition[0])), raw)
                    if definition[0] in category_keys[category_id]]
+        if category_id == 'funding':
+            debt_rows = [row for row in raw if row[0] == 'Utility debt financing']
+            members.extend([(('utility_debt_financing', 'Utility debt financing'), row) for row in debt_rows])
         if members:
             households = sum(row[1] for _, row in members)
             gap_closed = sum(row[3] for _, row in members)
@@ -339,6 +412,15 @@ def scenario_xlsx(inputs, contribution_view='individual', currency_display=None)
             local_h = ['Year', *[source_h[i] for i in money_indexes]]
             local_r = [[row[0], *[row[i] for i in money_indexes]] for row in source_r]
             _write_sheet(wb, f'{name} — local detail', local_h, local_r)
+        debt_summary, debt_schedule = _utility_debt_tables(result[sk], _cur(inputs))
+        debt_suffix = ' (USD)' if converted_usd else ''
+        for label, table in [('debt assumptions', debt_summary), ('debt schedule', debt_schedule)]:
+            dh, dr = table
+            source_h, source_r = dh, dr
+            dh, dr, debt_money_indexes = _currency_table(dh, dr, display)
+            _write_sheet(wb, f'{name} — {label}{debt_suffix}', dh, dr or [['(no loan schedule)']])
+            if converted_usd:
+                _write_sheet(wb, f'{name} — local {label}', source_h, source_r or [['(no loan schedule)']])
         bh, br = breakdown_table(inputs, sk, WATER_INTV if sk == 'water_supply' else SAN_INTV)
         source_bh, source_br = bh, br
         bh, br, breakdown_indexes = _currency_table(bh, br, display)

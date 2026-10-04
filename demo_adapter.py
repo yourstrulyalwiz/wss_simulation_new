@@ -17,7 +17,7 @@ from model.inputs import (
     SanitationTargetInputs, WaterUnitCosts, SanitationUnitCosts, Tech,
     PlannedInvestmentInputs, TechnicalInputs, WSSBudgetInputs,
     WaterInterventionInputs, SanitationInterventionInputs, CountryConfig, TargetPoint,
-    InterventionToggles, IncomeDistribution, IncomeBracket, CustomIntervention,
+    InterventionToggles, IncomeDistribution, IncomeBracket, CustomIntervention, UtilityDebtInputs,
 )
 
 # Default 5-bracket income distribution shared with the microfinance + grant lever (quintiles; monthly
@@ -246,6 +246,21 @@ def frontend_defaults() -> dict:
         # Income distribution (5 brackets) shared by both sectors' microfinance + means-based grant lever.
         'income_distribution': {'brackets': [dict(b) for b in _INCOME_BRACKETS_DEFAULT]},
         'custom_interventions': [],
+        'utility_debt': {
+            'schema_version': 1,
+            'water': {
+                'enabled': False, 'allocation_share': 0.0,
+                'annual_real_interest_rate': None, 'disbursement_year': _BASE_YR + 1,
+                'principal_grace_years': 0, 'maturity_year': _END_YR,
+                'repayment_structure': 'annuity', 'loan_ceiling': None,
+            },
+            'sanitation': {
+                'enabled': False, 'allocation_share': 0.0,
+                'annual_real_interest_rate': None, 'disbursement_year': _BASE_YR + 1,
+                'principal_grace_years': 0, 'maturity_year': _END_YR,
+                'repayment_structure': 'annuity', 'loan_ceiling': None,
+            },
+        },
     }
 
 
@@ -662,4 +677,5 @@ def to_engine(fe: dict) -> ModelInputs:
         # payloads whose type isn't new_revenue/cost_reduction simply have no effect in the engine.
         custom_interventions=[CustomIntervention(**{k: v for k, v in (c or {}).items() if k in CustomIntervention.model_fields})
                               for c in (fe.get('custom_interventions') or [])],
+        utility_debt=UtilityDebtInputs(**(fe.get('utility_debt') or {})),
     )

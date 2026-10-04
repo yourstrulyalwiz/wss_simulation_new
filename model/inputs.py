@@ -19,7 +19,7 @@ Structure notes:
 """
 
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -623,6 +623,26 @@ class InterventionToggles(BaseModel):
     san_exogenous_injection_enabled: bool = False
 
 
+# Utility borrowing is configured independently for each sector and area. This
+# is separate from household microfinance: the utility receives the proceeds
+# and the sector investment ledger records how much was actually spent.
+class UtilityDebtSectorInputs(BaseModel):
+    enabled: bool = False
+    allocation_share: float = 0.0
+    annual_real_interest_rate: Optional[float] = None
+    disbursement_year: Optional[int] = None
+    principal_grace_years: int = 0
+    maturity_year: Optional[int] = None
+    repayment_structure: Literal['annuity', 'equal_principal'] = 'annuity'
+    loan_ceiling: Optional[float] = None
+
+
+class UtilityDebtInputs(BaseModel):
+    schema_version: int = 1
+    water: UtilityDebtSectorInputs = UtilityDebtSectorInputs()
+    sanitation: UtilityDebtSectorInputs = UtilityDebtSectorInputs()
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # Top-level model inputs (one area)
 # ──────────────────────────────────────────────────────────────────────────
@@ -648,3 +668,4 @@ class ModelInputs(BaseModel):
     income_distribution: IncomeDistribution = IncomeDistribution()
     toggles: InterventionToggles = InterventionToggles()
     custom_interventions: List[CustomIntervention] = []
+    utility_debt: UtilityDebtInputs = UtilityDebtInputs()

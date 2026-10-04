@@ -13,6 +13,7 @@ from currency_export import validate_currency_display
 
 app = FastAPI(title="WSS Scenarios Model API")
 from model.utility_revenue import RevenueInputError, resolve_bases
+from model.utility_debt import UtilityDebtInputError
 from model.engine import build_context
 from pydantic import ValidationError
 
@@ -24,6 +25,11 @@ async def invalid_model_inputs(request, exc):
 
 @app.exception_handler(RevenueInputError)
 async def revenue_input_error(request, exc):
+    return JSONResponse(status_code=422, content={'detail': str(exc)})
+
+
+@app.exception_handler(UtilityDebtInputError)
+async def utility_debt_input_error(request, exc):
     return JSONResponse(status_code=422, content={'detail': str(exc)})
 
 

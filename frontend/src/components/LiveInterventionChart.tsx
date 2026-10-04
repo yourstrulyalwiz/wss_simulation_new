@@ -79,6 +79,13 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       }).then(r => { if (!r.ok) throw new Error('calc failed (' + r.status + ')'); return r.json(); });
       const secOf = (res: any) => sector === 'water' ? res.water_supply : res.sanitation;
       const off = zeroToggles(inputs?.toggles);
+      const withoutDebt = (source: any) => ({
+        ...(source || {}),
+        water: { ...(source?.water || {}), enabled: false },
+        sanitation: { ...(source?.sanitation || {}), enabled: false },
+      });
+      const includeDebt = ['water', 'sanitation'].some((k: string) =>
+        !!inputs?.utility_debt?.[k]?.enabled && Number(inputs?.utility_debt?.[k]?.allocation_share || 0) > 0);
       // Cross-sector prerequisite: the sanitation "NRW-linked revenue" lever only has recovered water to
       // charge for when the WATER NRW lever is on, so keep ws_nrw_enabled at the user's setting in every
       // sanitation pass (it doesn't affect any of the other sanitation levers). Without this the linked
@@ -87,11 +94,11 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       // Cumulative payloads: [BAU] → +each toggle → +each custom. The baseline and toggle passes carry NO
       // customs (custom_interventions:[]) so the grey base is the pure BAU and customs show as their own
       // bands on top; customs are then added one-by-one over all toggles.
-      const payloads: any[] = [{ ...inputs, toggles: off, custom_interventions: [] }];
+      const payloads: any[] = [{ ...inputs, toggles: off, custom_interventions: [], utility_debt: withoutDebt(inputs?.utility_debt) }];
       let acc: any = { ...off };
-      enabled.forEach(([k]) => { acc = { ...acc, [k]: true }; payloads.push({ ...inputs, toggles: { ...acc }, custom_interventions: [] }); });
+      enabled.forEach(([k]) => { acc = { ...acc, [k]: true }; payloads.push({ ...inputs, toggles: { ...acc }, custom_interventions: [], utility_debt: withoutDebt(inputs?.utility_debt) }); });
       let accCustoms: any[] = [];
-      enabledCustoms.forEach((c: any) => { accCustoms = [...accCustoms, c]; payloads.push({ ...inputs, toggles: { ...acc }, custom_interventions: accCustoms }); });
+      enabledCustoms.forEach((c: any) => { accCustoms = [...accCustoms, c]; payloads.push({ ...inputs, toggles: { ...acc }, custom_interventions: accCustoms, utility_debt: withoutDebt(inputs?.utility_debt) }); });
       // Combined stack order (toggles then customs) with UNIQUE labels for the chart dataKeys.
       const bandDefs: Intv[] = [...enabled];
       const seen = new Set<string>(enabled.map(([, label]) => label));
@@ -101,7 +108,13 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         seen.add(label);
         bandDefs.push([`custom_${i}`, label, c.color || P.custom]);
       });
-      Promise.all(payloads.map(post)).then(results => {
+      const debtPayload = includeDebt ? {
+        ...inputs, toggles: { ...acc }, custom_interventions: enabledCustoms,
+        utility_debt: inputs.utility_debt,
+      } : null;
+      Promise.all(payloads.map(post).concat(debtPayload ? [post(debtPayload)] : [])).then(allResults => {
+        const results = includeDebt ? allResults.slice(0, -1) : allResults;
+        const debtResult = includeDebt ? allResults[allResults.length - 1] : null;
         const years: number[] = results[0].years;
         // The engine returns a PURE BAU (`bau_hh`, invariant) plus the SCENARIO safely-managed path under
         // that pass's toggles+customs (`scenario_hh`). Grey base = pure BAU; each pass's scenario_hh gives
@@ -111,13 +124,18 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         const rows = years.map((y: number, i: number) => {
           const row: any = { year: +y, [baseKey]: +(+bauBase[i]).toFixed(4), 'Total households': +(+results[0].total_hh[i]).toFixed(4) };
           bandDefs.forEach(([, label], p) => { row[label] = sm[p + 1][i] - sm[p][i]; });
+          if (debtResult) {
+            const noDebtFinal = sm[sm.length - 1][i];
+            row['Utility debt financing'] = secOf(debtResult).scenario_hh[rung][i] - noDebtFinal;
+          }
           return row;
         });
+        if (debtResult) bandDefs.push(['utility_debt_financing', 'Utility debt financing', P.utilityDebt]);
         // Only stack levers that actually move the needle (an enabled-but-unparameterised one adds 0).
         const contributing = bandDefs.filter(([, label]) => rows.some((r: any) => Math.abs(r[label]) > 1e-12));
         setData(rows);
         setBands(contributing);
-        const full = secOf(results[results.length - 1]);            // all enabled toggles + customs applied
+        const full = debtResult ? secOf(debtResult) : secOf(results[results.length - 1]); // all enabled toggles + customs, then utility debt
         const bau = secOf(results[0]);
         const e = years.length - 1;
         const cum = (a: number[]) => (a || []).reduce((s: number, v: number) => s + (+v || 0), 0);

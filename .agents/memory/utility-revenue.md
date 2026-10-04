@@ -13,3 +13,14 @@ interaction while preserving financing, funded-asset and service-target fixes.
 **How to apply:** Reject proposals to merge the contributions or introduce
 elasticity, operating costs, new reinvestment assumptions or connection feedback
 as incidental improvements to this work.
+
+Automatic revenue-base reconciliation should be silent. Only actual failures
+should show inline errors with a way to correct the inputs.
+
+**Why:** The user approved hiding automatic reconciliation in production while
+retaining genuine input errors; valid legacy fallback is not a reason to ask
+users to reconcile values manually.
+
+**How to apply:** Preserve automatic migration and input validation. Do not
+reintroduce a loading/reconciliation popup, silently accept invalid bases, or
+leave users without correction controls when a saved profile is invalid.

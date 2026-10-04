@@ -38,8 +38,7 @@ export function RevenueBaseEditor({ inputs, onChange, sector }: { inputs: any; o
 }
 
 export default function RevenueReconciliation({ inputs, onChange, area }: { inputs: any; onChange: (v: any) => void; area: string }) {
-  const [resolution, setResolution] = useState<any>(null);
-  const [error, setError] = useState('');
+  const [status, setStatus] = useState<{ key: string; resolution: any; error: string } | null>(null);
   const key = JSON.stringify(inputs);
   useEffect(() => {
     if (!inputs) return;
@@ -49,27 +48,41 @@ export default function RevenueReconciliation({ inputs, onChange, area }: { inpu
         const response = await fetch('/api/revenue-bases', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: key, signal: controller.signal });
         const data = await response.json();
+        if (controller.signal.aborted) return;
         if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Invalid revenue inputs.');
         let next = inputs;
         for (const sector of ['water', 'sanitation']) {
           if (!inputs.revenue_bases?.[sector] && data[sector].base) next = save(next, sector, data[sector].base);
         }
-        setResolution(data); setError('');
+        setStatus({ key, resolution: data, error: '' });
         if (next !== inputs) onChange(next);
-      } catch (e: any) { if (e.name !== 'AbortError') setError(String(e.message)); }
+      } catch (e: any) {
+        if (!controller.signal.aborted) setStatus({ key, resolution: null, error: String(e.message) });
+      }
     }, 200);
     return () => { clearTimeout(timer); controller.abort(); };
   }, [key]);
+  // Results belong to the exact inputs checked, not a newly selected area or
+  // edited profile. Automatic resolution has no visible loading panel.
+  const current = status?.key === key ? status : null;
+  return <RevenueInputErrors inputs={inputs} onChange={onChange} area={area}
+    resolution={current?.resolution} error={current?.error || ''} />;
+}
+
+export function RevenueInputErrors({ inputs, onChange, area, resolution, error }: {
+  inputs: any; onChange: (v: any) => void; area: string; resolution?: any; error: string;
+}) {
   if (!inputs) return null;
   const pending = ['water', 'sanitation'].filter(s => !inputs.revenue_bases?.[s]);
-  if (!pending.length && !error) return null;
-  return <section aria-label="Revenue reconciliation" style={{ margin: 16, padding: 16, background: '#fff8e6', border: '1px solid #dfc078', borderRadius: 8 }}>
-    <h3>Reconcile billed revenue — {area}</h3>
-    <p>Calculations and exports require one consistent base for each sector. Original values are retained; no choice is made based on enabled interventions.</p>
+  const needsCorrection = pending.filter(s => error || resolution?.[s]?.error);
+  if (!error && !needsCorrection.length) return null;
+  return <section aria-label="Revenue input errors" style={{ margin: '8px 16px', padding: 12, background: '#fff8e6', border: '1px solid #dfc078', borderRadius: 6, fontSize: 12 }}>
+    <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>Revenue inputs need attention — {area}</h3>
+    <p>Revenue inputs could not be verified. Correct the values below to continue calculations and exports. Original values are retained.</p>
     {error && <p role="alert">{error}</p>}
-    {pending.map(sector => <div key={sector} style={{ marginBottom: 12 }}>
+    {needsCorrection.map(sector => <div key={sector} style={{ marginBottom: 12 }}>
       <h4>{sector === 'water' ? 'Water supply' : 'Sanitation'}</h4>
-      <p>{resolution?.[sector]?.error || 'Checking existing revenue bases…'}</p>
+      {resolution?.[sector]?.error && <p role="alert">{resolution[sector].error}</p>}
       {resolution?.[sector]?.alternatives?.map((alt: any, i: number) => {
         const b = alt.base;
         return <button key={i} onClick={() => onChange(save(inputs, sector, b))} style={{ padding: 10, margin: 4 }}>
@@ -83,7 +96,7 @@ export default function RevenueReconciliation({ inputs, onChange, area }: { inpu
         version: 1, origin: 'user-entered', volume_mld: null, tariff: null, collection_ratio: null,
         reference_year: inputs.period.baseline_year, growth_rate: null,
         legacy: { water_interventions: inputs.water_interventions, sanitation_interventions: inputs.sanitation_interventions },
-      }))}>Enter a different shared base</button>
+      }))}>Enter shared revenue inputs</button>
     </div>)}
     {error && ['water', 'sanitation'].filter(s => inputs.revenue_bases?.[s]).map(sector =>
       <RevenueBaseEditor key={sector} inputs={inputs} onChange={onChange} sector={sector} />)}

@@ -108,7 +108,7 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
   ));
   const stackAreas = base ? [baseArea, ...bandAreas] : bandAreas;
   return (
-    <div data-results-chart={captureKey} style={{ marginBottom: 12 }}>
+    <div data-results-chart={captureKey} style={{ marginBottom: 12 }} title="Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.">
       {/* Fixed-height header so paired charts' plot areas line up horizontally regardless of subtitle length.
           The title/subtitle column takes the full width (flex:1, minWidth:0 so it can wrap) and overflow is
           clipped to the fixed height. */}
@@ -298,7 +298,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
           return { inv, unit, basicRows, financeRows, sum: {
             endline: years[endIdx], curCov, bauCov: covPct(bau), scnCov: covPct(scn), tgtCov: covPct(tgt),
-            addHH: Math.max(0, Math.min(tEnd, scn[endIdx]) - Math.min(tEnd, bau[endIdx])),
+            addHH: Math.min(tEnd, scn[endIdx]) - Math.min(tEnd, bau[endIdx]),
             gapBauCum: endRequirement('endline_financing_requirement'), gapScnCum: endRequirement('scenario_endline_financing_requirement'),
           } };
         };
@@ -355,25 +355,25 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             let sumRed = 0;
             en.forEach(d => {
               const idx = idxOf(d);
-              covRow[d.label] = +Math.max(0, smY(passes[idx + 1], sk, i) - smY(passes[idx], sk, i)).toFixed(4);
+              covRow[d.label] = smY(passes[idx + 1], sk, i) - smY(passes[idx], sk, i);
               const red = gapY(passes[idx], sk, i) - gapY(passes[idx + 1], sk, i);
-              gapRow[d.label] = +(red / 1000).toFixed(4);          // M → B
+              gapRow[d.label] = red / 1000;          // M → B
               sumRed += red;
             });
             if (hasCustoms) {
-              covRow['Custom interventions'] = +Math.max(0, smY(passes[nBuiltin + 1], sk, i) - smY(passes[nBuiltin], sk, i)).toFixed(4);
+              covRow['Custom interventions'] = smY(passes[nBuiltin + 1], sk, i) - smY(passes[nBuiltin], sk, i);
               const redC = gapY(passes[nBuiltin], sk, i) - gapY(passes[nBuiltin + 1], sk, i);
-              gapRow['Custom interventions'] = +(redC / 1000).toFixed(4);
+              gapRow['Custom interventions'] = redC / 1000;
               sumRed += redC;
             }
-            gapRow.__remain = +(Math.max(0, bauGap - sumRed) / 1000).toFixed(4);   // remaining gap (kept for exports)
+            gapRow.__remain = (bauGap - sumRed) / 1000;
             gapRow.__bau_gap = +(bauGap / 1000).toFixed(4);                        // total BAU gap → the target line to close
             covRows.push(covRow); gapRows.push(gapRow);
           });
           const all: ContribBand[] = en.map(d => ({ key: d.label, label: d.label, color: d.color }));
           if (hasCustoms) all.push({ key: 'Custom interventions', label: 'Custom interventions', color: P.custom });
           // keep only bands that actually move either chart (an enabled-but-unparameterised lever adds 0)
-          const bands = all.filter(b => covRows.some(r => (r[b.key] || 0) > 1e-4) || gapRows.some(r => Math.abs(r[b.key] || 0) > 1e-4));
+          const bands = all.filter(b => covRows.some(r => Math.abs(r[b.key] || 0) > 1e-12) || gapRows.some(r => Math.abs(r[b.key] || 0) > 1e-12));
           return { covRows, gapRows, bands };
         };
         setContrib({ water: buildContrib(WATER_INTV, 'water_supply'), sanitation: buildContrib(SAN_INTV, 'sanitation') });
@@ -384,7 +384,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         const rowsFor = (defs: IntvDef[], sk: string): Row[] => defs.filter(d => toggles[d.key]).map(d => {
           const idx = idxOf(d);
           const after = passes[idx + 1], before = passes[idx];
-          const addHH = Math.max(0, smEnd(after, sk) - smEnd(before, sk)) * 1000;      // millions HH → thousands
+          const addHH = (smEnd(after, sk) - smEnd(before, sk)) * 1000;
           const resources = d.resourceKey
             ? (cashCum(after, sk, d.resourceKey) - cashCum(before, sk, d.resourceKey)) / 1000               // M → B
             : null;
@@ -605,7 +605,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     // and a dashed line marks the total BAU financing gap. The vertical distance from the top of the stack up to
     // that line is the gap still remaining to reach the fully-financed target.
     const gapLines = [{ key: '__bau_gap', name: 'Total financing gap (BAU) — target to close', color: C.gap, dash: '6 3', width: 2 }];
-    const noImpact = s.sum.addHH < 1e-4 && Math.abs(s.sum.gapBauCum - s.sum.gapScnCum) < 1e-4;
+    const noImpact = Math.abs(s.sum.addHH) < 1e-4 && Math.abs(s.sum.gapBauCum - s.sum.gapScnCum) < 1e-4;
     const rows = secKey === 'water' ? table?.water : table?.sanitation;
     const hhCol = secKey === 'water' ? "Added HHs with treated, piped (HHs '000)" : "Added safely-managed HHs (HHs '000)";
     return (

@@ -5,6 +5,7 @@ import unittest
 
 from deck_data import cumulative_passes
 from demo_adapter import coerce_to_engine, frontend_defaults
+from test_support import frontend_defaults
 from export_data import SAN_INTV, WATER_INTV, intervention_breakdown, scenario_csv
 from model.engine import calculate
 

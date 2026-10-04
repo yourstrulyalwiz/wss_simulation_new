@@ -442,6 +442,8 @@ class WaterInterventionInputs(BaseModel):
 # Sanitation interventions  (contract #143-#160)
 # ──────────────────────────────────────────────────────────────────────────
 class SanitationInterventionInputs(BaseModel):
+    ce_current_ratio: Optional[float] = None
+    ce_target_ratio: Optional[float] = None
     # Financial commitments and injection — same independent mechanics and units as water.
     fin_gdp_enabled: bool = False
     fin_gdp_start_year: int = 2026
@@ -625,6 +627,8 @@ class InterventionToggles(BaseModel):
 # Top-level model inputs (one area)
 # ──────────────────────────────────────────────────────────────────────────
 class ModelInputs(BaseModel):
+    revenue_bases: dict = {}
+    revenue_legacy: dict = {}
     country_config: CountryConfig = CountryConfig()
     period: PeriodInputs = PeriodInputs()
     constants: Constants = Constants()

@@ -3,6 +3,7 @@ import numpy as np
 from model.expansion_ledger import ExpansionLedger
 from test_residual_financing_gap import fixture
 from demo_adapter import frontend_defaults, coerce_to_engine
+from test_support import frontend_defaults
 from model.engine import calculate
 from deck_aggregate import aggregate
 

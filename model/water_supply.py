@@ -18,6 +18,7 @@ import numpy as np
 
 from model.gap_attribution import attribute_gap
 from model.expansion_ledger import ExpansionLedger
+from model.utility_revenue import collected_revenue, volume_path, number, RevenueInputError
 
 RUNGS = ["Safely managed", "Basic", "Limited", "Unimproved", "No Service"]
 LOWER = [2, 3, 4]   # Limited, Unimproved, No Service
@@ -257,7 +258,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                afford_bracket_income=None, afford_grant_total=0.0,
                selffinance_enabled=False, selffinance_share=0.0, connection_fee=0.0,
                financial_enabled=False, injection_enabled=False, financial_settings=None, financial_execution_rate=None,
-               extra_cash=None):
+               extra_cash=None, revenue_base=None, revenue_volume=None):
     """Shared 4a-4d core. All HH and money values are in MILLIONS; costs in actual currency.
 
     `full_budget` is the sector's FULL budget per year in real terms, from EITHER %GDP mode
@@ -479,12 +480,23 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     # ── Collection efficiency (test2) ──────────────────────────────────────────────────────────────
     # Better revenue COLLECTION (cash collected ÷ revenue billed) recovers billed-but-uncollected revenue
     # and turns it into extra capital for new connections. The additional collected cash each forecast
-    # year = billed_volume × tariff × (collected_ratio[t] − baseline_ratio), where billed_volume GROWS
-    # with the connected customer base (prior-year SM+Basic households ÷ the baseline count) so the lever
-    # keeps paying off as coverage expands. 100% of that cash is added to the capex that funds new SM
+    # year = billed_volume × tariff × (collected_ratio[t] − baseline_ratio). Billed volume follows
+    # population or configured fixed growth, NEVER new connections. 100% of that cash is added to capex
     # (folded into `avail` in the 4a loop below). Gated by ce_enabled → 0 in the BAU pass, so the BAU
     # counterfactual is unchanged; only the scenario pass (toggle on) moves. The per-year band the UI shows
     # is the marginal scenario SM this adds, attributed by the cumulative-pass diff in LiveInterventionChart.
+    if (ce_enabled or tariff_enabled) and (revenue_base is None or revenue_volume is None):
+        raise RevenueInputError('Utility reforms require a resolved shared revenue base and billed-volume path.')
+    if revenue_base is not None:
+        ce_current_ratio = revenue_base['collection_ratio']
+        ce_tariff = tariff_current = revenue_base['tariff']
+    for enabled, baseline_value, target_value, label, maximum in (
+            (ce_enabled, ce_current_ratio, ce_target_ratio, 'Collection target', 1),
+            (tariff_enabled, tariff_current, tariff_target, 'Tariff target', None)):
+        if enabled or revenue_base is not None:
+            target_value = number(target_value, label, maximum)
+            if target_value < baseline_value:
+                raise RevenueInputError(f'{label} cannot be below the shared baseline.')
     ce_add_ratio = np.zeros(n)                       # collected-ratio uplift vs baseline, per year (≥0)
     if ce_enabled and ce_target_ratio > ce_current_ratio and ce_start:
         for t in range(n):
@@ -517,7 +529,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     # ── Tariff reform (test2) ────────────────────────────────────────────────────────────────────────
     # Raise the tariff linearly from `tariff_current` to `tariff_target` between tariff_start and
     # tariff_target_year (flat before the start year, held at target after). The extra revenue each
-    # forecast year = billed_volume × (tariff[t] − tariff_current) is recycled 100% into capex for new
+    # forecast year = billed_volume × (tariff[t] − tariff_current) × applicable collection ratio goes into
     # service (folded into `avail` in the 4a loop). Gated by tariff_enabled → 0 in the BAU pass, so the
     # BAU counterfactual is unchanged; only the scenario pass (toggle on) moves.
     tariff_add = np.zeros(n)                          # tariff rise vs current, per year (≥0)
@@ -535,6 +547,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                 tr = tariff_target if y >= tariff_start else tariff_current
             tariff_add[t] = max(0.0, tr - tariff_current)
     tariff_cash = np.zeros(n)                         # additional tariff revenue → capex, per forecast year
+    billed_volume = np.zeros(n) if revenue_volume is None else np.asarray(revenue_volume)
+    baseline_revenue, scenario_revenue, collection_cash, tariff_cash = collected_revenue(
+        billed_volume, tariff_current, ce_current_ratio, tariff_add, ce_add_ratio)
 
     # ── NRW reduction (test2) ───────────────────────────────────────────────────────────────────────
     # Reduce non-revenue water from nrw_current → nrw_target over start→target year. The recovered
@@ -703,11 +718,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # Collection-efficiency cash: billed volume scales with population (or a fixed growth rate) off
         # its anchor year — exogenous, so it grows with coverage without a circular dependency on the
         # connections it funds.
-        if ce_add_ratio[t] > 0 and ff > 0:
-            collection_cash[t] = ce_volume_base_m3 * _vol_factor(t, ce_vol_anchor_year or ce_start, ce_vol_growth) * ce_tariff * ce_add_ratio[t]
-        # Tariff-reform cash: billed volume × tariff rise, on the same population-scaled volume base.
-        if tariff_add[t] > 0 and ff > 0:
-            tariff_cash[t] = tariff_volume_base_m3 * _vol_factor(t, tariff_start, None) * tariff_add[t]
+        # Both utility streams were reconciled on the shared exogenous billed
+        # volume above. Baseline revenue is comparison-only, never extra capex.
         # avail = capex budget + collection-efficiency cash + tariff-reform cash + NRW money ledger +
         # extra caller cash (sanitation's water-NRW-linked sewer revenue). The NRW ledger is negative when
         # fixing costs exceed the water's value that year (drawn from the BAU budget first) and positive
@@ -947,6 +959,10 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'planned_annual': planned_annual.tolist(),
         'bau_available': bau_available.tolist(),
         'available_total': available_total.tolist(),
+        'billed_volume_million_m3': billed_volume.tolist(),
+        'baseline_collected_revenue': baseline_revenue.tolist(),
+        'collected_revenue': scenario_revenue.tolist(),
+        'additional_collected_revenue': (collection_cash + tariff_cash).tolist(),
         'collection_cash': collection_cash.tolist(),   # collection-efficiency revenue folded into capex (scenario)
         'tariff_cash': tariff_cash.tolist(),           # tariff-reform revenue folded into capex (scenario)
         'financial_commitment_cash': financial_cash.tolist(),  # GDP target + annual growth
@@ -1061,7 +1077,7 @@ def calculate_water_supply(inputs, ctx):
                                         getattr(inputs, 'custom_interventions', None) or [], 'water')
     cost_factor = cost_factor * cust_cf
     bracket_income = [br.income_monthly for br in inputs.income_distribution.brackets]
-    # Billed volume base: MLD → million m³/yr (× days_in_year ÷ litres-per-m³). Grows with coverage in the loop.
+    # Legacy volume arguments are retained for compatibility; canonical billed volume is supplied below.
     _mld_to_m3 = inputs.constants.days_in_year / inputs.constants.cubic_meter_liters
     ce_vol_base_m3 = float(getattr(nrw, 'ce_water_sold_mld', 0.0) or 0.0) * _mld_to_m3
     tariff_vol_base_m3 = float(getattr(nrw, 'tariff_volume_mld', 0.0) or 0.0) * _mld_to_m3
@@ -1080,7 +1096,9 @@ def calculate_water_supply(inputs, ctx):
     # Water capex share of the water budget (workbook G321 = 0.21); falls back to the shared capex%.
     ws_capex = b.ws_capex_pct if b.ws_capex_pct is not None else b.capex_pct_budget
     res = sector_bau(
-        ctx, period=inputs.period,
+        revenue_base=inputs.revenue_bases['water'],
+        revenue_volume=volume_path(inputs.revenue_bases['water'], ctx, inputs.constants.days_in_year, inputs.constants.cubic_meter_liters),
+        ctx=ctx, period=inputs.period,
         pct_start=[sl.pct_serv1_start, sl.pct_serv2_start, sl.pct_serv3_start, sl.pct_serv4_start, sl.pct_serv5_start],
         pct_base=[sl.pct_serv1_baseline, sl.pct_serv2_baseline, sl.pct_serv3_baseline, sl.pct_serv4_baseline, sl.pct_serv5_baseline],
         hist_series=[getattr(sl, f'serv{i+1}_ts', None) for i in range(5)],

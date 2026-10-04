@@ -147,7 +147,7 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
       Cash deficits are allocated once by original need shares (investment split if needs are zero). Off-budget microfinance loans and
       grants fund connections outside the sector capex pool: they can lower scenario need, but must not be added
       again to sector available capex. The two attributed remaining gaps add to the sector total. A negative gap
-      change means the shortfall grew; unlike the chart’s positive-only bands, these changes use the full scenario.
+      change means the shortfall grew; chart bands and tables retain signed incremental outcomes.
       Money is shown in billions; detailed forecast downloads use millions, as in the BAU tables.
     </div>
     {table(summaryHeaders, rows.map(r => [r.year, ...summary.map(c => billions(c.value(r)))]))}

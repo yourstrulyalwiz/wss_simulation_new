@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BUNDLE_KEY, isBundle, areasOf } from './areaBundle';
 import InputPanel from './components/InputPanel';
 import InterventionPanel from './components/InterventionPanel';
+import RevenueReconciliation from './components/RevenueBase';
 import ResultsDashboard from './components/ResultsDashboard';
 import LiveBAUChart from './components/LiveBAUChart';
 import { fetchDefaults, runCalculation } from './api';
@@ -207,10 +208,18 @@ export default function App() {
   // Live engine results for the ACTIVE dataset (debounced), so the input table can show the engine's
   // computed forecast-year values (population, GDP, budget, allocated/actual capex, …).
   const [results, setResults] = useState<any>(null);
+  const [calculationError, setCalculationError] = useState('');
   useEffect(() => {
     if (!activeInputs) return;
-    const h = setTimeout(() => { runCalculation(activeInputs).then(setResults).catch(() => {}); }, 350);
-    return () => clearTimeout(h);
+    let cancelled = false;
+    const h = setTimeout(() => {
+      runCalculation(activeInputs).then(value => {
+        if (!cancelled) { setResults(value); setCalculationError(''); }
+      }).catch(error => {
+        if (!cancelled) { setResults(null); setCalculationError(error.message); }
+      });
+    }, 350);
+    return () => { cancelled = true; clearTimeout(h); };
   }, [activeInputs]);
   const handleSetActiveInputs = useCallback((newInputs: any) => {
     const resized = resizeMacroArrays(newInputs);
@@ -340,6 +349,9 @@ export default function App() {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+      <RevenueReconciliation inputs={activeInputs} onChange={handleSetActiveInputs} area={inputScope} />
+      {calculationError && activeInputs?.revenue_bases?.water && activeInputs?.revenue_bases?.sanitation &&
+        <div role="alert" style={{ padding: 12, background: '#fff1f2', color: '#9f1239' }}>{calculationError}</div>}
       {/* Header */}
       <header style={{ background: '#002244', color: '#fff', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>

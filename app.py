@@ -4,13 +4,32 @@ import os
 from fastapi import FastAPI, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 import json
 from model.inputs import ModelInputs, CountryConfig
 from model.engine import calculate
 from demo_adapter import frontend_defaults, to_engine, coerce_to_engine
 
 app = FastAPI(title="WSS Scenarios Model API")
+from model.utility_revenue import RevenueInputError, resolve_bases
+from model.engine import build_context
+from pydantic import ValidationError
+
+
+@app.exception_handler(ValidationError)
+async def invalid_model_inputs(request, exc):
+    return JSONResponse(status_code=422, content={'detail': 'Invalid model inputs: ' + str(exc)})
+
+
+@app.exception_handler(RevenueInputError)
+async def revenue_input_error(request, exc):
+    return JSONResponse(status_code=422, content={'detail': str(exc)})
+
+
+@app.post("/api/revenue-bases")
+def revenue_bases(inputs: dict = Body(...)):
+    model = coerce_to_engine(inputs)
+    return resolve_bases(model, build_context(model))
 
 app.add_middleware(
     CORSMiddleware,

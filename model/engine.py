@@ -258,6 +258,8 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
         bau['scenario_' + key] = scn[key]
     bau['scenario_collection_cash'] = scn['collection_cash']            # collection-efficiency revenue (scenario)
     bau['scenario_tariff_cash'] = scn['tariff_cash']                    # tariff-reform revenue (scenario)
+    for key in ('billed_volume_million_m3', 'baseline_collected_revenue', 'collected_revenue', 'additional_collected_revenue'):
+        bau['scenario_' + key] = scn[key]
     bau['scenario_financial_commitment_cash'] = scn.get('financial_commitment_cash', [])
     bau['scenario_exogenous_injection_cash'] = scn.get('exogenous_injection_cash', [])
     bau['scenario_nrw_net'] = scn.get('nrw_net', [])                    # NRW money ledger (scenario)
@@ -284,6 +286,12 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
 
 def calculate(inputs: ModelInputs) -> dict:
     ctx = build_context(inputs)
+    from model.utility_revenue import resolve_bases, RevenueInputError
+    resolutions = resolve_bases(inputs, ctx)
+    for sector, resolution in resolutions.items():
+        if resolution['base'] is None:
+            raise RevenueInputError(f'{sector.title()}: reconcile the shared billed-revenue base before calculating.')
+    inputs = inputs.model_copy(update={'revenue_bases': {k: v['base'] for k, v in resolutions.items()}})
     # ── BAU and interventions are SEPARATE calculations. The business-as-usual path must be a fixed
     #    counterfactual, so the BAU pass forces every intervention toggle OFF; changing an intervention
     #    (e.g. capital efficiency, NRW) can then never move the BAU curve. The scenario pass applies the

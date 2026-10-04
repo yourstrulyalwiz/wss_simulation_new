@@ -374,7 +374,9 @@ def coerce_to_engine(inputs: dict) -> ModelInputs:
     (budget under macro.*, water_costs.network_cost_per_hh_*, water_service.serv1_ts,
     macro.inflation_nepal). Frontend markers are checked FIRST so demo-side additions (e.g. the
     tech-mix calculator fields) can never flip a demo payload into the engine path."""
-    inputs = {**inputs, 'toggles': financial_toggles(inputs)}
+    inputs = {**inputs, 'toggles': financial_toggles(inputs),
+              'revenue_legacy': inputs.get('revenue_legacy') or {
+                  key: inputs.get(key, {}) for key in ('water_interventions', 'sanitation_interventions')}}
     macro = inputs.get('macro') or {}
     ws = inputs.get('water_service') or {}
     if 'inflation_nepal' in macro or 'serv1_ts' in ws:
@@ -592,6 +594,8 @@ def to_engine(fe: dict) -> ModelInputs:
     )
     si = fe.get('sanitation_interventions', {}) or {}
     san_intv = SanitationInterventionInputs(
+        ce_current_ratio=si.get('ce_current_ratio'),
+        ce_target_ratio=si.get('ce_target_ratio'),
         **_financial_fields(si),
         # Collection efficiency (sanitation): own start/target years + wastewater-collected% + sewer-tariff%
         # (collected ratios and billed volume are inherited from water_interventions in the engine).
@@ -641,6 +645,8 @@ def to_engine(fe: dict) -> ModelInputs:
     toggles = InterventionToggles(**tg_mapped)
 
     return ModelInputs(
+        revenue_bases=fe.get('revenue_bases', {}),
+        revenue_legacy=fe.get('revenue_legacy') or {key: fe.get(key, {}) for key in ('water_interventions', 'sanitation_interventions')},
         country_config=CountryConfig(**{k: v for k, v in fe.get('country_config', {}).items()
                                         if k in CountryConfig.model_fields}),
         period=period, constants=Constants(), macro=m, population=population,

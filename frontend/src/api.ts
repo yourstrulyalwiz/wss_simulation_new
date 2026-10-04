@@ -11,6 +11,10 @@ export async function runCalculation(inputs: any) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(inputs),
   });
+  if (!res.ok) {
+    const body = await res.json();
+    throw new Error(typeof body.detail === 'string' ? body.detail : 'Calculation inputs are invalid.');
+  }
   return res.json();
 }
 

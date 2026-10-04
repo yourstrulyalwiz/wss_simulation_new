@@ -93,8 +93,11 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
     # Sanitation capex share of the sanitation budget (workbook G328 = 0.15, DISTINCT from water's
     # 0.21); falls back to the shared capex% when not provided.
     san_capex = b.san_capex_pct if b.san_capex_pct is not None else b.capex_pct_budget
+    from model.utility_revenue import volume_path
     res = sector_bau(
-        ctx, period=inputs.period,
+        revenue_base=inputs.revenue_bases['sanitation'],
+        revenue_volume=volume_path(inputs.revenue_bases['sanitation'], ctx, inputs.constants.days_in_year, inputs.constants.cubic_meter_liters),
+        ctx=ctx, period=inputs.period,
         pct_start=[sl.pct_sserv1_start, sl.pct_sserv2_start, sl.pct_sserv3_start, sl.pct_sserv4_start, sl.pct_sserv5_start],
         pct_base=[sl.pct_sserv1_baseline, sl.pct_sserv2_baseline, sl.pct_sserv3_baseline, sl.pct_sserv4_baseline, sl.pct_sserv5_baseline],
         hist_series=[getattr(sl, f'sserv{i+1}_ts', None) for i in range(5)],
@@ -145,7 +148,7 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None):
         ce_start=int(getattr(si, 'ce_start_year', 0) or 0),
         ce_target_year=int(getattr(si, 'ce_target_year', 0) or 0),
         ce_current_ratio=float(getattr(nrw, 'ce_current_ratio', 0.0) or 0.0),
-        ce_target_ratio=float(getattr(nrw, 'ce_target_ratio', 0.0) or 0.0),
+        ce_target_ratio=si.ce_target_ratio if si.ce_target_ratio is not None else nrw.ce_target_ratio,
         ce_volume_base_m3=(float(getattr(nrw, 'ce_water_sold_mld', 0.0) or 0.0)
                            * _mld_to_m3
                            * float(getattr(si, 'ce_wastewater_collected_pct', 0.0) or 0.0)),

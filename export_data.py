@@ -75,6 +75,11 @@ def per_year_table(result, inputs, sector_key):
         f'Financing gap — with interventions ({cur} M)',
     ]
     ledger_fields = [
+        ('Baseline collected revenue — annual flow', 'baseline_collected_revenue'),
+        ('Scenario collected revenue — annual flow', 'collected_revenue'),
+        ('Additional collected revenue — annual flow', 'additional_collected_revenue'),
+        ('Collection cash — annual flow', 'collection_cash'),
+        ('Tariff cash incl. collection interaction — annual flow', 'tariff_cash'),
         ('Annual planned expansion cost — flow', 'annual_planned_expansion_cost'),
         ('Catch-up requirement before funding — snapshot', 'catch_up_requirement'),
         ('Closing outstanding expansion — balance', 'closing_outstanding_expansion'),
@@ -146,13 +151,9 @@ def intervention_breakdown(inputs, sector_key, defs):
     enabled = [d for d in defs if toggles.get(d[0])]
     if not enabled:
         return []
-    off = {k: False for k in toggles}
-    # cumulative passes: BAU, then +each enabled lever
-    passes = [_run(inputs, dict(off))]
-    acc = dict(off)
-    for key, _, _ in enabled:
-        acc[key] = True
-        passes.append(_run(inputs, dict(acc)))
+    # Same GLOBAL order as dashboard and branded deck, including intervening levers.
+    from deck_data import cumulative_passes
+    passes, global_enabled, _ = cumulative_passes([inputs])
     years = passes[0]['years']
     by = _baseline_year(inputs, years)
     e = len(years) - 1
@@ -169,8 +170,9 @@ def intervention_breakdown(inputs, sector_key, defs):
 
     out = []
     for idx, (key, label, rkey) in enumerate(enabled):
+        idx = next(i for i, d in enumerate(global_enabled) if d[0] == key)
         before, after = passes[idx], passes[idx + 1]
-        add_hh = max(0.0, sm_end(after) - sm_end(before))                 # millions
+        add_hh = sm_end(after) - sm_end(before)                 # signed, millions
         res = (cash_cum(after, rkey) - cash_cum(before, rkey)) / 1000.0 if rkey else None  # M → B
         gap_closed = (gap_cum(before) - gap_cum(after)) / 1000.0  # signed change; M → B
         out.append((label, round(add_hh, 5), (round(res, 4) if res is not None else None), round(gap_closed, 4)))
@@ -199,6 +201,7 @@ def scenario_csv(inputs):
         w.writerow([])
         bh, br = breakdown_table(inputs, sk, WATER_INTV if sk == 'water_supply' else SAN_INTV)
         w.writerow([name + ' — contribution by intervention (cumulative to endline)'])
+        w.writerow(['Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.'])
         w.writerow(bh)
         w.writerows(br if br else [['(no interventions enabled)']])
         w.writerow([]); w.writerow([])
@@ -269,6 +272,9 @@ def table_xlsx(sheets):
     """sheets = [{name, headers, rows}] → a workbook, one sheet each."""
     from openpyxl import Workbook
     wb = Workbook(); wb.remove(wb.active)
+    notes = wb.create_sheet('Revenue assumptions')
+    notes.append(['Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.'])
+    notes.append(['Billed volume grows exogenously; baseline collected revenue is not added to capital.'])
     for s in sheets:
         _write_sheet(wb, s.get('name', 'Sheet'), s.get('headers', []), s.get('rows', []))
     if not wb.sheetnames:

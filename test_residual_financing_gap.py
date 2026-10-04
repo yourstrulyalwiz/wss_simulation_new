@@ -8,6 +8,7 @@ from openpyxl import load_workbook
 from pptx import Presentation
 
 from demo_adapter import coerce_to_engine, frontend_defaults
+from test_support import frontend_defaults
 from export_data import per_year_table, scenario_csv, scenario_xlsx
 from export_deck import build_deck
 from model.engine import calculate

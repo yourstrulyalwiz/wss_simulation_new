@@ -4,6 +4,7 @@ import copy
 import unittest
 
 from demo_adapter import coerce_to_engine, frontend_defaults
+from test_support import frontend_defaults
 from model.engine import calculate
 
 

@@ -183,21 +183,21 @@ def intervention_rows(passes, enabled, has_custom, sk: str, years, by) -> List[d
         if not key.startswith('ws_' if sk == 'water_supply' else 'san_'):
             continue
         before, after = passes[idx], passes[idx + 1]
-        add_hh = max(0.0, _at(after[sk].get('scenario_hh'), e, 0) - _at(before[sk].get('scenario_hh'), e, 0))
+        add_hh = _at(after[sk].get('scenario_hh'), e, 0) - _at(before[sk].get('scenario_hh'), e, 0)
         if rkey:
             money = (_rng(after[sk].get(rkey), years, by + 1, years[-1])
                      - _rng(before[sk].get(rkey), years, by + 1, years[-1]))
         else:
             money = _released(before, after, sk, kind, years, by)
-        band = [max(0.0, _at(after[sk].get('scenario_hh'), i, 0) - _at(before[sk].get('scenario_hh'), i, 0))
+        band = [(_at(after[sk].get('scenario_hh'), i, 0) - _at(before[sk].get('scenario_hh'), i, 0))
                 for i in range(len(years))]
         out.append({'key': key, 'label': label, 'color': color, 'kind': kind,
                     'added_hh': add_hh, 'money_m': money, 'band': band})
     if has_custom:
         before, after = passes[-2], passes[-1]
-        band = [max(0.0, _at(after[sk].get('scenario_hh'), i, 0) - _at(before[sk].get('scenario_hh'), i, 0))
+        band = [(_at(after[sk].get('scenario_hh'), i, 0) - _at(before[sk].get('scenario_hh'), i, 0))
                 for i in range(len(years))]
-        add_hh = max(0.0, _at(after[sk].get('scenario_hh'), e, 0) - _at(before[sk].get('scenario_hh'), e, 0))
+        add_hh = _at(after[sk].get('scenario_hh'), e, 0) - _at(before[sk].get('scenario_hh'), e, 0)
         if add_hh > 1e-9 or any(v > 1e-9 for v in band):
             out.append({'key': '__custom', 'label': 'Custom interventions', 'color': CUSTOM_COLOR,
                         'kind': 'revenue', 'added_hh': add_hh, 'money_m': None, 'band': band})
@@ -294,7 +294,7 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
     base_band = [_at(passes[0][sk].get('scenario_hh'), i, 0) for i in range(len(years))]
     # Only show bands for levers that actually move the chart; an enabled-but-unparameterised lever
     # contributes a flat zero and would just add legend noise. It still appears in the table.
-    chart_bands = [r for r in rows if any(v > 1e-4 for v in r['band'])]
+    chart_bands = [r for r in rows if any(abs(v) > 1e-12 for v in r['band'])]
     fi = bi  # chart starts at the baseline year; history is covered by the coverage table
     interventions = {
         'rows': rows,

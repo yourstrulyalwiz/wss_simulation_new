@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import LiveInterventionChart from './LiveInterventionChart';
 import NumInput from './NumInput';
 import ExportButtons from './ExportButtons';
+import { RevenueBaseEditor, REVENUE_ATTRIBUTION } from './RevenueBase';
 
 function Section({ title, children, defaultOpen = false, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; sectionKey?: string; onFocus?: (key: string) => void }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -417,11 +418,9 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           <InterventionToggle label="Collection efficiency" checked={inputs.toggles?.ws_collection_efficiency_enabled ?? false} onChange={v => toggleIntv('ws_collection_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('ws_ce')}>
             <F label="Improvement start year" value={inputs.water_interventions.ce_start_year} onChange={v => u('water_interventions','ce_start_year',v)} tip="Year the collection efficiency improvement begins" />
             <F label="Target year" value={inputs.water_interventions.ce_target_year} onChange={v => u('water_interventions','ce_target_year',v)} tip="Year the target collection ratio is achieved" />
-            <F label="Current collection ratio" value={inputs.water_interventions.ce_current_ratio} onChange={v => u('water_interventions','ce_current_ratio',v)} isPercent unit="%" tip="Current revenue collected ÷ revenue billed. Represents how much of what is billed is actually collected." />
+            <RevenueBaseEditor inputs={inputs} onChange={onChange} sector="water" />
             <F label="Target collection ratio" value={inputs.water_interventions.ce_target_ratio} onChange={v => u('water_interventions','ce_target_ratio',v)} isPercent unit="%" tip="Target collection ratio for the model end year" />
-            <F label="Volume sold (at start year)" value={inputs.water_interventions.ce_water_sold_mld} onChange={v => u('water_interventions','ce_water_sold_mld',v)} unit="MLD" tip="Volume of water sold/billed at the start year, in million litres per day. It grows each forecast year — with population by default, or at the growth rate below if you set one." />
-            <F label="Volume growth rate" value={inputs.water_interventions.ce_vol_growth} onChange={v => u('water_interventions','ce_vol_growth',v)} isPercent unit="%" placeholder="population" tip="Annual real growth of the billed volume from the start year. Leave blank to scale with population; enter a rate to override (e.g. 3%)." />
-            <F label="Current tariff" value={inputs.water_interventions.ce_current_tariff} onChange={v => u('water_interventions','ce_current_tariff',v)} unit={`${CUR}/m3`} tip="Current average water tariff per cubic metre" />
+            <p title={REVENUE_ATTRIBUTION}>{REVENUE_ATTRIBUTION}</p>
           </InterventionToggle>
 
           <InterventionToggle label="NRW reduction" checked={inputs.toggles?.ws_nrw_enabled ?? false} onChange={v => toggleIntv('ws_nrw_enabled', v)} onFocus={() => onSectionFocus?.('ws_nrw')}>
@@ -485,9 +484,8 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           <InterventionToggle label="Tariff reform" checked={inputs.toggles?.ws_tariff_enabled ?? false} onChange={v => toggleIntv('ws_tariff_enabled', v)} onFocus={() => onSectionFocus?.('ws_tariff')}>
             <F label="Improvement start year" value={inputs.water_interventions.tariff_start_year} onChange={v => u('water_interventions','tariff_start_year',v)} tip="Year the tariff starts rising" />
             <F label="Target year" value={inputs.water_interventions.tariff_target_year} onChange={v => u('water_interventions','tariff_target_year',v)} tip="Year the target tariff is reached; it rises linearly from the start year to here, then holds." />
-            <F label="Volume sold (at start year)" value={inputs.water_interventions.tariff_volume_mld} onChange={v => u('water_interventions','tariff_volume_mld',v)} unit="MLD" tip="Volume of water sold/billed at the start year, in million litres per day. Grows with population over the forecast." />
-            <F label="Current tariff" value={inputs.water_interventions.tariff_current} onChange={v => u('water_interventions','tariff_current',v)} step={0.5} unit={`${CUR}/m3`} tip="Current average water tariff per cubic metre" />
-            <F label="Target tariff" value={inputs.water_interventions.tariff_target} onChange={v => u('water_interventions','tariff_target',v)} step={0.5} unit={`${CUR}/m3`} tip="Target average water tariff per cubic metre. The extra revenue (volume × tariff rise) is recycled into capex for new service." />
+            <RevenueBaseEditor inputs={inputs} onChange={onChange} sector="water" />
+            <F label="Target tariff" value={inputs.water_interventions.tariff_target} onChange={v => u('water_interventions','tariff_target',v)} step={0.5} unit={`${CUR}/m3`} tip={`Additional cash = billed volume × tariff rise × applicable collection ratio. ${REVENUE_ATTRIBUTION}`} />
           </InterventionToggle>
 
           <InterventionToggle label="Microfinance" checked={inputs.toggles?.ws_microfinance_enabled ?? false} onChange={v => toggleIntv('ws_microfinance_enabled', v)} onFocus={() => onSectionFocus?.('ws_microfinance')}>
@@ -510,7 +508,8 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           <InterventionToggle label="Collection efficiency" checked={inputs.toggles?.san_collection_efficiency_enabled ?? false} onChange={v => toggleIntv('san_collection_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('san_ce')}>
             <F label="Improvement start year" value={inputs.sanitation_interventions.ce_start_year} onChange={v => u('sanitation_interventions','ce_start_year',v)} tip="Year the collection efficiency improvement begins" />
             <F label="Target year" value={inputs.sanitation_interventions.ce_target_year} onChange={v => u('sanitation_interventions','ce_target_year',v)} tip="Year the target is achieved" />
-            <F label="Sewer tariff as % of water tariff" value={inputs.sanitation_interventions.ce_sewer_tariff_pct_water || 0} onChange={v => u('sanitation_interventions','ce_sewer_tariff_pct_water',v)} isPercent unit="%" tip="Sewer tariff expressed as a share of the water tariff. Collection ratios are inherited from water supply." />
+            <RevenueBaseEditor inputs={inputs} onChange={onChange} sector="sanitation" />
+            <F label="Target collection ratio" value={inputs.sanitation_interventions.ce_target_ratio ?? inputs.water_interventions.ce_target_ratio} onChange={v => u('sanitation_interventions','ce_target_ratio',v)} isPercent unit="%" tip="Sanitation's own collection target. Its legacy water-linked value is materialized when the revenue base is resolved." />
           </InterventionToggle>
 
           <InterventionToggle label="Budget execution improvement" checked={inputs.toggles?.san_capital_efficiency_enabled ?? false} onChange={v => toggleIntv('san_capital_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('san_budget_exec')}>
@@ -566,9 +565,8 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           <InterventionToggle label="Tariff reform" checked={inputs.toggles?.san_tariff_enabled ?? false} onChange={v => toggleIntv('san_tariff_enabled', v)} onFocus={() => onSectionFocus?.('san_tariff')}>
             <F label="Improvement start year" value={inputs.sanitation_interventions.tariff_start_year} onChange={v => u('sanitation_interventions','tariff_start_year',v)} tip="Year the sewer tariff starts rising" />
             <F label="Target year" value={inputs.sanitation_interventions.tariff_target_year} onChange={v => u('sanitation_interventions','tariff_target_year',v)} tip="Year the target sewer tariff is reached; it rises linearly from the start year to here, then holds." />
-            <F label="Volume billed (at start year)" value={inputs.sanitation_interventions.tariff_volume_mld} onChange={v => u('sanitation_interventions','tariff_volume_mld',v)} unit="MLD" tip="Volume of wastewater billed at the start year, in million litres per day. Grows with population over the forecast." />
-            <F label="Current sewer tariff" value={inputs.sanitation_interventions.tariff_current} onChange={v => u('sanitation_interventions','tariff_current',v)} step={0.5} unit={`${CUR}/m3`} tip="Current average sewer tariff per cubic metre" />
-            <F label="Target sewer tariff" value={inputs.sanitation_interventions.tariff_target} onChange={v => u('sanitation_interventions','tariff_target',v)} step={0.5} unit={`${CUR}/m3`} tip="Target average sewer tariff per cubic metre. The extra revenue (volume × tariff rise) is recycled into capex for new service." />
+            <RevenueBaseEditor inputs={inputs} onChange={onChange} sector="sanitation" />
+            <F label="Target sewer tariff" value={inputs.sanitation_interventions.tariff_target} onChange={v => u('sanitation_interventions','tariff_target',v)} step={0.5} unit={`${CUR}/m3`} tip={`Additional cash = billed volume × tariff rise × applicable collection ratio. ${REVENUE_ATTRIBUTION}`} />
           </InterventionToggle>
 
           <InterventionToggle label="Microfinance" checked={inputs.toggles?.san_microfinance_enabled ?? false} onChange={v => toggleIntv('san_microfinance_enabled', v)} onFocus={() => onSectionFocus?.('san_microfinance')}>

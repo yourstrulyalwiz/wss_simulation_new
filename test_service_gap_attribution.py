@@ -4,6 +4,7 @@ import copy
 import unittest
 
 from demo_adapter import coerce_to_engine, frontend_defaults
+from test_support import frontend_defaults
 from export_data import per_year_table
 from model.engine import calculate
 from model.gap_attribution import attribute_gap

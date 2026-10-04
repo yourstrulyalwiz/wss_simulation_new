@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { REVENUE_ATTRIBUTION } from './RevenueBase';
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Label,
 } from 'recharts';
@@ -107,11 +108,11 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         const sm = results.map((r: any) => secOf(r).scenario_hh[rung]); // rung WITH the pass's levers
         const rows = years.map((y: number, i: number) => {
           const row: any = { year: +y, [baseKey]: +(+bauBase[i]).toFixed(4), 'Total households': +(+results[0].total_hh[i]).toFixed(4) };
-          bandDefs.forEach(([, label], p) => { row[label] = Math.max(0, +(sm[p + 1][i] - sm[p][i]).toFixed(4)); });
+          bandDefs.forEach(([, label], p) => { row[label] = sm[p + 1][i] - sm[p][i]; });
           return row;
         });
         // Only stack levers that actually move the needle (an enabled-but-unparameterised one adds 0).
-        const contributing = bandDefs.filter(([, label]) => rows.some((r: any) => r[label] > 1e-4));
+        const contributing = bandDefs.filter(([, label]) => rows.some((r: any) => Math.abs(r[label]) > 1e-12));
         setData(rows);
         setBands(contributing);
         const full = secOf(results[results.length - 1]);            // all enabled toggles + customs applied
@@ -120,7 +121,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         const cum = (a: number[]) => (a || []).reduce((s: number, v: number) => s + (+v || 0), 0);
         setSummary({
           // Compare the full-scenario SM / gap against the PURE BAU (bau_hh / financing_gap).
-          endline: years[e], addHH: Math.max(0, (+full.scenario_hh[rung][e]) - (+bau.bau_hh[rung][e])),
+          endline: years[e], addHH: (+full.scenario_hh[rung][e]) - (+bau.bau_hh[rung][e]),
           gapBau: bau.endline_financing_requirement[e], gapIntv: full.scenario_endline_financing_requirement[e],
           cur: inputs?.country_config?.currency || 'LCU',
         });
@@ -169,6 +170,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const fileBase = `${scopeLabel ? scopeLabel + '_' : ''}${sector}_${rung === 0 ? 'sm' : 'basic'}_intervention_impact`;
   return (
     <div>
+      <p title={REVENUE_ATTRIBUTION} style={{ fontSize: 11 }}>{REVENUE_ATTRIBUTION}</p>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
         <h3 style={{ fontSize: 14, margin: 0, fontWeight: 600, color: '#1e3a5f' }}>
           {scopeLabel ? scopeLabel + ' ' : ''}{sectorLabel} — {rungName} impact (live)
@@ -229,7 +231,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         <ComposedChart data={visibleData} margin={{ top: 14, right: 24, bottom: 5, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis dataKey="year" tick={{ fontSize: 10 }} interval={yearAxisInterval(visibleData)} />
-          <YAxis tick={{ fontSize: 10 }} domain={isShare ? [0, 1] : undefined} tickFormatter={fmtAxis}>
+          <YAxis tick={{ fontSize: 10 }} domain={isShare ? ['auto', 1] : undefined} tickFormatter={fmtAxis}>
             <Label value={isShare ? '% of population' : '# households (millions)'} angle={-90} position="insideLeft" style={{ fontSize: 10, fill: '#64748b' }} />
           </YAxis>
           <Tooltip formatter={(v: any) => fmtVal(+v)} contentStyle={{ fontSize: 11 }} />

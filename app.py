@@ -323,6 +323,15 @@ def bau_test():
 
 # Serve frontend static files
 static_dir = os.path.join(os.path.dirname(__file__), "static")
+frontend_html_headers = {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+    # Invalidate previously cached entry pages without deleting localStorage,
+    # cookies, or saved inputs. Browsers that support this header honor it on
+    # the next network-loaded HTML response.
+    "Clear-Site-Data": '"cache"',
+}
 if os.path.exists(static_dir):
     app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
 
@@ -330,13 +339,8 @@ if os.path.exists(static_dir):
     def serve_frontend(full_path: str):
         file_path = os.path.join(static_dir, full_path)
         if full_path and os.path.isfile(file_path):
-            headers = {"Cache-Control": "no-store, no-cache, must-revalidate",
-                       "Pragma": "no-cache", "Expires": "0"} if file_path.endswith(".html") else None
+            headers = frontend_html_headers if file_path.endswith(".html") else None
             return FileResponse(file_path, headers=headers)
         # Always reload the entry document so it points at the current hashed
         # JS/CSS bundle. Do not clear localStorage: it contains saved user work.
-        return FileResponse(os.path.join(static_dir, "index.html"), headers={
-            "Cache-Control": "no-store, no-cache, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        })
+        return FileResponse(os.path.join(static_dir, "index.html"), headers=frontend_html_headers)

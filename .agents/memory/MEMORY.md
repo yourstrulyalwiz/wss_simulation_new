@@ -2,3 +2,4 @@
 - [Residual financing gap](service-level-gap-attribution.md) — expansion capital gets no second credit; replacement credit follows asset obligations and cash deficits are allocated once.
 - [Funded assets](funded-assets.md) — unfunded work never creates assets; endline need uses closing expansion plus accumulated shortfalls.
 - [Utility revenue](utility-revenue.md) — preserve exogenous volume and separate collection/tariff contributions; avoid incidental changes to NRW or reinvestment.
+- [Stale preview state](stale-preview-state.md) — a preview can retain an older interface even when its exact endpoint serves the current build; preserve saved browser data.

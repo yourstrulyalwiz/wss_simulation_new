@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import InterventionCategories from './InterventionCategories';
 import LiveInterventionChart from './LiveInterventionChart';
 import NumInput from './NumInput';
 import ExportButtons from './ExportButtons';
@@ -408,6 +409,7 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
         {sectorTab === 'water' && <>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Water Supply Interventions</h3>
 
+          <InterventionCategories sector="water">
           <InterventionToggle label="Increase in Financial Commitments" checked={inputs.toggles?.ws_financial_commitment_enabled ?? false} onChange={v => toggleIntv('ws_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('ws_financial_commitment')}>
             {financialFields('water_interventions')}
           </InterventionToggle>
@@ -491,6 +493,7 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           <InterventionToggle label="Microfinance" checked={inputs.toggles?.ws_microfinance_enabled ?? false} onChange={v => toggleIntv('ws_microfinance_enabled', v)} onFocus={() => onSectionFocus?.('ws_microfinance')}>
             {microfinanceFields('water_interventions')}
           </InterventionToggle>
+          </InterventionCategories>
 
         </>}
 
@@ -498,6 +501,7 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
         {sectorTab === 'sanitation' && <>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Sanitation Interventions</h3>
 
+          <InterventionCategories sector="sanitation">
           <InterventionToggle label="Increase in Financial Commitments" checked={inputs.toggles?.san_financial_commitment_enabled ?? false} onChange={v => toggleIntv('san_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('san_financial_commitment')}>
             {financialFields('sanitation_interventions')}
           </InterventionToggle>
@@ -572,6 +576,7 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           <InterventionToggle label="Microfinance" checked={inputs.toggles?.san_microfinance_enabled ?? false} onChange={v => toggleIntv('san_microfinance_enabled', v)} onFocus={() => onSectionFocus?.('san_microfinance')}>
             {microfinanceFields('sanitation_interventions')}
           </InterventionToggle>
+          </InterventionCategories>
         </>}
 
         {/* ===== CUSTOM INTERVENTIONS (always visible, no dropdown) ===== */}

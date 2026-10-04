@@ -971,6 +971,8 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     title: 'Water Supply Interventions — overview',
     content: (
       <div>
+        <p style={{ margin: '0 0 6px' }}>The five categories are Funding Mobilization; Operational Efficiency Improvements; Investment Planning and Delivery Improvements; Tariff Reform; and Household Financing and Affordability. Category headings only show or hide controls and do not enable interventions or change scenario values. Multiple categories can stay open.</p>
+        <p style={{ margin: '0 0 6px' }}>Energy improvements and Subsidies are informational placeholders marked <strong>Coming soon</strong>, with no modeled effect. Means-based grants and the self-finance carve-out remain available within Microfinance. Custom Interventions remains a separate tool below the categories.</p>
         <p style={{ margin: '0 0 6px' }}>Each intervention has its own guide card below. Open an intervention on the left (▾ <strong>Show</strong>) or the sector toggle to jump to its guidance here.</p>
         <p style={{ margin: 0 }}><strong>How to use:</strong> tick an intervention's checkbox to switch it on (this adds it to the impact graph); click <strong>▾ Show</strong> to open its parameters and <strong>▴ Hide</strong> to collapse. The checkbox and the Show/Hide dropdown are independent — you can review parameters without enabling the intervention.</p>
       </div>
@@ -1017,6 +1019,8 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     title: 'Sanitation Interventions — overview',
     content: (
       <div>
+        <p style={{ margin: '0 0 6px' }}>The five categories are Funding Mobilization; Operational Efficiency Improvements; Investment Planning and Delivery Improvements; Tariff Reform; and Household Financing and Affordability. Category headings only show or hide controls and do not enable interventions or change scenario values. Multiple categories can stay open.</p>
+        <p style={{ margin: '0 0 6px' }}>Energy improvements and Subsidies are informational placeholders marked <strong>Coming soon</strong>, with no modeled effect. Means-based grants and the self-finance carve-out remain available within Microfinance. Custom Interventions remains a separate tool below the categories.</p>
         <p style={{ margin: '0 0 6px' }}>Each intervention has its own guide card below. Open an intervention on the left (▾ <strong>Show</strong>) or the sector toggle to jump to its guidance here.</p>
         <p style={{ margin: 0 }}><strong>How to use:</strong> tick an intervention's checkbox to switch it on (this adds it to the impact graph); click <strong>▾ Show</strong> to open its parameters and <strong>▴ Hide</strong> to collapse. The checkbox and the Show/Hide dropdown are independent.</p>
       </div>

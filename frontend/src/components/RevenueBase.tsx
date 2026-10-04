@@ -2,6 +2,29 @@ import React, { useEffect, useState } from 'react';
 
 export const REVENUE_ATTRIBUTION = 'Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.';
 
+export function restoreBlankRevenueBases(inputs: any) {
+  const revenue_bases = { ...inputs.revenue_bases };
+  let changed = false;
+  for (const sector of ['water', 'sanitation']) {
+    const base = revenue_bases[sector];
+    if (base?.origin === 'user-entered' &&
+      ['volume_mld', 'tariff', 'collection_ratio'].every(field => base[field] == null || base[field] === '')) {
+      delete revenue_bases[sector];
+      changed = true;
+    }
+  }
+  // Discard only unfilled drafts, never custom values or other scenario inputs.
+  // The normal resolver will rebuild these sectors from retained legacy inputs.
+  return changed ? { ...inputs, revenue_bases } : inputs;
+}
+
+function readableError(error: string) {
+  return error.replace(/\bvolume_mld\b/g, 'Billed volume')
+    .replace(/\bcollection_ratio\b/g, 'Baseline collection ratio')
+    .replace(/\breference_year\b/g, 'Volume reference year')
+    .replace(/\bgrowth_rate\b/g, 'Annual volume growth');
+}
+
 function save(inputs: any, sector: string, base: any) {
   const next = { ...inputs, revenue_bases: { ...inputs.revenue_bases, [sector]: base } };
   // Materialize sanitation's legacy collection target once, independently of water thereafter.
@@ -76,13 +99,19 @@ export function RevenueInputErrors({ inputs, onChange, area, resolution, error }
   const pending = ['water', 'sanitation'].filter(s => !inputs.revenue_bases?.[s]);
   const needsCorrection = pending.filter(s => error || resolution?.[s]?.error);
   if (!error && !needsCorrection.length) return null;
+  const restored = restoreBlankRevenueBases(inputs);
   return <section aria-label="Revenue input errors" style={{ margin: '8px 16px', padding: 12, background: '#fff8e6', border: '1px solid #dfc078', borderRadius: 6, fontSize: 12 }}>
     <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>Revenue inputs need attention — {area}</h3>
     <p>Revenue inputs could not be verified. Correct the values below to continue calculations and exports. Original values are retained.</p>
-    {error && <p role="alert">{error}</p>}
+    {error && <p role="alert">{readableError(error)}</p>}
+    {restored !== inputs && <div style={{ marginBottom: 12 }}>
+      <p>The user-entered revenue bases are blank. Restore them from your existing revenue inputs, or complete the fields below.</p>
+      <button onClick={() => onChange(restored)}>Restore blank bases from existing inputs</button>
+      <p style={{ marginBottom: 0 }}>This replaces only entirely blank user-entered bases. Other scenario inputs and custom values are unchanged.</p>
+    </div>}
     {needsCorrection.map(sector => <div key={sector} style={{ marginBottom: 12 }}>
       <h4>{sector === 'water' ? 'Water supply' : 'Sanitation'}</h4>
-      {resolution?.[sector]?.error && <p role="alert">{resolution[sector].error}</p>}
+      {resolution?.[sector]?.error && <p role="alert">{readableError(resolution[sector].error)}</p>}
       {resolution?.[sector]?.alternatives?.map((alt: any, i: number) => {
         const b = alt.base;
         return <button key={i} onClick={() => onChange(save(inputs, sector, b))} style={{ padding: 10, margin: 4 }}>

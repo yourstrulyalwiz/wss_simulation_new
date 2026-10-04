@@ -24,3 +24,13 @@ users to reconcile values manually.
 **How to apply:** Preserve automatic migration and input validation. Do not
 reintroduce a loading/reconciliation popup, silently accept invalid bases, or
 leave users without correction controls when a saved profile is invalid.
+
+Recovery must be explicit and preserve entered custom revenue values, including
+zeros and partially completed inputs. Never silently overwrite an invalid
+custom base with legacy values.
+
+**Why:** A missing value and an intentional zero are different. Validation
+failure does not give permission to replace user work.
+
+**How to apply:** Offer user-initiated recovery for entirely unfilled drafts;
+keep partially entered custom bases editable rather than resetting them.

@@ -330,5 +330,13 @@ if os.path.exists(static_dir):
     def serve_frontend(full_path: str):
         file_path = os.path.join(static_dir, full_path)
         if full_path and os.path.isfile(file_path):
-            return FileResponse(file_path)
-        return FileResponse(os.path.join(static_dir, "index.html"))
+            headers = {"Cache-Control": "no-store, no-cache, must-revalidate",
+                       "Pragma": "no-cache", "Expires": "0"} if file_path.endswith(".html") else None
+            return FileResponse(file_path, headers=headers)
+        # Always reload the entry document so it points at the current hashed
+        # JS/CSS bundle. Do not clear localStorage: it contains saved user work.
+        return FileResponse(os.path.join(static_dir, "index.html"), headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        })

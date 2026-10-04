@@ -570,7 +570,7 @@ export default function App() {
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
         )}
         {activeTab === 1 && inputs && (<>
-          <div style={{ flex: '0 1 460px', display: 'flex', minWidth: 0 }}>
+          <div style={{ flex: '0 1 598px', display: 'flex', minWidth: 0 }}>
             <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} geoScope={inputScope} showSection="bau" bauSector={sectorTab} onBauSectorChange={setSectorTab} onSectionFocus={focusGuideSection}
               currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
           </div>

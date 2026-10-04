@@ -384,7 +384,7 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
   return (
     <div style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'hidden' }}>
       {/* Left: intervention controls */}
-      <div style={{ flex: '0 1 460px', minWidth: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', borderRight: '1px solid #e0e0e0', fontSize: 12 }}>
+      <div style={{ flex: '0 1 598px', minWidth: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', borderRight: '1px solid #e0e0e0', fontSize: 12 }}>
 
         {/* Area-scope banner */}
         <div style={{

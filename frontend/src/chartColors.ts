@@ -2,18 +2,18 @@
 // Every graph in the tool (BAU chart, intervention-impact chart, results fan charts) must use these
 // for the corresponding data series, so a colour always carries the same meaning to the reader.
 export const C = {
-  bau: '#2563eb',        // business-as-usual (BLUE)
-  bauFill: '#bfdbfe',    // light-blue area fill for a BAU band
-  target: '#16a34a',     // target — the level we're closing toward (GREEN)
-  scenario: '#ea580c',   // with interventions / reforms (ORANGE)
-  scenarioFill: '#fdba74', // light-orange fill for the intervention band/range
-  total: '#6b7280',      // total households / coverage ceiling (GREY, dashed)
+  bau: '#014972',        // business-as-usual
+  bauFill: '#E5F4F5',    // light teal area fill for a BAU band
+  target: '#009CA7',     // target — the level we're closing toward
+  scenario: '#4C809C',   // with interventions / reforms
+  scenarioFill: '#EDF1F3',
+  total: '#9AA6AC',      // total households / coverage ceiling (dashed)
   gap: '#b91c1c',        // financing gap / shortfall (RED — a money dimension, not BAU/target/scenario)
-  range: '#cbd5e1',      // NEUTRAL fill for a BAU→scenario range band, so the coloured lines stay readable on top
+  range: '#EDF1F3',      // neutral fill for a BAU→scenario range band
 };
 
 // Per-intervention categorical palette for the intervention-impact chart's stacked bands.
-// Deliberately EXCLUDES blue (BAU) and green (target) so those meanings stay reserved.
+// Deliberately excludes the World Bank navy (BAU) and teal (target) so those meanings stay reserved.
 // Order matches the intervention lists in LiveInterventionChart.
 //
 // These eight hues were chosen by a colour-distance search (not by eye) that maximises the

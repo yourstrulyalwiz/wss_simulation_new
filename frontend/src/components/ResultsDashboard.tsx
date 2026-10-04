@@ -820,7 +820,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
                     }).then(b => { const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${sc.name}.pptx`; a.click(); URL.revokeObjectURL(u); })
                     .catch(error => alert(error.message));
                 }} style={{ fontSize: 10, padding: '3px 8px', border: '1px solid #d1d5db', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#374151' }}>
-                  📑 Export slides
+                  Export slides
                 </button>
               </div>
             ))}

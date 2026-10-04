@@ -51,8 +51,8 @@ SECTOR_TITLE = {'water_supply': 'water', 'sanitation': 'sanitation'}
 # interventions and must read the same as the on-screen chart. The service-gap chart is not: it has
 # two fixed series the template already styles, so it keeps the template's own colours (see
 # _fill_service_gap).
-BAU_FILL = 'BFDBFE'
-TARGET_LINE = '16A34A'
+BAU_FILL = '4C809C'
+TARGET_LINE = '009CA7'
 
 
 # ── formatting ──────────────────────────────────────────────────────────────────────────────────
@@ -86,6 +86,88 @@ def hh_full(v_millions) -> str:
 
 def _rgb(hex6: str) -> RGBColor:
     return RGBColor(int(hex6[0:2], 16), int(hex6[2:4], 16), int(hex6[4:6], 16))
+
+
+_WB_COLORS = {
+    '195B80': '014972', '004B76': '014972',
+    'E8F4F5': 'E5F4F5', 'B2E1E3': 'E5F4F5',
+    '404040': '29343B', '53575A': '617078', '7A7A7A': '617078',
+    '6592AB': '4C809C', '4CBAC1': '009CA7',
+    'B2B2B2': '9AA6AC', 'F2F2F2': 'F4F7F9',
+    'BFDBFE': '617078', '94A3B8': '9AA6AC',
+}
+
+
+def _apply_world_bank_theme(prs) -> None:
+    """Restyle the authored template in memory without changing slide content or geometry."""
+    from pptx.enum.dml import MSO_COLOR_TYPE
+
+    def recolor(color):
+        try:
+            if color.type == MSO_COLOR_TYPE.RGB:
+                replacement = _WB_COLORS.get(str(color.rgb).upper())
+                if replacement:
+                    color.rgb = _rgb(replacement)
+        except (AttributeError, TypeError, ValueError):
+            pass
+
+    def style_text_frame(text_frame, uppercase=False):
+        for paragraph in text_frame.paragraphs:
+            try:
+                paragraph.font.name = 'Noto Sans'
+                recolor(paragraph.font.color)
+            except (AttributeError, TypeError, ValueError):
+                pass
+            for run in paragraph.runs:
+                try:
+                    run.font.name = 'Noto Sans'
+                    if uppercase:
+                        run.text = run.text.upper()
+                    recolor(run.font.color)
+                except (AttributeError, TypeError, ValueError):
+                    pass
+
+    def style_shapes(shapes):
+        for shape in iter_shapes(shapes):
+            try:
+                recolor(shape.fill.fore_color)
+            except (AttributeError, TypeError, ValueError):
+                pass
+            try:
+                recolor(shape.line.color)
+            except (AttributeError, TypeError, ValueError):
+                pass
+            if getattr(shape, 'has_text_frame', False) and shape.has_text_frame:
+                style_text_frame(shape.text_frame, uppercase=shape.name == 'Text 0')
+            if getattr(shape, 'has_table', False) and shape.has_table:
+                for row in shape.table.rows:
+                    for cell in row.cells:
+                        try:
+                            recolor(cell.fill.fore_color)
+                        except (AttributeError, TypeError, ValueError):
+                            pass
+                        style_text_frame(cell.text_frame)
+            if getattr(shape, 'has_chart', False) and shape.has_chart:
+                for plot in shape.chart.plots:
+                    for series in plot.series:
+                        try:
+                            recolor(series.format.fill.fore_color)
+                        except (AttributeError, TypeError, ValueError):
+                            pass
+                        try:
+                            recolor(series.format.line.color)
+                        except (AttributeError, TypeError, ValueError):
+                            pass
+
+    for index, slide in enumerate(prs.slides):
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb = _rgb('FFFFFF' if index == 0 else 'F4F7F9')
+        style_shapes(slide.shapes)
+
+    for master in prs.slide_masters:
+        style_shapes(master.shapes)
+        for layout in master.slide_layouts:
+            style_shapes(layout.shapes)
 
 
 def _color_series(chart, colors: List[Optional[str]]) -> None:
@@ -721,6 +803,7 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, co
     for s in prs.slides:
         drop_prompt_shapes(s, canvas=(prs.slide_width, prs.slide_height))
 
+    _apply_world_bank_theme(prs)
     out = io.BytesIO()
     prs.save(out)
     out.seek(0)

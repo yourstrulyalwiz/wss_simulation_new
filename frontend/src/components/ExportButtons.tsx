@@ -8,9 +8,9 @@ import type { CurrencyDisplaySettings } from '../currencyDisplay';
 // supplied (the Results tab), the PowerPoint export first captures the on-screen charts and ships them so
 // the deck is pre-populated with the actual charts (the backend can't render recharts itself).
 const FORMATS = [
-  { label: 'Excel', ext: 'xlsx', endpoint: '/api/export/xlsx', icon: '📗' },
-  { label: 'PowerPoint', ext: 'pptx', endpoint: '/api/export/pptx', icon: '📊' },
-  { label: 'CSV', ext: 'csv', endpoint: '/api/export/csv', icon: '📄' },
+  { label: 'Excel', ext: 'xlsx', endpoint: '/api/export/xlsx' },
+  { label: 'PowerPoint', ext: 'pptx', endpoint: '/api/export/pptx' },
+  { label: 'CSV', ext: 'csv', endpoint: '/api/export/csv' },
 ];
 
 export default function ExportButtons({ inputs, label = 'Export', pptxCharts, areas, pptx = true, contributionView = 'individual', currencyDisplay }: {
@@ -70,7 +70,7 @@ export default function ExportButtons({ inputs, label = 'Export', pptxCharts, ar
           style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', fontSize: 11.5,
             border: '1px solid #cbd5e1', borderRadius: 6, background: busy === f.ext ? '#eef2ff' : '#fff',
             color: '#334155', cursor: busy ? 'wait' : 'pointer', fontWeight: 500 }}>
-          <span>{f.icon}</span>{busy === f.ext ? 'Preparing…' : f.label}
+          {busy === f.ext ? 'Preparing…' : f.label}
         </button>
       ))}
     </div>

@@ -5,16 +5,16 @@ import {
 } from 'recharts';
 
 const COLORS = {
-  bau: '#64748b',
-  target: '#2563eb',
+  bau: '#014972',
+  target: '#009CA7',
   gap: '#ef4444',
-  ce_nrw: '#10b981',
+  ce_nrw: '#4C809C',
   capeff: '#f59e0b',
   tariff: '#8b5cf6',
   microfinance: '#06b6d4',
-  compare: '#f97316',
+  compare: '#4C809C',
   inv_need: '#ef4444',
-  bau_inv: '#64748b',
+  bau_inv: '#014972',
 };
 
 interface ServiceGapChartProps {

@@ -50,19 +50,20 @@ function Section({ title, children, defaultOpen = false, cols = 3, sectionKey, o
   // width (so the grid never stretches fields edge-to-edge on wide screens, nor cramps on a laptop).
   // The 2-col target/cost/technical sections keep a slightly wider min than the denser 3-col ones.
   const colMin = cols <= 2 ? 240 : 200;
+  const titleParts = title.match(/^(\d+\.\s+\S+)(?:\s+(.*))?$/) || title.match(/^(\S+)(?:\s+(.*))?$/);
   const handleClick = () => {
     const willOpen = !open;
     setOpen(willOpen);
     if (willOpen && sectionKey && onFocus) onFocus(sectionKey);
   };
   return (
-    <div data-section-key={sectionKey} style={{ marginBottom: 8, border: '1px solid #ddd', borderRadius: 8, background: '#fff' }}>
-      <button onClick={handleClick} style={{
-        width: '100%', padding: '10px 14px', textAlign: 'left', cursor: 'pointer',
-        border: 'none', background: open ? '#EBF6FB' : '#fff', color: open ? '#0073A8' : '#002244', fontWeight: 600,
-        fontSize: 14, borderRadius: 8, display: 'flex', justifyContent: 'space-between',
-      }}>
-        {title}<span>{open ? '▴' : '▾'}</span>
+    <div data-section-key={sectionKey} className="wb-panel-section" style={{ marginBottom: 8 }}>
+      <button onClick={handleClick} className={`wb-section-trigger${open ? ' wb-section-trigger-open' : ''}`}>
+        <span>
+          <span className="wb-heading-strong">{titleParts?.[1] || title}</span>
+          {titleParts?.[2] && <> <span className="wb-heading-light">{titleParts[2]}</span></>}
+        </span>
+        <span aria-hidden="true">{open ? '▴' : '▾'}</span>
       </button>
       {open && <div onFocusCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} onClickCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} style={{ padding: '10px 14px 12px', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${colMin}px, 1fr))`, gap: '12px 16px', alignItems: 'start' }}>{children}</div>}
     </div>
@@ -73,7 +74,7 @@ function Section({ title, children, defaultOpen = false, cols = 3, sectionKey, o
 const FULL = { gridColumn: '1 / -1' } as const;
 
 function SubHead({ text }: { text: string }) {
-  return <div style={{ gridColumn: '1 / -1', fontSize: 13, fontWeight: 700, color: '#1e3a5f', margin: '6px 0 2px', borderBottom: '1px solid #e5e7eb', paddingBottom: 3 }}>{text}</div>;
+  return <div className="wb-subhead" style={{ gridColumn: '1 / -1', margin: '6px 0 2px', paddingBottom: 3 }}>{text}</div>;
 }
 
 // A row in a year-by-year table. `section`/`sub` render a band header instead of data cells.
@@ -94,8 +95,8 @@ function YearTable({ rows, years, baseYr2, colIsTarget, markTargets = false }: {
             {years.map((yr: number, i: number) => {
               const tgt = !!(markTargets && yr > baseYr2 && colIsTarget?.(i));
               return (
-                <th key={yr} title={tgt ? 'Target year (a full service-level column is entered here)' : undefined} style={{ padding: '4px 4px', textAlign: 'center', fontSize: 10, fontWeight: yr > baseYr2 ? 600 : 500, color: tgt ? '#16a34a' : yr > baseYr2 ? '#f59e0b' : '#334155', minWidth: 62, background: tgt ? '#f0fdf4' : '#f1f5f9' }}>
-                  {yr}{tgt ? <span style={{ fontSize: 9 }}> 🎯</span> : yr > baseYr2 ? <span style={{ fontSize: 7, verticalAlign: 'super' }}>F</span> : null}
+                <th key={yr} title={tgt ? 'Target year (a full service-level column is entered here)' : undefined} style={{ padding: '4px 4px', textAlign: 'center', fontSize: 10, fontWeight: yr > baseYr2 ? 600 : 500, color: tgt ? '#009CA7' : yr > baseYr2 ? '#617078' : '#29343b', minWidth: 62, background: tgt ? '#e5f4f5' : '#f4f7f9' }}>
+                  {yr}{tgt ? <span style={{ fontSize: 8, fontWeight: 700, color: '#009CA7' }}> T</span> : yr > baseYr2 ? <span style={{ fontSize: 7, verticalAlign: 'super' }}>F</span> : null}
                 </th>
               );
             })}
@@ -106,7 +107,7 @@ function YearTable({ rows, years, baseYr2, colIsTarget, markTargets = false }: {
             <tr key={ri}>
               {/* Full-width band; the label is wrapped in a sticky span so it stays visible when the
                   year columns are scrolled right (a full-colSpan cell itself can't be pinned). */}
-              <td colSpan={years.length + 1} style={{ padding: 0, background: row.sub ? '#eef2ff' : '#e0e7ff' }}>
+              <td colSpan={years.length + 1} style={{ padding: 0, background: row.sub ? '#e5f4f5' : '#edf1f3' }}>
                 <div style={{ position: 'sticky', left: 0, display: 'inline-block', padding: row.sub ? '3px 8px 3px 22px' : '5px 8px', fontWeight: row.sub ? 600 : 700, fontStyle: row.sub ? 'italic' : 'normal', fontSize: row.sub ? 10.5 : 11, color: row.sub ? '#4f46e5' : '#312e81' }}>
                   {row.label}
                 </div>
@@ -149,7 +150,7 @@ function SplitControl({ inputs, onChange, section, sector }: {
     const v = Math.min(100, Math.max(0, isFinite(pct) ? pct : 0));
     onChange({ ...inputs, [section]: { ...iv, basic_share: v / 100 } });
   };
-  const cell: React.CSSProperties = { padding: '4px 6px', border: '1px solid #93C5FD', background: '#EFF6FF', borderRadius: 3, fontSize: 12, color: '#1E3A5F', outline: 'none', width: 66 };
+  const cell: React.CSSProperties = { padding: '4px 6px', border: '1px solid #dce4e8', background: '#e5f4f5', borderRadius: 3, fontSize: 12, color: '#29343b', outline: 'none', width: 66 };
   return (
     <div style={{ gridColumn: '1 / -1', border: '1px solid #bfdbfe', background: '#f8fbff',
       borderRadius: 6, padding: '10px 14px', marginTop: 10 }}>
@@ -509,7 +510,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
           Historical input
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid #93C5FD', background: '#EFF6FF', display: 'inline-block' }} />
+          <span style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid #dce4e8', background: '#e5f4f5', display: 'inline-block' }} />
           Forecast / target input
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -528,12 +529,10 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
         background: '#EBF6FB', border: '1px solid #9fd3ec', borderLeft: '4px solid #0073A8', color: '#0073A8',
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontWeight: 600 }}>
-          <span style={{ fontSize: 14, lineHeight: 1.3 }}>📍</span>
           <span>Entering <span style={{ display: 'inline-block', background: '#0073A8', color: '#fff', fontWeight: 700, padding: '1px 10px', borderRadius: 12, fontSize: 12, textTransform: 'capitalize', verticalAlign: 'baseline' }}>{scopeLabel}</span> data — every field on this page is {scopeLower}-specific.</span>
         </div>
         {isBAU && (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontWeight: 500, lineHeight: 1.5 }}>
-            <span style={{ fontSize: 14, lineHeight: 1.3 }}>🔗</span>
             <span><strong>BAU data entry</strong> — Data fields below are synced with corresponding entries on the <strong>Data Inputs</strong> tab. They can be used to edit the BAU scenario directly from this tab.</span>
           </div>
         )}
@@ -643,7 +642,6 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
         background: '#EBF6FB', border: '1px solid #9fd3ec', borderLeft: '4px solid #0073A8', color: '#0073A8',
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontWeight: 600 }}>
-          <span style={{ fontSize: 14, lineHeight: 1.3 }}>📍</span>
           <span>Every section below is <span style={{ display: 'inline-block', background: '#0073A8', color: '#fff', fontWeight: 700, padding: '1px 10px', borderRadius: 12, fontSize: 12, textTransform: 'capitalize', verticalAlign: 'baseline' }}>{scopeLabel}</span>-specific — enter {scopeLower} figures here. Sections 1 and 2 above apply to the whole analysis and are shared across areas.</span>
         </div>
       </div>
@@ -651,7 +649,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
       {/* ===== EXCEL ROUND-TRIP — OPTIONAL bulk entry covering every section of the year-by-year table ===== */}
       <div style={{ marginBottom: 8, border: '1px solid #c7d2fe', borderLeft: '4px solid #2563eb', borderRadius: 8, background: '#fff', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 220 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 2 }}>📊 Bulk data entry</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#014972', marginBottom: 2 }}>Bulk data entry</div>
           <div style={{ fontSize: 11.5, color: '#475569', lineHeight: 1.45 }}>
             You can enter the year-by-year data two ways: type it directly in the sections below, or download the Excel template for {scopeLabel}, fill it in, and upload it.
           </div>
@@ -662,7 +660,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
         {xlsxStatus.kind !== 'idle' && (
           <span style={{ gridColumn: '1 / -1', fontSize: 11, width: '100%',
             color: xlsxStatus.kind === 'err' ? '#b91c1c' : xlsxStatus.kind === 'ok' ? '#15803d' : '#64748b' }}>
-            {xlsxStatus.kind === 'busy' ? '⏳ ' : xlsxStatus.kind === 'ok' ? '✓ ' : '⚠ '}{xlsxStatus.msg}
+            {xlsxStatus.kind === 'busy' ? 'Preparing: ' : xlsxStatus.kind === 'ok' ? 'Complete: ' : 'Warning: '}{xlsxStatus.msg}
           </span>
         )}
       </div>
@@ -682,7 +680,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
           // ── Cell styling: cream = historical input, blue = forecast/projection input, grey = computed.
           const inputBase: React.CSSProperties = { width: 58, padding: '3px 4px', borderRadius: 3, fontSize: 11, textAlign: 'left', outline: 'none' };
           const CREAM: React.CSSProperties = { border: '1px solid #F0D070', background: '#FFF9E6', color: '#3A4452' };  // historical input
-          const BLUE: React.CSSProperties = { border: '1px solid #93C5FD', background: '#EFF6FF', color: '#1E3A5F' };    // forecast / projection input
+          const BLUE: React.CSSProperties = { border: '1px solid #dce4e8', background: '#e5f4f5', color: '#29343b' };    // forecast / projection input
           const grey = (txt: string, note: string) => <span style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic' }} title={note}>{txt}</span>;
           // 3 significant figures, at most 2 decimals, thousands-separated (no scientific notation) —
           // used by the grey "→ … used" projection rows. toPrecision rounds to 3 sig figs WITHOUT the
@@ -910,14 +908,14 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
             <>
               <Section title="3. Service levels" sectionKey="service_levels" onFocus={onSectionFocus}>
                 <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b', marginBottom: 4, padding: '4px 8px', background: '#f8fafc', borderRadius: 4 }}>
-                  Enter the historical share of households at each service level in the <b style={{ color: '#B45309' }}>cream</b> cells. The five rungs in each year must add up to 100%. Blank years fill in automatically from the yearly growth rate. In each sector's band below, the <b>"BAU rate from"</b> dropdown sets the first historical year used to work out the business-as-usual trend: the tool averages year-on-year growth from that year to the last historical year and projects it forward, so pick the year whose trend best reflects the pace you expect to continue (or leave the default if unsure). To set a <b style={{ color: '#16a34a' }}>🎯 target</b>, fill in a <b style={{ color: '#2563eb' }}>blue</b> forecast column so its five rungs add up to 100%. You can set as many target years as you like.
+                  Enter the historical share of households at each service level in neutral-fill cells. The five rungs in each year must add up to 100%. Blank years fill in automatically from the yearly growth rate. In each sector's band below, the <b>"BAU rate from"</b> dropdown sets the first historical year used to work out the business-as-usual trend: the tool averages year-on-year growth from that year to the last historical year and projects it forward, so pick the year whose trend best reflects the pace you expect to continue (or leave the default if unsure). To set a <b style={{ color: '#009CA7' }}>target</b>, fill in a teal-tinted forecast column so its five rungs add up to 100%. You can set as many target years as you like.
                 </div>
                 <YearTable rows={serviceRows} years={years} baseYr2={baseYr2} markTargets colIsTarget={anyTarget} />
               </Section>
 
               <Section title="4. Economic & demographic data" sectionKey="econ_demo" onFocus={onSectionFocus}>
                 <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b', marginBottom: 4, padding: '4px 8px', background: '#f8fafc', borderRadius: 4 }}>
-                  Enter the historical values in the <b style={{ color: '#B45309' }}>cream</b> cells. <b style={{ color: '#2563eb' }}>Blue</b> forecast cells are optional. Blank cells fill in from the yearly growth rate, shown in the grey "used" row. GDP growth, population growth, and average household size are auto-calculated.
+                  Enter historical values in neutral-fill cells. Teal-tinted forecast cells are optional. Blank cells fill in from the yearly growth rate, shown in the muted "used" row. GDP growth, population growth, and average household size are auto-calculated.
                 </div>
                 <YearTable rows={econRows} years={years} baseYr2={baseYr2} />
               </Section>
@@ -928,7 +926,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
 
               <Section title="5. Budget" sectionKey="budget" onFocus={onSectionFocus}>
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 12px', marginBottom: 4 }}>
-                  💰 <b>Two budgets per sector.</b> <b>Executed budget</b> = capital that actually gets put to work building service (new households × unit cost) — this drives the BAU. <b>Allocated budget</b> = the capital budget on paper (a manual input, normally larger). Their ratio is the <b>budget execution</b> (executed budget ÷ allocated budget) that the Budget-execution intervention improves. Type any cell to override that year; blanks fill from the model.
+                  <b>Two budgets per sector.</b> <b>Executed budget</b> = capital that actually gets put to work building service (new households × unit cost) — this drives the BAU. <b>Allocated budget</b> = the capital budget on paper (a manual input, normally larger). Their ratio is the <b>budget execution</b> (executed budget ÷ allocated budget) that the Budget-execution intervention improves. Type any cell to override that year; blanks fill from the model.
                 </div>
                 <YearTable rows={budgetRows} years={years} baseYr2={baseYr2} />
                 <SplitControl inputs={inputs} onChange={onChange}
@@ -948,7 +946,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
       {bauSector === 'water' && (
       <Section title={`6. ${scopeLabel} Water Supply — Unit Costs & Technical Parameters`} cols={2} sectionKey="ws_unit_costs" onFocus={onSectionFocus}>
         <SubHead text="Unit costs (nominal → real)" />
-        <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#475569', padding: '4px 8px', background: '#f0f9ff', borderRadius: 4, border: '1px solid #bae6fd' }}>
+        <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ws[0]}</b> and <b>{ws[1]}</b> weighted costs, built from the technology mixes below.
         </div>
         <F label="Nominal price year" value={inputs.water_costs.price_index_year ?? inputs.period.baseline_year} onChange={v => u('water_costs','price_index_year',v)} tip="The year the nominal technology prices are quoted in." />
@@ -975,7 +973,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
       {bauSector === 'sanitation' && (
       <Section title={`6. ${scopeLabel} Sanitation — Unit Costs & Technical Parameters`} cols={2} sectionKey="san_unit_costs" onFocus={onSectionFocus}>
         <SubHead text="Unit costs (nominal → real)" />
-        <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#475569', padding: '4px 8px', background: '#f0f9ff', borderRadius: 4, border: '1px solid #bae6fd' }}>
+        <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ss[0]}</b> and <b>{ss[1]}</b> weighted costs, built from the technology mixes below.
         </div>
         <F label="Nominal price year" value={inputs.sanitation_costs.price_index_year ?? inputs.period.baseline_year} onChange={v => u('sanitation_costs','price_index_year',v)} tip="The year the nominal technology prices are quoted in." />
@@ -1015,8 +1013,8 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
         <F label="Target NRW %" value={inputs.water_interventions.nrw_target_pct} onChange={v => u('water_interventions','nrw_target_pct',v)} isPercent unit="%" min={0.03} max={1.0} tip="Minimum 3% — even best-performing utilities globally cannot eliminate NRW below ~3% due to unavoidable physical losses" />
         {(() => {
           const t = inputs.water_interventions.nrw_target_pct || 0;
-          if (t > 0 && t < 0.03) return <div style={{ fontSize: 10, fontWeight: 600, color: '#dc2626', padding: '3px 8px', background: '#fef2f2', borderRadius: 4, marginBottom: 4 }}>⛔ Below 3% is unrealistic — no utility globally achieves NRW below ~3%</div>;
-          if (t >= 0.03 && t < 0.07) return <div style={{ fontSize: 10, fontWeight: 600, color: '#92400e', padding: '3px 8px', background: '#fef3c7', borderRadius: 4, marginBottom: 4 }}>⚠ 3–7% is highly ambitious — only top-performing utilities (Singapore, Tokyo) achieve this range</div>;
+          if (t > 0 && t < 0.03) return <div style={{ fontSize: 10, fontWeight: 600, color: '#dc2626', padding: '3px 8px', background: '#fef2f2', borderRadius: 4, marginBottom: 4 }}>Warning: Below 3% is unrealistic — no utility globally achieves NRW below ~3%</div>;
+          if (t >= 0.03 && t < 0.07) return <div style={{ fontSize: 10, fontWeight: 600, color: '#92400e', padding: '3px 8px', background: '#fef3c7', borderRadius: 4, marginBottom: 4 }}>Warning: 3–7% is highly ambitious — only top-performing utilities (Singapore, Tokyo) achieve this range</div>;
           return null;
         })()}
         <F label="Commercial losses as % of NRW" value={inputs.water_interventions.nrw_commercial_loss_pct} onChange={v => u('water_interventions','nrw_commercial_loss_pct',v)} isPercent unit="%" tip="Commercial (non-physical) losses as share of total NRW; commercial + physical must sum to 100%" />

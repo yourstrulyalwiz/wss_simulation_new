@@ -25,7 +25,6 @@ function BAUChartPair(props: { inputsList: any[]; sector: 'water' | 'sanitation'
     </>
   );
 }
-
 // Older saved sessions/profiles kept injection as an option under the financial master switch.
 // Give each area an independent switch without altering settings that already use the new one.
 function migrateInjectionToggle(area: any) {
@@ -384,24 +383,31 @@ export default function App() {
   const disabledTabs = new Set<number>();
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+    <div className="wb-app" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <RevenueReconciliation inputs={activeInputs} onChange={handleSetActiveInputs} area={inputScope} />
       {calculationError && activeInputs?.revenue_bases?.water && activeInputs?.revenue_bases?.sanitation &&
         <div role="alert" style={{ padding: 12, background: '#fff1f2', color: '#9f1239' }}>{calculationError}</div>}
       {/* Header */}
-      <header style={{ background: '#002244', color: '#fff', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <h1 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>WSS Strategic Scenarios Simulation Tool</h1>
-          <span style={{ fontSize: 11, opacity: 0.6 }}>{inputs?.country_config?.country || ''} — {inputs?.country_config?.area || ''}</span>
+      <header className="wb-header">
+        <div className="wb-brand-lockup">
+          <span className="wb-brand-mark" aria-hidden="true">WSS</span>
+          <span className="wb-brand-divider" aria-hidden="true" />
+          <div className="wb-brand-copy">
+            <h1 className="wb-brand-title">
+              <span className="wb-heading-strong">WSS STRATEGIC SCENARIOS</span>
+              <span className="wb-heading-light">SIMULATION TOOL</span>
+            </h1>
+            <span className="wb-brand-meta">{inputs?.country_config?.country || ''}{inputs?.country_config?.area ? ` — ${inputs.country_config.area}` : ''}</span>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="wb-header-actions">
           <select onChange={async (e) => {
             const val = e.target.value;
             if (val === '__blank') { const res = await fetch('/api/defaults/blank'); applyBundle(await res.json()); }
             else if (val === '__default') { const res = await fetch('/api/defaults'); applyBundle(await res.json()); }
             else if (val) { const res = await fetch(`/api/profiles/${val}`); applyBundle(await res.json()); }
             e.target.value = '';
-          }} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.3)', background: '#1e3a5f', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
+          }} className="wb-profile-select">
             <option value="" style={{ background: '#fff', color: '#333' }}>Load Profile...</option>
             <option value="__default" style={{ background: '#fff', color: '#333' }}>Nepal KV (Default)</option>
             <option value="__blank" style={{ background: '#fff', color: '#333' }}>── New Blank Country ──</option>
@@ -415,20 +421,19 @@ export default function App() {
             if (!name) return;
             await fetch(`/api/profiles/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(packBundle()) });
             refreshProfiles(); alert(`Profile "${name}" saved!`);
-          }} style={headerBtnStyle}>💾 Save Profile</button>
-          <button onClick={saveScenario} style={headerBtnStyle}>📋 Save Scenario</button>
-          <button id="tool-overview-btn" onClick={() => setShowOnboarding(true)} style={headerBtnStyle}>📖 Tool Overview</button>
+          }} className="wb-header-action">Save Profile</button>
+          <button onClick={saveScenario} className="wb-header-action">Save Scenario</button>
+          <button id="tool-overview-btn" onClick={() => setShowOnboarding(true)} className="wb-header-action">Tool Overview</button>
         </div>
       </header>
 
       {/* Saved scenarios bar */}
       {scenarios.length > 0 && (
-        <div style={{ background: '#f0f9ff', borderBottom: '1px solid #bae6fd', padding: '4px 20px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
-          <span style={{ color: '#0369a1', fontWeight: 600 }}>Saved scenarios:</span>
+        <div className="wb-saved-scenarios" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+          <span className="wb-saved-label">Saved scenarios:</span>
           {scenarios.map((s, i) => (
             <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <button onClick={() => applyBundle(JSON.parse(JSON.stringify(s.inputs)))}
-                style={{ padding: '2px 8px', border: '1px solid #bae6fd', borderRadius: 3, background: '#e0f2fe', color: '#0369a1', cursor: 'pointer', fontSize: 10 }}>
+              <button onClick={() => applyBundle(JSON.parse(JSON.stringify(s.inputs)))} className="wb-saved-scenario">
                 {s.name}
               </button>
               <button onClick={() => {
@@ -442,53 +447,35 @@ export default function App() {
                     return r.blob();
                   }).then(b => { const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${s.name}_slides.pptx`; a.click(); URL.revokeObjectURL(u); })
                   .catch(error => alert(error.message));
-              }} style={{ padding: '1px 4px', border: '1px solid #bae6fd', borderRadius: 2, background: '#fff', cursor: 'pointer', fontSize: 9, color: '#0369a1' }}>📑</button>
+              }} className="wb-scenario-export" aria-label={`Export ${s.name} slides`}>PPTX</button>
               <button onClick={() => deleteScenario(i)}
-                style={{ padding: '1px 4px', border: '1px solid #fecaca', borderRadius: 2, background: '#fee2e2', cursor: 'pointer', fontSize: 9, color: '#dc2626' }}>✕</button>
+                className="wb-scenario-delete" aria-label={`Delete ${s.name}`}>×</button>
             </span>
           ))}
         </div>
       )}
 
       {/* Tab Navigation */}
-      <nav style={{ background: '#eef2f7', borderBottom: '2px solid #cbd5e1', display: 'flex', padding: '6px 20px 0', gap: 4 }}>
+      <nav className="wb-tab-nav" aria-label="Scenario workflow">
         {tabs.map((tab, i) => {
           const disabled = disabledTabs.has(i);
           return (
           <button key={tab} onClick={disabled ? undefined : () => setActiveTab(i)}
             disabled={disabled}
             title={disabled ? 'Not available in this build — the intervention engine is not yet ported/validated' : undefined}
-            style={{
-            padding: '10px 28px', border: 'none',
-            borderRadius: '8px 8px 0 0',
-            background: activeTab === i ? '#fff' : 'transparent',
-            boxShadow: activeTab === i ? '0 -2px 6px rgba(0,0,0,0.08)' : 'none',
-            cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: activeTab === i ? 700 : 500,
-            color: disabled ? '#c3cbd6' : activeTab === i ? '#1e3a5f' : '#64748b',
-            opacity: disabled ? 0.55 : 1,
-            borderBottom: activeTab === i ? '2px solid #fff' : '2px solid transparent',
-            marginBottom: -2,
-            transition: 'all 0.15s',
-            position: 'relative',
-          }}>
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: 20, height: 20, borderRadius: '50%', fontSize: 10, fontWeight: 700,
-                background: disabled ? '#d7dde6' : activeTab === i ? '#2563eb' : '#94a3b8',
-                color: '#fff', flexShrink: 0,
-              }}>{i + 1}</span>
-              {tab}{disabled ? ' 🔒' : ''}
+            className={`wb-tab${activeTab === i ? ' wb-tab-active' : ''}`}>
+            <span className="wb-tab-step">{i + 1}</span>
+            <span className="wb-tab-label">
+              <span className="wb-tab-first">{tab.split(' ')[0]}</span>
+              <span className="wb-tab-rest">{tab.slice(tab.indexOf(' ') + 1)}</span>
             </span>
           </button>
         );})}
       </nav>
 
       {warnings.length > 0 && (
-        <div style={{ background: '#fffbeb', borderBottom: '1px solid #fbbf24', padding: '6px 20px', fontSize: 11 }}>
-          {warnings.map((w, i) => <div key={i} style={{ color: '#92400e' }}>⚠ {w}</div>)}
+        <div className="wb-warning-banner">
+          {warnings.map((w, i) => <div key={i}>Warning: {w}</div>)}
         </div>
       )}
 
@@ -496,15 +483,13 @@ export default function App() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Scope bar. Full controls (mode + include) only on Data Inputs; BAU & Intervention get just the Editing switch. The dashboard has its own scope dropdown. */}
         {activeTab <= 2 && (
-          <div style={{ background: '#eef2ff', borderBottom: '1px solid #c7d2fe', padding: '8px 24px' }}>
+          <div className="wb-scope-bar">
             {activeTab === 0 ? (
-              <div onClickCapture={dismissScopeHint} style={{
-                background: '#fff', border: '1px solid #c7d2fe', borderLeft: '4px solid #2563eb', borderRadius: 8,
-                padding: '10px 14px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+              <div onClickCapture={dismissScopeHint} className="wb-scope-card" style={{
                 animation: scopeHint ? 'scopePulse 1.2s ease-in-out infinite' : undefined,
               }}>
                 <style>{`
-                  @keyframes scopePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.45); } 50% { box-shadow: 0 0 0 7px rgba(37,99,235,0.12); } }
+                  @keyframes scopePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(0,156,167,0.35); } 50% { box-shadow: 0 0 0 7px rgba(0,156,167,0.12); } }
                   @keyframes hintNudge { 0%,100% { transform: translateX(0); } 50% { transform: translateX(-9px); } }
                 `}</style>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -513,7 +498,7 @@ export default function App() {
                   </span>
                   {/* Filled amber dropdown with an explicit ▼ so it's unmistakably a dropdown */}
                   <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-                    <select value={scopeValue} onChange={e => { setScopeValue(e.target.value); dismissScopeHint(); }} style={{
+                    <select value={scopeValue} onChange={e => { setScopeValue(e.target.value); dismissScopeHint(); }} className="wb-scope-select" style={{
                       appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
                       padding: '8px 38px 8px 14px', borderRadius: 6, border: '1px solid #94a3b8',
                       background: '#fff', color: '#1e293b', fontSize: 13, fontWeight: 600,
@@ -535,7 +520,7 @@ export default function App() {
                       display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff',
                       fontWeight: 700, fontSize: 12, padding: '6px 14px', borderRadius: 20, whiteSpace: 'nowrap',
                       boxShadow: '0 2px 12px rgba(37,99,235,0.5)', animation: 'hintNudge 0.7s ease-in-out infinite',
-                    }}>👈 Start here</span>
+                    }}>Start here</span>
                   )}
                 </div>
                 {scopeValue === 'national' && (
@@ -552,12 +537,8 @@ export default function App() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Entering data for:</span>
                     {(['urban', 'rural'] as const).map(a => (
-                      <button key={a} onClick={() => setSubArea(a)} style={{
-                        padding: '5px 14px', border: '1px solid #c7d2fe', borderRadius: 14, cursor: 'pointer',
-                        background: subArea === a ? '#312e81' : '#fff',
-                        color: subArea === a ? '#fff' : '#475569',
-                        fontWeight: subArea === a ? 700 : 500, fontSize: 12, transition: 'all 0.15s', textTransform: 'capitalize',
-                      }}>{a}</button>
+                      <button key={a} onClick={() => setSubArea(a)}
+                        className={`wb-scope-option${subArea === a ? ' wb-scope-option-active' : ''}`}>{a}</button>
                     ))}
                   </div>
                 )}
@@ -568,12 +549,8 @@ export default function App() {
                   <>
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Entering data for:</span>
                     {(['urban', 'rural'] as const).map(a => (
-                      <button key={a} onClick={() => setSubArea(a)} style={{
-                        padding: '5px 14px', border: '1px solid #c7d2fe', borderRadius: 14, cursor: 'pointer',
-                        background: subArea === a ? '#312e81' : '#fff',
-                        color: subArea === a ? '#fff' : '#475569',
-                        fontWeight: subArea === a ? 700 : 500, fontSize: 12, transition: 'all 0.15s', textTransform: 'capitalize',
-                      }}>{a}</button>
+                      <button key={a} onClick={() => setSubArea(a)}
+                        className={`wb-scope-option${subArea === a ? ' wb-scope-option-active' : ''}`}>{a}</button>
                     ))}
                   </>
                 ) : (
@@ -633,7 +610,7 @@ export default function App() {
         {/* Guide panel — tabs 0, 1, 2 */}
         {activeTab <= 2 && (
           <>
-            <button onClick={() => setShowGuide(!showGuide)} style={{
+            <button onClick={() => setShowGuide(!showGuide)} className="wb-guide-toggle" style={{
               position: 'absolute', right: showGuide ? 320 : 0, top: 12,
               padding: '8px 6px', border: '1px solid #cbd5e1', borderRight: showGuide ? 'none' : undefined,
               borderRadius: '6px 0 0 6px',
@@ -642,7 +619,7 @@ export default function App() {
               writingMode: 'vertical-rl', textOrientation: 'mixed', letterSpacing: 1,
               boxShadow: '-2px 0 6px rgba(0,0,0,0.06)', transition: 'right 0.2s',
             }}>
-              {showGuide ? '✕ Close' : '📋 Guide'}
+              {showGuide ? 'Close Guide' : 'Guide'}
             </button>
             {showGuide && <DataGuide tab={activeTab} activeSection={guideSection} onSelectSection={setGuideSection} sector={sectorTab} />}
           </>
@@ -657,12 +634,11 @@ export default function App() {
       </div>
 
       {/* Onboarding. When the guide closes on a first visit, the scope card pulses with a
-          "👈 Start here" nudge pointing at the geographical-scope dropdown. */}
+          "Start here" nudge pointing at the geographical-scope dropdown. */}
       {showOnboarding && <OnboardingModal onClose={() => { setShowOnboarding(false); triggerScopeHint(); }} />}
     </div>
   );
 }
-
 function OnboardingModal({ onClose }: { onClose: () => void }) {
   const [closing, setClosing] = React.useState(false);
   const [showArrow, setShowArrow] = React.useState(false);
@@ -682,7 +658,7 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: closing ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.5s' }} onClick={closing ? undefined : onClose}>
+    <div className={`wb-onboarding-overlay${closing ? ' wb-onboarding-overlay-closing' : ''}`} style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.5s' }} onClick={closing ? undefined : onClose}>
       {/* Arrow animation pointing up at the Tool Overview button (top-right of header) */}
       {showArrow && (
         <div style={{
@@ -690,8 +666,8 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
           animation: 'bounceArrow 0.7s ease-in-out infinite',
         }}>
-          <span style={{ fontSize: 34, color: '#2563eb', lineHeight: 1, filter: 'drop-shadow(0 2px 6px rgba(37,99,235,0.4))' }}>⬆</span>
-          <span style={{ fontSize: 13, color: '#fff', background: '#2563eb', padding: '6px 14px', borderRadius: 20, fontWeight: 600, boxShadow: '0 2px 12px rgba(37,99,235,0.5)', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 34, color: '#009CA7', lineHeight: 1 }}>↑</span>
+          <span className="wb-onboarding-arrow-note" style={{ fontSize: 13, color: '#fff', background: '#2563eb', padding: '6px 14px', borderRadius: 20, fontWeight: 600, boxShadow: '0 2px 12px rgba(37,99,235,0.5)', whiteSpace: 'nowrap' }}>
             Reopen this anytime here
           </span>
         </div>
@@ -699,9 +675,9 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
       <style>{`@keyframes bounceArrow { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }`}</style>
 
       {!closing && (
-        <div style={{ background: '#fff', borderRadius: 12, maxWidth: 1040, width: '96%', maxHeight: '96vh', overflowY: 'auto', padding: '22px 40px' }} onClick={e => e.stopPropagation()}>
+        <div className="wb-onboarding-card" style={{ background: '#fff', borderRadius: 12, maxWidth: 1040, width: '96%', maxHeight: '96vh', overflowY: 'auto', padding: '22px 40px' }} onClick={e => e.stopPropagation()}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '0 0 10px' }}>
-            <h2 style={{ fontSize: 20, color: '#002244', margin: 0 }}>Tool Overview</h2>
+            <h2 className="wb-onboarding-title" style={{ fontSize: 20, margin: 0 }}><span className="wb-heading-strong">Tool</span> <span className="wb-heading-light">Overview</span></h2>
             <button onClick={handleGetStarted}
               style={{ padding: '9px 22px', border: 'none', borderRadius: 6, background: '#2563eb', color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap' }}>
               Get Started
@@ -709,12 +685,12 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* Tab bar */}
-          <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid #e2e8f0', marginBottom: 14 }}>
+          <div className="wb-onboarding-tabs" style={{ display: 'flex', gap: 6, borderBottom: '1px solid #e2e8f0', marginBottom: 14 }}>
             {([{ k: 'start', l: 'How to use this tool' }, { k: 'saving', l: 'Saving your work' }] as const).map(t => (
-              <button key={t.k} onClick={() => setOvTab(t.k)} style={{
+              <button key={t.k} onClick={() => setOvTab(t.k)} className={`wb-onboarding-tab${ovTab === t.k ? ' wb-onboarding-tab-active' : ''}`} style={{
                 padding: '8px 16px', border: 'none', borderBottom: ovTab === t.k ? '2px solid #2563eb' : '2px solid transparent',
                 background: 'none', cursor: 'pointer', fontSize: 13, marginBottom: -1,
-                color: ovTab === t.k ? '#2563eb' : '#64748b', fontWeight: ovTab === t.k ? 700 : 500,
+                fontWeight: ovTab === t.k ? 700 : 500,
               }}>{t.l}</button>
             ))}
           </div>
@@ -732,7 +708,7 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
               <strong>Make your selections first.</strong> At the top of the screen, use the <strong>Select geographical scope</strong> dropdown: <em>Urban + Rural</em> (enter each separately to produce a national total), <em>Urban only</em> / <em>Rural only</em> (analyse one area on its own), or <em>National</em> (no urban/rural breakdown — for when you cannot split the data by urban and rural). On the input tabs, also use the <strong>Water Supply / Sanitation</strong> toggle to choose which sector you are entering, and switch between the two to complete both.
             </li>
             <li style={{ marginBottom: 6 }}>
-              <strong>Data Inputs</strong> — In <em>Country, Area of Focus &amp; Currency</em>, select your country and the currency fills in automatically. In <em>2. Analysis Period</em>, set the key dates; then complete the year-by-year sections — <em>3. Service levels</em> (water &amp; sanitation), <em>4. Economic &amp; demographic data</em> (real GDP, population, households) and <em>5. Budget</em>. <em>Country</em> and the <em>Analysis Period</em> are shared across Urban and Rural; the year-by-year sections are entered separately per area. Fill the <span style={{ color: '#B45309', fontWeight: 600 }}>cream</span> historical cells; <span style={{ color: '#2563eb', fontWeight: 600 }}>blue</span> forecast cells are optional (leave them blank to fill in from the yearly growth rate, or type your own projection). To set a <strong>🎯 target</strong>, fill a whole future service-level column so it totals 100%; you can set as many target years as you like. The budget is derived from the cost of new service, and any cell can be overridden.
+              <strong>Data Inputs</strong> — In <em>Country, Area of Focus &amp; Currency</em>, select your country and the currency fills in automatically. In <em>2. Analysis Period</em>, set the key dates; then complete the year-by-year sections — <em>3. Service levels</em> (water &amp; sanitation), <em>4. Economic &amp; demographic data</em> (real GDP, population, households) and <em>5. Budget</em>. <em>Country</em> and the <em>Analysis Period</em> are shared across Urban and Rural; the year-by-year sections are entered separately per area. Historical cells use a light neutral fill; forecast cells use a teal tint and are optional (leave them blank to fill in from the yearly growth rate, or type your own projection). To set a <strong>target</strong>, fill a whole future service-level column so it totals 100%; you can set as many target years as you like. The budget is derived from the cost of new service, and any cell can be overridden.
             </li>
             <li style={{ marginBottom: 6 }}>
               <strong>BAU Scenario</strong> — Pick Water Supply or Sanitation, then work down the sections: <em>Unit Costs &amp; Technical Parameters</em> (enter technology prices as nominal, with a price index that converts them to real). These fields are shared with the Data Inputs tab. The BAU graph on the right updates live as you type.
@@ -746,8 +722,8 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
           </ol>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-            <div style={{ flex: 1, padding: '8px 14px', background: '#f0f4ff', borderRadius: 8, fontSize: 12, color: '#312e81', border: '1px solid #c7d2fe', lineHeight: 1.45 }}>
-              <strong>Tip:</strong> Reopen this anytime via <strong>"📖 Tool Overview"</strong> in the top-right, and see <strong>Saving your work</strong> above for how to save and load.
+            <div className="wb-onboarding-tip" style={{ flex: 1, padding: '8px 14px', background: '#f0f4ff', borderRadius: 8, fontSize: 12, color: '#312e81', border: '1px solid #c7d2fe', lineHeight: 1.45 }}>
+              <strong>Tip:</strong> Reopen this anytime via <strong>"Tool Overview"</strong> in the top-right, and see <strong>Saving your work</strong> above for how to save and load.
             </div>
           </div>
           </>}
@@ -757,13 +733,13 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
             Two save options sit in the top-right of the header. A <strong>Profile</strong> is a complete, reloadable dataset for a place; a <strong>Scenario</strong> is a lightweight snapshot you compare against others.
           </p>
           <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 12, lineHeight: 1.5 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 4 }}>💾 Save Profile</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#014972', marginBottom: 4 }}>Save Profile</div>
             <div style={{ fontSize: 13, color: '#475569' }}>
               Stores everything you have entered — country settings, the year-by-year data, BAU inputs and interventions — under a name. Saved profiles reappear in the <strong>Load Profile…</strong> dropdown (top-left) so you can return later or keep several places side by side. Loading a profile replaces what is on screen, so save first if needed.
             </div>
           </div>
           <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', lineHeight: 1.5 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 4 }}>📋 Save Scenario</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#014972', marginBottom: 4 }}>Save Scenario</div>
             <div style={{ fontSize: 13, color: '#475569' }}>
               Captures a snapshot of the current inputs for comparison — e.g. save "Ambitious 2040", change assumptions, save "Conservative 2040". Saved scenarios appear on the Results Dashboard, where each can be downloaded as its own PowerPoint slide.
             </div>
@@ -880,7 +856,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
         </div>
 
         <div style={gFieldWrap}>
-          <span style={gFieldLbl}>Target years:</span> Targets are set directly in the <b>3. Service levels</b> section. Fill a service-level column (all 5 rungs add up to 100%) for any future year to make that year a target (marked 🎯). You can set as many targets as you like, and the model interpolates between consecutive targets. There is no separate target-year field.
+          <span style={gFieldLbl}>Target years:</span> Targets are set directly in the <b>3. Service levels</b> section. Fill a service-level column (all 5 rungs add up to 100%) for any future year to make that year a target. You can set as many targets as you like, and the model interpolates between consecutive targets. There is no separate target-year field.
         </div>
       </div>
     ),
@@ -889,9 +865,9 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     title: '3. Service levels',
     content: (
       <div>
-        <p style={{ margin: '0 0 6px' }}>The share of households at each of the 5 JMP service levels, for water supply and sanitation. Cream cells are historical inputs; grey in-between years follow the engine's path; a full blue forecast column is an optional target.</p>
+        <p style={{ margin: '0 0 6px' }}>The share of households at each of the 5 JMP service levels, for water supply and sanitation. Historical cells use a neutral fill; grey in-between years follow the engine's path; a full teal-tinted forecast column is an optional target.</p>
         <div style={gFieldWrap}>
-          <span style={gFieldLbl}>Water / sanitation service levels (% HH):</span> Enter the start-year and baseline-year splits (each summing to 100%); in-between years follow the engine's historical path. Fill a FULL forecast column (Σ 100%) to set a 🎯 target year — set as many as you like; the model interpolates between them.
+          <span style={gFieldLbl}>Water / sanitation service levels (% HH):</span> Enter the start-year and baseline-year splits (each summing to 100%); in-between years follow the engine's historical path. Fill a FULL forecast column (Σ 100%) to set a target year — set as many as you like; the model interpolates between them.
           <GFind items={[
             'WHO/UNICEF JMP – washdata.org/data/household',
           ]} />
@@ -904,7 +880,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     title: '4. Economic & demographic data',
     content: (
       <div>
-        <p style={{ margin: '0 0 6px' }}>Real GDP, population and households, year by year. Cream cells are historical inputs; blue forecast cells are optional (blank = auto-fill at the mean historical growth); grey “→ used” rows show the values the model applies.</p>
+        <p style={{ margin: '0 0 6px' }}>Real GDP, population and households, year by year. Historical cells use a neutral fill; teal-tinted forecast cells are optional (blank = auto-fill at the mean historical growth); grey “→ used” rows show the values the model applies.</p>
         <div style={gFieldWrap}>
           <span style={gFieldLbl}>Real GDP (local currency, millions):</span> Real GDP at constant (base-year) prices. Enter the historical years; leave forecast years blank to auto-fill at the mean historical growth, or type your own projection. This drives the forecast WSS budget.
           <GFind items={[
@@ -1217,8 +1193,4 @@ function DataGuide({ tab, activeSection, onSelectSection, sector }: { tab: numbe
     </div>
   );
 }
-
-const headerBtnStyle: React.CSSProperties = {
-  padding: '5px 12px', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 4,
-  background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer', fontSize: 11,
-};
+// Local guide components are kept with the planner so their field references stay aligned.

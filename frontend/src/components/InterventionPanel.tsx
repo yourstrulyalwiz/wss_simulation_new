@@ -392,7 +392,6 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
           padding: '8px 14px', borderRadius: 6, fontSize: 12.5, fontWeight: 600,
           background: '#EBF6FB', border: '1px solid #b6e0f0', color: '#0073A8',
         }}>
-          <span style={{ fontSize: 14, lineHeight: 1.3 }}>📍</span>
           <span>Configuring <span style={{ textTransform: 'capitalize' }}>{scopeLabel}</span> interventions — every field below is {scopeLower}-specific.</span>
         </div>
 
@@ -435,7 +434,7 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
             <F label="Target NRW %" value={inputs.water_interventions.nrw_target_pct} onChange={v => u('water_interventions','nrw_target_pct',v)} isPercent unit="%" tip="Target non-revenue water for the model end year. Aim for the economically optimal level — where the cost of further reduction outweighs the benefit; ~20% is a typical benchmark." />
             {(() => {
               const t = inputs.water_interventions.nrw_target_pct || 0;
-              if (t > 0 && t < 0.15) return <div style={{ gridColumn: '1 / -1', fontSize: 10, fontWeight: 600, color: '#92400e', padding: '3px 8px', background: '#fef3c7', borderRadius: 4, marginBottom: 4 }}>⚠ Below ~15% is rarely economically optimal — reducing NRW further usually costs more than it saves (~20% is a typical benchmark).</div>;
+              if (t > 0 && t < 0.15) return <div style={{ gridColumn: '1 / -1', fontSize: 10, fontWeight: 600, color: '#92400e', padding: '3px 8px', background: '#fef3c7', borderRadius: 4, marginBottom: 4 }}>Warning: Below ~15% is rarely economically optimal — reducing NRW further usually costs more than it saves (~20% is a typical benchmark).</div>;
               return null;
             })()}
             <F label="Commercial losses % of NRW" value={inputs.water_interventions.nrw_commercial_loss_pct || 0} onChange={v => u('water_interventions','nrw_commercial_loss_pct',v)} isPercent unit="%" tip="Share of NRW from commercial losses (metering errors, theft, unbilled use). Commercial + physical must sum to 100%." />
@@ -555,8 +554,8 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, lineHeight: 1.5, borderRadius: 6, padding: '7px 10px',
                   background: nrwOn ? '#ecfeff' : '#fef3c7', border: `1px solid ${nrwOn ? '#a5f3fc' : '#fde68a'}`, color: nrwOn ? '#155e75' : '#92400e' }}>
                   {nrwOn
-                    ? <>🔗 Linked to <b>Water Supply → NRW reduction</b>. That lever recovers <b>{endVol.toFixed(2)} M m³/yr</b> of physical water by {endYr}; the share returning to the sewer is charged for and the revenue funds new safely-managed sanitation service.</>
-                    : <>⚠ This lever needs <b>NRW reduction</b> switched on under the <b>Water Supply</b> interventions — that is what recovers the water. While it is off there is no recovered volume, so this lever has no effect.</>}
+                    ? <>Linked to <b>Water Supply → NRW reduction</b>. That lever recovers <b>{endVol.toFixed(2)} M m³/yr</b> of physical water by {endYr}; the share returning to the sewer is charged for and the revenue funds new safely-managed sanitation service.</>
+                    : <>Warning: This lever needs <b>NRW reduction</b> switched on under the <b>Water Supply</b> interventions — that is what recovers the water. While it is off there is no recovered volume, so this lever has no effect.</>}
                 </div>
                 <F label="Wastewater return ratio" value={iv.nrw_link_return_ratio} onChange={v => u('sanitation_interventions','nrw_link_return_ratio',v)} isPercent unit="%" tip="Share of the recovered water that returns to the sewer as wastewater the utility can charge for (the rest is consumptive use or not sewer-connected)." />
                 <F label="Sewer charge" value={iv.nrw_link_sewer_charge} onChange={v => u('sanitation_interventions','nrw_link_sewer_charge',v)} step={0.5} unit={`${CUR}/m³`} tip="Sanitation charge per cubic metre of returned wastewater — the revenue earned on it. (Separate from the water tariff the water utility earns.)" />

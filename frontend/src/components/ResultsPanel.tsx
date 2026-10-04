@@ -87,15 +87,15 @@ export default function ResultsPanel({ results, inputs, compareResults, compareN
           </button>
         ))}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          <button onClick={onExportCSV} style={exportBtnStyle}>📥 CSV</button>
+          <button onClick={onExportCSV} style={exportBtnStyle}>CSV</button>
           <button onClick={() => {
             fetch('/api/export/xlsx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inputs) })
               .then(r => r.blob()).then(b => { const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'wss_results.xlsx'; a.click(); });
-          }} style={exportBtnStyle}>📊 Excel</button>
+          }} style={exportBtnStyle}>Excel</button>
           <button onClick={() => {
             fetch('/api/export/pptx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inputs) })
               .then(r => r.blob()).then(b => { const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'wss_scenarios.pptx'; a.click(); });
-          }} style={exportBtnStyle}>📑 PowerPoint</button>
+          }} style={exportBtnStyle}>PowerPoint</button>
           <button onClick={() => {
             if (chartsRef.current) {
               const svgs = chartsRef.current.querySelectorAll('.recharts-wrapper svg');
@@ -107,19 +107,19 @@ export default function ResultsPanel({ results, inputs, compareResults, compareN
                 a.download = `${sectorLabel.replace(' ', '_')}_chart_${i + 1}.svg`; a.click();
               });
             }
-          }} style={exportBtnStyle}>📊 Export Charts</button>
+          }} style={exportBtnStyle}>Export Charts</button>
         </div>
       </div>
 
       {compareName && <div style={{ background: '#fef3c7', padding: '6px 12px', borderRadius: 4, fontSize: 11, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ width: 12, height: 3, background: COLORS.compare, display: 'inline-block' }} />
-        Comparing current scenario with: <strong>{compareName}</strong> (orange dashed line / bars)
+        Comparing current scenario with: <strong>{compareName}</strong> (slate dashed line and bars)
       </div>}
 
       {/* Step guidance */}
       {activeStep === 0 && (
         <div style={{ color: '#64748b', padding: 40, textAlign: 'center' }}>
-          <p style={{ fontSize: 18, marginBottom: 8 }}>📝 Step 1: Data Inputs</p>
+          <p style={{ fontSize: 18, marginBottom: 8 }}>Step 1: Data Inputs</p>
           <p style={{ fontSize: 12, maxWidth: 500, margin: '0 auto', lineHeight: 1.6 }}>
             Use the panel on the left to enter macroeconomic assumptions, population data, current service levels, unit costs, and BAU investment data.
             Hover over any ⓘ icon to see the field description and acceptable range.
@@ -130,17 +130,17 @@ export default function ResultsPanel({ results, inputs, compareResults, compareN
       {activeStep === 1 && !showBAU && null}
       {activeStep === 1 && (
         <div style={{ background: '#f0f9ff', padding: '8px 14px', borderRadius: 6, fontSize: 11, color: '#0c4a6e', marginBottom: 12 }}>
-          🎯 <strong>BAU & Targets:</strong> The charts show the gap between business-as-usual coverage and your targets. Adjust targets in Step 1 or proceed to Step 3 to add interventions.
+          <strong>BAU & Targets:</strong> The charts show the gap between business-as-usual coverage and your targets. Adjust targets in Step 1 or proceed to Step 3 to add interventions.
         </div>
       )}
       {activeStep === 2 && (
         <div style={{ background: '#f0fdf4', padding: '8px 14px', borderRadius: 6, fontSize: 11, color: '#14532d', marginBottom: 12 }}>
-          🔧 <strong>Interventions:</strong> Toggle interventions on/off using the checkboxes on the left. Adjust parameters with sliders. The stacked chart shows how each intervention contributes to closing the gap.
+          <strong>Interventions:</strong> Toggle interventions on/off using the checkboxes on the left. Adjust parameters with sliders. The stacked chart shows how each intervention contributes to closing the gap.
         </div>
       )}
       {activeStep === 3 && (
         <div style={{ background: '#fefce8', padding: '8px 14px', borderRadius: 6, fontSize: 11, color: '#713f12', marginBottom: 12 }}>
-          📊 <strong>Outputs:</strong> Full results dashboard. Use the export buttons above to download CSV, Excel, or PowerPoint. Save your scenario with 💾 to compare later.
+          <strong>Outputs:</strong> Full results dashboard. Use the export buttons above to download CSV, Excel, or PowerPoint. Save your scenario to compare later.
         </div>
       )}
 

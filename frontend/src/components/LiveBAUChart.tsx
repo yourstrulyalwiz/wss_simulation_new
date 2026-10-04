@@ -43,7 +43,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   { inputs?: any; inputsList?: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: number; currencyDisplay: CurrencyDisplaySettings }) {
   const datasets = ((inputsList && inputsList.length) ? inputsList : (inputs ? [inputs] : [])).filter(Boolean);
   // Which JMP rung this chart plots: 0 = Safely managed (the primary chart), 1 = Basic, … The Basic chart
-  // gets the SAME elements as SM (BAU area, Target line, reference lines, 🎯 call-outs, endpoint labels).
+  // gets the SAME elements as SM (BAU area, Target line, reference lines, target call-outs, endpoint labels).
   // Show the service-level attribution alongside the unchanged sector-wide gap.
   // Keep the chart annotation and budget-constrained warning on the primary SM chart only.
   const ccx = datasets[0]?.country_config || {};
@@ -70,8 +70,8 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   const [constrained, setConstrained] = useState<{ avail: number; repl: number; cur: string } | null>(null);
   // Reference lines carry BOTH the absolute (count) and share value so they track the Y-axis unit toggle.
   const [targetLines, setTargetLines] = useState<{ y: number; yShare: number; label: string }[]>([]);
-  // On-chart target call-outs: one 🎯 chat-box per target year, anchored at the target point, showing
-  // that year's coverage and service gap. Closeable via ✕ (leaves a small reopen marker); the 🎯 Targets
+  // On-chart target call-outs: one chat-box per target year, anchored at the target point, showing
+  // that year's coverage and service gap. Closeable via × (leaves a small reopen marker); the Targets
   // multi-select controls which are drawn (null = all visible, so new targets appear automatically).
   const [targetPoints, setTargetPoints] = useState<any[]>([]);
   const [closedFlags, setClosedFlags] = useState<Set<string>>(new Set());
@@ -490,7 +490,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   }, [overlay, targetPoints, visibleTargets, closedFlags, isShareNow]);
 
   // TargetBubble: a chat-box call-out with a tail pointing at the target point, closeable via ✕ (a closed
-  // call-out collapses to a small 🎯 marker that reopens it on click).
+  // call-out collapses to a small target marker that reopens it on click).
   const TargetBubble = (props: any) => {
     const { cx, cy, point, box } = props;
     if (cx == null || cy == null) return null;
@@ -499,8 +499,8 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
       return (
         <g onClick={() => toggleFlag(key, true)} style={{ cursor: 'pointer' }}>
           <title>{`Reopen the Target ${point.year} call-out`}</title>
-          <circle cx={cx} cy={cy} r={8} fill="#fff" stroke="#16a34a" strokeWidth={1.5} />
-          <text x={cx} y={cy + 3.5} textAnchor="middle" fontSize={9}>🎯</text>
+          <circle cx={cx} cy={cy} r={8} fill="#fff" stroke="#009CA7" strokeWidth={1.5} />
+          <circle cx={cx} cy={cy} r={3.5} fill="none" stroke="#009CA7" strokeWidth={1.2} />
         </g>
       );
     }
@@ -515,20 +515,20 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
     const tx = Math.max(bx + 12, Math.min(cx, bx + w - 12));
     let connector: React.ReactNode;
     if (by + h <= cy - 4) {          // box above the point → tail from the bottom edge
-      connector = <path d={`M ${tx - 6} ${by + h} L ${tx + 6} ${by + h} L ${cx} ${cy - 3} Z`} fill="#ffffff" stroke="#16a34a" strokeWidth={1} />;
+      connector = <path d={`M ${tx - 6} ${by + h} L ${tx + 6} ${by + h} L ${cx} ${cy - 3} Z`} fill="#ffffff" stroke="#009CA7" strokeWidth={1} />;
     } else if (by >= cy + 4) {       // box below the point → tail from the top edge
-      connector = <path d={`M ${tx - 6} ${by} L ${tx + 6} ${by} L ${cx} ${cy + 3} Z`} fill="#ffffff" stroke="#16a34a" strokeWidth={1} />;
+      connector = <path d={`M ${tx - 6} ${by} L ${tx + 6} ${by} L ${cx} ${cy + 3} Z`} fill="#ffffff" stroke="#009CA7" strokeWidth={1} />;
     } else {                          // box beside the point → thin leader line to the nearest edge
       const ex = cx < bx ? bx : bx + w;
-      connector = <line x1={cx} y1={cy} x2={ex} y2={Math.max(by + 6, Math.min(cy, by + h - 6))} stroke="#16a34a" strokeWidth={1.2} />;
+      connector = <line x1={cx} y1={cy} x2={ex} y2={Math.max(by + 6, Math.min(cy, by + h - 6))} stroke="#009CA7" strokeWidth={1.2} />;
     }
     return (
       <g>
-        <circle cx={cx} cy={cy} r={3.5} fill="#16a34a" stroke="#fff" strokeWidth={1} />
+        <circle cx={cx} cy={cy} r={3.5} fill="#009CA7" stroke="#fff" strokeWidth={1} />
         <rect x={bx + 2} y={by + 2.5} width={w} height={h} rx={7} fill="#0f172a" opacity={0.16} />
         {connector}
-        <rect x={bx} y={by} width={w} height={h} rx={7} fill="#ffffff" stroke="#16a34a" strokeWidth={1.4} />
-        <text x={bx + 9} y={by + 15} fontSize={10} fontWeight={700} fill="#15803d">🎯 Target {point.year}</text>
+        <rect x={bx} y={by} width={w} height={h} rx={7} fill="#ffffff" stroke="#009CA7" strokeWidth={1.4} />
+        <text x={bx + 9} y={by + 15} fontSize={10} fontWeight={700} fill="#009CA7">TARGET {point.year}</text>
         {lines.map((t, i) => (
           <text key={i} x={bx + 9} y={by + 29 + i * lineH} fontSize={9} fill="#334155">{t}</text>
         ))}
@@ -551,7 +551,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
       </div>
       {constrained && (
         <div style={{ fontSize: 11, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 4, padding: '6px 10px', marginBottom: 8, lineHeight: 1.5 }}>
-          ⚠ <b>Budget-constrained BAU.</b> The BAU capex budget (~{sigB(constrained.avail * moneyFactor)} B {displayCur}/yr) is below the replacement need (~{sigB(constrained.repl * moneyFactor)} B {displayCur}/yr), so no new safely-managed service is built and <b>unit cost has no effect</b> on this curve. Raise the {sectorLabel.toLowerCase()} budget above the replacement need to move it.
+          Warning: <b>Budget-constrained BAU.</b> The BAU capex budget (~{sigB(constrained.avail * moneyFactor)} B {displayCur}/yr) is below the replacement need (~{sigB(constrained.repl * moneyFactor)} B {displayCur}/yr), so no new safely-managed service is built and <b>unit cost has no effect</b> on this curve. Raise the {sectorLabel.toLowerCase()} budget above the replacement need to move it.
         </div>
       )}
       {error && <div style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>{error}</div>}
@@ -577,7 +577,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
       })()}
       {targetPoints.length > 0 && (
         <div style={{ fontSize: 10.5, color: '#64748b', marginBottom: 6 }}>
-          🎯 Target call-outs and the financing-gap box are drawn on the chart. Click a box's ✕ to close it, or click its marker to reopen; use 🎯 Targets to choose which targets show.
+          Target call-outs and the financing-gap box are drawn on the chart. Click a box's × to close it, or click its marker to reopen; use Targets to choose which targets show.
         </div>
       )}
       {/* Toolbar: Y-axis unit toggle + per-chart exports */}
@@ -597,7 +597,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           <div style={{ position: 'relative' }}>
             <button onClick={() => setTgtDropOpen(o => !o)} title="Choose which targets' call-outs are shown on the chart"
               style={{ ...toolBtn, fontWeight: 600, background: tgtDropOpen ? '#f0fdf4' : '#fff', borderColor: '#86efac', color: '#15803d' }}>
-              🎯 Targets shown: {visibleTargets ? visibleTargets.size : targetPoints.length}/{targetPoints.length} ▾
+              Targets shown: {visibleTargets ? visibleTargets.size : targetPoints.length} ▾
             </button>
             {tgtDropOpen && (<>
               <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setTgtDropOpen(false)} />
@@ -608,7 +608,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
                     <input type="checkbox" checked={isTargetVisible(p.year)}
                       onChange={() => toggleTargetVisible(p.year, targetPoints.map((q: any) => q.year))}
                       style={{ accentColor: '#16a34a' }} />
-                    🎯 Target {p.year}
+                    Target {p.year}
                   </label>
                 ))}
                 <div style={{ display: 'flex', gap: 6, marginTop: 6, borderTop: '1px solid #e2e8f0', paddingTop: 6 }}>
@@ -650,7 +650,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
                 label={{ value: t.label, position: 'right', fontSize: 9, fill: '#15803d' }} />
             ))}
           </ComposedChart>
-        {/* Overlay svg above the chart: the financing-gap bracket + the 🎯 target call-outs. The svg
+        {/* Overlay svg above the chart: the financing-gap bracket + the target call-outs. The svg
             itself ignores pointer events; only the call-out groups are clickable, so chart hover/tooltip
             still works everywhere else. */}
         {overlay && (endAnno || (flagPlan && targetPoints.length > 0)) && (

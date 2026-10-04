@@ -118,8 +118,8 @@ function makeIntvData(sector: 'water' | 'sanitation', geoScope: string, active: 
 }
 
 const INTV_COLORS = {
-  'BAU': '#cbd5e1',            // light gray
-  'Collection & NRW': '#0ea5e9', // sky blue
+  'BAU': '#4C809C',            // World Bank slate
+  'Collection & NRW': '#009CA7', // World Bank teal
   'Capital efficiency': '#6366f1', // indigo
   'Tariff increase': '#f59e0b',   // amber
 };

@@ -15,17 +15,22 @@ from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 
 from export_data import intervention_breakdown, WATER_INTV, SAN_INTV, _cur
 
-# ── palette (Castalia dark-blue) ────────────────────────────────────────────────────────────────────
-NAVY = RGBColor(0x0B, 0x25, 0x45)
-NAVY2 = RGBColor(0x13, 0x34, 0x5F)
-SKY = RGBColor(0x0E, 0xA5, 0xE9)
+# ── World Bank Water Data palette ───────────────────────────────────────────────────────────────────
+NAVY = RGBColor(0x01, 0x49, 0x72)
+NAVY2 = NAVY
+TEAL = RGBColor(0x00, 0x9C, 0xA7)
+SLATE = RGBColor(0x4C, 0x80, 0x9C)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-INK = RGBColor(0x1E, 0x3A, 0x5F)
-GREY = RGBColor(0x64, 0x74, 0x8B)
-ROW = RGBColor(0xF1, 0xF8, 0xFD)
-BAU_C = RGBColor(0x25, 0x63, 0xEB)
-TGT_C = RGBColor(0x16, 0xA3, 0x4A)
-SCN_C = RGBColor(0xEA, 0x58, 0x0C)
+INK = RGBColor(0x29, 0x34, 0x3B)
+GREY = RGBColor(0x61, 0x70, 0x78)
+MUTED = RGBColor(0x9A, 0xA6, 0xAC)
+PAGE = RGBColor(0xF4, 0xF7, 0xF9)
+ROW = RGBColor(0xED, 0xF1, 0xF3)
+TEAL_TINT = RGBColor(0xE5, 0xF4, 0xF5)
+BAU_C = NAVY
+TGT_C = TEAL
+SCN_C = SLATE
+FONT = 'Noto Sans'
 
 
 def _pct(f):
@@ -92,6 +97,7 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
         p.font.size = Pt(size)
         p.font.color.rgb = color
         p.font.bold = bold
+        p.font.name = FONT
 
     def band(slide, color, top, height):
         from pptx.enum.shapes import MSO_SHAPE
@@ -101,29 +107,43 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
         return shp
 
     def slide_title(slide, title, subtitle=None):
-        band(slide, NAVY, 0, 1.0)
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb = PAGE
+        band(slide, WHITE, 0, 1.0)
+        band(slide, TEAL, 0, 0.07)
         tf = textbox(slide, 0.5, 0.12, 12.3, 0.8, MSO_ANCHOR.MIDDLE)
-        set_p(tf.paragraphs[0], title, 22, WHITE, bold=True)
+        p = tf.paragraphs[0]
+        if '—' in title:
+            first, rest = title.split('—', 1)
+        else:
+            words = title.split(maxsplit=1)
+            first, rest = (words[0], words[1]) if len(words) > 1 else (title, '')
+        run = p.add_run(); run.text = first.strip().upper() + (' ' if rest else '')
+        run.font.name = FONT; run.font.size = Pt(22); run.font.bold = True; run.font.color.rgb = NAVY
+        if rest:
+            run = p.add_run(); run.text = rest.strip().upper()
+            run.font.name = FONT; run.font.size = Pt(22); run.font.bold = False; run.font.color.rgb = MUTED
         if subtitle:
-            p = tf.add_paragraph(); set_p(p, subtitle, 12, RGBColor(0xBF, 0xDB, 0xFE))
+            p = tf.add_paragraph(); set_p(p, subtitle, 11, GREY)
 
-    def add_table(slide, left, top, width, headers, rows, col0_left=True, fontsize=11, header_fill=SKY, total_last=False):
+    def add_table(slide, left, top, width, headers, rows, col0_left=True, fontsize=11, header_fill=NAVY, total_last=False):
         n_rows, n_cols = len(rows) + 1, len(headers)
         tbl = slide.shapes.add_table(n_rows, n_cols, Inches(left), Inches(top), Inches(width), Inches(0.34 * n_rows)).table
         for j, h in enumerate(headers):
-            c = tbl.cell(0, j); c.text = str(h)
+            c = tbl.cell(0, j); c.text = str(h).upper()
             c.fill.solid(); c.fill.fore_color.rgb = header_fill
             for p in c.text_frame.paragraphs:
-                p.font.size = Pt(fontsize); p.font.bold = True; p.font.color.rgb = WHITE
+                p.font.size = Pt(fontsize); p.font.bold = True; p.font.color.rgb = WHITE; p.font.name = FONT
                 p.alignment = PP_ALIGN.LEFT if (j == 0 and col0_left) else PP_ALIGN.RIGHT
         for i, row in enumerate(rows):
             is_total = total_last and i == len(rows) - 1
             for j, val in enumerate(row):
                 c = tbl.cell(i + 1, j); c.text = str(val)
-                c.fill.solid(); c.fill.fore_color.rgb = (RGBColor(0xDF, 0xF1, 0xFB) if is_total else (ROW if i % 2 else WHITE))
+                c.fill.solid(); c.fill.fore_color.rgb = (TEAL_TINT if is_total else (ROW if i % 2 else WHITE))
                 for p in c.text_frame.paragraphs:
                     p.font.size = Pt(fontsize - 0.5); p.font.bold = is_total
-                    p.font.color.rgb = INK if is_total else RGBColor(0x33, 0x41, 0x55)
+                    p.font.color.rgb = NAVY if is_total else INK
+                    p.font.name = FONT
                     p.alignment = PP_ALIGN.LEFT if (j == 0 and col0_left) else PP_ALIGN.RIGHT
         return tbl
 
@@ -138,14 +158,17 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
 
     # === 1. TITLE ===
     s = prs.slides.add_slide(blank)
-    bg = s.background.fill; bg.solid(); bg.fore_color.rgb = NAVY
-    tf = textbox(s, 1.0, 2.5, 11.3, 2.4)
-    set_p(tf.paragraphs[0], 'Water & Sanitation — Strategic Scenarios', 40, WHITE, bold=True)
-    p = tf.add_paragraph(); set_p(p, f'{country} · {area}', 20, SKY)
-    p = tf.add_paragraph(); set_p(p, f'Baseline {baseline} · forecast to {end}', 14, RGBColor(0x94, 0xA3, 0xB8))
-    p = tf.add_paragraph(); set_p(p, currency_display.get('rate_note', ''), 12, RGBColor(0xBF, 0xDB, 0xFE))
-    p = tf.add_paragraph(); set_p(p, currency_display.get('price_basis_note', 'Model constant-price basis.'), 11, RGBColor(0xBF, 0xDB, 0xFE))
-    band(s, SKY, 7.15, 0.35)
+    bg = s.background.fill; bg.solid(); bg.fore_color.rgb = WHITE
+    band(s, TEAL, 0, 0.12)
+    tf = textbox(s, 1.0, 2.2, 11.3, 2.4)
+    p = tf.paragraphs[0]
+    run = p.add_run(); run.text = 'WATER & SANITATION '; run.font.name = FONT; run.font.size = Pt(34); run.font.bold = True; run.font.color.rgb = NAVY
+    run = p.add_run(); run.text = 'STRATEGIC SCENARIOS'; run.font.name = FONT; run.font.size = Pt(34); run.font.bold = False; run.font.color.rgb = MUTED
+    p = tf.add_paragraph(); set_p(p, f'{country} · {area}', 19, TEAL, bold=True)
+    p = tf.add_paragraph(); set_p(p, f'Baseline {baseline} · forecast to {end}', 13, GREY)
+    p = tf.add_paragraph(); set_p(p, currency_display.get('rate_note', ''), 11, GREY)
+    p = tf.add_paragraph(); set_p(p, currency_display.get('price_basis_note', 'Model constant-price basis.'), 11, GREY)
+    band(s, TEAL, 7.30, 0.20)
 
     # === 2. EXECUTIVE SUMMARY ===
     s = prs.slides.add_slide(blank)
@@ -158,7 +181,7 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
     ]
     add_table(s, 0.6, 1.4, 8.0, headers, rows)
     tf = textbox(s, 0.6, 3.2, 12.1, 3.6)
-    set_p(tf.paragraphs[0], 'Key takeaways', 15, INK, bold=True)
+    set_p(tf.paragraphs[0], 'KEY TAKEAWAYS', 15, INK, bold=True)
     for label, d in [('Water supply', ws), ('Sanitation', sn)]:
         red = (1 - d['gapScn'] / d['gapBau']) * 100 if d['gapBau'] else 0
         txt = (f"{label}: safely-managed coverage reaches {_pct(d['scnCov'])} with the current interventions by "
@@ -203,7 +226,7 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
                     if contribution_view == 'category' else 'BAU baseline plus each intervention’s contribution')
         add_chart(s, cov_key, 0.5, 1.35, 7.6)
         tf = textbox(s, 8.4, 1.5, 4.5, 5.4)
-        set_p(tf.paragraphs[0], f'By {d["end"]}', 15, INK, bold=True)
+        set_p(tf.paragraphs[0], f'BY {d["end"]}', 15, INK, bold=True)
         bullets = [
             f'BAU coverage: {_pct(d["bauCov"])}',
             f'With interventions: {_pct(d["scnCov"])}',

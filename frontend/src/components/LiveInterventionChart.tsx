@@ -17,6 +17,7 @@ import { C, INTV_PALETTE as P } from '../chartColors';
 import { yearAxisInterval } from '../chartAxis';
 import { linesFirstLegend } from './chartLegend';
 import { aggregateContributionRows, type ContributionView, type ViewBand } from '../contributionView';
+import { convertMoney, currencyRateNote, type CurrencyDisplaySettings } from '../currencyDisplay';
 
 type Intv = [key: string, label: string, color: string];   // toggle key, legend label, band colour
 // Band palette excludes blue (BAU) and green (target) so those meanings stay reserved (see chartColors).
@@ -46,8 +47,8 @@ const SAN_INTV: Intv[] = [
 const zeroToggles = (t: any) => Object.fromEntries(Object.keys(t || {}).map(k => [k, false]));
 const sig = (v: number) => (!isFinite(v) || v === 0) ? '0' : Number(v.toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
-export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung = 0, contributionView }: {
-  inputs: any; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: 0 | 1; contributionView: ContributionView;
+export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung = 0, contributionView, currencyDisplay }: {
+  inputs: any; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: 0 | 1; contributionView: ContributionView; currencyDisplay: CurrencyDisplaySettings;
 }) {
   // Investment can now be directed at either rung, so the chart is drawn per rung: 0 = safely managed,
   // 1 = basic. The engine returns every rung, so only the row index and the labels change.
@@ -231,8 +232,8 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       {error && <div style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>{error}</div>}
       {summary && (
         <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: `3px solid ${C.scenario}`, borderRadius: 6, padding: '8px 12px', lineHeight: 1.55, marginBottom: 10 }}>
-          <b>Impact.</b> By {summary.endline}, the enabled interventions serve <b>{sig(summary.addHH)} M</b> more {rungName} households and change the endline financing requirement from <b>{sig(summary.gapBau)}</b> to <b>{sig(summary.gapIntv)} M {summary.cur}</b>
-          {summary.gapBau > 0 && <> (a <b>{Math.round((1 - summary.gapIntv / summary.gapBau) * 100)}%</b> reduction)</>}.
+          <b>Impact.</b> By {summary.endline}, the enabled interventions serve <b>{sig(summary.addHH)} M</b> more {rungName} households and change the endline financing requirement from <b>{sig(convertMoney(summary.gapBau, currencyDisplay, summary.cur) as number)}</b> to <b>{sig(convertMoney(summary.gapIntv, currencyDisplay, summary.cur) as number)} M {currencyDisplay.mode === 'usd' && summary.cur.toUpperCase() !== 'USD' ? 'USD' : summary.cur}</b>
+          {summary.gapBau > 0 && <> (a <b>{Math.round((1 - summary.gapIntv / summary.gapBau) * 100)}%</b> reduction)</>}. <span style={{ color: '#64748b' }}>{currencyRateNote(currencyDisplay, summary.cur)}</span>
         </div>
       )}
       <div ref={chartRef} style={{ background: '#fff' }}>

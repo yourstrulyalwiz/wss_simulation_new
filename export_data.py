@@ -11,6 +11,7 @@ import csv
 import copy
 import math
 import base64
+import re
 
 from demo_adapter import coerce_to_engine, financial_toggles
 from model.engine import calculate
@@ -188,22 +189,101 @@ def breakdown_table(inputs, sector_key, defs):
     return headers, rows
 
 
+def _currency_table(headers, rows, currency_display, *, selected_currency=None):
+    """Translate only table columns whose headers explicitly carry the source money unit."""
+    if not currency_display or currency_display.get('mode') != 'usd':
+        return list(headers), [list(row) for row in rows], []
+    source = currency_display['source_currency']
+    factor = currency_display['factor']
+    indexes = []
+    output_headers = []
+    for index, header in enumerate(headers):
+        text = str(header)
+        is_money = bool(re.search(rf'\({re.escape(source)} [MB]\)', text, re.IGNORECASE))
+        if is_money:
+            indexes.append(index)
+            text = re.sub(rf'\({re.escape(source)} ([MB])\)', r'(US$ \1)', text, flags=re.IGNORECASE)
+        output_headers.append(text)
+    output_rows = []
+    for row in rows:
+        converted = list(row)
+        for index in indexes:
+            if index < len(converted) and isinstance(converted[index], (int, float)) and not isinstance(converted[index], bool):
+                converted[index] = converted[index] * factor
+        output_rows.append(converted)
+    return output_headers, output_rows, indexes
+
+
+def _currency_metadata(wb, currency_display, contribution_view):
+    ws = wb.create_sheet('Export metadata', 0)
+    ws.append(['Setting', 'Value'])
+    ws.append(['Selected display currency', currency_display.get('display_currency', currency_display.get('source_currency', 'LCU'))])
+    ws.append(['Source currency', currency_display.get('source_currency', 'LCU')])
+    ws.append(['Contribution view', contribution_view])
+    converted_usd = currency_display.get('mode') == 'usd' and currency_display.get('source_currency') != 'USD'
+    ws.append(['Rate direction', 'Local currency units per US$1' if converted_usd else 'Not applied'])
+    ws.append(['Rate', currency_display.get('rate') or ''])
+    ws.append(['Rate reference year', currency_display.get('reference_year') or ''])
+    ws.append(['Source / note', currency_display.get('source_note') or ''])
+    ws.append(['Rate note', currency_display.get('rate_note', '')])
+    ws.append(['Price-basis note', currency_display.get('price_basis_note', 'Model constant-price basis.')])
+    ws.append(['Conversion', 'USD = local amount ÷ localPerUsd; model inputs and calculations are unchanged.' if converted_usd else 'No currency conversion applied; model inputs and calculations are unchanged.'])
+    return ws
+
+
 # ── whole-scenario CSV / XLSX (everything: per-year series + intervention breakdown, both sectors) ───
-def scenario_csv(inputs):
+def scenario_csv(inputs, currency_display=None, contribution_view='individual'):
     result = calculate(coerce_to_engine(inputs))
     out = io.StringIO()
     w = csv.writer(out)
+    display = currency_display or {'mode': 'local', 'source_currency': _cur(inputs), 'display_currency': _cur(inputs), 'rate_note': 'Local-currency results; no conversion applied.', 'price_basis_note': 'Model constant-price basis.'}
+    converted_usd = display.get('mode') == 'usd' and display.get('source_currency') != 'USD'
+    w.writerow(['Selected display currency', display.get('display_currency', display.get('source_currency'))])
+    w.writerow(['Source currency', display.get('source_currency')])
+    w.writerow(['Contribution view', contribution_view])
+    w.writerow(['Rate direction', 'Local currency units per US$1' if converted_usd else 'Not applied'])
+    w.writerow(['Rate', display.get('rate')])
+    w.writerow(['Rate reference year', display.get('reference_year')])
+    w.writerow(['Source / note', display.get('source_note')])
+    w.writerow(['Rate note', display.get('rate_note')])
+    w.writerow(['Price basis', display.get('price_basis_note')])
+    w.writerow(['Conversion', 'USD = local amount ÷ localPerUsd; model inputs and calculations are unchanged.' if converted_usd else 'No currency conversion applied; model inputs and calculations are unchanged.'])
+    w.writerow([])
     for sk, name in [('water_supply', 'WATER SUPPLY'), ('sanitation', 'SANITATION')]:
         headers, rows = per_year_table(result, inputs, sk)
+        local_headers, local_rows = headers, rows
+        headers, rows, money_indexes = _currency_table(headers, rows, display)
         w.writerow([name + ' — forecast (per year)'])
         w.writerow(headers)
         w.writerows(rows)
+        if converted_usd:
+            w.writerow([name + ' — source-currency monetary detail'])
+            w.writerow(['Year', *[local_headers[i] for i in money_indexes]])
+            w.writerows([[row[0], *[row[i] for i in money_indexes]] for row in local_rows])
         w.writerow([])
-        bh, br = breakdown_table(inputs, sk, WATER_INTV if sk == 'water_supply' else SAN_INTV)
-        w.writerow([name + ' — contribution by intervention (cumulative to endline)'])
-        w.writerow(['Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.'])
-        w.writerow(bh)
-        w.writerows(br if br else [['(no interventions enabled)']])
+        defs = WATER_INTV if sk == 'water_supply' else SAN_INTV
+        if contribution_view == 'category':
+            category_rows, local_category_rows = _category_contributions(inputs, sk, defs, display.get('factor', 1.0))
+            w.writerow([name + ' — contribution by category'])
+            w.writerow(['Category', 'Added safely-managed (M HH)',
+                        f'Gap closed (B {display.get("display_currency", _cur(inputs))})', 'Resources'])
+            w.writerows(category_rows if category_rows else [['(no contributing interventions)']])
+            if converted_usd:
+                w.writerow([name + ' — source-currency category detail'])
+                w.writerow(['Category', 'Added safely-managed (M HH)', f'Gap closed (B {_cur(inputs)})', 'Resources'])
+                w.writerows(local_category_rows if local_category_rows else [['(no contributing interventions)']])
+        else:
+            bh, br = breakdown_table(inputs, sk, defs)
+            w.writerow([name + ' — contribution by intervention (cumulative to endline)'])
+            w.writerow(['Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.'])
+            local_bh, local_br = bh, br
+            bh, br, breakdown_indexes = _currency_table(bh, br, display)
+            w.writerow(bh)
+            w.writerows(br if br else [['(no interventions enabled)']])
+            if converted_usd:
+                w.writerow([name + ' — source-currency contribution detail'])
+                w.writerow(['Intervention', *[local_bh[i] for i in breakdown_indexes]])
+                w.writerows([[row[0], *[row[i] for i in breakdown_indexes]] for row in local_br])
         w.writerow([]); w.writerow([])
     out.seek(0)
     return '﻿' + out.getvalue()   # BOM so Excel reads the UTF-8 (em-dashes, currency) correctly
@@ -218,39 +298,66 @@ CONTRIBUTION_CATEGORIES = [
 ]
 
 
-def scenario_xlsx(inputs, contribution_view='individual'):
+def _category_contributions(inputs, sector_key, defs, factor=1.0):
+    raw = intervention_breakdown(inputs, sector_key, defs)
+    toggles = financial_toggles(inputs)
+    category_keys = {
+        'funding': {'ws_financial_commitment_enabled', 'ws_exogenous_injection_enabled', 'san_financial_commitment_enabled', 'san_exogenous_injection_enabled'},
+        'operations': {'ws_collection_efficiency_enabled', 'ws_nrw_enabled', 'san_collection_efficiency_enabled', 'san_nrw_link_enabled'},
+        'investment': {'ws_capital_efficiency_enabled', 'ws_costeff_enabled', 'ws_techmix_enabled', 'san_capital_efficiency_enabled', 'san_costeff_enabled', 'san_techmix_enabled'},
+        'tariff': {'ws_tariff_enabled', 'san_tariff_enabled'},
+        'household': {'ws_microfinance_enabled', 'san_microfinance_enabled'},
+    }
+    output, local = [], []
+    for category_id, label, _ in CONTRIBUTION_CATEGORIES:
+        members = [(definition, row) for definition, row in
+                   zip((definition for definition in defs if toggles.get(definition[0])), raw)
+                   if definition[0] in category_keys[category_id]]
+        if members:
+            households = sum(row[1] for _, row in members)
+            gap_closed = sum(row[3] for _, row in members)
+            output.append([label, households, gap_closed * factor, 'Not aggregated (unlike resource metrics)'])
+            local.append([label, households, gap_closed, 'Not aggregated (unlike resource metrics)'])
+    return output, local
+
+
+def scenario_xlsx(inputs, contribution_view='individual', currency_display=None):
     from openpyxl import Workbook
     result = calculate(coerce_to_engine(inputs))
     wb = Workbook()
     wb.remove(wb.active)
+    display = currency_display or {'mode': 'local', 'source_currency': _cur(inputs), 'display_currency': _cur(inputs), 'rate_note': 'Local-currency results; no conversion applied.', 'price_basis_note': 'Model constant-price basis.'}
+    _currency_metadata(wb, display, contribution_view)
     for sk, name in [('water_supply', 'Water'), ('sanitation', 'Sanitation')]:
         h, r = per_year_table(result, inputs, sk)
-        _write_sheet(wb, f'{name} — forecast', h, r)
+        source_h, source_r = h, r
+        h, r, money_indexes = _currency_table(h, r, display)
+        suffix = ' (USD)' if display.get('mode') == 'usd' else ''
+        converted_usd = display.get('mode') == 'usd' and display.get('source_currency') != 'USD'
+        _write_sheet(wb, f'{name} — forecast{suffix}', h, r)
+        if converted_usd:
+            local_h = ['Year', *[source_h[i] for i in money_indexes]]
+            local_r = [[row[0], *[row[i] for i in money_indexes]] for row in source_r]
+            _write_sheet(wb, f'{name} — local detail', local_h, local_r)
         bh, br = breakdown_table(inputs, sk, WATER_INTV if sk == 'water_supply' else SAN_INTV)
-        _write_sheet(wb, f'{name} — interventions', bh, br if br else [['(no interventions enabled)']])
+        source_bh, source_br = bh, br
+        bh, br, breakdown_indexes = _currency_table(bh, br, display)
+        _write_sheet(wb, f'{name} — interventions{suffix}', bh, br if br else [['(no interventions enabled)']])
+        if converted_usd:
+            local_headers = ['Intervention', *[source_bh[i] for i in breakdown_indexes]]
+            local_rows = [[row[0], *[row[i] for i in breakdown_indexes]] for row in source_br]
+            _write_sheet(wb, f'{name} — local contributions', local_headers, local_rows or [['(no interventions enabled)']])
         if contribution_view == 'category':
             defs = WATER_INTV if sk == 'water_supply' else SAN_INTV
-            raw = intervention_breakdown(inputs, sk, defs)
-            toggles = financial_toggles(inputs)
-            category_rows = []
-            category_keys = {
-                'funding': {'ws_financial_commitment_enabled', 'ws_exogenous_injection_enabled', 'san_financial_commitment_enabled', 'san_exogenous_injection_enabled'},
-                'operations': {'ws_collection_efficiency_enabled', 'ws_nrw_enabled', 'san_collection_efficiency_enabled', 'san_nrw_link_enabled'},
-                'investment': {'ws_capital_efficiency_enabled', 'ws_costeff_enabled', 'ws_techmix_enabled', 'san_capital_efficiency_enabled', 'san_costeff_enabled', 'san_techmix_enabled'},
-                'tariff': {'ws_tariff_enabled', 'san_tariff_enabled'},
-                'household': {'ws_microfinance_enabled', 'san_microfinance_enabled'},
-            }
-            for category_id, label, _ in CONTRIBUTION_CATEGORIES:
-                members = [(d, r) for d, r in zip((d for d in defs if toggles.get(d[0])), raw)
-                           if d[0] in category_keys[category_id]]
-                if members:
-                    category_rows.append([label, sum(r[1] for _, r in members),
-                                          sum(r[3] for _, r in members), 'Not aggregated (unlike resource metrics)'])
-            if any(r[0] == 'Custom interventions' for r in br):
-                category_rows.append(['Custom interventions', 'See individual detail', 'See individual detail', 'Not aggregated'])
-            _write_sheet(wb, f'{name} — categories',
-                         ['Category (contributions sum existing individual values)', 'Added safely-managed (M HH)', 'Gap closed (B)', 'Resources'],
+            category_rows, category_local_rows = _category_contributions(
+                inputs, sk, defs, display.get('factor', 1.0))
+            _write_sheet(wb, f'{name} — categories{suffix}',
+                         ['Category (contributions sum existing individual values)', 'Added safely-managed (M HH)', f'Gap closed (B {display.get("display_currency", _cur(inputs))})', 'Resources'],
                          category_rows or [['(no contributing interventions)']])
+            if converted_usd:
+                _write_sheet(wb, f'{name} — local categories',
+                             ['Category', 'Added safely-managed (M HH)', f'Gap closed (B {_cur(inputs)})', 'Resources'],
+                             category_local_rows or [['(no contributing interventions)']])
     return _save(wb)
 
 
@@ -300,10 +407,12 @@ def _save(wb):
     return out
 
 
-def table_xlsx(sheets):
+def table_xlsx(sheets, currency_display=None):
     """sheets = [{name, headers, rows}] → a workbook, one sheet each."""
     from openpyxl import Workbook
     wb = Workbook(); wb.remove(wb.active)
+    if currency_display:
+        _currency_metadata(wb, currency_display, 'table')
     notes = wb.create_sheet('Revenue assumptions')
     notes.append(['Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.'])
     notes.append(['Billed volume grows exogenously; baseline collected revenue is not added to capital.'])
@@ -458,12 +567,14 @@ def _native_chart(ws, title, spec, headers, nrows):
     ws.add_chart(chart, get_column_letter(len(headers) + 2) + '1')   # anchor just right of the data
 
 
-def chart_xlsx(title, sheets, chart_spec=None, image_data_url=None):
+def chart_xlsx(title, sheets, chart_spec=None, image_data_url=None, currency_display=None):
     """Workbook for the per-chart export. With `chart_spec` the first sheet holds the chart's data table AND a
     live Excel chart bound to those cells (dynamic). Falls back to embedding the PNG when only an image is
     supplied (legacy callers)."""
     from openpyxl import Workbook
     wb = Workbook(); wb.remove(wb.active)
+    if currency_display:
+        _currency_metadata(wb, currency_display, 'chart')
     primary = sheets[0] if sheets else {'name': 'Chart data', 'headers': [], 'rows': []}
     headers = [str(h) for h in (primary.get('headers') or [])]
     rows = primary.get('rows') or []

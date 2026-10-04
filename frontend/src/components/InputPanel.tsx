@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { downloadTemplate, importTemplate } from '../api';
 import NumInput from './NumInput';
+import { CurrencyDisplayControl, currencyRateNote, defaultCurrencyDisplay, type CurrencyDisplaySettings } from '../currencyDisplay';
 
 // Explains why sanitation's safely-managed and basic rungs share ONE technology mix: the JMP service
 // level is set by service attributes (sharing, emptying, treatment), not the technology. Shown under
@@ -42,8 +43,9 @@ function SanServiceLevelExplainer() {
   );
 }
 
-function Section({ title, children, defaultOpen = false, cols = 3, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; cols?: number; sectionKey?: string; onFocus?: (key: string) => void }) {
+function Section({ title, children, defaultOpen = false, cols = 3, sectionKey, onFocus, openSignal }: { title: string; children: React.ReactNode; defaultOpen?: boolean; cols?: number; sectionKey?: string; onFocus?: (key: string) => void; openSignal?: number }) {
   const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => { if (openSignal) setOpen(true); }, [openSignal]);
   // Responsive columns: fields size to a min track and the column count adapts to the available
   // width (so the grid never stretches fields edge-to-edge on wide screens, nor cramps on a laptop).
   // The 2-col target/cost/technical sections keep a slightly wider min than the denser 3-col ones.
@@ -54,7 +56,7 @@ function Section({ title, children, defaultOpen = false, cols = 3, sectionKey, o
     if (willOpen && sectionKey && onFocus) onFocus(sectionKey);
   };
   return (
-    <div style={{ marginBottom: 8, border: '1px solid #ddd', borderRadius: 8, background: '#fff' }}>
+    <div data-section-key={sectionKey} style={{ marginBottom: 8, border: '1px solid #ddd', borderRadius: 8, background: '#fff' }}>
       <button onClick={handleClick} style={{
         width: '100%', padding: '10px 14px', textAlign: 'left', cursor: 'pointer',
         border: 'none', background: open ? '#EBF6FB' : '#fff', color: open ? '#0073A8' : '#002244', fontWeight: 600,
@@ -296,11 +298,21 @@ function YearField({ label, value, onCommit, min, max, tip }: {
   );
 }
 
-interface Props { inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; }
+interface Props { inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; }
 
-export default function InputPanel({ inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus }: Props) {
+export default function InputPanel({ inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate }: Props) {
   const [countries, setCountries] = useState<{name:string, currency:string}[]>([]);
   const [bauSectorLocal, setBauSectorLocal] = useState<'water' | 'sanitation'>('water');
+  const rateInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!focusCurrencyRequest) return;
+    const timer = setTimeout(() => {
+      const section = document.querySelector('[data-section-key="country"]');
+      section?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      rateInputRef.current?.focus();
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [focusCurrencyRequest]);
   const bauSector = bauSectorProp || bauSectorLocal;
   // The sector toggle is rendered in two places: above the Budget section on Data Inputs (so the split
   // control below it follows the chosen sector) and above section 6 on the BAU tab. Defined once here.
@@ -459,6 +471,10 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
   const wProviders = inputs.water_targets?.providers || [];
   const sProviders = inputs.sanitation_targets?.providers || [];
   const CUR = cc.currency || 'LCU';
+  const displaySettings = currencyDisplay || defaultCurrencyDisplay(CUR);
+  const updateDisplaySettings = (changes: Partial<CurrencyDisplaySettings>) => {
+    onCurrencyDisplayChange?.({ ...displaySettings, ...changes, sourceCurrency: CUR });
+  };
   const ws = [cc.ws_serv1_name||'Level 1', cc.ws_serv2_name||'Level 2', cc.ws_serv3_name||'Level 3', cc.ws_serv4_name||'Level 4', cc.ws_serv5_name||'Level 5'];
   const ss = [cc.san_serv1_name||'Level 1', cc.san_serv2_name||'Level 2', cc.san_serv3_name||'Level 3', cc.san_serv4_name||'Level 4', cc.san_serv5_name||'Level 5'];
   const startYr = inputs.period.model_start_year;
@@ -521,6 +537,11 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
             <span><strong>BAU data entry</strong> — Data fields below are synced with corresponding entries on the <strong>Data Inputs</strong> tab. They can be used to edit the BAU scenario directly from this tab.</span>
           </div>
         )}
+        {isBAU && onCurrencyDisplayChange && (
+          <CurrencyDisplayControl settings={displaySettings} sourceCurrency={CUR}
+            onModeChange={mode => updateDisplaySettings({ mode })}
+            onEditRate={() => onEditCurrencyRate?.()} />
+        )}
       </div>
       )}
 
@@ -544,7 +565,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
       {isInputs && <>
 
       {/* ===== COUNTRY CONFIG ===== */}
-      <Section title="1. Country, Area of Focus & Currency" sectionKey="country" onFocus={onSectionFocus}>
+      <Section title="1. Country, Area of Focus & Currency" sectionKey="country" onFocus={onSectionFocus} openSignal={focusCurrencyRequest}>
         {inputs.country_config && <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
             <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Country</label>
@@ -569,6 +590,39 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
             <input type="text" value={inputs.country_config.currency || ''}
               onChange={e => setCountryConfig('currency', e.target.value)}
               style={{ width: '100%', padding: '7px 10px', border: '1px solid #F0D070', background: '#FFF9E6', borderRadius: 4, fontSize: 13, color: '#3A4452', boxSizing: 'border-box', outline: 'none' }} />
+          </div>
+          <div style={{ gridColumn: '1 / -1', border: '1px solid #bfdbfe', background: '#f8fbff', borderRadius: 6, padding: '10px 12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '10px 14px' }}>
+            <div style={{ gridColumn: '1 / -1', fontSize: 12, fontWeight: 700, color: '#1e3a5f' }}>Optional USD display conversion</div>
+            {CUR.toUpperCase() === 'USD' ? (
+              <div style={{ gridColumn: '1 / -1', fontSize: 11, color: '#475569' }}>Model currency is USD. USD display is identical to the model values; no exchange rate is needed.</div>
+            ) : <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label htmlFor="usd-display-rate" style={{ fontSize: 11, color: '#334155', fontWeight: 600 }}>Local currency per US$1</label>
+                <input ref={rateInputRef} id="usd-display-rate" type="number" min="0.000000001" step="any"
+                  value={displaySettings.localPerUsd ?? ''}
+                  onChange={e => updateDisplaySettings({ localPerUsd: e.target.value === '' ? null : Number(e.target.value), mode: 'local' })}
+                  style={{ width: '100%', padding: '7px 9px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 12, boxSizing: 'border-box' }}
+                  placeholder="Enter a positive rate" />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label htmlFor="usd-display-year" style={{ fontSize: 11, color: '#334155', fontWeight: 600 }}>Rate reference year</label>
+                <input id="usd-display-year" type="number" min="1900" max={new Date().getFullYear()} step="1"
+                  value={displaySettings.rateReferenceYear ?? ''}
+                  onChange={e => updateDisplaySettings({ rateReferenceYear: e.target.value === '' ? null : Number(e.target.value), mode: 'local' })}
+                  style={{ width: '100%', padding: '7px 9px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 12, boxSizing: 'border-box' }}
+                  placeholder="e.g. 2025" />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: '1 / -1' }}>
+                <label htmlFor="usd-display-source" style={{ fontSize: 11, color: '#334155', fontWeight: 600 }}>Rate source / notes (optional)</label>
+                <input id="usd-display-source" type="text" value={displaySettings.sourceNote || ''}
+                  onChange={e => updateDisplaySettings({ sourceNote: e.target.value })}
+                  style={{ width: '100%', padding: '7px 9px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 12, boxSizing: 'border-box' }}
+                  placeholder="Source or notes for this fixed rate" />
+              </div>
+              <div style={{ gridColumn: '1 / -1', fontSize: 10.5, lineHeight: 1.5, color: '#64748b' }}>
+                {currencyRateNote(displaySettings, CUR)} Calculations, inputs, stored results and coverage measures remain in {CUR}; this setting changes presentation only.
+              </div>
+            </>}
           </div>
         </>}
       </Section>

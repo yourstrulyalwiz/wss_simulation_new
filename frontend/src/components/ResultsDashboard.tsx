@@ -13,6 +13,7 @@ import { captureImage } from './exportUtils';
 import BasicCoverageChart, { type BasicCoverageRow } from './BasicCoverageChart';
 import ScenarioGapTables, { type FinanceYear } from './ScenarioGapTables';
 import { aggregateContributionRows, ContributionViewToggle, type ContributionView } from '../contributionView';
+import { CurrencyDisplayControl, type CurrencyDisplaySettings, validRate } from '../currencyDisplay';
 
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
 function round3(v: number): number { return (!isFinite(v) || v === 0) ? 0 : Number(v.toPrecision(3)); }
@@ -67,6 +68,9 @@ interface Props {
   onToggle?: (key: string, value: boolean) => void;
   contributionView: ContributionView;
   onContributionViewChange: (v: ContributionView) => void;
+  currencyDisplay: CurrencyDisplaySettings;
+  onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void;
+  onEditCurrencyRate: () => void;
 }
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
@@ -83,12 +87,13 @@ type Contrib = { water: ContribSeries; sanitation: ContribSeries } | null;
 
 // A stacked-contribution chart: a base area at the bottom, one stacked band per intervention on top (so the
 // coloured stack IS each lever's marginal contribution), plus optional reference lines drawn over the top.
-function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, domain, filename, captureKey }: {
+function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, domain, filename, captureKey, currencyDisplay }: {
   title: string; subtitle?: string; data: any[]; yLabel: string;
   base?: { key: string; label: string; stroke: string; fill: string };   // optional bottom area (coverage BAU)
   bands: ContribBand[];
   lines: { key: string; name: string; color: string; dash?: string; width?: number }[];
   fmt: (v: number) => string; domain?: [number, number]; filename: string; captureKey: string;
+  currencyDisplay?: CurrencyDisplaySettings;
 }) {
   const chartRef = useRef<HTMLDivElement>(null);
   // Data series behind the chart, for the "⤓ Excel" export: Year, [base], each band, then the reference lines.
@@ -120,7 +125,7 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
           <h4 style={{ fontSize: 13, fontWeight: 600, color: '#1e3a5f', margin: '0 0 1px' }}>{title}</h4>
           {subtitle && <div style={{ fontSize: 10.5, color: '#64748b', marginBottom: 5 }}>{subtitle}</div>}
         </div>
-        <ChartExport chartRef={chartRef} filename={filename} title={title}
+        <ChartExport chartRef={chartRef} filename={filename} title={title} currencyDisplay={currencyDisplay}
           sheets={[{ name: 'Data', headers: exHeaders, rows: exRows }]} chartSpec={chartSpec} compact />
       </div>
       <div ref={chartRef} style={{ background: '#fff' }}>
@@ -156,7 +161,7 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
   );
 }
 
-export default function ResultsDashboard({ geoScope, scenarios, inputs, altInputs, onToggle, contributionView, onContributionViewChange }: Props) {
+export default function ResultsDashboard({ geoScope, scenarios, inputs, altInputs, onToggle, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
   const [viewScope, setViewScope] = useState<'urban' | 'rural' | 'national'>(
     geoScope === 'urban' ? 'urban' : geoScope === 'rural' ? 'rural' : 'national'
   );
@@ -197,6 +202,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   }, [primary, geoScope, altInputs, effScope]);
 
   const cur = datasets[0]?.country_config?.currency || 'LCU';
+  const resultCurrencies = [...new Set(datasets.map((data: any) => String(data?.country_config?.currency || 'LCU').toUpperCase()))];
+  const mixedCurrencies = resultCurrencies.length > 1;
+  const useUsd = currencyDisplay.mode === 'usd' && !mixedCurrencies && validRate(currencyDisplay, cur);
+  const displayCur = useUsd ? 'USD' : cur;
+  const moneyFactor = useUsd && cur.toUpperCase() !== 'USD' ? 1 / (currencyDisplay.localPerUsd as number) : 1;
+  const displayMoney = (v: number) => v * moneyFactor;
+  const detailExportCurrency = mixedCurrencies ? { ...currencyDisplay, mode: 'local' as const } : currencyDisplay;
   const toggles = primary?.toggles || {};
   const depKey = JSON.stringify(datasets);
 
@@ -448,19 +460,19 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const totHH = rows.reduce((a, r) => a + (r.addHH || 0), 0);
     const th: React.CSSProperties = { padding: '7px 12px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#0ea5e9', textAlign: 'right' };
     const td: React.CSSProperties = { padding: '6px 12px', fontSize: 11.5, borderBottom: '1px solid #eef2f7', textAlign: 'right' };
-    const exHeaders = ['Intervention', `Resources generated (${cur} B)`, hhCol];
-    const exRows = [...rows.map(r => [r.label, r.resources == null ? 'n/a' : r.resources, r.addHH]), ['Total', totRes, totHH]];
+    const exHeaders = ['Intervention', `Resources generated (${displayCur} B)`, hhCol];
+    const exRows = [...rows.map(r => [r.label, r.resources == null ? 'n/a' : r.resources * moneyFactor, r.addHH]), ['Total', totRes * moneyFactor, totHH]];
     return (
       <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4, maxWidth: 680 }}>
-        <TableExport filename="contribution_by_intervention" sheetName="Interventions" headers={exHeaders} rows={exRows} compact />
+        <TableExport filename="contribution_by_intervention" sheetName="Interventions" headers={exHeaders} rows={exRows} compact currencyDisplay={detailExportCurrency} />
       </div>
       <div style={{ margin: '2px 0 4px', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 6, maxWidth: 680 }}>
         <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 420 }}>
           <thead>
             <tr>
               <th style={{ ...th, textAlign: 'left' }}>Intervention</th>
-              <th style={th}>Resources generated ({cur} b)</th>
+              <th style={th}>Resources generated ({displayCur} b)</th>
               <th style={th}>{hhCol}</th>
             </tr>
           </thead>
@@ -468,13 +480,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             {rows.map((r, i) => (
               <tr key={r.key} style={{ background: i % 2 ? '#f1f8fd' : '#fff' }}>
                 <td style={{ ...td, textAlign: 'left', color: '#334155' }}>{r.label}</td>
-                <td style={{ ...td, color: '#0369a1' }}>{r.resources == null ? 'n/a' : sig3(r.resources)}</td>
+                <td style={{ ...td, color: '#0369a1' }}>{r.resources == null ? 'n/a' : sig3(r.resources * moneyFactor)}</td>
                 <td style={{ ...td, color: '#0369a1' }}>{sig3(r.addHH)}</td>
               </tr>
             ))}
             <tr style={{ background: '#dff1fb', fontWeight: 700 }}>
               <td style={{ ...td, textAlign: 'left', color: '#1e3a5f', borderBottom: 'none' }}>Total</td>
-              <td style={{ ...td, color: '#1e3a5f', borderBottom: 'none' }}>{sig3(totRes)}</td>
+              <td style={{ ...td, color: '#1e3a5f', borderBottom: 'none' }}>{sig3(totRes * moneyFactor)}</td>
               <td style={{ ...td, color: '#1e3a5f', borderBottom: 'none' }}>{sig3(totHH)}</td>
             </tr>
           </tbody>
@@ -497,7 +509,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       <div style={{ marginBottom: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 4, maxWidth: 720 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#1e3a5f' }}>Executive summary — safely-managed coverage (% of households)</div>
-          <TableExport filename="executive_summary_coverage" sheetName="Exec summary" headers={exHeaders} rows={exRows} compact />
+          <TableExport filename="executive_summary_coverage" sheetName="Exec summary" headers={exHeaders} rows={exRows} compact currencyDisplay={detailExportCurrency} />
         </div>
         <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 6, maxWidth: 720 }}>
           <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 460 }}>
@@ -526,14 +538,14 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   const InvestmentGapTable = ({ inv }: { inv: InvTable }) => {
     const th: React.CSSProperties = { padding: '6px 10px', fontSize: 10.5, fontWeight: 700, color: '#fff', background: '#0369a1', textAlign: 'right' };
     const td: React.CSSProperties = { padding: '5px 10px', fontSize: 11, borderBottom: '1px solid #eef2f7', textAlign: 'right' };
-    const exHeaders = [`Investment gap (BAU, ${cur} B)`, ...inv.periods.map(p => p.label)];
-    const exRows = inv.rows.map(r => [r.label, ...r.vals.map(v => +v.toFixed(4))]);
+    const exHeaders = [`Investment gap (BAU, ${displayCur} B)`, ...inv.periods.map(p => p.label)];
+    const exRows = inv.rows.map(r => [r.label, ...r.vals.map(v => +(v * moneyFactor).toFixed(6))]);
     return (
       <div style={{ marginTop: 8 }}>
         <p style={{ fontSize: 11 }}>Flows are summed within each period. Closing balances include opening outstanding work; endline requirements include shortfalls since baseline. Adjacent period-end balances must not be added.</p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f' }}>Investment gap (BAU, {cur} b)</div>
-          <TableExport filename="investment_gap" sheetName="Investment gap" headers={exHeaders} rows={exRows} compact />
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f' }}>Investment gap (BAU, {displayCur} b)</div>
+          <TableExport filename="investment_gap" sheetName="Investment gap" headers={exHeaders} rows={exRows} compact currencyDisplay={detailExportCurrency} />
         </div>
         <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 6 }}>
           <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 420 }}>
@@ -545,7 +557,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
               {inv.rows.map((r, i) => (
                 <tr key={r.label} style={{ background: r.strong ? '#eef6fb' : i % 2 ? '#f8fbfd' : '#fff', fontWeight: r.strong ? 700 : 400 }}>
                   <td style={{ ...td, textAlign: 'left', color: r.strong ? '#1e3a5f' : '#334155' }}>{r.label}</td>
-                  {r.vals.map((v, j) => <td key={j} style={{ ...td, color: r.strong ? '#1e3a5f' : '#0369a1' }}>{sig3(v)}</td>)}
+                  {r.vals.map((v, j) => <td key={j} style={{ ...td, color: r.strong ? '#1e3a5f' : '#0369a1' }}>{sig3(v * moneyFactor)}</td>)}
                 </tr>
               ))}
             </tbody>
@@ -563,13 +575,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       ['Basic service', unit.basic],
       ['Average capex per HH', avg],
     ];
-    const exHeaders = ['Service', `Unit cost per HH (${cur})`];
-    const exRows = rows.map(([label, v]) => [label, Math.round(v)]);
+    const exHeaders = ['Service', `Unit cost per HH (${displayCur})`];
+    const exRows = rows.map(([label, v]) => [label, Math.round(v * moneyFactor)]);
     return (
       <div style={{ marginTop: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 3, maxWidth: 420 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f' }}>Unit cost per household ({cur})</div>
-          <TableExport filename="unit_cost_per_hh" sheetName="Unit cost" headers={exHeaders} rows={exRows} compact />
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f' }}>Unit cost per household ({displayCur})</div>
+          <TableExport filename="unit_cost_per_hh" sheetName="Unit cost" headers={exHeaders} rows={exRows} compact currencyDisplay={detailExportCurrency} />
         </div>
         <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 6, maxWidth: 420 }}>
           <table style={{ borderCollapse: 'collapse', width: '100%' }}>
@@ -577,7 +589,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
               {rows.map(([label, v], i) => (
                 <tr key={label} style={{ background: i === 2 ? '#eef6fb' : i % 2 ? '#f8fbfd' : '#fff', fontWeight: i === 2 ? 700 : 400 }}>
                   <td style={{ ...td, textAlign: 'left', color: '#334155' }}>{label}</td>
-                  <td style={{ ...td, color: '#0369a1' }}>{Math.round(v).toLocaleString()}</td>
+                  <td style={{ ...td, color: '#0369a1' }}>{Math.round(v * moneyFactor).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -599,7 +611,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const allCovData = cs ? (isShare ? asShareStack(groupedCov.rows, csBands) : groupedCov.rows) : [];
     const covData = filterChartYears(allCovData);
     const basicData = filterChartYears(s.basicRows);
-    const gapData = filterChartYears(groupedGap.rows);
+    const gapData = filterChartYears(groupedGap.rows).map((r: any) => Object.fromEntries(
+      Object.entries(r).map(([key, value]) => [key, key === 'year' || typeof value !== 'number' ? value : value * moneyFactor])
+    ));
     // Both coverage charts share a household scale, including the total-households
     // ceiling, so their heights can be compared directly in count mode.
     const maxCoverage = Math.max(0,
@@ -628,7 +642,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <span style={{ fontSize: 11, color: '#64748b' }}>· {scopeName}</span>
         </div>
         <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '3px solid #0ea5e9', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55, marginBottom: 12 }}>
-          <b>By {s.sum.endline}</b>, safely-managed coverage increases from <b>{pct(s.sum.bauCov)}</b> (BAU) to <b>{pct(s.sum.scnCov)}</b> with the current interventions — <b>{sig3(s.sum.addHH)} M</b> more households — against a target of <b>{pct(s.sum.tgtCov)}</b>. The endline financing requirement changes from <b>{sigB(s.sum.gapBauCum)}</b> to <b>{sigB(s.sum.gapScnCum)} B {cur}</b>.
+          <b>By {s.sum.endline}</b>, safely-managed coverage increases from <b>{pct(s.sum.bauCov)}</b> (BAU) to <b>{pct(s.sum.scnCov)}</b> with the current interventions — <b>{sig3(s.sum.addHH)} M</b> more households — against a target of <b>{pct(s.sum.tgtCov)}</b>. The endline financing requirement changes from <b>{sigB(displayMoney(s.sum.gapBauCum))}</b> to <b>{sigB(displayMoney(s.sum.gapScnCum))} B {displayCur}</b>.
         </div>
         {noImpact && (
           <div style={{ fontSize: 10.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '5px 9px', marginBottom: 10 }}>
@@ -639,16 +653,17 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <StackChart title={`${label} — safely-managed coverage`} subtitle={contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : "BAU base + each intervention's added households (target & ceiling shown as lines)"}
             data={covData} yLabel={isShare ? '% of population' : '# households (millions)'}
             base={covBase} bands={csBands} lines={covLines} fmt={covFmt} domain={coverageDomain}
-            filename={`${scopeName}_${secKey}_coverage_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_coverage`} />
+            filename={`${scopeName}_${secKey}_coverage_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_coverage`} currencyDisplay={detailExportCurrency} />
           <BasicCoverageChart title={`${label} — basic coverage`} rows={basicData} isShare={isShare} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_basic_coverage`}
             captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
           <StackChart title={`${label} — year-end financing requirement`} subtitle={contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : 'Closing expansion balance plus unpaid replacement and negative cash accumulated since baseline. Year-end balances are not additive.'}
-            data={gapData} yLabel={`Year-end requirement (B ${cur})`}
+            data={gapData} yLabel={`Year-end requirement (B ${displayCur})`}
             bands={csBands} lines={gapLines} fmt={gapFmt}
-            filename={`${scopeName}_${secKey}_financing_gap_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} />
+            filename={`${scopeName}_${secKey}_financing_gap_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} currencyDisplay={detailExportCurrency} />
         </div>
-        <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={cur} />
+        <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={displayCur}
+          moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency} />
         {rows && rows.length > 0 && (
           <div style={{ marginTop: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f', marginBottom: 3 }}>Contribution by intervention{contributionView === 'category' ? ' — individual detail' : ''} (cumulative to {s.sum.endline})</div>
@@ -693,6 +708,10 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={cur} canUseUsd={!mixedCurrencies}
+            onModeChange={mode => onCurrencyDisplayChange({ ...currencyDisplay, mode, sourceCurrency: cur })}
+            onEditRate={onEditCurrencyRate} />
+          {mixedCurrencies && <span style={{ fontSize: 10, color: '#b45309' }}>USD display and exports require matching area currencies ({resultCurrencies.join(', ')}).</span>}
           <ContributionViewToggle value={contributionView} onChange={onContributionViewChange} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>Scope</span>
@@ -749,7 +768,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           </div>
           {/* Excel/CSV post one dataset and run the engine on it, so they take the edited primary (the
               national dataset in national-entry mode); the deck still covers every entered area. */}
-          <ExportButtons inputs={primary} pptxCharts={captureResultsCharts} areas={deckAreas} contributionView={contributionView} />
+          <ExportButtons inputs={primary} pptxCharts={captureResultsCharts} areas={deckAreas} contributionView={contributionView}
+            currencyDisplay={currencyDisplay} />
         </div>
       </div>
 
@@ -790,8 +810,15 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a5f', marginBottom: 4 }}>{sc.name}</div>
                 <button onClick={() => {
                   // A saved scenario stores every area it was entered with, so export the full deck.
-                  fetch('/api/export/deck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ areas: scenarioAreas(sc.inputs) }) })
-                    .then(r => r.blob()).then(b => { const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${sc.name}.pptx`; a.click(); URL.revokeObjectURL(u); });
+                  const presentation = sc.inputs?.presentation;
+                  fetch('/api/export/deck', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ areas: scenarioAreas(sc.inputs), contribution_view: presentation?.contributionView || contributionView,
+                      currency_display: presentation?.currencyDisplay || currencyDisplay }) })
+                    .then(async r => {
+                      if (!r.ok) { const payload = await r.json().catch(() => ({})); throw new Error(payload.detail || `Export failed (${r.status}).`); }
+                      return r.blob();
+                    }).then(b => { const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${sc.name}.pptx`; a.click(); URL.revokeObjectURL(u); })
+                    .catch(error => alert(error.message));
                 }} style={{ fontSize: 10, padding: '3px 8px', border: '1px solid #d1d5db', borderRadius: 3, background: '#fff', cursor: 'pointer', color: '#374151' }}>
                   📑 Export slides
                 </button>

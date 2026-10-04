@@ -58,7 +58,8 @@ def _sector_summary(result, inputs, sk):
     }
 
 
-def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribution_view: str = 'individual') -> io.BytesIO:
+def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribution_view: str = 'individual',
+                currency_display: dict | None = None) -> io.BytesIO:
     charts = charts or {}
     prs = Presentation()
     prs.slide_width = Inches(13.333)
@@ -70,6 +71,11 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
     country = cc.get('country', 'Country')
     area = cc.get('area', 'Area')
     cur = _cur(inputs)
+    currency_display = currency_display or {'mode': 'local', 'source_currency': cur, 'display_currency': cur, 'factor': 1.0,
+                                             'rate_note': 'Local-currency results; no conversion applied.',
+                                             'price_basis_note': 'Model constant-price basis.'}
+    money_factor = currency_display.get('factor', 1.0)
+    cur = currency_display.get('display_currency', cur)
     baseline = period.get('baseline_year', 2025)
     end = result['years'][-1]
 
@@ -137,6 +143,8 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
     set_p(tf.paragraphs[0], 'Water & Sanitation — Strategic Scenarios', 40, WHITE, bold=True)
     p = tf.add_paragraph(); set_p(p, f'{country} · {area}', 20, SKY)
     p = tf.add_paragraph(); set_p(p, f'Baseline {baseline} · forecast to {end}', 14, RGBColor(0x94, 0xA3, 0xB8))
+    p = tf.add_paragraph(); set_p(p, currency_display.get('rate_note', ''), 12, RGBColor(0xBF, 0xDB, 0xFE))
+    p = tf.add_paragraph(); set_p(p, currency_display.get('price_basis_note', 'Model constant-price basis.'), 11, RGBColor(0xBF, 0xDB, 0xFE))
     band(s, SKY, 7.15, 0.35)
 
     # === 2. EXECUTIVE SUMMARY ===
@@ -155,8 +163,8 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
         red = (1 - d['gapScn'] / d['gapBau']) * 100 if d['gapBau'] else 0
         txt = (f"{label}: safely-managed coverage reaches {_pct(d['scnCov'])} with the current interventions by "
                f"{d['end']} (vs {_pct(d['bauCov'])} business-as-usual and a {_pct(d['tgtCov'])} target) — "
-               f"{d['addHH']:.2f} M more households. Endline financing requirement changes from {_b(d['gapBau'])} to "
-               f"{_b(d['gapScn'])} B {cur} ({red:.0f}% lower).")
+               f"{d['addHH']:.2f} M more households. Endline financing requirement changes from {_b(d['gapBau'] * money_factor)} to "
+               f"{_b(d['gapScn'] * money_factor)} B {cur} ({red:.0f}% lower).")
         p = tf.add_paragraph(); set_p(p, txt, 12.5, RGBColor(0x33, 0x41, 0x55), bullet=True)
 
     # === 3. PER-SECTOR SLIDES ===
@@ -184,7 +192,7 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
             for prefix in ('', 'scenario_'):
                 series = sec[prefix + field]
                 value = series[-1] if balance else sum(series)
-                vals.append(_b(value))
+                vals.append(_b(value * money_factor))
             ledger_rows.append([label, *vals])
         add_table(ledger_slide, .6, 1.5, 12, ['Accounting item', f'BAU ({cur} B)', f'Scenario ({cur} B)'], ledger_rows)
 
@@ -215,15 +223,15 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
         headers = ['Intervention — individual detail' if contribution_view == 'category' else 'Intervention',
                    f'Added HH (M)', f'Resources ({cur} B)', f'Gap closed ({cur} B)']
         if bd:
-            rows = [[lbl, f'{hh:.3f}', ('—' if res is None else f'{res:,.2f}'), f'{gap:,.2f}'] for (lbl, hh, res, gap) in bd]
-            rows.append(['Total', f'{sum(x[1] for x in bd):.3f}', f'{sum((x[2] or 0) for x in bd):,.2f}', f'{sum(x[3] for x in bd):,.2f}'])
+            rows = [[lbl, f'{hh:.3f}', ('—' if res is None else f'{res * money_factor:,.4f}'), f'{gap * money_factor:,.4f}'] for (lbl, hh, res, gap) in bd]
+            rows.append(['Total', f'{sum(x[1] for x in bd):.3f}', f'{sum((x[2] or 0) for x in bd) * money_factor:,.4f}', f'{sum(x[3] for x in bd) * money_factor:,.4f}'])
             add_table(s, 8.3, 1.5, 4.7, headers, rows, fontsize=10, total_last=True)
         else:
             tf = textbox(s, 8.3, 2.6, 4.7, 1.0)
             set_p(tf.paragraphs[0], 'No interventions enabled for this sector.', 12, GREY)
         tf = textbox(s, 8.3, 6.2, 4.7, 1.0)
         red = (1 - d['gapScn'] / d['gapBau']) * 100 if d['gapBau'] else 0
-        set_p(tf.paragraphs[0], f'Endline requirement: {_b(d["gapBau"])} → {_b(d["gapScn"])} B {cur} ({red:.0f}% lower). Closing expansion plus shortfalls since baseline; balances are not additive.', 11.5, INK, bold=True)
+        set_p(tf.paragraphs[0], f'Endline requirement: {_b(d["gapBau"] * money_factor)} → {_b(d["gapScn"] * money_factor)} B {cur} ({red:.0f}% lower). Closing expansion plus shortfalls since baseline; balances are not additive. {currency_display.get("rate_note", "")} {currency_display.get("price_basis_note", "")}', 11.5, INK, bold=True)
 
     output = io.BytesIO()
     prs.save(output)

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { captureImage, downloadBlob, postForBlob } from './exportUtils';
+import type { CurrencyDisplaySettings } from '../currencyDisplay';
 
 // Describes how to draw a NATIVE, data-linked Excel chart from the exported data series: which columns are
 // stacked area bands vs reference lines (by their header name), plus colours and axis titles. The backend
@@ -15,12 +16,13 @@ export type ChartSpec = {
 // Small "⤓ PNG / ⤓ JPG / ⤓ Excel" control for any chart. PNG/JPG capture the referenced chart node to an
 // image; Excel posts the chart's data series + a `chartSpec` to /api/export/chart, which returns a workbook
 // with the data table AND a live Excel chart bound to those cells (dynamic — edit the data, the chart moves).
-export default function ChartExport({ chartRef, filename, title, sheets, chartSpec, compact }: {
+export default function ChartExport({ chartRef, filename, title, sheets, chartSpec, compact, currencyDisplay }: {
   chartRef: React.RefObject<any>;
   filename: string; title?: string;
   sheets: { name: string; headers: any[]; rows: any[][] }[];
   chartSpec?: ChartSpec;
   compact?: boolean;
+  currencyDisplay?: CurrencyDisplaySettings;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const btn: React.CSSProperties = {
@@ -41,12 +43,12 @@ export default function ChartExport({ chartRef, filename, title, sheets, chartSp
     try {
       // Native data-linked chart from chartSpec (no picture). Only fall back to a captured PNG if a caller
       // hasn't supplied a spec, so the export still contains something.
-      const body: any = { filename, title, sheets, chartSpec };
+      const body: any = { filename, title, sheets, chartSpec, currency_display: currencyDisplay };
       if (!chartSpec && chartRef.current) {
         try { body.image = await captureImage(chartRef.current, 'png'); } catch { /* data-only workbook */ }
       }
       await postForBlob('/api/export/chart', body, filename + '.xlsx');
-    } catch { alert('Excel export failed. Please try again.'); }
+    } catch (error) { alert(error instanceof Error ? error.message : 'Excel export failed. Please try again.'); }
     finally { setBusy(null); }
   };
   return (

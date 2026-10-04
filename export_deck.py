@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Tuple
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
-from pptx.util import Emu
+from pptx.util import Emu, Inches, Pt
 
 import deck_data as DD
 from export_data import year_label_step          # one year-axis rule for the deck and the xlsx charts
@@ -201,12 +201,12 @@ def _fill_service_gap(slide, b):
     hide_zero_data_labels(sh.chart)
 
 
-def _fill_investment(slide, b, cur):
+def _fill_investment(slide, b, cur, money_factor=1.0, usd_mode=False):
     t = _table(slide, 'Table 501')
     periods = b['investment']['periods']
     if t is not None:
-        # Drop the US$ columns (2, 4, 6) — the deck reports local currency only.
-        delete_table_columns(t, [2, 4, 6])
+        # The template has paired local and USD columns. Keep the selected view, never mix currencies.
+        delete_table_columns(t, [1, 3, 5] if usd_mode else [2, 4, 6])
         # Then trim any period column the target years don't produce (a single target year gives
         # one period plus the total, not two).
         want = 1 + len(periods)
@@ -219,20 +219,20 @@ def _fill_investment(slide, b, cur):
         for i, (label, vals) in enumerate(b['investment']['rows']):
             set_cell(t, i + 1, 0, label)
             for j, v in enumerate(vals[:len(periods)]):
-                set_cell(t, i + 1, j + 1, bn(v))
+                set_cell(t, i + 1, j + 1, bn(v * money_factor))
         fit_table(t, _room_below(slide, _table_shape(slide, 'Table 501')))
     note = find_shape(slide, 'T503')
     if note is not None:
         _set_full_text(note, (
-            f"Residual-ledger subtotal: {bn(b['total_need_m'])} billion {cur} to {b['last_target_year']}.\n"
-            f"Endline requirement (closing expansion + accumulated shortfalls): {bn(b['financing_gap_m'])} billion {cur}. Period-end balances are not additive.\n"
+            f"Residual-ledger subtotal: {bn(b['total_need_m'] * money_factor)} billion {cur} to {b['last_target_year']}.\n"
+            f"Endline requirement (closing expansion + accumulated shortfalls): {bn(b['financing_gap_m'] * money_factor)} billion {cur}. Period-end balances are not additive.\n"
             "Gap = residual new-service cost + replacement requirement − replacement credit + cash deficit.\n"
             "Available capital has already financed modeled connections; no second credit applies.\n"
             "Replacement reserve uses coverage stock; reported obligations use target-needs stock.\n"
             "Connection purchases are pre-cap allocations, not actual delivery."))
 
 
-def _fill_interventions(slide, b, cur, contribution_view='individual'):
+def _fill_interventions(slide, b, cur, contribution_view='individual', money_factor=1.0):
     rows = b['interventions']['rows']
     ch = b['interventions']['chart']
     sh = _chart_shape(slide, 'Fan chart')
@@ -269,9 +269,9 @@ def _fill_interventions(slide, b, cur, contribution_view='individual'):
             delete_table_rows(t, list(range(1 + n, 1 + TEMPLATE_LEVER_ROWS)))
         for i, r in enumerate(rows):
             set_cell(t, i + 1, 0, r['label'])
-            set_cell(t, i + 1, 1, 'n/a' if r['money_m'] is None else bn(r['money_m'], 2))
+            set_cell(t, i + 1, 1, 'n/a' if r['money_m'] is None else bn(r['money_m'] * money_factor, 2))
             set_cell(t, i + 1, 2, hh(r['added_hh'], 1))
-        tot_money = sum((r['money_m'] or 0.0) for r in rows)
+        tot_money = sum((r['money_m'] or 0.0) for r in rows) * money_factor
         set_cell(t, n + 1, 0, 'Total')
         set_cell(t, n + 1, 1, bn(tot_money, 2))
         set_cell(t, n + 1, 2, hh(sum(r['added_hh'] for r in rows), 1))
@@ -282,7 +282,7 @@ def _fill_interventions(slide, b, cur, contribution_view='individual'):
     replace_tokens(slide, {'[cur]': cur})
 
 
-def _fill_detail(slide, b, row, inputs, sk, cur):
+def _fill_detail(slide, b, row, inputs, sk, source_cur, display_cur, money_factor=1.0):
     """One intervention's detail slide. Only the tool-known figures are filled; the narrative
     placeholders stay as bracketed prompts for whoever presents the deck."""
     if isinstance(inputs, list):
@@ -302,8 +302,10 @@ def _fill_detail(slide, b, row, inputs, sk, cur):
     title = find_shape(slide, 'Text 0')
     if title is not None:
         set_text(title, title.text_frame.text.replace('[intervention name]', row['label']))
+    if display_cur.upper() == 'USD' and source_cur.upper() != 'USD':
+        replace_tokens(slide, {'Resources generated: [X] billion': 'Resources generated: [X] billion USD'})
     replace_tokens(slide, {
-        '[X]': 'n/a' if row['money_m'] is None else bn(row['money_m'], 2),
+        '[X]': 'n/a' if row['money_m'] is None else bn(row['money_m'] * money_factor, 2),
         '[Y]': hh(row['added_hh'], 1),
         '[Z]': 'n/a',                      # the model carries no per-lever programme cost
         '[start year]': str(perf.get('start_year') or b['baseline_year'] + 1),
@@ -314,7 +316,7 @@ def _fill_detail(slide, b, row, inputs, sk, cur):
     })
 
 
-def _fill_exec(slide, d, cur, lt):
+def _fill_exec(slide, d, cur, lt, money_factor=1.0):
     """Executive summary: the 3-scope × 2-sector coverage table plus the two summary cards."""
     blocks = d['blocks']
     # Opening sentence quotes the FINAL target. Water and sanitation can differ, so say so when they do.
@@ -374,13 +376,13 @@ def _fill_exec(slide, d, cur, lt):
             if not b:
                 continue
             name = 'water' if sk == 'water_supply' else 'san.'
-            parts.append(f"{bn(b['bau_investment_m'], 0)}b {name}")
-            need_parts.append(f"{bn(b['total_need_m'], 0)}b {name}")
+            parts.append(f"{bn(b['bau_investment_m'] * money_factor, 0)}b {name}")
+            need_parts.append(f"{bn(b['total_need_m'] * money_factor, 0)}b {name}")
         gap_parts = []
         for sk in DD.SECTORS:
             b = _widest(blocks, sk)
             if b:
-                gap_parts.append(f"{bn(b['financing_gap_m'], 0)}b {'water' if sk == 'water_supply' else 'san.'}")
+                gap_parts.append(f"{bn(b['financing_gap_m'] * money_factor, 0)}b {'water' if sk == 'water_supply' else 'san.'}")
         _set_full_text(inv, (
             f"Residual financing ({d['baseline_year'] + 1}–{lt})\n"
             f"Available capital: {cur} {' + '.join(parts)}.\n"
@@ -402,7 +404,7 @@ def _fill_exec(slide, d, cur, lt):
                 lbl = ALIAS.get(r['label'], r['label'])
                 if lbl not in totals:
                     order.append(lbl)
-                totals[lbl] = totals.get(lbl, 0.0) + (r['money_m'] or 0.0)
+                totals[lbl] = totals.get(lbl, 0.0) + (r['money_m'] or 0.0) * money_factor
         grand = sum(totals.values())
         replace_tokens(res, {'[sum]': f'{cur} {bn(grand)}b'})
         # The template lists all seven levers with an [X]b slot; feed them in the order they appear.
@@ -587,9 +589,19 @@ def _check_template(path: str) -> None:
             )
 
 
-def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, contribution_view: str = 'individual') -> io.BytesIO:
+def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, contribution_view: str = 'individual',
+               currency_display: dict | None = None) -> io.BytesIO:
     _check_template(template_path)
     d = DD.build(area_inputs)
+    currency_display = currency_display or {
+        'mode': 'local', 'source_currency': d['currency'], 'display_currency': d['currency'],
+        'factor': 1.0, 'rate_note': 'Local-currency results; no conversion applied.',
+        'price_basis_note': 'Model constant-price basis.',
+    }
+    money_factor = currency_display.get('factor', 1.0)
+    source_cur = d['currency']
+    display_cur = currency_display.get('display_currency', source_cur)
+    usd_mode = currency_display.get('mode') == 'usd'
     if contribution_view == 'category':
         key_to_category = {
             'ws_financial_commitment_enabled': 'funding', 'ws_exogenous_injection_enabled': 'funding',
@@ -635,7 +647,7 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, co
                                       [sum(row[i] for row in custom) for i in range(len(custom[0]))]))
             grouped_bands.extend(info['chart'].pop('unmapped', []))
             info['chart']['bands'] = grouped_bands
-    cur = d['currency']
+    cur = display_cur
     prs = Presentation(template_path)
 
     present = [(sc, sk, i) for sc, sk, i in BLOCKS if (sc, sk) in d['blocks']]
@@ -649,7 +661,12 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, co
         '[Country]': d['country'], '[Baseline year]': str(d['baseline_year']),
         '[End year]': str(d['end_year']),
     })
-    _fill_exec(prs.slides[IDX_EXEC], d, cur, lt)
+    note = prs.slides[IDX_TITLE].shapes.add_textbox(Inches(.65), Inches(6.25), Inches(12.0), Inches(.75))
+    note.text_frame.text = f"{currency_display.get('rate_note', '')}\n{currency_display.get('price_basis_note', 'Model constant-price basis.')}"
+    for paragraph in note.text_frame.paragraphs:
+        paragraph.font.size = Pt(10)
+        paragraph.font.color.rgb = RGBColor(0xBF, 0xDB, 0xFE)
+    _fill_exec(prs.slides[IDX_EXEC], d, cur, lt, money_factor)
     replace_tokens(prs.slides[IDX_OBJECTIVES], {
         '[Country]': d['country'], '[Target years]': ', '.join(str(y) for y in d['target_years']),
     })
@@ -666,9 +683,9 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, co
         b = d['blocks'][(sc, sk)]
         _fill_coverage(prs.slides[base + 1], b, cur)
         _fill_service_gap(prs.slides[base + 2], b)
-        _fill_investment(prs.slides[base + 3], b, cur)
+        _fill_investment(prs.slides[base + 3], b, cur, money_factor, usd_mode)
         if lever_rows[(sc, sk)]:
-            _fill_interventions(prs.slides[base + 4], b, cur, contribution_view)
+            _fill_interventions(prs.slides[base + 4], b, cur, contribution_view, money_factor)
 
     # Hold slide OBJECTS, not indices: the first clone or delete renumbers everything after it, so any
     # index captured up front is stale by the time it is used.
@@ -696,7 +713,7 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, co
         else:
             scope_inputs = d['area_inputs'].get(sc) or d['inputs']
         for slide, row in zip(clones, rows):
-            _fill_detail(slide, b, row, scope_inputs, sk, cur)
+            _fill_detail(slide, b, row, scope_inputs, sk, source_cur, display_cur, money_factor)
 
     # ── contents + prompts ──────────────────────────────────────────────────────────────────────
     _rebuild_contents(prs.slides[IDX_CONTENTS], _contents_entries(prs, d, present, lever_rows),

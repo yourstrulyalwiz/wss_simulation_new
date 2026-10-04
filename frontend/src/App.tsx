@@ -7,14 +7,21 @@ import ResultsDashboard from './components/ResultsDashboard';
 import LiveBAUChart from './components/LiveBAUChart';
 import { fetchDefaults, runCalculation } from './api';
 import { type ContributionView } from './contributionView';
+import { CurrencyDisplayControl, defaultCurrencyDisplay, type CurrencyDisplaySettings, validRate } from './currencyDisplay';
 
 // The BAU view stacks two charts with identical elements: Safely managed (rung 0) then Basic (rung 1).
-function BAUChartPair(props: { inputsList: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string }) {
+function BAUChartPair(props: { inputsList: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; currencyDisplay: CurrencyDisplaySettings }) {
+  const currencies = [...new Set(props.inputsList.map(input => String(input?.country_config?.currency || 'LCU').toUpperCase()))];
+  const mixedCurrencies = currencies.length > 1;
+  const displaySettings = mixedCurrencies ? { ...props.currencyDisplay, mode: 'local' as const } : props.currencyDisplay;
   return (
     <>
-      <LiveBAUChart {...props} rung={0} />
+      {mixedCurrencies && <div style={{ fontSize: 11, color: '#b45309', marginBottom: 10 }}>
+        USD display is unavailable because this combined view contains different source currencies ({currencies.join(', ')}).
+      </div>}
+      <LiveBAUChart {...props} currencyDisplay={displaySettings} rung={0} />
       <div style={{ height: 1, background: '#e2e8f0', margin: '28px 0 20px' }} />
-      <LiveBAUChart {...props} rung={1} />
+      <LiveBAUChart {...props} currencyDisplay={displaySettings} rung={1} />
     </>
   );
 }
@@ -37,6 +44,8 @@ export default function App() {
   const [inputs, setInputs] = useState<any>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [contributionView, setContributionView] = useState<ContributionView>('individual');
+  const [currencyDisplay, setCurrencyDisplay] = useState<CurrencyDisplaySettings>(defaultCurrencyDisplay());
+  const [focusCurrencyRequest, setFocusCurrencyRequest] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [profileList, setProfileList] = useState<string[]>([]);
   const [scenarios, setScenarios] = useState<{name: string, inputs: any}[]>([]);
@@ -74,6 +83,8 @@ export default function App() {
       if (typeof sc.areaUrban === 'boolean') setAreaUrban(sc.areaUrban);
       if (typeof sc.areaRural === 'boolean') setAreaRural(sc.areaRural);
       setInputs(migrateInjectionToggle(session.inputs));
+      if (session.presentation?.currencyDisplay) setCurrencyDisplay(session.presentation.currencyDisplay);
+      if (session.presentation?.contributionView) setContributionView(session.presentation.contributionView);
     } else {
       fetchDefaults().then(v => setInputs(migrateInjectionToggle(v))).catch(() => {});
     }
@@ -124,7 +135,25 @@ export default function App() {
     inputs,
     altInputs,
     scope: { scopeMode, areaUrban, areaRural },
-  }), [inputs, altInputs, scopeMode, areaUrban, areaRural]);
+    presentation: { contributionView, currencyDisplay },
+  }), [inputs, altInputs, scopeMode, areaUrban, areaRural, contributionView, currencyDisplay]);
+
+  const sourceCurrency = inputs?.country_config?.currency || 'LCU';
+  useEffect(() => {
+    setCurrencyDisplay(previous => previous.sourceCurrency === sourceCurrency
+      ? previous
+      : defaultCurrencyDisplay(sourceCurrency));
+  }, [sourceCurrency]);
+
+  const updateCurrencyDisplay = (next: CurrencyDisplaySettings) => {
+    const source = inputs?.country_config?.currency || 'LCU';
+    setCurrencyDisplay({ ...next, sourceCurrency: source,
+      mode: source.toUpperCase() === 'USD' || validRate(next, source) ? next.mode : 'local' });
+  };
+  const editCurrencyRate = () => {
+    setActiveTab(0);
+    setFocusCurrencyRequest(request => request + 1);
+  };
 
   // Autosave the working bundle (debounced) so a refresh keeps every area, not just the primary.
   useEffect(() => {
@@ -141,6 +170,7 @@ export default function App() {
     if (!isBundle(obj)) {                       // legacy / defaults: a bare inputs object
       setAltInputs({});
       handleSetInputs(obj);
+      setCurrencyDisplay(defaultCurrencyDisplay(obj?.country_config?.currency || 'LCU'));
       return;
     }
     setAltInputs(Object.fromEntries(Object.entries(obj.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])));
@@ -149,6 +179,10 @@ export default function App() {
     if (typeof sc.areaUrban === 'boolean') setAreaUrban(sc.areaUrban);
     if (typeof sc.areaRural === 'boolean') setAreaRural(sc.areaRural);
     if (sc.scopeMode === 'urban_rural' && sc.areaUrban === false) setSubArea('rural');
+    const source = obj.inputs?.country_config?.currency || 'LCU';
+    const savedCurrency = obj.presentation?.currencyDisplay;
+    setCurrencyDisplay(savedCurrency?.sourceCurrency === source ? savedCurrency : defaultCurrencyDisplay(source));
+    if (obj.presentation?.contributionView) setContributionView(obj.presentation.contributionView);
     handleSetInputs(obj.inputs);
   }, [handleSetInputs]);
 
@@ -399,8 +433,15 @@ export default function App() {
               </button>
               <button onClick={() => {
                 // Export this scenario as the branded deck, covering every area it was saved with.
-                fetch('/api/export/deck', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ areas: areasOf(s.inputs) }) })
-                  .then(r => r.blob()).then(b => { const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${s.name}_slides.pptx`; a.click(); URL.revokeObjectURL(u); });
+                const presentation = s.inputs?.presentation;
+                fetch('/api/export/deck', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ areas: areasOf(s.inputs), contribution_view: presentation?.contributionView || contributionView,
+                    currency_display: presentation?.currencyDisplay || currencyDisplay }) })
+                  .then(async r => {
+                    if (!r.ok) { const payload = await r.json().catch(() => ({})); throw new Error(payload.detail || `Export failed (${r.status}).`); }
+                    return r.blob();
+                  }).then(b => { const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${s.name}_slides.pptx`; a.click(); URL.revokeObjectURL(u); })
+                  .catch(error => alert(error.message));
               }} style={{ padding: '1px 4px', border: '1px solid #bae6fd', borderRadius: 2, background: '#fff', cursor: 'pointer', fontSize: 9, color: '#0369a1' }}>📑</button>
               <button onClick={() => deleteScenario(i)}
                 style={{ padding: '1px 4px', border: '1px solid #fecaca', borderRadius: 2, background: '#fee2e2', cursor: 'pointer', fontSize: 9, color: '#dc2626' }}>✕</button>
@@ -548,11 +589,13 @@ export default function App() {
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         {activeTab === 0 && inputs && (
-          <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection} />
+          <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
+            currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
         )}
         {activeTab === 1 && inputs && (<>
           <div style={{ flex: '0 1 460px', display: 'flex', minWidth: 0 }}>
-            <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} geoScope={inputScope} showSection="bau" bauSector={sectorTab} onBauSectorChange={setSectorTab} onSectionFocus={focusGuideSection} />
+            <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} geoScope={inputScope} showSection="bau" bauSector={sectorTab} onBauSectorChange={setSectorTab} onSectionFocus={focusGuideSection}
+              currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', minWidth: 0, background: '#fff', borderLeft: '1px solid #e2e8f0' }}>
             {chartScope === 'urban_rural' ? (
@@ -570,21 +613,22 @@ export default function App() {
                   ))}
                 </div>
                 {bauChartScope === 'national' ? (
-                  <BAUChartPair inputsList={[inputs, altInputs['rural'] ?? inputs]} sector={sectorTab} scopeLabel="National" />
+                  <BAUChartPair inputsList={[inputs, altInputs['rural'] ?? inputs]} sector={sectorTab} scopeLabel="National" currencyDisplay={currencyDisplay} />
                 ) : bauChartScope === 'urban' ? (
-                  <BAUChartPair inputsList={[inputs]} sector={sectorTab} scopeLabel="Urban" />
+                  <BAUChartPair inputsList={[inputs]} sector={sectorTab} scopeLabel="Urban" currencyDisplay={currencyDisplay} />
                 ) : (
-                  <BAUChartPair inputsList={[altInputs['rural'] ?? inputs]} sector={sectorTab} scopeLabel="Rural" />
+                  <BAUChartPair inputsList={[altInputs['rural'] ?? inputs]} sector={sectorTab} scopeLabel="Rural" currencyDisplay={currencyDisplay} />
                 )}
               </>
             ) : (
-              <BAUChartPair inputsList={[activeInputs]} sector={sectorTab}
+              <BAUChartPair inputsList={[activeInputs]} sector={sectorTab} currencyDisplay={currencyDisplay}
                 scopeLabel={inputScope === 'national' ? 'National' : inputScope === 'rural' ? 'Rural' : 'Urban'} />
             )}
           </div>
         </>)}
         {activeTab === 2 && inputs && (
-          <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} contributionView={contributionView} onContributionViewChange={setContributionView} />
+          <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} contributionView={contributionView} onContributionViewChange={setContributionView}
+            currencyDisplay={currencyDisplay} onEditCurrencyRate={editCurrencyRate} onCurrencyDisplayChange={updateCurrencyDisplay} />
         )}
         {/* Guide panel — tabs 0, 1, 2 */}
         {activeTab <= 2 && (
@@ -605,7 +649,8 @@ export default function App() {
         )}
 
         {activeTab === 3 && (
-          <ResultsDashboard geoScope={chartScope} scenarios={scenarios} inputs={inputs} altInputs={altInputs} onToggle={setToggle} contributionView={contributionView} onContributionViewChange={setContributionView} />
+          <ResultsDashboard geoScope={chartScope} scenarios={scenarios} inputs={inputs} altInputs={altInputs} onToggle={setToggle} contributionView={contributionView} onContributionViewChange={setContributionView}
+            currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
         )}
 
         </div>

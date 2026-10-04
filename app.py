@@ -1,7 +1,7 @@
 import io
 import csv
 import os
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
@@ -9,6 +9,7 @@ import json
 from model.inputs import ModelInputs, CountryConfig
 from model.engine import calculate
 from demo_adapter import frontend_defaults, to_engine, coerce_to_engine
+from currency_export import validate_currency_display
 
 app = FastAPI(title="WSS Scenarios Model API")
 from model.utility_revenue import RevenueInputError, resolve_bases
@@ -121,12 +122,20 @@ def export_csv(inputs: dict = Body(...)):
     # Enriched: per-year forecast for both sectors (BAU / target / with-interventions coverage, service gap,
     # investment need, and BOTH financing gaps) + the per-intervention contribution breakdown.
     from export_data import scenario_csv
-    inputs.pop('_export_options', None)
-    text = scenario_csv(inputs)
+    options = inputs.pop('_export_options', {}) if isinstance(inputs, dict) else {}
+    try:
+        currency_display = validate_currency_display(options.get('currency_display'), [
+            (inputs.get('country_config') or {}).get('currency') or 'LCU'
+        ])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    text = scenario_csv(inputs, currency_display=currency_display,
+                        contribution_view=options.get('contribution_view', 'individual'))
+    suffix = currency_display['display_currency']
     return StreamingResponse(
         iter([text]),
         media_type='text/csv',
-        headers={'Content-Disposition': 'attachment; filename="wss_results.csv"'},
+        headers={'Content-Disposition': f'attachment; filename="wss_results_{suffix}.csv"'},
     )
 
 
@@ -138,8 +147,14 @@ def export_pptx(inputs: dict = Body(...)):
     charts = inputs.pop('_charts', None) if isinstance(inputs, dict) else None
     export_options = inputs.pop('_export_options', {}) if isinstance(inputs, dict) else {}
     contribution_view = export_options.get('contribution_view', 'individual')
+    try:
+        currency_display = validate_currency_display(export_options.get('currency_display'), [
+            (inputs.get('country_config') or {}).get('currency') or 'LCU'
+        ])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     result = calculate(coerce_to_engine(inputs))
-    output = create_pptx(result, inputs, charts, contribution_view=contribution_view)
+    output = create_pptx(result, inputs, charts, contribution_view=contribution_view, currency_display=currency_display)
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type='application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -157,6 +172,7 @@ def export_deck_api(payload: dict = Body(...)):
     single-area fallback so older callers keep working."""
     from export_deck import build_deck
     contribution_view = payload.pop('contribution_view', 'individual')
+    currency_settings = payload.pop('currency_display', {})
     if 'areas' in payload:
         # An explicit but empty `areas` is a caller bug, not a request for a default deck — falling
         # through to the single-area path here would quietly export a deck built from stock defaults.
@@ -168,10 +184,16 @@ def export_deck_api(payload: dict = Body(...)):
         areas = {'national': single} if single else {}
     if not areas:
         return {"error": "no area inputs supplied"}
+    try:
+        currency_display = validate_currency_display(currency_settings, [
+            ((area.get('country_config') or {}).get('currency') or 'LCU') for area in areas.values()
+        ])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     # One line recording which scopes the deck was built from. A deck missing a scope is almost always
     # a payload that never carried it, and that is otherwise invisible from the output alone.
     print(f"[export/deck] areas={list(areas)}", flush=True)
-    out = build_deck(areas, contribution_view=contribution_view)
+    out = build_deck(areas, contribution_view=contribution_view, currency_display=currency_display)
     return StreamingResponse(
         iter([out.getvalue()]),
         media_type='application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -184,11 +206,18 @@ def export_xlsx(inputs: dict = Body(...)):
     # Enriched multi-sheet workbook: per-sector forecast (incl. both financing gaps) + per-intervention breakdown.
     from export_data import scenario_xlsx
     options = inputs.pop('_export_options', {})
-    out = scenario_xlsx(inputs, contribution_view=options.get('contribution_view', 'individual'))
+    try:
+        currency_display = validate_currency_display(options.get('currency_display'), [
+            (inputs.get('country_config') or {}).get('currency') or 'LCU'
+        ])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    out = scenario_xlsx(inputs, contribution_view=options.get('contribution_view', 'individual'), currency_display=currency_display)
+    suffix = currency_display['display_currency']
     return StreamingResponse(
         iter([out.getvalue()]),
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        headers={'Content-Disposition': 'attachment; filename="wss_results.xlsx"'},
+        headers={'Content-Disposition': f'attachment; filename="wss_results_{suffix}.xlsx"'},
     )
 
 
@@ -198,7 +227,14 @@ def export_table(payload: dict = Body(...)):
     from export_data import table_xlsx
     sheets = payload.get('sheets') or []
     fname = (payload.get('filename') or 'table') + '.xlsx'
-    out = table_xlsx(sheets)
+    settings = payload.get('currency_display')
+    try:
+        currency_display = validate_currency_display(settings, [
+            (settings or {}).get('sourceCurrency') or 'LCU'
+        ]) if settings else None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    out = table_xlsx(sheets, currency_display=currency_display)
     return StreamingResponse(
         iter([out.getvalue()]),
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -213,8 +249,15 @@ def export_chart(payload: dict = Body(...)):
     `image` is still accepted as a legacy fallback (embeds the PNG when no chartSpec is given)."""
     from export_data import chart_xlsx
     fname = (payload.get('filename') or 'chart') + '.xlsx'
+    settings = payload.get('currency_display')
+    try:
+        currency_display = validate_currency_display(settings, [
+            (settings or {}).get('sourceCurrency') or 'LCU'
+        ]) if settings else None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     out = chart_xlsx(payload.get('title') or '', payload.get('sheets') or [],
-                     payload.get('chartSpec'), payload.get('image'))
+                     payload.get('chartSpec'), payload.get('image'), currency_display)
     return StreamingResponse(
         iter([out.getvalue()]),
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

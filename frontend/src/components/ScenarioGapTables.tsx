@@ -1,5 +1,6 @@
 import React from 'react';
 import TableExport from './TableExport';
+import type { CurrencyDisplaySettings } from '../currencyDisplay';
 
 export type RungFinance = {
   bau: number; scenario: number; target: number;
@@ -25,12 +26,14 @@ const billions = (v: number) => format(v / 1000);
 
 type Column = { title: string; value: (r: FinanceYear) => number; unit: 'hh' | 'money' };
 
-export default function ScenarioGapTables({ rows, sector, label, scope, currency }: {
+export default function ScenarioGapTables({ rows, sector, label, scope, currency, moneyFactor, currencyDisplay }: {
   rows: FinanceYear[];
   sector: 'water' | 'sanitation';
   label: string;
   scope: string;
   currency: string;
+  moneyFactor: number;
+  currencyDisplay: CurrencyDisplaySettings;
 }) {
   if (!rows.length) return null;
   const m = `${currency} M`, b = `B ${currency}`;
@@ -67,7 +70,7 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
     { title: `Gap change, BAU − scenario (${b})`, value: r => r.bauGap - r.scenarioGap, unit: 'money' },
   ];
   const summaryHeaders = ['Year', ...summary.map(c => c.title)];
-  const summaryExport = rows.map(r => [r.year, ...summary.map(c => Number((c.value(r) / 1000).toFixed(6)))]);
+  const summaryExport = rows.map(r => [r.year, ...summary.map(c => Number((c.value(r) * moneyFactor / 1000).toFixed(8)))]);
   const header: React.CSSProperties = { padding: '6px 10px', fontWeight: 700, whiteSpace: 'nowrap', textAlign: 'right',
     background: '#f1f5f9', color: '#334155' };
   const cell: React.CSSProperties = { padding: '5px 10px', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: '1px solid #eef2f7' };
@@ -118,13 +121,13 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
       { title: `Sector gap change, BAU − scenario (${m})`, value: r => r.bauGap - r.scenarioGap, unit: 'money' },
     ];
     const headers = ['Year', ...columns.map(c => c.title)];
-    const exportRows = rows.map(r => [r.year, ...columns.map(c => round3(c.value(r)))]);
-    const shown = rows.map(r => [r.year, ...columns.map(c => c.unit === 'money' ? billions(c.value(r)) : format(c.value(r)))]);
+    const exportRows = rows.map(r => [r.year, ...columns.map(c => round3(c.unit === 'money' ? c.value(r) * moneyFactor : c.value(r)))]);
+    const shown = rows.map(r => [r.year, ...columns.map(c => c.unit === 'money' ? billions(c.value(r) * moneyFactor) : format(c.value(r)))]);
     return <div key={rung} style={{ marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 4 }}>
         <b style={{ fontSize: 11.5, color: '#1e3a5f' }}>{name} — BAU vs interventions (per year)</b>
         <TableExport filename={`${scope}_${sector}_${rung === 0 ? 'safely_managed' : 'basic'}_results_forecast`}
-          sheetName={`${name} forecast`} headers={headers} rows={exportRows} compact />
+          sheetName={`${name} forecast`} headers={headers} rows={exportRows} compact currencyDisplay={currencyDisplay} />
       </div>
       {table(headers.map(h => h.replace(`(${m})`, `(${b})`)), shown)}
     </div>;
@@ -134,7 +137,7 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 4 }}>
       <b style={{ fontSize: 12, color: '#1e3a5f' }}>{label} — annual spending-gap composition · {scope}</b>
       <TableExport filename={`${scope}_${sector}_spending_gap_composition`} sheetName="Gap composition"
-        headers={summaryHeaders} rows={summaryExport} compact />
+        headers={summaryHeaders} rows={summaryExport} compact currencyDisplay={currencyDisplay} />
     </div>
     <div style={{ fontSize: 10.5, color: '#475569', lineHeight: 1.5, marginBottom: 7 }}>
       Remaining financing gap = residual new-service cost + replacement requirement − replacement credit + cash deficit.
@@ -150,7 +153,7 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
       change means the shortfall grew; chart bands and tables retain signed incremental outcomes.
       Money is shown in billions; detailed forecast downloads use millions, as in the BAU tables.
     </div>
-    {table(summaryHeaders, rows.map(r => [r.year, ...summary.map(c => billions(c.value(r)))]))}
+    {table(summaryHeaders, rows.map(r => [r.year, ...summary.map(c => billions(c.value(r) * moneyFactor))]))}
     {rungTable(0)}
     {rungTable(1)}
   </div>;

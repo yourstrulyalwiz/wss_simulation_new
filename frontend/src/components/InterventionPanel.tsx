@@ -5,6 +5,7 @@ import NumInput from './NumInput';
 import ExportButtons from './ExportButtons';
 import { RevenueBaseEditor, REVENUE_ATTRIBUTION } from './RevenueBase';
 import { ContributionViewToggle, type ContributionView } from '../contributionView';
+import { CurrencyDisplayControl, type CurrencyDisplaySettings } from '../currencyDisplay';
 
 function Section({ title, children, defaultOpen = false, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; sectionKey?: string; onFocus?: (key: string) => void }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -186,9 +187,9 @@ function TechMixEditor({ inputs, onChange, section, CUR }: {
   );
 }
 
-interface Props { inputs: any; onChange: (i: any) => void; results?: any; sectorTab?: 'water' | 'sanitation'; onSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (key: string) => void; geoScope?: string; chartScope?: string; contributionView: ContributionView; onContributionViewChange: (v: ContributionView) => void; }
+interface Props { inputs: any; onChange: (i: any) => void; results?: any; sectorTab?: 'water' | 'sanitation'; onSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (key: string) => void; geoScope?: string; chartScope?: string; contributionView: ContributionView; onContributionViewChange: (v: ContributionView) => void; currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void; onEditCurrencyRate: () => void; }
 
-export default function InterventionPanel({ inputs, onChange, results, sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange }: Props) {
+export default function InterventionPanel({ inputs, onChange, results, sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
   // Budget execution (executed budget ÷ allocated budget) is COMPUTED by the live engine from the
   // historical budget rows — it is shown read-only as the current value in the Budget-execution
   // intervention (no user override). NB: internally still keyed capeff_*/ws_capital_efficiency_enabled
@@ -691,13 +692,16 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
       {/* Right: LIVE intervention impact chart (two-pass BAU vs intervention) for the area being edited. */}
       <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '24px 28px', background: '#fff', borderLeft: '1px solid #e2e8f0' }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+          <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={CUR}
+            onModeChange={mode => onCurrencyDisplayChange({ ...currencyDisplay, mode, sourceCurrency: CUR })}
+            onEditRate={onEditCurrencyRate} />
           {/* Excel / CSV only — the slide deck belongs to the finished scenario, so it lives on Results. */}
           <ContributionViewToggle value={contributionView} onChange={onContributionViewChange} />
-          <ExportButtons inputs={inputs} pptx={false} contributionView={contributionView} />
+          <ExportButtons inputs={inputs} pptx={false} contributionView={contributionView} currencyDisplay={currencyDisplay} />
         </div>
-        <LiveInterventionChart inputs={inputs} sector={sectorTab} scopeLabel={scopeLabel} rung={0} contributionView={contributionView} />
+        <LiveInterventionChart inputs={inputs} sector={sectorTab} scopeLabel={scopeLabel} rung={0} contributionView={contributionView} currencyDisplay={currencyDisplay} />
         <div style={{ height: 18 }} />
-        <LiveInterventionChart inputs={inputs} sector={sectorTab} scopeLabel={scopeLabel} rung={1} contributionView={contributionView} />
+        <LiveInterventionChart inputs={inputs} sector={sectorTab} scopeLabel={scopeLabel} rung={1} contributionView={contributionView} currencyDisplay={currencyDisplay} />
       </div>
     </div>
   );

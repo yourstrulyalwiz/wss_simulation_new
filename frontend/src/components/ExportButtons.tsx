@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { ContributionView } from '../contributionView';
+import type { CurrencyDisplaySettings } from '../currencyDisplay';
 
 // Download the current scenario (`inputs`) as Excel / PowerPoint / CSV (PowerPoint only where `pptx`
 // is left on — the Results Dashboard). All three endpoints run the
@@ -12,7 +13,7 @@ const FORMATS = [
   { label: 'CSV', ext: 'csv', endpoint: '/api/export/csv', icon: '📄' },
 ];
 
-export default function ExportButtons({ inputs, label = 'Export', pptxCharts, areas, pptx = true, contributionView = 'individual' }: {
+export default function ExportButtons({ inputs, label = 'Export', pptxCharts, areas, pptx = true, contributionView = 'individual', currencyDisplay }: {
   inputs: any; label?: string | null; pptxCharts?: () => Promise<Record<string, string>>;
   // Every area the user actually entered, e.g. { urban, rural } or { national }. When supplied, the
   // PowerPoint export fills the branded template and covers all three scopes in one deck; the engine
@@ -21,28 +22,44 @@ export default function ExportButtons({ inputs, label = 'Export', pptxCharts, ar
   // The deck reports the finished scenario, so it is offered on the Results Dashboard only.
   pptx?: boolean;
   contributionView?: ContributionView;
+  currencyDisplay?: CurrencyDisplaySettings;
 }) {
   const formats = pptx ? FORMATS : FORMATS.filter(f => f.ext !== 'pptx');
   const [busy, setBusy] = useState<string | null>(null);
   const download = async (fmt: typeof FORMATS[number]) => {
     setBusy(fmt.ext);
     try {
-      let body: any = { ...(inputs || {}), _export_options: { contribution_view: contributionView } };
+      const sourceCurrency = currencyDisplay?.sourceCurrency || inputs?.country_config?.currency || 'LCU';
+      const options = { contribution_view: contributionView, currency_display: currencyDisplay || {
+        mode: 'local', sourceCurrency, localPerUsd: null, rateReferenceYear: null, sourceNote: '',
+      } };
+      const entered = Object.entries(areas || {}).filter(([, v]) => v);
+      if (options.currency_display.mode === 'usd' && entered.length) {
+        const sources = [...new Set(entered.map(([, v]: any) => String(v?.country_config?.currency || '').toUpperCase()))];
+        if (sources.length !== 1 || sources[0] !== sourceCurrency.toUpperCase()) {
+          throw new Error('USD export requires every selected area to use the same source currency.');
+        }
+      }
+      let body: any = { ...(inputs || {}), _export_options: options };
       let endpoint = fmt.endpoint;
       if (fmt.ext === 'pptx') {
-        const entered = Object.entries(areas || {}).filter(([, v]) => v);
         if (entered.length) {
           endpoint = '/api/export/deck';
-          body = { areas: Object.fromEntries(entered), contribution_view: contributionView };
+          body = { areas: Object.fromEntries(entered), contribution_view: contributionView, currency_display: options.currency_display };
         } else if (pptxCharts) {
           try { body = { ...body, _charts: await pptxCharts() }; } catch { /* chart-less deck */ }
         }
       }
       const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!r.ok) throw new Error(String(r.status));
+      if (!r.ok) {
+        const payload = await r.json().catch(() => ({}));
+        throw new Error(payload.detail || payload.error || `Export failed (${r.status}).`);
+      }
       const b = await r.blob();
-      const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `wss_scenario_${contributionView === 'category' ? 'categories' : 'individual'}.${fmt.ext}`; a.click(); URL.revokeObjectURL(u);
-    } catch { alert(`Export failed (${fmt.label}). Please try again.`); }
+      const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u;
+      const currencySuffix = options.currency_display.mode === 'usd' ? 'USD' : sourceCurrency.toUpperCase();
+      a.download = `wss_scenario_${contributionView === 'category' ? 'categories' : 'individual'}_${currencySuffix}.${fmt.ext}`; a.click(); URL.revokeObjectURL(u);
+    } catch (error) { alert(error instanceof Error ? error.message : `Export failed (${fmt.label}). Please try again.`); }
     finally { setBusy(null); }
   };
   return (

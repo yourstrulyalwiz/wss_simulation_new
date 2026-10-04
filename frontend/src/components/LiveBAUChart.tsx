@@ -8,6 +8,7 @@ import { yearAxisInterval } from '../chartAxis';
 import { linesFirstLegend } from './chartLegend';
 import ChartExport from './ChartExport';
 import TableExport from './TableExport';
+import { convertMoney, currencyRateNote, type CurrencyDisplaySettings, validRate } from '../currencyDisplay';
 
 /**
  * BAU vs Target chart driven by the LIVE calculation engine (validated cell-by-cell against the
@@ -38,14 +39,19 @@ function sigB(vMillions: number): string {
   return sig3(vMillions / 1000);
 }
 
-export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, rung = 0 }:
-  { inputs?: any; inputsList?: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: number }) {
+export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, rung = 0, currencyDisplay }:
+  { inputs?: any; inputsList?: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: number; currencyDisplay: CurrencyDisplaySettings }) {
   const datasets = ((inputsList && inputsList.length) ? inputsList : (inputs ? [inputs] : [])).filter(Boolean);
   // Which JMP rung this chart plots: 0 = Safely managed (the primary chart), 1 = Basic, … The Basic chart
   // gets the SAME elements as SM (BAU area, Target line, reference lines, 🎯 call-outs, endpoint labels).
   // Show the service-level attribution alongside the unchanged sector-wide gap.
   // Keep the chart annotation and budget-constrained warning on the primary SM chart only.
   const ccx = datasets[0]?.country_config || {};
+  const sourceCurrency = ccx.currency || 'LCU';
+  const moneyFactor = currencyDisplay.mode === 'usd' && validRate(currencyDisplay, sourceCurrency) && sourceCurrency.toUpperCase() !== 'USD'
+    ? 1 / (currencyDisplay.localPerUsd as number) : 1;
+  const displayCur = currencyDisplay.mode === 'usd' && validRate(currencyDisplay, sourceCurrency) ? 'USD' : sourceCurrency;
+  const displayMoney = (v: number | null) => convertMoney(v, currencyDisplay, sourceCurrency);
   const rungNameRaw = (sector === 'water'
     ? [ccx.ws_serv1_name, ccx.ws_serv2_name, ccx.ws_serv3_name, ccx.ws_serv4_name, ccx.ws_serv5_name]
     : [ccx.san_serv1_name, ccx.san_serv2_name, ccx.san_serv3_name, ccx.san_serv4_name, ccx.san_serv5_name])[rung]
@@ -353,15 +359,15 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   };
   // Forecast data table (per year) — for its own ⤓ CSV / ⤓ Excel.
   const tableHeaders = ['Year', 'Total households (M)', `${rungNameRaw} BAU (M)`, `Target ${rungLabel} (M)`, 'Service Gap (M HH)',
-    `${rungLabel} closing outstanding expansion (${endAnno?.cur || 'LCU'} M)`,
-    `${rungLabel} replacement need (${endAnno?.cur || 'LCU'} M/yr)`,
-    `${rungLabel} replacement credit (${endAnno?.cur || 'LCU'} M/yr)`,
-    `${rungLabel} cash deficit (${endAnno?.cur || 'LCU'} M/yr)`,
-    `${rungLabel} closing expansion + current shortfalls (${endAnno?.cur || 'LCU'} M)`,
-    `Sector-wide closing expansion + current shortfalls (${endAnno?.cur || 'LCU'} M)`];
+    `${rungLabel} residual new-service cost (${displayCur} M)`,
+    `${rungLabel} replacement need (${displayCur} M/yr)`,
+    `${rungLabel} replacement credit (${displayCur} M/yr)`,
+    `${rungLabel} cash deficit (${displayCur} M/yr)`,
+    `${rungLabel} closing expansion + current shortfalls (${displayCur} M)`,
+    `Sector-wide closing expansion + current shortfalls (${displayCur} M)`];
   const tableExportRows = tableRows.map((r: any) => [r.year, round3(r.total), round3(r.bau), round3(r.tgt), round3(r.gapHH),
-    round3(r.newNeed), round3(r.replacement), round3(r.funded), round3(r.deficit), round3(r.serviceGap),
-    r.finGap == null ? '' : round3(r.finGap)]);
+    round3(r.newNeed * moneyFactor), round3(r.replacement * moneyFactor), round3(r.funded * moneyFactor), round3(r.deficit * moneyFactor), round3(r.serviceGap * moneyFactor),
+    r.finGap == null ? '' : round3(r.finGap * moneyFactor)]);
 
   const toolBtn: React.CSSProperties = {
     padding: '4px 10px', fontSize: 11, border: '1px solid #cbd5e1', borderRadius: 6,
@@ -396,7 +402,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         </g>
       );
     }
-    const money = endAnno.finGap == null ? null : `${sigB(endAnno.finGap)} B ${endAnno.cur}/yr`;
+    const money = endAnno.finGap == null ? null : `${sigB(endAnno.finGap * moneyFactor)} B ${displayCur}/yr`;
     const gapHHtxt = `${sig3(endAnno.gapHH)} M HH`;
     // Label box to the left of the bracket.
     const boxW = 132, boxH = money ? 44 : 30;
@@ -545,25 +551,26 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
       </div>
       {constrained && (
         <div style={{ fontSize: 11, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 4, padding: '6px 10px', marginBottom: 8, lineHeight: 1.5 }}>
-          ⚠ <b>Budget-constrained BAU.</b> The BAU capex budget (~{sigB(constrained.avail)} B {constrained.cur}/yr) is below the replacement need (~{sigB(constrained.repl)} B {constrained.cur}/yr), so no new safely-managed service is built and <b>unit cost has no effect</b> on this curve. Raise the {sectorLabel.toLowerCase()} budget above the replacement need to move it.
+          ⚠ <b>Budget-constrained BAU.</b> The BAU capex budget (~{sigB(constrained.avail * moneyFactor)} B {displayCur}/yr) is below the replacement need (~{sigB(constrained.repl * moneyFactor)} B {displayCur}/yr), so no new safely-managed service is built and <b>unit cost has no effect</b> on this curve. Raise the {sectorLabel.toLowerCase()} budget above the replacement need to move it.
         </div>
       )}
       {error && <div style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>{error}</div>}
       {summary && (() => {
         const cur = summary.currency;
         const pct = (f: number) => (f * 100).toFixed(1) + '%';
-        const money = (v: number | null) => v == null ? '—' : sigB(v) + ' B ' + cur;
+        const money = (v: number | null) => v == null ? '—' : sigB((displayMoney(v) as number)) + ' B ' + displayCur;
         return (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '3px solid #2563eb', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55 }}>
-              <b>Summary.</b> Under business-as-usual, {summary.rungLabel} {sectorLabel.toLowerCase()} reaches <b>{pct(summary.bauPop)}</b> of the population by {summary.endline}, against a target of <b>{pct(summary.tgtPop)}</b>{summary.gapEnd > 0.0005 ? <> — a shortfall of <b>{sig3(summary.gapEnd)} M households</b></> : null}. The attributed <b>{summary.rungLabel}</b> closing expansion plus current-year shortfall at {summary.endline} is <b>{money(summary.serviceGapEnd)}</b>; the <b>sector-wide</b> balance is <b>{money(summary.finGapEnd)}</b>. Total annual planned expansion and replacement flows are <b>{sigB(summary.cumNeed)} B {cur}</b> ({summary.firstForecast}–{summary.endline}). Outstanding balances are not additive across years.
-              {summary.costSM != null && <> Weighted {summary.rungLabel} cost per household: <b>{sig3(summary.costSM)} {cur}</b>.</>}
+              <b>Summary.</b> Under business-as-usual, {summary.rungLabel} {sectorLabel.toLowerCase()} reaches <b>{pct(summary.bauPop)}</b> of the population by {summary.endline}, against a target of <b>{pct(summary.tgtPop)}</b>{summary.gapEnd > 0.0005 ? <> — a shortfall of <b>{sig3(summary.gapEnd)} M households</b></> : null}. The attributed <b>{summary.rungLabel}</b> closing expansion plus current-year shortfall at {summary.endline} is <b>{money(summary.serviceGapEnd)}</b>; the <b>sector-wide</b> balance is <b>{money(summary.finGapEnd)}</b>. Total annual planned expansion and replacement flows are <b>{sigB(summary.cumNeed * moneyFactor)} B {displayCur}</b> ({summary.firstForecast}–{summary.endline}). Outstanding balances are not additive across years.
+              {summary.costSM != null && <> Weighted {summary.rungLabel} cost per household: <b>{sig3(summary.costSM * moneyFactor)} {displayCur}</b>.</>}
             </div>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 5, lineHeight: 1.45 }}>
               Remaining financing gap = residual new-service cost + replacement requirement − replacement credit + cash deficit.
               New-service costs already reflect funded connections; expansion capital is not credited again.
               Replacement credit follows each service’s replacement obligations. Cash deficits follow original need shares,
               or the investment split if needs are zero. The two attributed gaps add up to the sector-wide gap.
+              {' '}{currencyRateNote(currencyDisplay, sourceCurrency)}
             </div>
           </div>
         );
@@ -665,19 +672,19 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         <div style={{ marginTop: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#1e3a5f' }}>Forecast data (per year)</div>
-            <TableExport filename={fileBase} sheetName="Forecast" headers={tableHeaders} rows={tableExportRows} compact />
+            <TableExport filename={fileBase} sheetName="Forecast" headers={tableHeaders} rows={tableExportRows} compact currencyDisplay={currencyDisplay} />
           </div>
           <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 4 }}>
             <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: 11, width: '100%' }}>
               <thead>
                 <tr style={{ background: '#f1f5f9', color: '#334155' }}>
                    {['Year', 'Total households (M)', `${rungNameRaw} — BAU (M)`, 'Target (M)', 'Service Gap (M HH)',
-                     `${rungLabel} residual new-service cost (B ${endAnno?.cur || 'LCU'}/yr)`,
-                     `${rungLabel} replacement need (B ${endAnno?.cur || 'LCU'}/yr)`,
-                     `${rungLabel} replacement credit (B ${endAnno?.cur || 'LCU'}/yr)`,
-                     `${rungLabel} cash deficit (B ${endAnno?.cur || 'LCU'}/yr)`,
-                     `${rungLabel} closing expansion + current shortfalls (B ${endAnno?.cur || 'LCU'})`,
-                     `Sector-wide closing expansion + current shortfalls (B ${endAnno?.cur || 'LCU'})`].map((h, i) => (
+                      `${rungLabel} residual new-service cost (B ${displayCur}/yr)`,
+                      `${rungLabel} replacement need (B ${displayCur}/yr)`,
+                      `${rungLabel} replacement credit (B ${displayCur}/yr)`,
+                      `${rungLabel} cash deficit (B ${displayCur}/yr)`,
+                      `${rungLabel} closing expansion + current shortfalls (B ${displayCur})`,
+                      `Sector-wide closing expansion + current shortfalls (B ${displayCur})`].map((h, i) => (
                     <th key={i} style={{ padding: '5px 10px', textAlign: i === 0 ? 'left' : 'right', fontWeight: 700, whiteSpace: 'nowrap', position: i === 0 ? 'sticky' : undefined, left: i === 0 ? 0 : undefined, background: '#f1f5f9' }}>{h}</th>
                   ))}
                 </tr>
@@ -690,12 +697,12 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
                     <td style={{ padding: '4px 10px', textAlign: 'right', color: C.bau }}>{sig3(r.bau)}</td>
                     <td style={{ padding: '4px 10px', textAlign: 'right', color: '#15803d' }}>{sig3(r.tgt)}</td>
                     <td style={{ padding: '4px 10px', textAlign: 'right', color: '#b45309', fontWeight: 600 }}>{sig3(r.gapHH)}</td>
-                    <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.newNeed)}</td>
-                    <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.replacement)}</td>
-                    <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.funded)}</td>
-                    <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.deficit)}</td>
-                    <td style={{ padding: '4px 10px', textAlign: 'right', color: '#b91c1c' }}>{sigB(r.serviceGap)}</td>
-                    <td style={{ padding: '4px 10px', textAlign: 'right', color: '#b91c1c' }}>{r.finGap == null ? 'n/a' : sigB(r.finGap)}</td>
+                    <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.newNeed * moneyFactor)}</td>
+                    <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.replacement * moneyFactor)}</td>
+                    <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.funded * moneyFactor)}</td>
+                    <td style={{ padding: '4px 10px', textAlign: 'right' }}>{sigB(r.deficit * moneyFactor)}</td>
+                    <td style={{ padding: '4px 10px', textAlign: 'right', color: '#b91c1c' }}>{sigB(r.serviceGap * moneyFactor)}</td>
+                    <td style={{ padding: '4px 10px', textAlign: 'right', color: '#b91c1c' }}>{r.finGap == null ? 'n/a' : sigB(r.finGap * moneyFactor)}</td>
                   </tr>
                 ))}
               </tbody>

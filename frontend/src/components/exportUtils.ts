@@ -1,4 +1,5 @@
 // Shared download / capture helpers for the per-table and per-chart export buttons.
+import { currencyRateNote, priceBasisNote, type CurrencyDisplaySettings } from '../currencyDisplay';
 
 export function downloadBlob(blob: Blob, filename: string) {
   const u = URL.createObjectURL(blob);
@@ -9,17 +10,42 @@ export function downloadBlob(blob: Blob, filename: string) {
 
 export async function postForBlob(endpoint: string, body: any, filename: string) {
   const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (!r.ok) throw new Error('export failed (' + r.status + ')');
+  if (!r.ok) {
+    const payload = await r.json().catch(() => ({}));
+    throw new Error(payload.detail || payload.error || 'Export failed (' + r.status + ').');
+  }
   downloadBlob(await r.blob(), filename);
 }
 
 // Client-side CSV (with a BOM so Excel reads UTF-8 correctly).
-export function csvDownload(headers: any[], rows: any[][], filename: string) {
+function currencyMetadataRows(settings?: CurrencyDisplaySettings) {
+  if (!settings) return [];
+  const source = settings.sourceCurrency || 'LCU';
+  const display = settings.mode === 'usd' ? 'USD' : source;
+  const rateNote = settings.mode === 'usd'
+    ? currencyRateNote(settings, source)
+    : `Local-currency results; no conversion applied.${settings.localPerUsd ? ` Configured reference rate ${settings.localPerUsd} ${source} per US$1 is not applied.` : ''}`;
+  const convertedUsd = settings.mode === 'usd' && source.toUpperCase() !== 'USD';
+  return [
+    ['Selected display currency', display],
+    ['Source currency', source],
+    ['Rate direction', convertedUsd ? 'Local currency units per US$1' : 'Not applied'],
+    ['Rate', settings.localPerUsd ?? ''],
+    ['Rate reference year', settings.rateReferenceYear ?? ''],
+    ['Rate source / note', settings.sourceNote || ''],
+    ['Rate note', rateNote],
+    ['Price-basis note', priceBasisNote(settings, source)],
+    ['Conversion', convertedUsd ? 'USD = local amount ÷ localPerUsd; model inputs and calculations remain in source currency.' : 'No currency conversion applied; model inputs and calculations remain in source currency.'],
+  ];
+}
+
+export function csvDownload(headers: any[], rows: any[][], filename: string, currencyDisplay?: CurrencyDisplaySettings) {
   const esc = (v: any) => {
     const s = v == null ? '' : String(v);
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
-  const lines = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))];
+  const metadata = currencyMetadataRows(currencyDisplay).flatMap(([key, value]) => [[esc(key), esc(value)].join(',')]);
+  const lines = [...metadata, ...(metadata.length ? [''] : []), headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))];
   downloadBlob(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), filename);
 }
 

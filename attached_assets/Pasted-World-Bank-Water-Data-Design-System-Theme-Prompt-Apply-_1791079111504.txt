@@ -1,0 +1,149 @@
+World Bank Water Data — Design System & Theme Prompt
+
+Apply the following design system consistently across all pages and components in this project. This is the established visual language for the World Bank Water Data platform.
+
+Typography
+Primary font: Noto Sans (Google Fonts). Import via @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+Set font-family: 'Noto Sans', ui-sans-serif, system-ui, sans-serif on the root body.
+Heading treatment: All major page and section headings use a split bold/light pattern. The first word or phrase is font-extrabold in navy #014972; the second word or phrase is font-normal in muted gray #9aa6ac. Example: <span class="font-extrabold">FEATURED</span> <span class="font-normal text-[#9aa6ac]">APPLICATIONS</span>.
+Headings are always uppercase with tracking-tight.
+Hero headings: text-4xl md:text-5xl.
+Section headings: text-3xl md:text-4xl.
+Card titles: text-lg to text-2xl font-extrabold text-[#014972].
+Body/description text: text-lg leading-relaxed text-[#4C809C] for hero descriptions; text-sm leading-6 text-[#617078] for card and supporting text.
+Labels, eyebrows, filter group titles: text-xs font-extrabold uppercase tracking-wider text-[#014972].
+Colour Palette
+Use these exact hex values — never approximate:
+
+Role	Hex	Usage
+Navy (primary)	#014972	Headings, primary buttons, nav active, diagram headers
+Teal (accent)	#009CA7	Hover states, links, eyebrow pills, active underlines, badges, teal pillar
+Slate (secondary)	#4C809C	Description text, secondary labels, planet pillar
+Body text	#29343b	Primary reading text on white backgrounds
+Mid gray	#617078	Supporting body copy, sidebar text
+Light gray	#97a4aa / #9aa6ac	Muted heading second words, metadata
+Page background	#f4f7f9	All subpage backgrounds (not pure white)
+White panels	#ffffff	Cards, sidebars, filter rails, result rows
+Teal light tint	#e5f4f5	Active filter badges, teal pill backgrounds, hover fills
+Teal pill bg	#009CA7]/10 (Tailwind)	Eyebrow label background
+Border	#dce4e8	Card borders, dividers, sidebar borders
+Inner border	#edf1f3	Internal dividers within panels
+Page Background & Layout
+All subpages: min-h-screen bg-[#f4f7f9] page background.
+Homepage: bg-white or bg-background.
+Main content container: container mx-auto max-w-7xl px-4 md:px-8.
+Subpage hero padding: py-14 md:py-20.
+Hero <header> bottom margin: mb-12 md:mb-16.
+Navigation Bar
+Two-row sticky header, sticky top-0 z-50 bg-white shadow-[0_2px_6px_rgba(0,0,0,0.06)]:
+
+Row 1 (h-16): Logo bar. Logos separated by h-10 w-px bg-gray-200 vertical dividers. Logos at h-8 to h-10.
+Row 2 (h-11): Centered nav links, hidden lg:flex items-center justify-center, gap-7 between items.
+Nav link style: text-[15px] uppercase tracking-wider whitespace-nowrap relative pb-0.5. Animated teal underline on hover using after: pseudo-element: after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-0 after:bg-[#009CA7] after:transition-all after:duration-200 hover:after:w-full.
+First word of each nav item: font-extrabold text-foreground group-hover:text-[#009CA7].
+Remaining words: font-normal text-gray-400 group-hover:text-[#009CA7]/70.
+Subpage Hero Section
+Every internal subpage follows this exact hero pattern (used on Dashboards, Data, 3 Pillars, Other Useful Links):
+
+<div className="container mx-auto max-w-7xl px-4 py-14 md:px-8 md:py-20">
+  <header className="mb-12 md:mb-16">
+    {/* Teal eyebrow pill */}
+    <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-[#009CA7]/10 px-3 py-1.5 text-sm font-bold tracking-wide text-[#009CA7]">
+      <Icon size={16} /> PAGE LABEL
+    </div>
+    {/* Split-weight heading */}
+    <h1 className="text-4xl tracking-tight text-[#014972] md:text-5xl">
+      <span className="font-extrabold">FIRST WORD</span>{" "}
+      <span className="font-normal text-[#9aa6ac]">SECOND WORD</span>
+    </h1>
+    {/* Description */}
+    <p className="mt-5 max-w-3xl text-lg leading-relaxed text-[#4C809C]">
+      One to two sentence description of the page purpose.
+    </p>
+  </header>
+  {/* Page content goes here */}
+</div>
+
+Cards
+Standard content card:
+
+bg-white rounded-xl border border-[#dce4e8] shadow-sm
+Hover: hover:border-[#009CA7] hover:shadow-md hover:-translate-y-1 transition-all duration-300
+Title inside: font-extrabold text-[#014972] group-hover:text-[#009CA7] transition-colors
+Large feature card (e.g. dashboard cards, report thumbnails):
+
+rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden
+Image/preview panel left (60% width on desktop), text panel right (40%)
+Image panel height: h-64 md:h-80
+Homepage thumbnail card:
+
+Image at top (≈190px tall), object-cover, with a coloured overlay mix-blend-multiply
+Card body: bg-[#f5f7fa] p-5
+Title: text-base font-extrabold leading-snug text-[#014972]
+Description: text-xs leading-5 text-[#617078]
+CTA button: rounded-full bg-[#014972] px-4 py-2 text-sm font-bold text-white hover:bg-[#003366]
+Buttons & CTAs
+Primary filled: rounded-full bg-[#014972] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#009CA7]
+Outline: rounded-full border-2 border-[#014972] px-6 py-2.5 text-sm font-bold text-[#014972] hover:bg-[#014972] hover:text-white transition-colors
+Link-style: inline-flex items-center gap-2 font-bold text-[#009CA7] hover:underline
+All buttons use transition-colors and no box-shadow.
+Icon in CTA: <ArrowUpRight size={16} /> from lucide-react, inline after label text.
+Filter Rail / Sidebar
+Container: rounded-sm border border-[#dce4e8] bg-white
+Header bar: bg-[#f5f8fa] border-b border-[#dce4e8] p-4
+Filter group title: text-xs font-extrabold uppercase tracking-wider text-[#014972] mb-3
+Filter option (checkbox): text-sm text-[#617078] hover:text-[#014972], checkbox accent-[#009CA7]
+Active filter option: font-semibold text-[#014972]
+Count badge: text-xs bg-slate-100 px-1.5 py-0.5 rounded-full text-slate-400
+Active filter chips: rounded-full bg-[#e5f4f5] px-3 py-1 text-xs font-semibold text-[#009CA7]
+Search Input
+<div className="relative">
+  <Search className="absolute left-3 top-3 text-[#95a4ab]" size={19} />
+  <input
+    placeholder="Search..."
+    className="w-full rounded-sm border border-[#cbd9df] py-2.5 pl-10 pr-3 text-sm outline-none focus:border-[#009CA7] focus:ring-2 focus:ring-[#009CA7]/20"
+  />
+</div>
+
+Eyebrow / Badge Pills
+Page eyebrow: inline-flex items-center gap-2 rounded-full bg-[#009CA7]/10 px-3 py-1.5 text-sm font-bold tracking-wide text-[#009CA7]
+Pillar badge (People): bg-[#009CA7] (teal)
+Pillar badge (Food): bg-[#014972] (navy)
+Pillar badge (Planet): bg-[#4C809C] (slate)
+File-type badge (datasets): inline-flex items-center gap-1 rounded-sm border border-[#d9e5ea] bg-[#f7fafb] px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#4C809C]
+Section Dividers & Labels
+Centred divider rule with label:
+
+<div className="flex items-center gap-3">
+  <div className="h-px flex-1 bg-slate-200" />
+  <p className="text-xs font-extrabold uppercase tracking-widest text-[#97a4aa]">SECTION LABEL</p>
+  <div className="h-px flex-1 bg-slate-200" />
+</div>
+
+Footer
+bg-[#014972] text-white/75 border-t-4 border-[#009CA7] py-10
+Text: text-sm
+Section headings inside footer: font-bold text-white mb-4
+Links: text-slate-300 hover:text-white transition-colors text-sm
+Spacing Conventions
+Element	Class
+Subpage container top/bottom	py-14 md:py-20
+Hero bottom margin	mb-12 md:mb-16
+Section gap (between major sections)	mb-16
+Card grid gap	gap-8 (feature) or gap-4 (compact)
+Card internal padding	p-5 md:p-8 (compact) / p-8 md:p-10 (feature)
+Description top margin	mt-5
+Eyebrow bottom margin	mb-5
+Heading to description gap	mt-5
+Icons
+Use lucide-react exclusively. Common icons used on this platform:
+
+Navigation/UI: ChevronRight, Search, Filter, ArrowUpRight, ExternalLink
+Pages: Layers (3 Pillars), Map (Dashboards), Database (Data), Link (Other Useful Links)
+Dataset badges: FileText, FileArchive, FileImage, TableProperties, Globe
+Tone & Copy Style
+No emojis anywhere.
+All navigation labels and major headings in uppercase.
+Descriptions are one to two professional sentences, written in third-person institutional voice.
+No lorem ipsum — all placeholder text should be realistic water sector / World Bank content.
+Numbers and targets are always highlighted in teal text-[#009CA7] font-extrabold when they appear inline in body text.

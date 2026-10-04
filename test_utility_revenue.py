@@ -94,10 +94,22 @@ class UtilityRevenueTests(unittest.TestCase):
         engine = coerce_to_engine(data)
         r = resolve_bases(engine, build_context(engine))
         self.assertIsNotNone(r['water']['base'])
-        self.assertIsNone(r['sanitation']['base'])
+        self.assertIsNotNone(r['sanitation']['base'])
+        self.assertEqual(r['sanitation']['base']['origin'], 'collection-efficiency fallback')
+        self.assertAlmostEqual(r['sanitation']['base']['volume_mld'], 70.08)
+        self.assertIsNone(r['sanitation']['error'])
         self.assertEqual(len(r['sanitation']['alternatives']), 2)
-        with self.assertRaises(RevenueInputError):
-            calculate(engine)
+        self.assertIsNotNone(calculate(engine))
+
+        explicit_tariff_base = copy.deepcopy(data)
+        explicit_tariff_base.setdefault('revenue_bases', {})
+        explicit_tariff_base['revenue_bases']['sanitation'] = copy.deepcopy(
+            r['sanitation']['alternatives'][1]['base'])
+        explicit_model = coerce_to_engine(explicit_tariff_base)
+        explicit = resolve_bases(explicit_model, build_context(explicit_model))
+        self.assertEqual(explicit['sanitation']['base']['origin'], 'tariff')
+        self.assertAlmostEqual(explicit['sanitation']['base']['volume_mld'], 43.8)
+
         data['revenue_bases'] = {k: v['base'] or v['alternatives'][0]['base'] for k, v in r.items()}
         data = json.loads(json.dumps(data))
         resolved = calculate(coerce_to_engine(data))
@@ -123,10 +135,10 @@ class UtilityRevenueTests(unittest.TestCase):
         w['tariff_start_year'] = new
         w['tariff_volume_mld'] = w['ce_water_sold_mld'] * ctx['population'][years.index(new)] / ctx['population'][years.index(old)]
         m = coerce_to_engine(data)
-        self.assertIsNotNone(resolve_bases(m, ctx)['water']['base'])
+        self.assertEqual(resolve_bases(m, ctx)['water']['base']['origin'], 'equivalent legacy bases')
         w['tariff_volume_mld'] = w['ce_water_sold_mld']
         m = coerce_to_engine(data)
-        self.assertIsNone(resolve_bases(m, ctx)['water']['base'])
+        self.assertEqual(resolve_bases(m, ctx)['water']['base']['origin'], 'collection-efficiency fallback')
 
     def test_marginal_outcomes_and_exports_reconcile(self):
         data = example()

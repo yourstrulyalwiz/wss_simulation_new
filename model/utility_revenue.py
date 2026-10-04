@@ -68,7 +68,7 @@ def volume_path(base, ctx, days=365, liters=1000):
 
 
 def resolve_bases(inputs, ctx):
-    """No toggle-dependent decisions. Legacy equivalence compares annual paths."""
+    """Resolve without toggle-dependent choices; legacy conflicts fall back to collection inputs."""
     raw = inputs.revenue_legacy or {
         'water_interventions': inputs.water_interventions.model_dump(),
         'sanitation_interventions': inputs.sanitation_interventions.model_dump(),
@@ -119,6 +119,12 @@ def resolve_bases(inputs, ctx):
                     and math.isclose(a['base']['collection_ratio'], b['base']['collection_ratio'], abs_tol=1e-10)):
                 selected = a['base']
                 selected['origin'] = 'equivalent legacy bases'
+            else:
+                # When legacy values disagree, keep the shared-base model but use the
+                # collection-efficiency inputs as the explicit fallback instead of
+                # blocking calculation on a reconciliation prompt.
+                selected = copy.deepcopy(a['base'])
+                selected['origin'] = 'collection-efficiency fallback'
         out[sector] = {'base': selected, 'alternatives': alternatives,
                        'error': None if selected else ('Conflicting billed-revenue bases. Choose one or enter a shared base.'
                                                       if alternatives else '; '.join(errors))}

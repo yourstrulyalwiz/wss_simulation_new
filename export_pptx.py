@@ -58,7 +58,7 @@ def _sector_summary(result, inputs, sk):
     }
 
 
-def create_pptx(result: dict, inputs: dict, charts: dict | None = None) -> io.BytesIO:
+def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribution_view: str = 'individual') -> io.BytesIO:
     charts = charts or {}
     prs = Presentation()
     prs.slide_width = Inches(13.333)
@@ -190,7 +190,9 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None) -> io.By
 
         # 3a. coverage chart + written summary
         s = prs.slides.add_slide(blank)
-        slide_title(s, f'{name} — safely-managed coverage', 'BAU baseline plus each intervention’s contribution')
+        slide_title(s, f'{name} — safely-managed coverage',
+                    'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.'
+                    if contribution_view == 'category' else 'BAU baseline plus each intervention’s contribution')
         add_chart(s, cov_key, 0.5, 1.35, 7.6)
         tf = textbox(s, 8.4, 1.5, 4.5, 5.4)
         set_p(tf.paragraphs[0], f'By {d["end"]}', 15, INK, bold=True)
@@ -205,10 +207,13 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None) -> io.By
 
         # 3b. financing-gap chart + per-intervention contribution table
         s = prs.slides.add_slide(blank)
-        slide_title(s, f'{name} — financing gap & interventions', 'Grey = gap remaining · colours = closed by each lever')
+        slide_title(s, f'{name} — financing gap & interventions',
+                    'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.'
+                    if contribution_view == 'category' else 'Grey = gap remaining · colours = closed by each lever')
         add_chart(s, gap_key, 0.5, 1.35, 7.6)
         bd = intervention_breakdown(inputs, sk, defs)
-        headers = ['Intervention', f'Added HH (M)', f'Resources ({cur} B)', f'Gap closed ({cur} B)']
+        headers = ['Intervention — individual detail' if contribution_view == 'category' else 'Intervention',
+                   f'Added HH (M)', f'Resources ({cur} B)', f'Gap closed ({cur} B)']
         if bd:
             rows = [[lbl, f'{hh:.3f}', ('—' if res is None else f'{res:,.2f}'), f'{gap:,.2f}'] for (lbl, hh, res, gap) in bd]
             rows.append(['Total', f'{sum(x[1] for x in bd):.3f}', f'{sum((x[2] or 0) for x in bd):,.2f}', f'{sum(x[3] for x in bd):,.2f}'])

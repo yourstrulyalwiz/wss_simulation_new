@@ -232,10 +232,14 @@ def _fill_investment(slide, b, cur):
             "Connection purchases are pre-cap allocations, not actual delivery."))
 
 
-def _fill_interventions(slide, b, cur):
+def _fill_interventions(slide, b, cur, contribution_view='individual'):
     rows = b['interventions']['rows']
     ch = b['interventions']['chart']
     sh = _chart_shape(slide, 'Fan chart')
+    if contribution_view == 'category':
+        note = slide.shapes.add_textbox(Inches(.55), Inches(1.02), Inches(12.1), Inches(.28))
+        note.text_frame.text = 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.'
+        note.text_frame.paragraphs[0].font.size = Pt(9)
     if sh is not None and ch['years']:
         # The template's chart is a COMBO: a stacked-area group for the bands plus a line group for a
         # reference line — the same shape as the tool's on-screen chart, so the target goes on the line.
@@ -252,6 +256,7 @@ def _fill_interventions(slide, b, cur):
 
     t = _table(slide, 'Table 501')
     if t is not None:
+        set_cell(t, 0, 0, 'Intervention — individual detail' if contribution_view == 'category' else 'Intervention')
         set_cell(t, 0, 1, f'Resources generated ({cur} b)')
         set_cell(t, 0, 2, "Added HHs ('000)")
         # The template ships 4 lever rows between the header and the Total row; grow or shrink to fit.
@@ -582,9 +587,54 @@ def _check_template(path: str) -> None:
             )
 
 
-def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A) -> io.BytesIO:
+def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, contribution_view: str = 'individual') -> io.BytesIO:
     _check_template(template_path)
     d = DD.build(area_inputs)
+    if contribution_view == 'category':
+        key_to_category = {
+            'ws_financial_commitment_enabled': 'funding', 'ws_exogenous_injection_enabled': 'funding',
+            'san_financial_commitment_enabled': 'funding', 'san_exogenous_injection_enabled': 'funding',
+            'ws_collection_efficiency_enabled': 'operations', 'ws_nrw_enabled': 'operations',
+            'san_collection_efficiency_enabled': 'operations', 'san_nrw_link_enabled': 'operations',
+            'ws_capital_efficiency_enabled': 'investment', 'ws_costeff_enabled': 'investment', 'ws_techmix_enabled': 'investment',
+            'san_capital_efficiency_enabled': 'investment', 'san_costeff_enabled': 'investment', 'san_techmix_enabled': 'investment',
+            'ws_tariff_enabled': 'tariff', 'san_tariff_enabled': 'tariff',
+            'ws_microfinance_enabled': 'household', 'san_microfinance_enabled': 'household',
+        }
+        categories = [
+            ('funding', 'Funding Mobilization', '#0f766e'),
+            ('operations', 'Operational Efficiency Improvements', '#c58216'),
+            ('investment', 'Investment Planning and Delivery Improvements', '#7238f8'),
+            ('tariff', 'Tariff Reform', '#c355fb'),
+            ('household', 'Household Financing and Affordability', '#c5146a'),
+        ]
+        for block in d['blocks'].values():
+            info = block['interventions']
+            rows = info['rows']
+            label_key = {r['label']: r['key'] for r in rows}
+            old_bands = info['chart']['bands']
+            members = {cid: [] for cid, _, _ in categories}
+            custom = []
+            for label, color, vals in old_bands:
+                key = label_key.get(label)
+                cid = key_to_category.get(key)
+                if cid:
+                    members[cid].append(vals)
+                elif key == '__custom':
+                    custom.append(vals)
+                else:
+                    print(f'[export/deck] unmapped contribution key retained: {key!r}', flush=True)
+                    info['chart'].setdefault('unmapped', []).append((label, color, vals))
+            grouped_bands = []
+            for cid, label, color in categories:
+                arrays = members[cid]
+                if arrays:
+                    grouped_bands.append((label, color, [sum(row[i] for row in arrays) for i in range(len(arrays[0]))]))
+            if custom:
+                grouped_bands.append(('Custom interventions', '#ae4f0e',
+                                      [sum(row[i] for row in custom) for i in range(len(custom[0]))]))
+            grouped_bands.extend(info['chart'].pop('unmapped', []))
+            info['chart']['bands'] = grouped_bands
     cur = d['currency']
     prs = Presentation(template_path)
 
@@ -618,7 +668,7 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A) ->
         _fill_service_gap(prs.slides[base + 2], b)
         _fill_investment(prs.slides[base + 3], b, cur)
         if lever_rows[(sc, sk)]:
-            _fill_interventions(prs.slides[base + 4], b, cur)
+            _fill_interventions(prs.slides[base + 4], b, cur, contribution_view)
 
     # Hold slide OBJECTS, not indices: the first clone or delete renumbers everything after it, so any
     # index captured up front is stale by the time it is used.

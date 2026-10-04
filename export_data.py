@@ -209,7 +209,16 @@ def scenario_csv(inputs):
     return '﻿' + out.getvalue()   # BOM so Excel reads the UTF-8 (em-dashes, currency) correctly
 
 
-def scenario_xlsx(inputs):
+CONTRIBUTION_CATEGORIES = [
+    ('funding', 'Funding Mobilization', ('financial_commitment_enabled', 'exogenous_injection_enabled')),
+    ('operations', 'Operational Efficiency Improvements', ('collection_efficiency_enabled', 'ws_nrw_enabled', 'san_nrw_link_enabled')),
+    ('investment', 'Investment Planning and Delivery Improvements', ('capital_efficiency_enabled', 'costeff_enabled', 'techmix_enabled')),
+    ('tariff', 'Tariff Reform', ('tariff_enabled',)),
+    ('household', 'Household Financing and Affordability', ('microfinance_enabled',)),
+]
+
+
+def scenario_xlsx(inputs, contribution_view='individual'):
     from openpyxl import Workbook
     result = calculate(coerce_to_engine(inputs))
     wb = Workbook()
@@ -219,6 +228,29 @@ def scenario_xlsx(inputs):
         _write_sheet(wb, f'{name} — forecast', h, r)
         bh, br = breakdown_table(inputs, sk, WATER_INTV if sk == 'water_supply' else SAN_INTV)
         _write_sheet(wb, f'{name} — interventions', bh, br if br else [['(no interventions enabled)']])
+        if contribution_view == 'category':
+            defs = WATER_INTV if sk == 'water_supply' else SAN_INTV
+            raw = intervention_breakdown(inputs, sk, defs)
+            toggles = financial_toggles(inputs)
+            category_rows = []
+            category_keys = {
+                'funding': {'ws_financial_commitment_enabled', 'ws_exogenous_injection_enabled', 'san_financial_commitment_enabled', 'san_exogenous_injection_enabled'},
+                'operations': {'ws_collection_efficiency_enabled', 'ws_nrw_enabled', 'san_collection_efficiency_enabled', 'san_nrw_link_enabled'},
+                'investment': {'ws_capital_efficiency_enabled', 'ws_costeff_enabled', 'ws_techmix_enabled', 'san_capital_efficiency_enabled', 'san_costeff_enabled', 'san_techmix_enabled'},
+                'tariff': {'ws_tariff_enabled', 'san_tariff_enabled'},
+                'household': {'ws_microfinance_enabled', 'san_microfinance_enabled'},
+            }
+            for category_id, label, _ in CONTRIBUTION_CATEGORIES:
+                members = [(d, r) for d, r in zip((d for d in defs if toggles.get(d[0])), raw)
+                           if d[0] in category_keys[category_id]]
+                if members:
+                    category_rows.append([label, sum(r[1] for _, r in members),
+                                          sum(r[3] for _, r in members), 'Not aggregated (unlike resource metrics)'])
+            if any(r[0] == 'Custom interventions' for r in br):
+                category_rows.append(['Custom interventions', 'See individual detail', 'See individual detail', 'Not aggregated'])
+            _write_sheet(wb, f'{name} — categories',
+                         ['Category (contributions sum existing individual values)', 'Added safely-managed (M HH)', 'Gap closed (B)', 'Resources'],
+                         category_rows or [['(no contributing interventions)']])
     return _save(wb)
 
 

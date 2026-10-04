@@ -16,6 +16,7 @@ import ChartExport from './ChartExport';
 import { C, INTV_PALETTE as P } from '../chartColors';
 import { yearAxisInterval } from '../chartAxis';
 import { linesFirstLegend } from './chartLegend';
+import { aggregateContributionRows, type ContributionView, type ViewBand } from '../contributionView';
 
 type Intv = [key: string, label: string, color: string];   // toggle key, legend label, band colour
 // Band palette excludes blue (BAU) and green (target) so those meanings stay reserved (see chartColors).
@@ -45,8 +46,8 @@ const SAN_INTV: Intv[] = [
 const zeroToggles = (t: any) => Object.fromEntries(Object.keys(t || {}).map(k => [k, false]));
 const sig = (v: number) => (!isFinite(v) || v === 0) ? '0' : Number(v.toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
-export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung = 0 }: {
-  inputs: any; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: 0 | 1;
+export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung = 0, contributionView }: {
+  inputs: any; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: 0 | 1; contributionView: ContributionView;
 }) {
   // Investment can now be directed at either rung, so the chart is drawn per rung: 0 = safely managed,
   // 1 = basic. The engine returns every rung, so only the row index and the labels change.
@@ -135,19 +136,27 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const sectorLabel = sector === 'water' ? 'Water Supply' : 'Sanitation';
   const chartRef = useRef<HTMLDivElement>(null);
   const isShare = unitMode === 'share';
+  const sourceBands: ViewBand[] = bands.map(([key, label, color]) => ({
+    key: label, label, color, interventionKey: key.startsWith('custom_') ? undefined : key,
+    custom: key.startsWith('custom_'),
+  }));
+  const grouped = useMemo(() => contributionView === 'category'
+    ? aggregateContributionRows(data, sourceBands) : { rows: data, bands: sourceBands },
+    [data, contributionView, sector]);
+  const displayBands = grouped.bands.map(b => [b.key, b.label, b.color] as Intv);
   // Share mode divides the BAU base, every intervention band and the ceiling by that year's total
   // households, so the stack still adds up and the ceiling becomes a flat 100%. One household size
   // is used throughout the model, so the household share is also the share of population.
   const displayData = useMemo(() => {
-    if (!isShare) return data;
-    return data.map((r: any) => {
+    if (!isShare) return grouped.rows;
+    return grouped.rows.map((r: any) => {
       const tot = r['Total households'] || 0;
       const d = (v: number) => (tot > 0 ? (+v || 0) / tot : 0);
-      const o: any = { year: r.year, 'Total households': tot > 0 ? 1 : 0, [baseKey]: d(r[baseKey]) };
-      bands.forEach(([, label]) => { o[label] = d(r[label]); });
+      const o: any = { ...r, year: r.year, __source_total: tot, 'Total households': tot > 0 ? 1 : 0, [baseKey]: d(r[baseKey]) };
+      displayBands.forEach(([, label]) => { o[label] = d(r[label]); });
       return o;
     });
-  }, [data, bands, isShare]);
+  }, [grouped.rows, displayBands, isShare]);
   const visibleData = useMemo(() => {
     if (!displayData.length) return displayData;
     const lo = chartStart ?? displayData[0].year;
@@ -158,19 +167,19 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const fmtAxis = (v: number) => (isShare ? Math.round(v * 100) + '%' : sig(v));
   const fmtVal = (v: number) => (isShare ? (v * 100).toFixed(1) + '%' : sig(v) + ' M');
   // Data series behind the chart, for the "⤓ Excel" export: Year, BAU base, each band, and the ceiling.
-  const exportHeaders = ['Year', baseKey, ...bands.map(([, label]) => label), 'Total households'];
-  const exportRows = visibleData.map((r: any) => [r.year, r[baseKey], ...bands.map(([, label]) => r[label] ?? 0), r['Total households']]);
+  const exportHeaders = ['Year', baseKey, ...displayBands.map(([, label]) => label), 'Total households'];
+  const exportRows = visibleData.map((r: any) => [r.year, r[baseKey], ...displayBands.map(([, label]) => r[label] ?? 0), r['Total households']]);
   // Native Excel chart: grey BAU base + each contributing intervention band as stacked areas, ceiling as a line.
   const chartSpec = {
     category: 'Year', stacked: true,
-    areas: [{ name: baseKey, color: C.bauFill }, ...bands.map(([, label, color]) => ({ name: label, color }))],
+    areas: [{ name: baseKey, color: C.bauFill }, ...displayBands.map(([, label, color]) => ({ name: label, color }))],
     lines: [{ name: 'Total households', color: C.total, dash: true }],
     yTitle: isShare ? '% of population' : '# households (millions)', xTitle: 'Year',
   };
-  const fileBase = `${scopeLabel ? scopeLabel + '_' : ''}${sector}_${rung === 0 ? 'sm' : 'basic'}_intervention_impact`;
+  const fileBase = `${scopeLabel ? scopeLabel + '_' : ''}${sector}_${rung === 0 ? 'sm' : 'basic'}_intervention_impact_${contributionView === 'category' ? 'categories' : 'individual'}`;
   return (
     <div>
-      <p title={REVENUE_ATTRIBUTION} style={{ fontSize: 11 }}>{REVENUE_ATTRIBUTION}</p>
+      <p title={REVENUE_ATTRIBUTION} style={{ fontSize: 11 }}>{contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : REVENUE_ATTRIBUTION}</p>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
         <h3 style={{ fontSize: 14, margin: 0, fontWeight: 600, color: '#1e3a5f' }}>
           {scopeLabel ? scopeLabel + ' ' : ''}{sectorLabel} — {rungName} impact (live)
@@ -234,7 +243,17 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
           <YAxis tick={{ fontSize: 10 }} domain={isShare ? ['auto', 1] : undefined} tickFormatter={fmtAxis}>
             <Label value={isShare ? '% of population' : '# households (millions)'} angle={-90} position="insideLeft" style={{ fontSize: 10, fill: '#64748b' }} />
           </YAxis>
-          <Tooltip formatter={(v: any) => fmtVal(+v)} contentStyle={{ fontSize: 11 }} />
+          <Tooltip formatter={(v: any, name: any, item: any) => {
+            const band = grouped.bands.find(b => b.label === name);
+            if (contributionView !== 'category' || !band?.members?.length) return fmtVal(+v);
+            const row = item?.payload || {};
+            const total = row.__source_total || row['Total households'] || 0;
+            const members = band.members.map(m => {
+              const raw = Number(row[m.key] || 0);
+              return [m.label, isShare ? (total > 0 ? raw / total : 0) : raw] as const;
+            }).filter(([, amount]) => Math.abs(amount) > 1e-12);
+            return `${fmtVal(+v)}${members.length ? ` · ${members.map(([label, amount]) => `${label}: ${fmtVal(amount)}`).join(', ')}` : ''}`;
+          }} contentStyle={{ fontSize: 11 }} />
           {/* Legend lists the Total-households line first, then the area fills (see chartLegend). Render
               order below stays areas-then-line so the line still draws on top; only the legend is reordered. */}
           <Legend wrapperStyle={{ fontSize: 10 }} content={linesFirstLegend} />
@@ -245,7 +264,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
               swatch from stroke; the CVD-validated palette (see chartColors) carries identity, and
               the always-present legend is the secondary encoding. */}
           <Area type="monotone" dataKey={baseKey} stackId="s" fill={C.bauFill} stroke={C.bau} fillOpacity={0.7} strokeWidth={1.5} legendType="rect" isAnimationActive animationDuration={600} animationEasing="ease-out" />
-          {bands.map(([k, label, color]) => (
+          {displayBands.map(([k, label, color]) => (
             <Area key={k} type="monotone" dataKey={label} stackId="s" fill={color} stroke={color} fillOpacity={0.6} strokeWidth={1.75} strokeOpacity={1} legendType="rect" isAnimationActive animationDuration={600} animationEasing="ease-out" />
           ))}
           {/* Total households — the coverage ceiling, drawn on top (not stacked). */}

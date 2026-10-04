@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { ContributionView } from '../contributionView';
 
 // Download the current scenario (`inputs`) as Excel / PowerPoint / CSV (PowerPoint only where `pptx`
 // is left on — the Results Dashboard). All three endpoints run the
@@ -11,7 +12,7 @@ const FORMATS = [
   { label: 'CSV', ext: 'csv', endpoint: '/api/export/csv', icon: '📄' },
 ];
 
-export default function ExportButtons({ inputs, label = 'Export', pptxCharts, areas, pptx = true }: {
+export default function ExportButtons({ inputs, label = 'Export', pptxCharts, areas, pptx = true, contributionView = 'individual' }: {
   inputs: any; label?: string | null; pptxCharts?: () => Promise<Record<string, string>>;
   // Every area the user actually entered, e.g. { urban, rural } or { national }. When supplied, the
   // PowerPoint export fills the branded template and covers all three scopes in one deck; the engine
@@ -19,19 +20,20 @@ export default function ExportButtons({ inputs, label = 'Export', pptxCharts, ar
   areas?: Record<string, any>;
   // The deck reports the finished scenario, so it is offered on the Results Dashboard only.
   pptx?: boolean;
+  contributionView?: ContributionView;
 }) {
   const formats = pptx ? FORMATS : FORMATS.filter(f => f.ext !== 'pptx');
   const [busy, setBusy] = useState<string | null>(null);
   const download = async (fmt: typeof FORMATS[number]) => {
     setBusy(fmt.ext);
     try {
-      let body: any = inputs || {};
+      let body: any = { ...(inputs || {}), _export_options: { contribution_view: contributionView } };
       let endpoint = fmt.endpoint;
       if (fmt.ext === 'pptx') {
         const entered = Object.entries(areas || {}).filter(([, v]) => v);
         if (entered.length) {
           endpoint = '/api/export/deck';
-          body = { areas: Object.fromEntries(entered) };
+          body = { areas: Object.fromEntries(entered), contribution_view: contributionView };
         } else if (pptxCharts) {
           try { body = { ...body, _charts: await pptxCharts() }; } catch { /* chart-less deck */ }
         }
@@ -39,7 +41,7 @@ export default function ExportButtons({ inputs, label = 'Export', pptxCharts, ar
       const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(String(r.status));
       const b = await r.blob();
-      const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `wss_scenario.${fmt.ext}`; a.click(); URL.revokeObjectURL(u);
+      const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `wss_scenario_${contributionView === 'category' ? 'categories' : 'individual'}.${fmt.ext}`; a.click(); URL.revokeObjectURL(u);
     } catch { alert(`Export failed (${fmt.label}). Please try again.`); }
     finally { setBusy(null); }
   };

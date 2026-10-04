@@ -12,6 +12,7 @@ import TableExport from './TableExport';
 import { captureImage } from './exportUtils';
 import BasicCoverageChart, { type BasicCoverageRow } from './BasicCoverageChart';
 import ScenarioGapTables, { type FinanceYear } from './ScenarioGapTables';
+import { aggregateContributionRows, ContributionViewToggle, type ContributionView } from '../contributionView';
 
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
 function round3(v: number): number { return (!isFinite(v) || v === 0) ? 0 : Number(v.toPrecision(3)); }
@@ -64,6 +65,8 @@ interface Props {
   inputs: any;
   altInputs?: Record<string, any>;
   onToggle?: (key: string, value: boolean) => void;
+  contributionView: ContributionView;
+  onContributionViewChange: (v: ContributionView) => void;
 }
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
@@ -74,7 +77,7 @@ type Row = { key: string; label: string; addHH: number; resources: number | null
 // Per-intervention stacked breakdown for a sector. covRows/gapRows are per-year rows keyed by each band's
 // label (plus reserved keys __bau/__total/__target for coverage and __remain for the gap). `bands` lists the
 // interventions that actually contribute (each with its INTV_PALETTE colour), in stack order.
-type ContribBand = { key: string; label: string; color: string };
+type ContribBand = { key: string; label: string; color: string; interventionKey?: string; custom?: boolean; members?: { key: string; label: string }[] };
 type ContribSeries = { covRows: any[]; gapRows: any[]; bands: ContribBand[] };
 type Contrib = { water: ContribSeries; sanitation: ContribSeries } | null;
 
@@ -128,7 +131,15 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
           <YAxis tick={{ fontSize: 10 }} domain={domain} tickFormatter={fmt}>
             <Label value={yLabel} angle={-90} position="insideLeft" style={{ fontSize: 10, fill: '#64748b' }} />
           </YAxis>
-          <Tooltip formatter={(v: any) => fmt(+v) as any} labelFormatter={(l: any) => String(l)} contentStyle={{ fontSize: 11 }} />
+          <Tooltip formatter={(v: any, name: any, item: any) => {
+            const band = bands.find(b => b.label === name || b.key === name);
+            if (!band?.members?.length) return fmt(+v) as any;
+            const row = item?.payload || {};
+            const denominator = row.__source_total || 1;
+            const members = band.members.map(m => [m.label, Number(row[m.key] || 0) / denominator] as const)
+              .filter(([, amount]) => Math.abs(amount) > 1e-12);
+            return `${fmt(+v)}${members.length ? ` · ${members.map(([label, amount]) => `${label}: ${fmt(amount)}`).join(', ')}` : ''}`;
+          }} labelFormatter={(l: any) => String(l)} contentStyle={{ fontSize: 11 }} />
           {/* Legend lists reference lines first, then the stacked area fills (see chartLegend). */}
           <Legend wrapperStyle={{ fontSize: 10 }} content={linesFirstLegend} />
           {/* Coverage: BAU base at the bottom then a band per intervention. Financing gap: no base — the bands
@@ -145,7 +156,7 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
   );
 }
 
-export default function ResultsDashboard({ geoScope, scenarios, inputs, altInputs, onToggle }: Props) {
+export default function ResultsDashboard({ geoScope, scenarios, inputs, altInputs, onToggle, contributionView, onContributionViewChange }: Props) {
   const [viewScope, setViewScope] = useState<'urban' | 'rural' | 'national'>(
     geoScope === 'urban' ? 'urban' : geoScope === 'rural' ? 'rural' : 'national'
   );
@@ -370,8 +381,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             gapRow.__bau_gap = +(bauGap / 1000).toFixed(4);                        // total BAU gap → the target line to close
             covRows.push(covRow); gapRows.push(gapRow);
           });
-          const all: ContribBand[] = en.map(d => ({ key: d.label, label: d.label, color: d.color }));
-          if (hasCustoms) all.push({ key: 'Custom interventions', label: 'Custom interventions', color: P.custom });
+          const all: ContribBand[] = en.map(d => ({ key: d.label, label: d.label, color: d.color, interventionKey: d.key }));
+          if (hasCustoms) all.push({ key: 'Custom interventions', label: 'Custom interventions', color: P.custom, custom: true });
           // keep only bands that actually move either chart (an enabled-but-unparameterised lever adds 0)
           const bands = all.filter(b => covRows.some(r => Math.abs(r[b.key] || 0) > 1e-12) || gapRows.some(r => Math.abs(r[b.key] || 0) > 1e-12));
           return { covRows, gapRows, bands };
@@ -410,7 +421,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // Coverage stack in % mode: divide the base, every band, and the target/ceiling by that year's total.
   const asShareStack = (rows: any[], bands: ContribBand[]) => rows.map(r => {
     const tot = r.__total || 0; const d = (v: number) => tot > 0 ? v / tot : 0;
-    const o: any = { year: r.year, __total: tot > 0 ? 1 : 0, __bau: d(r.__bau || 0), __target: d(r.__target || 0) };
+    const o: any = { ...r, year: r.year, __source_total: tot, __total: tot > 0 ? 1 : 0, __bau: d(r.__bau || 0), __target: d(r.__target || 0) };
     bands.forEach(b => { o[b.key] = d(r[b.key] || 0); });
     return o;
   });
@@ -582,11 +593,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const s = secKey === 'water' ? both.water : both.sanitation;
     const label = secKey === 'water' ? 'Water Supply' : 'Sanitation';
     const cs = secKey === 'water' ? contrib?.water : contrib?.sanitation;
-    const csBands = cs?.bands ?? [];
-    const allCovData = cs ? (isShare ? asShareStack(cs.covRows, csBands) : cs.covRows) : [];
+    const groupedCov = cs && contributionView === 'category' ? aggregateContributionRows(cs.covRows, cs.bands) : { rows: cs?.covRows ?? [], bands: cs?.bands ?? [] };
+    const groupedGap = cs && contributionView === 'category' ? aggregateContributionRows(cs.gapRows, cs.bands) : { rows: cs?.gapRows ?? [], bands: cs?.bands ?? [] };
+    const csBands = groupedCov.bands as ContribBand[];
+    const allCovData = cs ? (isShare ? asShareStack(groupedCov.rows, csBands) : groupedCov.rows) : [];
     const covData = filterChartYears(allCovData);
     const basicData = filterChartYears(s.basicRows);
-    const gapData = filterChartYears(cs?.gapRows ?? []);
+    const gapData = filterChartYears(groupedGap.rows);
     // Both coverage charts share a household scale, including the total-households
     // ceiling, so their heights can be compared directly in count mode.
     const maxCoverage = Math.max(0,
@@ -623,22 +636,22 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           </div>
         )}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 8 }}>
-          <StackChart title={`${label} — safely-managed coverage`} subtitle="BAU base + each intervention's added households (target & ceiling shown as lines)"
+          <StackChart title={`${label} — safely-managed coverage`} subtitle={contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : "BAU base + each intervention's added households (target & ceiling shown as lines)"}
             data={covData} yLabel={isShare ? '% of population' : '# households (millions)'}
             base={covBase} bands={csBands} lines={covLines} fmt={covFmt} domain={coverageDomain}
-            filename={`${scopeName}_${secKey}_coverage`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_coverage`} />
+            filename={`${scopeName}_${secKey}_coverage_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_coverage`} />
           <BasicCoverageChart title={`${label} — basic coverage`} rows={basicData} isShare={isShare} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_basic_coverage`}
             captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
-          <StackChart title={`${label} — year-end financing requirement`} subtitle="Closing expansion balance plus unpaid replacement and negative cash accumulated since baseline. Year-end balances are not additive."
+          <StackChart title={`${label} — year-end financing requirement`} subtitle={contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : 'Closing expansion balance plus unpaid replacement and negative cash accumulated since baseline. Year-end balances are not additive.'}
             data={gapData} yLabel={`Year-end requirement (B ${cur})`}
             bands={csBands} lines={gapLines} fmt={gapFmt}
-            filename={`${scopeName}_${secKey}_financing_gap`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} />
+            filename={`${scopeName}_${secKey}_financing_gap_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} />
         </div>
         <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={cur} />
         {rows && rows.length > 0 && (
           <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f', marginBottom: 3 }}>Contribution by intervention (cumulative to {s.sum.endline})</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f', marginBottom: 3 }}>Contribution by intervention{contributionView === 'category' ? ' — individual detail' : ''} (cumulative to {s.sum.endline})</div>
             <ImpactTable rows={rows} hhCol={hhCol} />
           </div>
         )}
@@ -680,6 +693,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <ContributionViewToggle value={contributionView} onChange={onContributionViewChange} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>Scope</span>
             {/* National entry is one dataset with no urban/rural split, so the only honest view is National —
@@ -735,7 +749,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           </div>
           {/* Excel/CSV post one dataset and run the engine on it, so they take the edited primary (the
               national dataset in national-entry mode); the deck still covers every entered area. */}
-          <ExportButtons inputs={primary} pptxCharts={captureResultsCharts} areas={deckAreas} />
+          <ExportButtons inputs={primary} pptxCharts={captureResultsCharts} areas={deckAreas} contributionView={contributionView} />
         </div>
       </div>
 

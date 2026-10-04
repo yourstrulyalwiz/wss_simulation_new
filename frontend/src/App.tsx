@@ -6,6 +6,7 @@ import RevenueReconciliation from './components/RevenueBase';
 import ResultsDashboard from './components/ResultsDashboard';
 import LiveBAUChart from './components/LiveBAUChart';
 import { fetchDefaults, runCalculation } from './api';
+import { type ContributionView } from './contributionView';
 
 // The BAU view stacks two charts with identical elements: Safely managed (rung 0) then Basic (rung 1).
 function BAUChartPair(props: { inputsList: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string }) {
@@ -35,6 +36,7 @@ function migrateInjectionToggle(area: any) {
 export default function App() {
   const [inputs, setInputs] = useState<any>(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [contributionView, setContributionView] = useState<ContributionView>('individual');
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [profileList, setProfileList] = useState<string[]>([]);
   const [scenarios, setScenarios] = useState<{name: string, inputs: any}[]>([]);
@@ -582,7 +584,7 @@ export default function App() {
           </div>
         </>)}
         {activeTab === 2 && inputs && (
-          <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} />
+          <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} contributionView={contributionView} onContributionViewChange={setContributionView} />
         )}
         {/* Guide panel — tabs 0, 1, 2 */}
         {activeTab <= 2 && (
@@ -603,7 +605,7 @@ export default function App() {
         )}
 
         {activeTab === 3 && (
-          <ResultsDashboard geoScope={chartScope} scenarios={scenarios} inputs={inputs} altInputs={altInputs} onToggle={setToggle} />
+          <ResultsDashboard geoScope={chartScope} scenarios={scenarios} inputs={inputs} altInputs={altInputs} onToggle={setToggle} contributionView={contributionView} onContributionViewChange={setContributionView} />
         )}
 
         </div>

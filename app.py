@@ -121,6 +121,7 @@ def export_csv(inputs: dict = Body(...)):
     # Enriched: per-year forecast for both sectors (BAU / target / with-interventions coverage, service gap,
     # investment need, and BOTH financing gaps) + the per-intervention contribution breakdown.
     from export_data import scenario_csv
+    inputs.pop('_export_options', None)
     text = scenario_csv(inputs)
     return StreamingResponse(
         iter([text]),
@@ -135,8 +136,10 @@ def export_pptx(inputs: dict = Body(...)):
     # The Results deck export sends the on-screen chart PNGs under `_charts` (the backend can't render
     # recharts). Pull them out before running the engine so they don't reach the input coercion.
     charts = inputs.pop('_charts', None) if isinstance(inputs, dict) else None
+    export_options = inputs.pop('_export_options', {}) if isinstance(inputs, dict) else {}
+    contribution_view = export_options.get('contribution_view', 'individual')
     result = calculate(coerce_to_engine(inputs))
-    output = create_pptx(result, inputs, charts)
+    output = create_pptx(result, inputs, charts, contribution_view=contribution_view)
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type='application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -153,6 +156,7 @@ def export_deck_api(payload: dict = Body(...)):
     and derives National by summing Urban + Rural when both are given. `inputs` alone is accepted as a
     single-area fallback so older callers keep working."""
     from export_deck import build_deck
+    contribution_view = payload.pop('contribution_view', 'individual')
     if 'areas' in payload:
         # An explicit but empty `areas` is a caller bug, not a request for a default deck — falling
         # through to the single-area path here would quietly export a deck built from stock defaults.
@@ -160,13 +164,14 @@ def export_deck_api(payload: dict = Body(...)):
     else:
         single = payload.get('inputs') or payload
         single.pop('_charts', None)
+        single.pop('_export_options', None)
         areas = {'national': single} if single else {}
     if not areas:
         return {"error": "no area inputs supplied"}
     # One line recording which scopes the deck was built from. A deck missing a scope is almost always
     # a payload that never carried it, and that is otherwise invisible from the output alone.
     print(f"[export/deck] areas={list(areas)}", flush=True)
-    out = build_deck(areas)
+    out = build_deck(areas, contribution_view=contribution_view)
     return StreamingResponse(
         iter([out.getvalue()]),
         media_type='application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -178,7 +183,8 @@ def export_deck_api(payload: dict = Body(...)):
 def export_xlsx(inputs: dict = Body(...)):
     # Enriched multi-sheet workbook: per-sector forecast (incl. both financing gaps) + per-intervention breakdown.
     from export_data import scenario_xlsx
-    out = scenario_xlsx(inputs)
+    options = inputs.pop('_export_options', {})
+    out = scenario_xlsx(inputs, contribution_view=options.get('contribution_view', 'individual'))
     return StreamingResponse(
         iter([out.getvalue()]),
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

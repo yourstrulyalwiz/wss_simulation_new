@@ -453,3 +453,23 @@ h1, h2, h3, h4 {
   .wb-tab-nav { gap: 14px; }
   .wb-tab { font-size: 10px !important; }
 }
+
+.revenue-error-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.revenue-error-toggle::-webkit-details-marker { display: none; }
+.revenue-error-toggle:focus-visible { outline: 2px solid var(--wb-navy); outline-offset: 4px; }
+.revenue-error-toggle span {
+  flex-shrink: 0;
+  color: var(--wb-navy);
+  text-decoration: underline;
+  font-weight: 600;
+}
+.revenue-error-details[open] .revenue-error-expand,
+.revenue-error-details:not([open]) .revenue-error-minimize { display: none; }
+.revenue-error-content { margin-top: 8px; }

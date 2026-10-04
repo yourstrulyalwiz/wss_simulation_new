@@ -1,7 +1,7 @@
 // No additional dependencies: compile the TSX and check its rendered states.
 // Run: node frontend/tests/revenue-reconciliation.mjs
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import Module from 'node:module';
 import path from 'node:path';
@@ -48,6 +48,10 @@ assert.match(invalid, /Billed volume must be nonnegative/);
 assert.match(invalid, /Shared billed-revenue base/);
 assert.match(invalid, /value="-1"/);
 assert.match(invalid, /Enter shared revenue inputs/);
+assert.match(invalid, /<details[^>]*open/);
+assert.match(invalid, /<summary/);
+assert.match(invalid, /Minimize/);
+assert.match(invalid, /Show details/);
 assert.equal(render({ inputs: null, error: 'Ignored without inputs.' }), '');
 
 const blank = { version: 1, origin: 'user-entered', volume_mld: null, tariff: null,
@@ -84,4 +88,31 @@ const partial = { ...draftInputs, revenue_bases: { water: { ...blank, tariff: 10
 assert.equal(restoreBlankRevenueBases(partial), partial, 'Partially entered values must never be reset.');
 const legacyOrigin = { ...draftInputs, revenue_bases: { water: { ...blank, origin: 'collection' } } };
 assert.equal(restoreBlankRevenueBases(legacyOrigin), legacyOrigin, 'Only user-entered empty drafts can be reset.');
+// Optional real-browser fixture made from the actual rendered component/CSS.
+// Chromium executes the native toggle checks without adding dependencies.
+if (process.env.REVENUE_TOGGLE_HTML) {
+  const css = readFileSync(new URL('../src/theme.css', import.meta.url), 'utf8');
+  writeFileSync(process.env.REVENUE_TOGGLE_HTML, `<!doctype html><html><head><style>${css}</style></head>
+    <body><div class="wb-app">${render({ inputs: draftInputs, error: 'volume_mld is required.' })}</div>
+    <pre id="result"></pre><script>
+    try {
+      const details = document.querySelector('details');
+      const summary = details.querySelector('summary');
+      const content = details.querySelector('.revenue-error-content');
+      const inputs = Array.from(content.querySelectorAll('input'));
+      const values = JSON.stringify(inputs.map(input => input.value));
+      const expandedHeight = details.getBoundingClientRect().height;
+      if (!details.open) throw new Error('Notice should initially be expanded.');
+      summary.click();
+      if (details.open) throw new Error('Minimize did not collapse the notice.');
+      if (details.getBoundingClientRect().height >= expandedHeight) throw new Error('Minimizing did not free space.');
+      if (getComputedStyle(details.querySelector('.revenue-error-expand')).display === 'none') throw new Error('Show details must remain visible.');
+      if (!summary.textContent.includes('Revenue inputs need attention')) throw new Error('Warning must remain visible.');
+      summary.click();
+      if (!details.open || content.getBoundingClientRect().height === 0) throw new Error('Expanding did not restore controls.');
+      if (JSON.stringify(inputs.map(input => input.value)) !== values) throw new Error('Toggle changed input values.');
+      document.querySelector('#result').textContent = 'PASS: minimize, expand, compact warning, preserved inputs';
+    } catch (error) { document.querySelector('#result').textContent = 'FAIL: ' + error.message; }
+    </script></body></html>`);
+}
 console.log('Revenue reconciliation: automatic checks hidden; validation errors and correction controls preserved.');

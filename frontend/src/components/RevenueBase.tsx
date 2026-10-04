@@ -101,7 +101,13 @@ export function RevenueInputErrors({ inputs, onChange, area, resolution, error }
   if (!error && !needsCorrection.length) return null;
   const restored = restoreBlankRevenueBases(inputs);
   return <section aria-label="Revenue input errors" style={{ margin: '8px 16px', padding: 12, background: '#fff8e6', border: '1px solid #dfc078', borderRadius: 6, fontSize: 12 }}>
-    <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>Revenue inputs need attention — {area}</h3>
+    <details className="revenue-error-details" open>
+    <summary className="revenue-error-toggle" title="Minimize or expand revenue error details">
+      <h3 style={{ margin: 0, fontSize: 13 }}>Revenue inputs need attention — {area}</h3>
+      <span className="revenue-error-minimize">Minimize</span>
+      <span className="revenue-error-expand">Show details</span>
+    </summary>
+    <div className="revenue-error-content">
     <p>Revenue inputs could not be verified. Correct the values below to continue calculations and exports. Original values are retained.</p>
     {error && <p role="alert">{readableError(error)}</p>}
     {restored !== inputs && <div style={{ marginBottom: 12 }}>
@@ -129,5 +135,7 @@ export function RevenueInputErrors({ inputs, onChange, area, resolution, error }
     </div>)}
     {error && ['water', 'sanitation'].filter(s => inputs.revenue_bases?.[s]).map(sector =>
       <RevenueBaseEditor key={sector} inputs={inputs} onChange={onChange} sector={sector} />)}
+    </div>
+    </details>
   </section>;
 }

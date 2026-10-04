@@ -15,11 +15,13 @@ elasticity, operating costs, new reinvestment assumptions or connection feedback
 as incidental improvements to this work.
 
 Automatic revenue-base reconciliation should be silent. Only actual failures
-should show inline errors with a way to correct the inputs.
+should show inline errors with a way to correct the inputs. Users must be able
+to minimize the correction details while keeping a compact warning visible.
 
 **Why:** The user approved hiding automatic reconciliation in production while
 retaining genuine input errors; valid legacy fallback is not a reason to ask
-users to reconcile values manually.
+users to reconcile values manually. They also requested minimization because
+the correction panel occupied too much app space.
 
 **How to apply:** Preserve automatic migration and input validation. Do not
 reintroduce a loading/reconciliation popup, silently accept invalid bases, or

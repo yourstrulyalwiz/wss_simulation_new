@@ -239,10 +239,21 @@
   background: #f7fafb;
 }
 .results-ledger__row--scenario .results-ledger__rowhead,
-.results-ledger__row--scenario .results-ledger__value {
+.results-ledger__row--scenario .results-ledger__value,
+.results-ledger__row--summary .results-ledger__rowhead,
+.results-ledger__row--summary .results-ledger__value {
   background: #edf7f7;
   color: var(--ledger-navy);
   font-weight: 800;
+}
+.results-ledger__row--section th {
+  padding: 10px 12px;
+  background: #edf4f6;
+  color: var(--ledger-navy);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 800;
+  border-top: 2px solid #cbd9de;
 }
 .results-ledger__row--target .results-ledger__rowhead,
 .results-ledger__row--target .results-ledger__value {

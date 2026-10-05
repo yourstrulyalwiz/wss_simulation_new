@@ -120,6 +120,17 @@ for (const sector of ['water_supply', 'sanitation']) {
   const basicEffects = contributions.flatMap(c=>c.after.map((row,i)=>row.values.coverage[1]-c.before[i].values.coverage[1]));
   assert.ok(smEffects.some(value=>value>0) || sector==='sanitation');
   assert.ok(basicEffects.some(value=>value<0) || sector==='sanitation');
+  const fundingOptions={metric:'funding',service:'total',basis:'annual',years,isShare:false,moneyFactor:1,currency:'USD'};
+  const ordinary=ledgerRows({...data,includesDebt:false},fundingOptions);
+  assert.ok(!ordinary.some(r=>['debtFundingSection','fundingRestricted','repayments'].includes(r.key)));
+  assert.equal(ordinary.find(r=>r.key==='fundingOperating').label,'Ordinary net cash (signed)');
+  const debtFunding=ledgerRows({...data,includesDebt:true},fundingOptions);
+  assert.equal(debtFunding.find(r=>r.key==='debtFundingSection').label,'With debt servicing');
+  assert.equal(debtFunding.at(-1).key,'fundingOperating');
+  assert.equal(debtFunding.at(-1).kind,'summary');
+  assert.ok(debtFunding.findIndex(r=>r.key==='debtFundingSection')>debtFunding.findIndex(r=>r.key==='fundingExternal'));
+  assert.deepEqual(debtFunding.at(-1).values,ordinary.find(r=>r.key==='fundingOperating').values,
+    'Presentation mode must not change the supplied monetary data');
 }
 // National signed differences add; locally floored deficits deliberately do not net surpluses.
 for (const sector of ['water_supply','sanitation']) {

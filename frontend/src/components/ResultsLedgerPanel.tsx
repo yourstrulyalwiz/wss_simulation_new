@@ -81,6 +81,7 @@ function rowKindLabel(row: LedgerRow) {
   if (row.kind === 'intervention') return 'Intervention';
   if (row.kind === 'baseline') return 'Baseline';
   if (row.kind === 'scenario') return 'Combined';
+  if (row.kind === 'summary') return 'Net cash';
   if (row.kind === 'target') return 'Target';
   return 'Detail';
 }
@@ -263,6 +264,11 @@ export default function ResultsLedgerPanel({
             </thead>
             <tbody>
               {visibleRows.map(row => {
+                if (row.kind === 'section') return (
+                  <tr key={row.key} data-ledger-row={row.key} data-row-kind={row.kind} className="results-ledger__row results-ledger__row--section">
+                    <th scope="rowgroup" colSpan={years.length + 2}>{row.label}</th>
+                  </tr>
+                );
                 const isCategory = row.kind === 'category';
                 const isChild = row.kind === 'intervention';
                 const isSignedGap = 'signedGap' in row && row.signedGap === true;

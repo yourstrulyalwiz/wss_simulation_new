@@ -19,7 +19,7 @@ export type LedgerData = {
   areas?: { key: 'urban' | 'rural'; label: string; scenario: LedgerSnapshot[] }[];
 };
 export type LedgerRow = {
-  key: string; label: string; kind: 'baseline' | 'category' | 'intervention' | 'scenario' | 'detail' | 'target';
+  key: string; label: string; kind: 'baseline' | 'category' | 'intervention' | 'scenario' | 'detail' | 'target' | 'section' | 'summary';
   values: (number | null)[]; unit: string; children?: LedgerRow[]; signedGap?: boolean; depth?: number;
 };
 const measures: LedgerMeasure[] = ['coverage', 'target', 'accessGap', 'funding', 'fundingApplied',
@@ -201,11 +201,19 @@ export function ledgerRows(data: LedgerData, options: {
     if (service === 'total') {
       detail('fundingApplied', 'Scenario — funds applied to SM + Basic');
       detail('fundingShared', 'Scenario — available but not applied / restricted');
-      detail('fundingOperating', 'Scenario — ordinary net cash after debt service (signed)');
-      detail('fundingRestricted', 'Scenario — restricted loan cash available, including carry');
-      detail('repayments', 'Scenario — debt service paid');
     }
     detail('fundingExternal', 'Scenario — external household finance applied');
+    if (service === 'total') {
+      if (data.includesDebt) {
+        rows.push({ key: 'debtFundingSection', label: 'With debt servicing', kind: 'section',
+          unit: '', values: years.map(() => null) });
+        detail('fundingRestricted', 'Scenario — restricted loan cash available, including carry');
+        detail('repayments', 'Scenario — debt service paid');
+      }
+      rows.push({ key: 'fundingOperating',
+        label: data.includesDebt ? 'Ordinary net cash after debt service (signed)' : 'Ordinary net cash (signed)',
+        kind: data.includesDebt ? 'summary' : 'detail', unit, values: series(data.scenario, 'fundingOperating') });
+    }
   } else if (metric === 'requirements') {
     detail('plannedExpansion', 'Newly planned expansion — annual flow');
     detail('replacement', 'Replacement obligation — annual flow');

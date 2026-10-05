@@ -26,3 +26,14 @@ even when placed beside SM-only coverage graphs.
 sector financing need; basic-entry obligations can still remain.
 **How to apply:** Preserve the distinction between combined financing and
 single-service coverage or attributed financing when labeling graphs.
+
+For the Results SM coverage table, the primary reported gap must be the signed
+original target minus combined scenario for the selected scope, including
+National. Keep locally floored unmet targets as a separate diagnostic.
+**Why:** The user explicitly expects the gap beside National target and scenario
+rows to reconcile with those rows; summing local shortfalls under that label
+obscures surplus offsets and was interpreted as incorrect arithmetic.
+**How to apply:** Preserve local deficits for model expansion and financing.
+Use signed differences only for the net coverage reporting measure, with
+positive shortfalls and negative surpluses; do not redefine financial obligations
+as coverage-style net differences or annual requirements minus all available cash.

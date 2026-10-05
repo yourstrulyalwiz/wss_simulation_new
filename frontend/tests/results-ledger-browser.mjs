@@ -83,6 +83,21 @@ try {
           assert.ok(exported.body.filename.includes('without-debt'));
           const base = sheet.rows.find(row=>row[0]==='BAU');
           const full = sheet.rows.find(row=>row[0]==='Combined scenario');
+          if (metric==='coverage' && service==='sm') {
+            const target=sheet.rows.find(row=>row[0]==='Original target');
+            const net=sheet.rows.find(row=>row[0]==='SM net gap (target − scenario)');
+            assert.ok(net && sheet.rows.some(row=>row[0]==='Unmet SM targets across areas (no surplus offset)'));
+            assert.equal(net[1],full[1]==='%' ? 'pp' : 'M households');
+            for (let i=2;i<sheet.headers.length;i++)
+              assert.ok(Math.abs(net[i]-(target[i]-full[i]))<1e-10,'Exported SM net gap does not reconcile');
+            assert.ok(await e(`(()=>{const cells=[...document.querySelectorAll('${root} [data-ledger-row="smNetGap"] [data-ledger-year]')];
+              return cells.length>0 && cells.every(cell=>{
+                const v=Number(cell.title),text=cell.textContent.trim();
+                return v>0 ? text.startsWith('+') && cell.classList.contains('results-ledger__value--shortfall')
+                  : v<0 ? text.startsWith('-') && cell.classList.contains('results-ledger__value--surplus')
+                  : text==='0' && cell.classList.contains('results-ledger__value--neutral');
+              });})()`),'Signed SM gap formatting/colors incorrect');
+          }
           const categories = sheet.rows.filter((_,i)=>state.kinds[i]==='category');
           for (let i=2;i<sheet.headers.length;i++)
             assert.ok(Math.abs(base[i]+categories.reduce((sum,row)=>sum+row[i],0)-full[i])<1e-8,'Export does not reconcile');
@@ -99,6 +114,7 @@ try {
   const before = await e(`document.querySelector('${panel('water')} tbody').children.length`);
   await e(`document.querySelector('${panel('water')} [aria-expanded="false"]').click()`);
   assert.ok(await e(`document.querySelector('${panel('water')} tbody').children.length`) > before);
+  await change(`${panel('water')} select[aria-label$="ledger service"]`,'sm');
   await c.call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
   await e(`document.querySelector('${panel('water')}').scrollIntoView({block:'start'})`);
   await sleep(400);

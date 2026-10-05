@@ -53,7 +53,7 @@ function formatValue(value: number | null, unit: string, delta = false) {
 function description(metric: LedgerMetric, service: LedgerService, basis: LedgerBasis, isShare: boolean, currency: string) {
   if (metric === 'coverage') {
     return isShare
-      ? 'Coverage is shown as a share of population. Intervention changes are percentage-point differences.'
+      ? 'Coverage is shown as a share of population. Intervention changes and SM net gap are percentage-point differences.'
       : 'Coverage is shown in million households. Intervention changes are marginal differences from the preceding scenario state.';
   }
   if (metric === 'funding') {
@@ -212,7 +212,12 @@ export default function ResultsLedgerPanel({
       <div className="results-ledger__notes">
         <p>{description(selection.metric, selection.service, selection.basis, isShare, currency)}</p>
         {selection.metric === 'coverage' && selection.service === 'basic' && (
-          <p>Coverage and the original target are Basic-only (exclusive of Safely Managed). Basic coverage may fall after SM upgrades. The access-gap row instead assesses the at-least-basic minimum (SM + Basic).</p>
+          <p>Coverage and the original target are Basic-only (exclusive of Safely Managed). Basic coverage may fall after SM upgrades. The access-gap row instead assesses the at-least-basic minimum (SM + Basic), not the difference between the Basic-only rows.</p>
+        )}
+        {selection.metric === 'coverage' && selection.service === 'sm' && (
+          <p className="results-ledger__coverage-legend">
+            SM net gap = Original target − Combined scenario; + red means shortfall, − green means surplus, and neutral zero means no net difference. Local unmet-target diagnostics count each area without offsetting surpluses.
+          </p>
         )}
         {selection.metric !== 'coverage' && <p>Financial reporting starts after baseline {data.baselineYear}. Earlier years are not applicable (—).</p>}
         <p>Signed effects are scenario changes: negative funding means less funding; negative requirements or gaps mean a reduction.</p>
@@ -247,6 +252,7 @@ export default function ResultsLedgerPanel({
               {visibleRows.map(row => {
                 const isCategory = row.kind === 'category';
                 const isChild = row.kind === 'intervention';
+                const isSignedGap = 'signedGap' in row && row.signedGap === true;
                 const open = isExpanded(row.key);
                 return (
                   <tr key={row.key} data-ledger-row={row.key} data-row-kind={row.kind} className={`results-ledger__row results-ledger__row--${row.kind}`}>
@@ -278,10 +284,12 @@ export default function ResultsLedgerPanel({
                         <td
                           key={year}
                           data-ledger-year={year}
-                          className={`results-ledger__value${value != null && value < 0 ? ' results-ledger__value--negative' : ''}`}
+                          className={`results-ledger__value${isSignedGap && value != null
+                            ? value > 0 ? ' results-ledger__value--shortfall' : value < 0 ? ' results-ledger__value--surplus' : ' results-ledger__value--neutral'
+                            : value != null && value < 0 ? ' results-ledger__value--negative' : ''}`}
                           title={value == null ? 'Not available' : String(value)}
                         >
-                        {formatValue(value, row.unit, row.kind === 'category' || row.kind === 'intervention')}
+                        {formatValue(value, row.unit, isSignedGap || row.kind === 'category' || row.kind === 'intervention')}
                         </td>
                       );
                     })}
@@ -310,9 +318,9 @@ export default function ResultsLedgerPanel({
           ) : selection.metric === 'requirements' ? (
             <p><strong>Requirements.</strong> Annual requirement is a flow. Catch-up is the pre-funding expansion need with replacement and cash deficit. Outstanding expansion and accumulated shortfalls are end-of-year balances; do not sum them across years.</p>
           ) : selection.metric === 'gap' ? (
-            <p><strong>Gap.</strong> Current-year residual gap = outstanding expansion + replacement obligation − capped replacement credit + cash deficit. Funded expansion receives no second credit; cash deficits are allocated once. Year-end requirement = outstanding expansion + accumulated unpaid replacement and deficits. Both include balances: do not sum across years.</p>
+            <p><strong>Gap.</strong> Current-year residual gap = outstanding expansion + replacement obligation − capped replacement credit + cash deficit. Funded expansion receives no second credit; cash deficits are allocated once. Year-end requirement = outstanding expansion + accumulated unpaid replacement and deficits. National sums remaining local obligations; unused or restricted funds elsewhere are not assumed transferable. This is not generally annual requirements minus all available funding. Both include balances: do not sum across years.</p>
           ) : (
-            <p><strong>Coverage.</strong> Safely managed and basic access gaps are assessed at their respective service thresholds before aggregation. Share values use population as the denominator; deltas are in percentage points.</p>
+            <p><strong>Coverage.</strong> The signed SM net gap is Original target minus Combined scenario coverage, aggregated across areas; positive values are shortfalls and negative values are surpluses. Local access diagnostics assess each area against its service threshold before aggregation and do not offset surpluses against unmet targets. Share values use population as the denominator; intervention effects and SM net gap are in percentage points.</p>
           )}
           <p>Displayed values are rounded for readability. CSV and Excel retain unrounded values and include only the rows currently visible in the table.</p>
         </div>

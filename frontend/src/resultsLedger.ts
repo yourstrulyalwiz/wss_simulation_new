@@ -19,7 +19,7 @@ export type LedgerData = {
 };
 export type LedgerRow = {
   key: string; label: string; kind: 'baseline' | 'category' | 'intervention' | 'scenario' | 'detail' | 'target';
-  values: (number | null)[]; unit: string; children?: LedgerRow[];
+  values: (number | null)[]; unit: string; children?: LedgerRow[]; signedGap?: boolean;
 };
 const measures: LedgerMeasure[] = ['coverage', 'target', 'accessGap', 'funding', 'fundingApplied',
   'fundingShared', 'fundingOperating', 'fundingRestricted', 'fundingExternal', 'requirementsAnnual',
@@ -158,7 +158,22 @@ export function ledgerRows(data: LedgerData, options: {
   });
   if (isCoverage) {
     rows.push({ key: 'target', label: 'Original target', kind: 'target', unit, values: series(data.scenario, 'target') });
-    detail('accessGap', service === 'basic' ? 'At-least-basic access gap (SM + Basic)' : 'SM access gap');
+    if (service === 'sm') {
+      // Subtract the very same series displayed above, after scope aggregation.
+      // This reporting difference must not replace local deficits used by the model.
+      const net = difference(series(data.scenario, 'target'), series(data.scenario));
+      rows.push({
+        key: 'smNetGap', label: 'SM net gap (target − scenario)', kind: 'detail',
+        unit: isShare ? 'pp' : unit, signedGap: true,
+        values: net.map(value => value != null && Math.abs(value) < 1e-12 ? 0 : value),
+      });
+      rows.push({
+        key: 'accessGap', label: 'Unmet SM targets across areas (no surplus offset)', kind: 'detail',
+        unit: isShare ? 'pp' : unit, values: series(data.scenario, 'accessGap'),
+      });
+    } else {
+      detail('accessGap', 'At-least-basic access gap (SM + Basic)');
+    }
   } else if (metric === 'funding') {
     if (service === 'total') {
       detail('fundingApplied', 'Scenario — funds applied to SM + Basic');

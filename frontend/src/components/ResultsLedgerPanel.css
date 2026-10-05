@@ -150,6 +150,10 @@
   color: var(--ledger-navy);
   font-weight: 700;
 }
+.results-ledger__notes .results-ledger__coverage-legend {
+  color: #294e5a;
+  font-weight: 700;
+}
 
 .results-ledger__table-scroll {
   width: 100%;
@@ -227,6 +231,9 @@
   white-space: nowrap;
 }
 .results-ledger__value--negative { color: #9a4b42 !important; }
+.results-ledger__value--shortfall { color: #a12f35 !important; font-weight: 750; }
+.results-ledger__value--surplus { color: #236b4b !important; font-weight: 750; }
+.results-ledger__value--neutral { color: #58666b !important; font-weight: 650; }
 .results-ledger__row--baseline .results-ledger__rowhead,
 .results-ledger__row--baseline .results-ledger__value {
   background: #f7fafb;

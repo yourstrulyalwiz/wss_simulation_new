@@ -63,6 +63,13 @@ for (const sector of ['water_supply', 'sanitation']) {
           }
           if (metric === 'coverage' && isShare)
             assert.ok(categories.every(row=>row.unit==='pp') && final.unit==='%');
+          if (metric === 'coverage' && service === 'sm') {
+            const target = rows.find(row=>row.key==='target');
+            const net = rows.find(row=>row.key==='smNetGap');
+            assert.equal(net.signedGap, true);
+            assert.equal(net.unit, isShare ? 'pp' : 'M households');
+            net.values.forEach((value,i)=>close(value,target.values[i]-final.values[i]));
+          }
           const limited = ledgerRows(data,{...options,years:years.slice(-3)});
           assert.equal(limited[0].values.length,3);
           assert.deepEqual(limited[0].values,rows[0].values.slice(-3));
@@ -75,6 +82,29 @@ for (const sector of ['water_supply', 'sanitation']) {
       row.values[key].forEach((value,j) => value==null ?
         assert.equal(scenario[i].values[key][j],null) : close(value,scenario[i].values[key][j]*2));
   });
+  // Audit the other tables in BAU and scenario, locally and at National scope.
+  for (const isScenario of [false,true]) {
+    const result = fixture.results.at(-1);
+    const prefix = isScenario ? 'scenario_' : '';
+    const reports = [result,result];
+    for (const snap of ledgerSnapshots(reports,sector,fixture.baseline,isScenario)) {
+      if (snap.year<=fixture.baseline) continue;
+      const i = result.years.indexOf(snap.year);
+      const v = snap.values;
+      close(v.funding[2],v.fundingApplied[2]+v.fundingShared[2]);
+      for (let rung=0;rung<3;rung++) {
+        close(v.requirementsAnnual[rung],v.plannedExpansion[rung]+v.replacement[rung]+v.cashDeficit[rung]);
+        close(v.gapAnnual[rung],v.outstanding[rung]+v.replacement[rung]-v.replacementCredit[rung]+v.cashDeficit[rung]);
+        close(v.gapClosing[rung],v.outstanding[rung]+v.accumulatedShortfalls[rung]);
+      }
+      for (const key of ['fundingApplied','requirementsAnnual','requirementsCatchUp','gapAnnual','gapClosing'])
+        close(v[key][0]+v[key][1],v[key][2]);
+      close(v.gapAnnual[2],reports.reduce((sum,r)=>sum+r[sector][prefix+'financing_gap'][i],0));
+      close(v.gapClosing[2],reports.reduce((sum,r)=>sum+r[sector][prefix+'endline_financing_requirement'][i],0));
+      close(v.requirementsCatchUp[2],reports.reduce((sum,r)=>sum+
+        r[sector][prefix+'catch_up_requirement'][i]+r[sector][prefix+'cash_deficit'][i],0));
+    }
+  }
   const unavailable = ledgerRows({...data,attributionComplete:false},{
     metric:'coverage',service:'basic',basis:'annual',years,isShare:false,moneyFactor:1,currency:'USD',
   });
@@ -88,7 +118,42 @@ for (const sector of ['water_supply', 'sanitation']) {
   assert.ok(smEffects.some(value=>value>0) || sector==='sanitation');
   assert.ok(basicEffects.some(value=>value<0) || sector==='sanitation');
 }
+// National signed differences add; locally floored deficits deliberately do not net surpluses.
+for (const sector of ['water_supply','sanitation']) {
+  const makeArea = (target,coverage) => {
+    const result=structuredClone(fixture.results.at(-1));
+    result.total_hh=result.years.map(()=>3);
+    result[sector].target_hh[0]=result.years.map(()=>target);
+    result[sector].scenario_hh[0]=result.years.map(()=>coverage);
+    result[sector].scenario_sm_access_gap=result.years.map(()=>Math.max(target-coverage,0));
+    return result;
+  };
+  const urban=makeArea(2,2.10), rural=makeArea(1.84,1.69);
+  const rowsFor = (areas,isShare=false) => {
+    const snapshots=ledgerSnapshots(areas,sector,fixture.baseline);
+    return ledgerRows({years:urban.years,baselineYear:fixture.baseline,base:snapshots,scenario:snapshots,
+      contributions:[],attributionComplete:true,includesDebt:false},
+      {metric:'coverage',service:'sm',basis:'annual',years:urban.years,isShare,moneyFactor:1,currency:'USD'});
+  };
+  const rows=rowsFor([urban,rural]);
+  const values=(rs,key)=>rs.find(row=>row.key===key).values;
+  values(rows,'target').forEach((v,i)=>{
+    close(v,3.84);close(values(rows,'scenario')[i],3.79);
+    close(values(rows,'smNetGap')[i],.05);close(values(rows,'accessGap')[i],.15);
+    close(values(rowsFor([urban]),'smNetGap')[i]+values(rowsFor([rural]),'smNetGap')[i],.05);
+  });
+  for (const [target,actual,gap] of [[2,2.1,-.1],[2,1.9,.1],[2,2,0],[2,2+Number.EPSILON,0]]) {
+    const row=rowsFor([makeArea(target,actual)]).find(r=>r.key==='smNetGap');
+    row.values.forEach(value=>{close(value,gap);assert.ok(!Object.is(value,-0));});
+  }
+  const shares=rowsFor([urban,rural],true);
+  assert.equal(shares.find(row=>row.key==='smNetGap').unit,'pp');
+  values(shares,'smNetGap').forEach((v,i)=>{
+    close(v,.05/6*100);
+    close(v,values(shares,'target')[i]-values(shares,'scenario')[i]);
+  });
+}
 const invalid = structuredClone(fixture.results[0]);
 delete invalid.water_supply.scenario_annual_planned_expansion_cost_by_service;
 assert.throws(()=>ledgerSnapshots([invalid],'water_supply',fixture.baseline),/Missing service ledger measure/);
-console.log(`Results ledger tests passed: ${comparisons} unrounded reconciliation comparisons, service splits, shares, currency, year filters, explicit missing data and breakdown fallback.`);
+console.log(`Results ledger tests passed: ${comparisons} unrounded scenario bridges; signed/local SM gaps, National aggregation, financial component identities, service splits, shares, currency, year filters, explicit missing data and breakdown fallback.`);

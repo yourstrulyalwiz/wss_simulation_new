@@ -80,3 +80,13 @@ technology-mix input fields must be re-established for both sectors and areas.
 **How to apply:** Reuse technology names only for unfilled mixes; retain custom
 and partly edited rows. Missing active costs must remain missing, not appear as
 zero or produce a purportedly complete weighted cost.
+
+For the separately requested mock DRC simulation, use the user-supplied
+conversion of **2,309.58 CDF per US$1**, not the earlier proposed 3,000.
+
+**Why:** The user entered that rate and explicitly asked to use it for the mock
+scenario. It is a supplied modelling input, not a verified current market rate.
+
+**How to apply:** Convert illustrative USD unit costs to CDF by multiplying by
+2,309.58. Preserve the entered rate and any supplied reference year. Keep mock
+costs clearly labelled and separate from the original incomplete DRC profile.

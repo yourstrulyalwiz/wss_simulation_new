@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "-zmuUyutXRpxoJcsrrojM"
+uri = "file://Programming%20Notes%20Post%20Castalia/Correct%20Replacement%20Costs%20on%20Unbuilt%20Infrastructure.md"
+type = "text"
+title = "Replacement Costs on Unbuilt Infrastructure — Review"
+description = "Assessment of the original accounting error, the implemented correction, numerical examples and verification results."
+logical_id = "bbf7dc03-9d51-4904-90a1-feb79683a7a9"
+content_hash = "sha256:161ec9cc2c8db7442cef9af42eeb6a20f667ff78b6a72ebbe67c602882ae39eb"
+size = 7743
+mtime_ms = 1791214112411
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/bbf7dc03-9d51-4904-90a1-feb79683a7a9/efe2797d-9e88-4257-a5da-fc1fc6be7a16"
+storage_version_token = "1791214127021404"
+content_type = "text/markdown"

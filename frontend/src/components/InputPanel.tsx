@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { downloadTemplate, importTemplate } from '../api';
+import { downloadTemplate, importTemplate, fetchCostMixTemplates } from '../api';
+import { displayedCostMix, summarizeCostMix, formatRealUnitCost, type CostMixTemplates } from '../costMix';
 import NumInput from './NumInput';
 import { RevenueInputsSection } from './RevenueBase';
 import { CurrencyDisplayControl, currencyRateNote, defaultCurrencyDisplay, type CurrencyDisplaySettings } from '../currencyDisplay';
@@ -303,6 +304,14 @@ function YearField({ label, value, onCommit, min, max, tip }: {
 interface Props { inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; calculationError?: string; projectionError?: string; }
 
 export default function InputPanel({ inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate, calculationError, projectionError }: Props) {
+  const [costTemplates, setCostTemplates] = useState<CostMixTemplates>({});
+  const [costTemplateError, setCostTemplateError] = useState('');
+  useEffect(() => {
+    let active = true;
+    fetchCostMixTemplates().then(value => { if (active) setCostTemplates(value); })
+      .catch(error => { if (active) setCostTemplateError(String(error.message || error)); });
+    return () => { active = false; };
+  }, []);
   const [countries, setCountries] = useState<{name:string, currency:string}[]>([]);
   const [bauSectorLocal, setBauSectorLocal] = useState<'water' | 'sanitation'>('water');
   const rateInputRef = useRef<HTMLInputElement>(null);
@@ -410,46 +419,52 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
   // written through to that rung's weighted engine cost field. WATER uses different technologies for the
   // two rungs; SANITATION uses the same technologies in both (service level is attribute-driven).
   const setCostMix = (section: string, mixKey: string, engineField: string, arr: any[]) => {
-    const weighted = arr.reduce((a: number, t: any) => a + (+t.share || 0) * (+t.cost || 0), 0);
+    const { weighted } = summarizeCostMix(arr);
     onChange({ ...inputs, [section]: { ...inputs[section], [mixKey]: arr, [engineField]: weighted } });
   };
   const renderCostMix = (section: string, mixKey: string, engineField: string, title: string) => {
-    const m: any[] = (inputs[section]?.[mixKey] || []).filter((t: any) => t && typeof t === 'object');
-    if (!m.length) return null;
-    const shareSum = m.reduce((a: number, t: any) => a + (+t.share || 0), 0);
-    const weighted = m.reduce((a: number, t: any) => a + (+t.share || 0) * (+t.cost || 0), 0);
-    const ok = Math.abs(shareSum - 1) < 0.001;
+    const m = displayedCostMix(inputs[section]?.[mixKey], costTemplates[section]?.[mixKey]);
+    const { shareSum, weighted, sharesComplete: ok, hasValues } = summarizeCostMix(m);
     const cellStyle: React.CSSProperties = { padding: '4px 6px', border: '1px solid #F0D070', background: '#FFF9E6', borderRadius: 3, fontSize: 11, color: '#3A4452', outline: 'none' };
     // Shares that do not total 100% make the weighted cost wrong, so the share cells turn red until fixed.
-    const shareCell: React.CSSProperties = ok ? cellStyle : { ...cellStyle, border: '1px solid #dc2626', background: '#fef2f2' };
+    const shareCell: React.CSSProperties = ok || !hasValues ? cellStyle : { ...cellStyle, border: '1px solid #dc2626', background: '#fef2f2' };
     const upd = (i: number, patch: any) => setCostMix(section, mixKey, engineField, m.map((x: any, j: number) => j === i ? { ...x, ...patch } : x));
     return (
-      <div style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+      <div data-cost-section={section} data-cost-mix={mixKey} style={{ gridColumn: '1 / -1', marginTop: 4 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a5f', margin: '4px 0 2px' }}>{title} — technology mix</div>
+        {costTemplateError && <div role="alert" style={{ color: '#b91c1c', fontSize: 11 }}>
+          {costTemplateError} You can still add your own technologies below.
+        </div>}
         <table style={{ borderCollapse: 'collapse', fontSize: 11 }}>
           <thead><tr style={{ color: '#64748b' }}><th style={{ textAlign: 'left', padding: '2px 6px' }}>technology</th><th>share %</th><th>cost/HH</th><th></th></tr></thead>
           <tbody>
             {m.map((t: any, i: number) => (
               <tr key={i}>
-                <td><input type="text" style={{ ...cellStyle, width: 188 }} value={t.name || ''}
+                <td><input type="text" aria-label={`${title} technology ${i + 1} name`} style={{ ...cellStyle, width: 188 }} value={t.name || ''}
                   onChange={e => upd(i, { name: e.target.value })} /></td>
-                <td><NumInput style={{ ...shareCell, width: 62 }}
+                <td><NumInput aria-label={`${title} technology ${i + 1} share (%)`} style={{ ...shareCell, width: 62 }}
                   value={(t.share == null || Number.isNaN(+t.share)) ? undefined : Math.round((+t.share) * 1e6) / 1e4}
                   onValue={v => upd(i, { share: v === undefined ? undefined : v / 100 })} /></td>
-                <td><NumInput style={{ ...cellStyle, width: 96 }} commas
+                <td><NumInput aria-label={`${title} technology ${i + 1} cost per household (${CUR})`} style={{ ...cellStyle, width: 96 }} commas
                   value={(t.cost == null || Number.isNaN(+t.cost)) ? undefined : Math.round(+t.cost)}
                   onValue={v => upd(i, { cost: v })} /></td>
-                <td><button onClick={() => { if (m.length > 1) setCostMix(section, mixKey, engineField, m.filter((_: any, j: number) => j !== i)); }}
+                <td><button aria-label={`Remove ${title} technology ${i + 1}`} disabled={m.length <= 1}
+                  onClick={() => { if (m.length > 1) setCostMix(section, mixKey, engineField, m.filter((_: any, j: number) => j !== i)); }}
                   style={{ border: 'none', background: '#fee2e2', color: '#dc2626', borderRadius: 3, padding: '2px 7px', cursor: 'pointer', fontSize: 10 }}>✕</button></td>
               </tr>
             ))}
           </tbody>
         </table>
-        <button onClick={() => setCostMix(section, mixKey, engineField, [...m, { name: 'New technology', share: 0, cost: 0 }])}
+        <button onClick={() => setCostMix(section, mixKey, engineField, [...m, { name: 'New technology', share: null, cost: null }])}
           style={{ margin: '3px 0', padding: '3px 9px', fontSize: 11, border: '1px dashed #0073A8', background: '#fff', color: '#0073A8', borderRadius: 5, cursor: 'pointer' }}>+ Add technology</button>
-        <div style={{ fontSize: 10.5, color: ok ? '#0073A8' : '#b91c1c' }}>
-          Shares add up to {(shareSum * 100).toFixed(2)}%{ok ? '' : ' (they must total 100%)'}. Weighted {title} cost per household: <b>{Math.round(weighted).toLocaleString()} {CUR}</b>, used by the model.
+        <div style={{ fontSize: 10.5, color: weighted !== null || !hasValues ? '#0073A8' : '#b91c1c' }}>
+          Shares add up to {(shareSum * 100).toFixed(2)}%{ok ? '' : ' (they must total 100%)'}. Weighted {title} cost per household: <b>{weighted === null ? '—' : `${Math.round(weighted).toLocaleString()} ${CUR}`}</b>.
+          {weighted === null ? ' Enter shares totalling 100% and a cost for each selected technology.' : ' Used by the model.'}
         </div>
+        {!Array.isArray(inputs[section]?.[mixKey]) || !inputs[section][mixKey].length
+          ? inputs[section]?.[engineField] != null && Number.isFinite(Number(inputs[section][engineField])) &&
+            <div style={{ fontSize: 10.5, color: '#64748b' }}>Existing saved unit cost: {Number(inputs[section][engineField]).toLocaleString()} {CUR}. Enter a technology mix to replace it.</div>
+          : null}
       </div>
     );
   };
@@ -983,7 +998,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
         <F label="Nominal price year" value={inputs.water_costs.price_index_year ?? inputs.period.baseline_year} onChange={v => u('water_costs','price_index_year',v)} tip="The year the nominal technology prices are quoted in." />
         <F label="Price index (base = 100)" value={inputs.water_costs.price_index ?? 100} onChange={v => u('water_costs','price_index',v)} step={1} min={0} max={100000} tip="Real price = nominal × price index ÷ 100. Leave at 100 for no adjustment; change it and every technology price rescales accordingly." />
         {(() => { const pi = (inputs.water_costs.price_index ?? 100) / 100; return (
-          <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#475569', background: '#f8fafc', borderRadius: 4, padding: '3px 8px' }}>Real (used by the model): {ws[0]} = <b>{Math.round((inputs.water_costs.network_cost_per_hh_serv1||0)*pi).toLocaleString()}</b> {CUR}/HH · {ws[1]} = <b>{Math.round((inputs.water_costs.network_cost_per_hh_serv2||0)*pi).toLocaleString()}</b> {CUR}/HH</div>
+          <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#475569', background: '#f8fafc', borderRadius: 4, padding: '3px 8px' }}>Real (used by the model): {ws[0]} = <b>{formatRealUnitCost(inputs.water_costs.network_cost_per_hh_serv1, pi)}</b> {CUR}/HH · {ws[1]} = <b>{formatRealUnitCost(inputs.water_costs.network_cost_per_hh_serv2, pi)}</b> {CUR}/HH</div>
         ); })()}
         <SubHead text="Distribution network cost per HH (nominal)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b', marginBottom: 2 }}>
@@ -1010,11 +1025,11 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
         <F label="Nominal price year" value={inputs.sanitation_costs.price_index_year ?? inputs.period.baseline_year} onChange={v => u('sanitation_costs','price_index_year',v)} tip="The year the nominal technology prices are quoted in." />
         <F label="Price index (base = 100)" value={inputs.sanitation_costs.price_index ?? 100} onChange={v => u('sanitation_costs','price_index',v)} step={1} min={0} max={100000} tip="Real price = nominal × price index ÷ 100. Leave at 100 for no adjustment; change it and every technology price rescales accordingly." />
         {(() => { const pi = (inputs.sanitation_costs.price_index ?? 100) / 100; return (
-          <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#475569', background: '#f8fafc', borderRadius: 4, padding: '3px 8px' }}>Real (used by the model): {ss[0]} = <b>{Math.round((inputs.sanitation_costs.sewer_cost_per_hh_sserv1||0)*pi).toLocaleString()}</b> {CUR}/HH · {ss[1]} = <b>{Math.round((inputs.sanitation_costs.sewer_cost_per_hh_sserv2||0)*pi).toLocaleString()}</b> {CUR}/HH</div>
+          <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#475569', background: '#f8fafc', borderRadius: 4, padding: '3px 8px' }}>Real (used by the model): {ss[0]} = <b>{formatRealUnitCost(inputs.sanitation_costs.sewer_cost_per_hh_sserv1, pi)}</b> {CUR}/HH · {ss[1]} = <b>{formatRealUnitCost(inputs.sanitation_costs.sewer_cost_per_hh_sserv2, pi)}</b> {CUR}/HH</div>
         ); })()}
         <SubHead text="Sanitation cost per HH (nominal)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b', marginBottom: 2 }}>
-          Two tables using the <b>same</b> technologies — for sanitation the service level is set by service attributes (sharing, emptying, treatment), not the technology (see the panel below). Costs default equal; raise the {ss[0].toLowerCase()} table if it adds safe emptying/treatment.
+          Two tables using the <b>same</b> technologies — for sanitation the service level is set by service attributes (sharing, emptying, treatment), not the technology (see the panel below). Enter locally appropriate costs for each mix, including safe emptying/treatment where relevant.
         </div>
         {renderCostMix('sanitation_costs', 'sm_tech_mix', 'sewer_cost_per_hh_sserv1', ss[0])}
         {renderCostMix('sanitation_costs', 'basic_tech_mix', 'sewer_cost_per_hh_sserv2', ss[1])}

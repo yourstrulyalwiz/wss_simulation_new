@@ -5,6 +5,12 @@ export async function fetchDefaults() {
   return res.json();
 }
 
+export async function fetchCostMixTemplates() {
+  const res = await fetch(`${BASE_URL}/cost-mix/templates`);
+  if (!res.ok) throw new Error('The original technology catalogue could not be loaded.');
+  return res.json();
+}
+
 export async function runCalculation(inputs: any) {
   const res = await fetch(`${BASE_URL}/calculate`, {
     method: 'POST',

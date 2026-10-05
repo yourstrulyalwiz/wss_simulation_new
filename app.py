@@ -65,6 +65,12 @@ def get_defaults():
     return frontend_defaults()
 
 
+@app.get("/api/cost-mix/templates")
+def cost_mix_templates():
+    from unit_cost_templates import blank_cost_mix_templates
+    return blank_cost_mix_templates()
+
+
 @app.get("/api/defaults/blank")
 def get_blank():
     """Blank template (frontend-shaped): zero the numeric data but keep structure and labels."""

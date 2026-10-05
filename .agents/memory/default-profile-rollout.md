@@ -68,3 +68,15 @@ still depend on actual costs, technical settings and shared revenue inputs.
 that require it. Preserve explicit zero and custom overrides, show restored
 forecast presets as optional model defaults rather than country observations,
 and repair current inputs without repeating the one-time profile switch.
+
+Keep the original unit-cost entry controls available for water supply and
+sanitation in both Urban and Rural, even when a country's numerical assumptions
+are blank. Restoring the technology catalogue does not authorize restoring its
+sample shares or prices.
+
+**Why:** The user clarified that DRC values may remain blank but the original
+technology-mix input fields must be re-established for both sectors and areas.
+
+**How to apply:** Reuse technology names only for unfilled mixes; retain custom
+and partly edited rows. Missing active costs must remain missing, not appear as
+zero or produce a purportedly complete weighted cost.

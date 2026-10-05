@@ -2,6 +2,7 @@
 // Run: APP_URL=https://<development-host> node frontend/tests/workbook-preview-browser.mjs
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 
 const url = process.env.APP_URL;
 assert.ok(url, 'APP_URL must identify the development app.');
@@ -99,6 +100,91 @@ try {
   const editedMacro = await evaluate(`JSON.parse(localStorage.getItem('wss_working_bundle')).inputs.macro`);
   assert.equal(editedMacro.gdp_growth_forecast, 0, 'Zero fallback is a valid, persistent override.');
   assert.equal(editedMacro.inflation_local_ongoing, .075);
+  const enteredCosts = [];
+  async function enterMixValue(section, mix, column, value) {
+    await evaluate(`(() => {
+      const input = document.querySelector('[data-cost-section="${section}"][data-cost-mix="${mix}"] tbody tr').querySelectorAll('input')[${column}];
+      input.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input, ${JSON.stringify(value)});
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+      input.blur();
+    })()`);
+    await sleep(120);
+  }
+  for (const area of ['urban', 'rural']) {
+    await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent.trim().toLowerCase() === '${area}').click()`);
+    for (const [sector, section, key, fields] of [
+      ['Water Supply', 'water_costs', 'ws_unit_costs', ['network_cost_per_hh_serv1', 'network_cost_per_hh_serv2']],
+      ['Sanitation', 'sanitation_costs', 'san_unit_costs', ['sewer_cost_per_hh_sserv1', 'sewer_cost_per_hh_sserv2']],
+    ]) {
+      await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '${sector}').click()`);
+      await sleep(150);
+      await evaluate(`(() => {
+        const section = document.querySelector('[data-section-key="${key}"]');
+        if (!section.querySelector('[data-cost-mix]')) section.querySelector('.wb-section-trigger').click();
+        section.scrollIntoView({block:'start'});
+      })()`);
+      await sleep(200);
+      const emptyMixes = await evaluate(`({
+        groups: document.querySelectorAll('[data-cost-section="${section}"]').length,
+        rows: [...document.querySelectorAll('[data-cost-section="${section}"] tbody')].map(t => t.rows.length),
+        blank: [...document.querySelectorAll('[data-cost-section="${section}"] tbody tr')].every(
+          r => [...r.querySelectorAll('input')].slice(1).every(i => i.value === '')),
+        realBlank: document.querySelector('[data-section-key="${key}"]').textContent.includes('= —'),
+      })`);
+      assert.equal(emptyMixes.groups, 2, `${area} ${sector}: safely-managed and basic tables must be visible.`);
+      assert.ok(emptyMixes.rows.every(n => n > 1), 'The original catalogue must be restored, not just an empty table.');
+      assert.equal(emptyMixes.blank, true, `${area} ${sector}: no Nepal shares or prices may be inserted.`);
+      assert.equal(emptyMixes.realBlank, true, 'Unknown real unit costs must not display as zero.');
+      await evaluate(`document.querySelector('[data-section-key="${key}"]').scrollIntoView({block:'start'})`);
+      const screenshot = await send('Page.captureScreenshot', {format:'png'}, sessionId);
+      writeFileSync(`/tmp/wss-unit-costs-${area}-${sector.replaceAll(' ', '-').toLowerCase()}.png`,
+        Buffer.from(screenshot.data, 'base64'));
+      const amount = (area === 'urban' ? 1000 : 3000) + (sector === 'Sanitation' ? 1000 : 0);
+      for (const [index, mix] of ['sm_tech_mix', 'basic_tech_mix'].entries()) {
+        const price = amount / (index + 1);
+        await enterMixValue(section, mix, 1, '100');
+        await enterMixValue(section, mix, 2, String(price));
+        enteredCosts.push({area, section, mix, field: fields[index], price});
+      }
+      // Original add/remove functionality must remain usable with blank numeric drafts.
+      const originalCount = emptyMixes.rows[0];
+      await evaluate(`document.querySelector('[data-cost-section="${section}"][data-cost-mix="sm_tech_mix"] > button').click()`);
+      await sleep(150);
+      assert.equal(await evaluate(`document.querySelector('[data-cost-section="${section}"][data-cost-mix="sm_tech_mix"] tbody').rows.length`),
+        originalCount + 1);
+      assert.equal(await evaluate(`(() => {
+        const rows = document.querySelector('[data-cost-section="${section}"][data-cost-mix="sm_tech_mix"] tbody').rows;
+        return [...rows[rows.length-1].querySelectorAll('input')].slice(1).every(i => i.value === '');
+      })()`), true);
+      await evaluate(`(() => {
+        const rows = document.querySelector('[data-cost-section="${section}"][data-cost-mix="sm_tech_mix"] tbody').rows;
+        rows[rows.length-1].querySelector('button').click();
+      })()`);
+      await sleep(150);
+      await enterMixValue(section, 'sm_tech_mix', 0, `${area} ${sector} custom technology`);
+    }
+  }
+  // Clearing an active cost must stay missing, rather than silently becoming zero.
+  await enterMixValue('sanitation_costs', 'sm_tech_mix', 2, '');
+  await sleep(1000);
+  assert.equal(await evaluate(`JSON.parse(localStorage.getItem('wss_working_bundle')).altInputs.rural.sanitation_costs.sewer_cost_per_hh_sserv1`), null);
+  await enterMixValue('sanitation_costs', 'sm_tech_mix', 2, '0');
+  await sleep(1000);
+  assert.equal(await evaluate(`JSON.parse(localStorage.getItem('wss_working_bundle')).altInputs.rural.sanitation_costs.sewer_cost_per_hh_sserv1`), 0,
+    'Explicit zero must remain distinct from an unfilled cost.');
+  await enterMixValue('sanitation_costs', 'sm_tech_mix', 2, '4000');
+  await sleep(1000);
+  const costBundle = await evaluate(`JSON.parse(localStorage.getItem('wss_working_bundle'))`);
+  for (const entry of enteredCosts) {
+    const area = entry.area === 'urban' ? costBundle.inputs : costBundle.altInputs.rural;
+    assert.equal(area[entry.section][entry.field], entry.price);
+    assert.equal(area[entry.section][entry.mix][0].cost, entry.price);
+    assert.equal(area[entry.section][entry.mix][0].share, 1);
+  }
+  await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Water Supply').click()`);
+  await sleep(150);
+  console.log('Unit-cost fields: both rungs/sectors/areas restored blank; editing, add/remove, clearing and area-specific weighted costs verified.');
   assert.ok(urbanValues.includes((28.187377).toFixed(2)),
     'The Urban population must render with the table’s two-decimal display formatting.');
   await evaluate(`Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toLowerCase() === 'rural').click()`);
@@ -179,6 +265,11 @@ try {
   assert.equal(reloaded.altInputs.rural.revenue_bases.sanitation.volume_mld, 12.3);
   assert.equal(reloaded.inputs.macro.gdp_growth_forecast, 0);
   assert.equal(reloaded.inputs.macro.inflation_local_ongoing, .075);
+  for (const entry of enteredCosts) {
+    const area = entry.area === 'urban' ? reloaded.inputs : reloaded.altInputs.rural;
+    assert.equal(area[entry.section][entry.field], entry.price, 'Unit costs must survive reload.');
+    if (entry.mix === 'sm_tech_mix') assert.ok(area[entry.section][entry.mix][0].name.includes('custom technology'));
+  }
   assert.equal(reloaded.altInputs.rural.macro.inflation_local_ongoing, null,
     'Editing Urban assumptions must not overwrite Rural assumptions.');
   assert.equal(browserErrors.length, 0, JSON.stringify(browserErrors));

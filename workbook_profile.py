@@ -5,6 +5,7 @@ from openpyxl import load_workbook
 from demo_adapter import frontend_defaults
 from excel_io import parse_template
 from calculation_setup import restore_automatic_inputs
+from unit_cost_templates import blank_cost_mix_templates
 
 PREVIEW_PROFILE_NAME = "DRC_Data_Preview_Settings_Pending"
 
@@ -32,6 +33,8 @@ def import_area(path, area):
             supplied[str(row[0])] = list(row[2:])
     workbook.close()
     seed = _empty(frontend_defaults())
+    for section, mixes in blank_cost_mix_templates().items():
+        seed[section].update(mixes)
     seed["country_config"].update(country="Congo, Dem. Rep.",
                                   area="DRC data preview — settings pending", currency="CDF")
     seed["period"].update(model_start_year=start, baseline_year=baseline, forecast_end_year=end,

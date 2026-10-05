@@ -19,3 +19,10 @@ at-least-basic entry requirements. In the staged pathway, 60 SM / 30 basic again
 70/30 still requires ten basic entries and ten SM upgrades. Do not subtract SM
 surplus twice from a combined objective or change delivery ceilings merely to
 implement this hierarchy.
+
+Sector-wide financing displays must make their combined SM/basic scope explicit,
+even when placed beside SM-only coverage graphs.
+**Why:** The user interpreted achievement of the SM target as closing the entire
+sector financing need; basic-entry obligations can still remain.
+**How to apply:** Preserve the distinction between combined financing and
+single-service coverage or attributed financing when labeling graphs.

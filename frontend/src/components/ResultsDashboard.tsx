@@ -758,7 +758,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <BasicCoverageChart title={`${label} — basic coverage`} rows={basicData} isShare={isShare} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_basic_coverage`}
             captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
-          <StackChart title={`${label} — year-end financing requirement`} subtitle={contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : 'Closing expansion balance plus unpaid replacement and negative cash accumulated since baseline. Year-end balances are not additive.'}
+          <StackChart title={`${label} — year-end financing requirement (safely managed + basic)`} subtitle={contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : 'Closing expansion balance plus unpaid replacement and negative cash accumulated since baseline. Year-end balances are not additive.'}
             data={gapData} yLabel={`Year-end requirement (B ${displayCur})`}
             bands={gapBands} lines={gapLines} fmt={gapFmt}
             filename={`${scopeName}_${secKey}_financing_gap_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} currencyDisplay={detailExportCurrency} />

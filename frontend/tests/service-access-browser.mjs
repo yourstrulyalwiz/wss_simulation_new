@@ -100,6 +100,12 @@ try {
       }
       if(tab!=='BAU Scenario') assert.ok(checks.some(c=>c.rows.some(r=>r[1]==='Scenario')));
       assert.ok(await evaluate(`document.querySelectorAll('svg.recharts-surface').length>=2`),'Coverage graphs must remain rendered');
+      if(tab==='Results Dashboard') {
+        for(const key of ['water_gap','san_gap']) {
+          assert.ok(await evaluate(`document.querySelector('[data-results-chart="${key}"]')?.textContent.includes('year-end financing requirement (safely managed + basic)')`),
+            `${key} title must explicitly include both service levels`);
+        }
+      }
       console.log(`${tab}/${sector}: original targets, hierarchy diagnostics and outstanding transitions reconcile.`);
     }
   }

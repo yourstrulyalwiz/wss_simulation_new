@@ -239,7 +239,7 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
 
         # 3b. financing-gap chart + per-intervention contribution table
         s = prs.slides.add_slide(blank)
-        slide_title(s, f'{name} — financing gap & interventions',
+        slide_title(s, f'{name} — financing gap & interventions (safely managed + basic)',
                     'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.'
                     if contribution_view == 'category' else 'Grey = gap remaining · colours = closed by each lever')
         add_chart(s, gap_key, 0.5, 1.35, 7.6)

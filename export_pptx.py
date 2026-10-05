@@ -14,6 +14,7 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 
 from export_data import intervention_breakdown, WATER_INTV, SAN_INTV, _cur
+from service_gap_export import append_service_access_slides
 
 # ── World Bank Water Data palette ───────────────────────────────────────────────────────────────────
 NAVY = RGBColor(0x01, 0x49, 0x72)
@@ -296,6 +297,7 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
             ] for row in page]
             add_table(slide, .45, 1.45, 12.4, headers, rows, fontsize=7.5)
 
+    append_service_access_slides(prs, {area: result})
     output = io.BytesIO()
     prs.save(output)
     output.seek(0)

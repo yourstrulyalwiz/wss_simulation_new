@@ -3,7 +3,7 @@
 ## Assessment and proposed programming instructions
 
 **Date:** 5 October 2026  
-**Status:** Assessment and implementation proposal; not an implemented correction.  
+**Status:** Implemented and verified in development on 5 October 2026; the original assessment and proposal are retained below.  
 **Scope:** Current development version. Do not publish automatically.
 
 ## 1. Concern
@@ -236,3 +236,47 @@ Existing NRW and affordability ceiling behavior should be documented as a separa
 - User instruction: `attached_assets/Replit_SM_Overachievement_and_Basic_Gap_Fix_1791210754753.md`
 - Detailed programming plan: `.local/tasks/correct-hierarchical-service-gaps.md`
 - Saved profile assessed: `profiles/DRC_Mock_Simulation.json`
+
+## 9. Implementation and verification report
+
+### What changed
+
+- Added shared minimum-service diagnostics for both sectors and independent BAU/scenario passes.
+- Added explicit SM surplus, effective basic-only target, adjusted basic-only shortfall and at-least-basic access fields.
+- Added validation of household totals and reconciliation of forecast closing transitions with access gaps.
+- Updated Basic BAU summaries and forecast-table gap labels to use the adjusted diagnostic instead of the raw exclusive-category difference.
+- Added expandable **Service access gaps and outstanding transitions** tables to BAU charts, Intervention Design and the Results Dashboard, with CSV/Excel downloads.
+- Extended scenario CSV/Excel forecast exports and both PowerPoint export paths with service-access reconciliation.
+
+The existing expansion ledger was already correct for this issue and was preserved. All pre-existing model output fields in the saved DRC primary and rural calculations remain unchanged. The legacy raw `household_gap_basic` field retains its meaning for compatibility; consumers now use explicit fields where hierarchy-aware reporting is required.
+
+Detailed field definitions and changed files are documented in `docs/service-access-gaps.md`. Original target pathways, exclusive coverage, financing allocation, funded assets and saved profile inputs remain unchanged.
+
+### Before/after interpretation
+
+For 70 SM / 30 basic targets and 80 SM / 20 basic coverage:
+
+- Legacy raw basic-only shortfall: **10 households**, still retained as a compatibility diagnostic.
+- New adjusted basic-only shortfall: **0 households**.
+- At-least-basic access gap: **0 households**.
+- Outstanding connection-expansion requirement: **0**, as already correctly calculated by the existing ledger.
+
+For 80/15, five genuine basic entries remain. For 60/30, ten basic entries and ten SM upgrades remain. Replacement, ancillary and accumulated financial shortfalls are not erased by SM surplus.
+
+### Verification
+
+- All **68 Python tests passed**, including hierarchy examples, financing integration, multi-year upgrades, later closure of real deficits, funded stock and replacement, growing household totals, validation, geography-specific gaps and export checks.
+- Frontend production build passed.
+- Frontend tests passed for local-gap aggregation, both BAU/scenario passes and unchanged input data.
+- Chromium checks passed for both sectors in BAU, Intervention Design and the Results Dashboard, including rendered diagnostic tables and reconciliation with outstanding transitions.
+- Existing contribution-category regression passed for both service levels, count/share views, Excel chart exports and geographic scopes.
+- Existing saved DRC model outputs were compared before and after; all pre-existing fields were unchanged.
+- The running development application and interactive dashboard were visually checked.
+
+### Separate findings
+
+Existing NRW and affordability SM target ceilings remain unchanged.
+
+A separate zero-start interpolation issue was reproduced: with initial coverage of 80 SM / 0 basic and requested future targets of 70 SM / 15 basic, the current pathway can report 70 SM / 0 basic. This is outside the approved gap correction, which preserves target interpolation. It requires a separate review of how positive future targets are reached from zero starting counts.
+
+No automatic publishing was performed.

@@ -9,6 +9,8 @@ import { linesFirstLegend } from './chartLegend';
 import ExportButtons from './ExportButtons';
 import ChartExport from './ChartExport';
 import TableExport from './TableExport';
+import ServiceAccessGaps from './ServiceAccessGaps';
+import { serviceAccessRows, type AccessRow } from '../serviceAccess';
 import { captureImage } from './exportUtils';
 import BasicCoverageChart, { type BasicCoverageRow } from './BasicCoverageChart';
 import ScenarioGapTables, { type FinanceYear } from './ScenarioGapTables';
@@ -75,7 +77,7 @@ interface Props {
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
 type DebtData = { summary: any; rows: any[]; areas: any[] };
-type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData };
+type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[] };
 type Both = { water: Series; sanitation: Series } | null;
 type Row = { key: string; label: string; addHH: number; resources: number | null };
 
@@ -388,7 +390,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             },
           };
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
-          return { inv, unit, basicRows, financeRows, debt, sum: {
+           return { inv, unit, basicRows, financeRows, debt, accessRows: serviceAccessRows(resList, secKey, baseYr), sum: {
             endline: years[endIdx], curCov, bauCov: covPct(bau), scnCov: covPct(scn), tgtCov: covPct(tgt),
             addHH: Math.min(tEnd, scn[endIdx]) - Math.min(tEnd, bau[endIdx]),
             gapBauCum: endRequirement('endline_financing_requirement'), gapScnCum: endRequirement('scenario_endline_financing_requirement'),
@@ -742,6 +744,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '3px solid #0ea5e9', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55, marginBottom: 12 }}>
           <b>By {s.sum.endline}</b>, safely-managed coverage increases from <b>{pct(s.sum.bauCov)}</b> (BAU) to <b>{pct(s.sum.scnCov)}</b> with the current interventions — <b>{sig3(s.sum.addHH)} M</b> more households — against a target of <b>{pct(s.sum.tgtCov)}</b>. The endline financing requirement changes from <b>{sigB(displayMoney(s.sum.gapBauCum))}</b> to <b>{sigB(displayMoney(s.sum.gapScnCum))} B {displayCur}</b>.
         </div>
+        <ServiceAccessGaps rows={s.accessRows} filename={`${scopeName}_${secKey}_service_access`} />
         {noImpact && (
           <div style={{ fontSize: 10.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '5px 9px', marginBottom: 10 }}>
             No interventions are active for {label.toLowerCase()}. Toggle some on above to break down the impact by intervention.

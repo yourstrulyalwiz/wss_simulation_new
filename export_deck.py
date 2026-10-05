@@ -19,6 +19,7 @@ from pptx.dml.color import RGBColor
 from pptx.util import Emu, Inches, Pt
 
 import deck_data as DD
+from service_gap_export import append_service_access_slides
 from export_data import year_label_step          # one year-axis rule for the deck and the xlsx charts
 from pptx_template import (chart_groups, clone_slide, delete_slide_obj, delete_table_columns,
                            delete_table_rows, clone_table_row, drop_prompt_shapes, find_shape,
@@ -883,6 +884,7 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, co
             _fill_detail(slide, b, row, scope_inputs, sk, source_cur, display_cur, money_factor)
 
     _append_utility_debt_slides(prs, d['blocks'], display_cur, money_factor)
+    append_service_access_slides(prs, d['results'])
 
     # ── contents + prompts ──────────────────────────────────────────────────────────────────────
     _rebuild_contents(prs.slides[IDX_CONTENTS], _contents_entries(prs, d, present, lever_rows),

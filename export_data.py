@@ -115,6 +115,23 @@ def per_year_table(result, inputs, sector_key):
     headers += [f'{label} — {pass_label} {service} ({cur} M)'
                 for pass_label in ('BAU', 'scenario') for service in ('safely-managed', 'basic')
                 for label, _ in attributed_fields]
+    access_fields = [
+        ('Original SM target', 'target_hh', 0),
+        ('Original basic-only target', 'target_hh', 1),
+        ('SM coverage', 'bau_hh', 0),
+        ('Basic-only coverage', 'bau_hh', 1),
+        ('SM overachievement', 'sm_overachievement', None),
+        ('Effective basic-only target after SM credit', 'effective_basic_only_target', None),
+        ('SM access gap', 'sm_access_gap', None),
+        ('Basic-only target shortfall after SM credit — diagnostic', 'adjusted_basic_only_gap', None),
+        ('At-least-basic target', 'at_least_basic_target', None),
+        ('At-least-basic coverage', 'at_least_basic_coverage', None),
+        ('At-least-basic access gap — basic-entry costing', 'at_least_basic_access_gap', None),
+        ('Outstanding SM upgrades', 'closing_outstanding_hh', 0),
+        ('Outstanding lower-to-basic entries', 'closing_outstanding_hh', 1),
+    ]
+    headers += [f'{label} — {pass_label} (M HH)'
+                for pass_label in ('BAU', 'scenario') for label, _, _ in access_fields]
     rows = []
     for i, y in enumerate(years):
         bau = g('bau_hh', i); scn = g('scenario_hh', i); tgt = g('target_hh', i)
@@ -135,6 +152,11 @@ def per_year_table(result, inputs, sector_key):
         rows[-1] += [round(sec[prefix + key][rung][i], 4)
                      for prefix in ('', 'scenario_') for rung in (0, 1)
                      for _, key in attributed_fields]
+        for prefix in ('', 'scenario_'):
+            for _, key, rung in access_fields:
+                name = 'scenario_hh' if prefix and key == 'bau_hh' else prefix + key
+                values = sec[name]
+                rows[-1].append(round(values[rung][i] if rung is not None else values[i], 6))
     return headers, rows
 
 

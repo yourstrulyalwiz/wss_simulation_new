@@ -13,6 +13,7 @@ import numpy as np
 from .inputs import ModelInputs, InterventionToggles
 from .water_supply import calculate_water_supply
 from .sanitation import calculate_sanitation
+from .service_gaps import SERVICE_GAP_FIELDS
 
 
 def _series(arr, n, default=0.0):
@@ -265,6 +266,10 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
     bau['scenario_hh'] = scn['bau_hh']                                  # SM path WITH interventions
     bau['scenario_financing_gap'] = scn['financing_gap']
     bau['scenario_total_investment_need'] = scn['total_investment_need']
+    # Diagnostics are computed per pass/per geography, never from national net coverage.
+    bau['scenario_target_hh'] = scn['target_hh']
+    for key in SERVICE_GAP_FIELDS:
+        bau['scenario_' + key] = scn[key]
     from model.expansion_ledger import ExpansionLedger
     for key in ExpansionLedger(0, 0, 0).series:
         bau['scenario_' + key] = scn[key]

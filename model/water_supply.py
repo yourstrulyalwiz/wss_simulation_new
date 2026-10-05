@@ -18,6 +18,7 @@ import numpy as np
 
 from model.gap_attribution import attribute_gap
 from model.expansion_ledger import ExpansionLedger
+from model.service_gaps import assess_service_gaps, reconcile_expansion_gaps
 from model.utility_revenue import collected_revenue, volume_path, number, RevenueInputError
 
 RUNGS = ["Safely managed", "Basic", "Limited", "Unimproved", "No Service"]
@@ -946,9 +947,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
 
         # 4d — residual new-service costs; expansion funding has already bought connections.
         gap = max(0.0, tgt[0, t] - bau[0, t]); hh_gap[t] = gap
-        # Basic is a costed objective once investment can be directed to it, so the investment need prices
-        # the basic shortfall at the basic unit cost alongside the safely-managed one. Under a 100%
-        # safely-managed target the basic gap is zero, so this term vanishes and the pre-split numbers hold.
+        # Retain the legacy raw exclusive-category diagnostic for API compatibility.
+        # It is NOT a basic-entry cost driver; explicit hierarchy-aware fields follow below.
         gap_b = max(0.0, tgt[1, t] - bau[1, t]); hh_gap_basic[t] = gap_b
         # Price outstanding transition households, not exclusive Basic shortfall.
         # Replacement is attributed to opening funded capital, not target need.
@@ -1006,6 +1006,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     grant_spend_cum = np.cumsum(grant_spend_flow)
     mf_loan_cum = np.cumsum(mf_loan_flow)
 
+    service_gaps = assess_service_gaps(total_hh, bau, tgt, years)
+    reconcile_expansion_gaps(ledger.series['closing_outstanding_hh'], service_gaps, bi, years)
+
     return {
         'rungs': RUNGS,
         'cost_per_hh': cost_sm,
@@ -1061,6 +1064,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'baseline_spending_reference_source': spending_reference_source,
         'financial_commitment_base': commitment_base.tolist(),
         **ledger.result(),
+        **{key: value.tolist() for key, value in service_gaps.items()},
         'opening_stock': opening_stock,
         'household_gap': hh_gap.tolist(),
         'household_gap_basic': hh_gap_basic.tolist(),

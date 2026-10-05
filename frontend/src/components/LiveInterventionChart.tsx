@@ -4,6 +4,9 @@ import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Label,
 } from 'recharts';
 import ChartExport from './ChartExport';
+import { runCalculation } from '../api';
+import ServiceAccessGaps from './ServiceAccessGaps';
+import { serviceAccessRows, type AccessRow } from '../serviceAccess';
 
 /**
  * Live intervention-impact chart. INCREMENTAL multi-pass compare: it POSTs /api/calculate once for the
@@ -57,6 +60,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const [data, setData] = useState<any[]>([]);
   const [bands, setBands] = useState<Intv[]>([]);   // interventions that actually contribute, in stack order
   const [summary, setSummary] = useState<any>(null);
+  const [accessRows, setAccessRows] = useState<AccessRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   // Unit toggle, matching the BAU chart and the Results dashboard: absolute households or share of
   // population. The engine always returns household counts; share mode is a pure display conversion.
@@ -74,9 +78,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
     const enabledCustoms: any[] = (inputs?.custom_interventions || [])
       .filter((c: any) => c && c.enabled !== false && (c.sector === sector || c.sector === 'both'));
     const h = setTimeout(() => {
-      const post = (body: any) => fetch('/api/calculate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      }).then(r => { if (!r.ok) throw new Error('calc failed (' + r.status + ')'); return r.json(); });
+      const post = runCalculation;
       const secOf = (res: any) => sector === 'water' ? res.water_supply : res.sanitation;
       const off = zeroToggles(inputs?.toggles);
       const withoutDebt = (source: any) => ({
@@ -136,6 +138,8 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         setData(rows);
         setBands(contributing);
         const full = debtResult ? secOf(debtResult) : secOf(results[results.length - 1]); // all enabled toggles + customs, then utility debt
+        setAccessRows(serviceAccessRows([debtResult || results[results.length - 1]],
+          sector === 'water' ? 'water_supply' : 'sanitation', inputs.period.baseline_year));
         const bau = secOf(results[0]);
         const e = years.length - 1;
         const cum = (a: number[]) => (a || []).reduce((s: number, v: number) => s + (+v || 0), 0);
@@ -146,7 +150,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
           cur: inputs?.country_config?.currency || 'LCU',
         });
         setError(null);
-      }).catch((err: any) => setError(String(err)));
+      }).catch((err: any) => { setError(String(err)); setAccessRows([]); setSummary(null); });
     }, 350);
     return () => clearTimeout(h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -254,6 +258,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
           {summary.gapBau > 0 && <> (a <b>{Math.round((1 - summary.gapIntv / summary.gapBau) * 100)}%</b> reduction)</>}. <span style={{ color: '#64748b' }}>{currencyRateNote(currencyDisplay, summary.cur)}</span>
         </div>
       )}
+      <ServiceAccessGaps rows={accessRows} filename={`${sector}_${rung}_intervention_service_access`} />
       <div ref={chartRef} style={{ background: '#fff' }}>
       <ResponsiveContainer width="100%" height={360}>
         <ComposedChart data={visibleData} margin={{ top: 14, right: 24, bottom: 5, left: 10 }}>

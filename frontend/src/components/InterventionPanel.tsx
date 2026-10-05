@@ -724,6 +724,9 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           <ContributionViewToggle value={contributionView} onChange={onContributionViewChange} />
           <ExportButtons inputs={interventionChartInputs} pptx={false} contributionView={contributionView} currencyDisplay={currencyDisplay} />
         </div>
+        <p data-testid="intervention-no-debt-note" style={{ fontSize: 12, color: '#475569', margin: '0 0 12px' }}>
+          Live intervention preview — includes selected interventions and custom interventions, without borrowing or debt servicing. Saved loan settings are applied separately in Debt servicing.
+        </p>
         <LiveInterventionChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel} rung={0} contributionView={contributionView} currencyDisplay={currencyDisplay} />
         <div style={{ height: 18 }} />
         <LiveInterventionChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel} rung={1} contributionView={contributionView} currencyDisplay={currencyDisplay} />

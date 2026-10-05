@@ -41,6 +41,8 @@ try {
   const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
   await send('Runtime.enable', {}, sessionId);
   await send('Page.enable', {}, sessionId);
+  await send('Emulation.setDeviceMetricsOverride',
+    { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const previous = { __wss_bundle: 1, inputs: { retainedOriginalSession: true },
     altInputs: { rural: { retainedOriginalArea: true } }, scope: { areaRural: true } };
   await send('Page.addScriptToEvaluateOnNewDocument', { source:
@@ -71,6 +73,32 @@ try {
     b => /SERVICE LEVELS|ECONOMIC.*DEMOGRAPHIC/i.test(b.textContent) && b.textContent.includes('▾')).forEach(b => b.click())`);
   await sleep(350);
   const urbanValues = await evaluate(`Array.from(document.querySelectorAll('input')).map(i => i.value)`);
+  // Independent economic projections must populate even with missing country costs.
+  await sleep(600);
+  const economics = await evaluate(`(() => {
+    const section = document.querySelector('[data-section-key=econ_demo]');
+    const row = [...section.querySelectorAll('tr')].find(r => /GDP.*used/i.test(r.textContent));
+    return {used: row?.textContent, optional: section.textContent.includes('Optional forecast assumptions')};
+  })()`);
+  assert.ok(economics.optional, 'Existing forecast assumptions must have editable controls.');
+  assert.ok(economics.used && /\d/.test(economics.used), 'Automatic GDP used row must contain numbers without unit costs.');
+  for (const [name, value] of [['GDP growth fallback', '0'], ['Ongoing local inflation', '7.5']]) {
+    await evaluate(`(() => {
+      const label = [...document.querySelectorAll('[data-section-key=econ_demo] label')]
+        .find(l => l.textContent.includes(${JSON.stringify(name)}));
+      const input = label.parentElement.querySelector('input');
+      input.focus();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input, ${JSON.stringify(value)});
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+      input.blur();
+    })()`);
+    await sleep(250);
+  }
+  await sleep(1000); // Working-session autosave is debounced.
+  const editedMacro = await evaluate(`JSON.parse(localStorage.getItem('wss_working_bundle')).inputs.macro`);
+  assert.equal(editedMacro.gdp_growth_forecast, 0, 'Zero fallback is a valid, persistent override.');
+  assert.equal(editedMacro.inflation_local_ongoing, .075);
   assert.ok(urbanValues.includes((28.187377).toFixed(2)),
     'The Urban population must render with the table’s two-decimal display formatting.');
   await evaluate(`Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toLowerCase() === 'rural').click()`);
@@ -133,8 +161,9 @@ try {
     assert.ok(await evaluate(`!!document.querySelector('.wb-app')`), 'Page must remain rendered.');
     if (label === 'BAU Scenario') {
       await sleep(1200);
-      assert.ok(await evaluate(`document.body.textContent.includes('as_is_forecast_length')`),
-        'BAU must show the real missing forecast-setting error.');
+      assert.ok(await evaluate(`document.body.textContent.includes('Missing country-specific inputs')`),
+        'BAU must report genuinely missing calibration, not legacy automatic settings.');
+      assert.equal(await evaluate(`document.body.textContent.includes('as_is_forecast_length')`), false);
       assert.equal(await evaluate(`document.body.textContent.includes('calc failed (422)')`), false,
         'Do not replace actionable validation details with a generic status code.');
     }
@@ -148,7 +177,52 @@ try {
   assert.equal(reloaded.inputs.revenue_bases.water.volume_mld, 80.25);
   assert.equal(reloaded.altInputs.rural.revenue_bases.water.volume_mld, 33.3);
   assert.equal(reloaded.altInputs.rural.revenue_bases.sanitation.volume_mld, 12.3);
+  assert.equal(reloaded.inputs.macro.gdp_growth_forecast, 0);
+  assert.equal(reloaded.inputs.macro.inflation_local_ongoing, .075);
+  assert.equal(reloaded.altInputs.rural.macro.inflation_local_ongoing, null,
+    'Editing Urban assumptions must not overwrite Rural assumptions.');
   assert.equal(browserErrors.length, 0, JSON.stringify(browserErrors));
+  // A fully configured fixture must render both BAU graphs in every scope and sector.
+  // Only the isolated test browser is changed; no saved server profile is written.
+  await evaluate(`(() => {
+    const bundle = JSON.parse(localStorage.getItem('wss_working_bundle'));
+    for (const input of [bundle.inputs, bundle.altInputs.rural]) {
+      Object.assign(input.water_costs, {network_cost_per_hh_serv1:1000, network_cost_per_hh_serv2:500});
+      Object.assign(input.sanitation_costs, {sewer_cost_per_hh_sserv1:900, sewer_cost_per_hh_sserv2:400});
+      Object.assign(input.technical, {ws_asset_life:30, san_asset_life:30, ws_non_hh_pct:0, san_non_hh_pct:0});
+      input.revenue_bases = Object.fromEntries(['water','sanitation'].map(sector => [sector,
+        {version:1, volume_mld:1, reference_year:2025, tariff:1, collection_ratio:1, growth_rate:null}]));
+    }
+    localStorage.setItem('wss_working_bundle', JSON.stringify(bundle));
+  })()`);
+  await send('Page.reload', {}, sessionId);
+  await sleep(1200);
+  await evaluate(`[...document.querySelectorAll('.wb-tab')].find(b => b.textContent.includes('BAU')).click()`);
+  for (const sector of ['Water Supply', 'Sanitation']) {
+    await evaluate(`([...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(sector)})).click()`);
+    for (const scope of ['Urban', 'Rural', 'National (Urban + Rural)']) {
+      await evaluate(`([...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(scope)})).click()`);
+      let plotted;
+      for (let attempt = 0; attempt < 25; attempt++) {
+        await sleep(200);
+        plotted = await evaluate(`({
+          curves: [...document.querySelectorAll('.recharts-area path[d]')].filter(p => p.getAttribute('d')?.length > 30).length,
+          headings: [...document.querySelectorAll('h3')].filter(h => h.textContent.includes('BAU vs Target')).length,
+          missing: document.body.textContent.includes('Missing country-specific inputs'),
+          generic: document.body.textContent.includes('calc failed'),
+        })`);
+        if (plotted.curves >= 2 && plotted.headings === 2) break;
+      }
+      if (plotted.curves < 2) {
+        console.log(await evaluate(`({wrappers:[...document.querySelectorAll('.recharts-wrapper')].map(w => ({width:w.getBoundingClientRect().width,html:w.outerHTML.slice(0,160)})),paths:[...document.querySelectorAll('svg path')].map(p => p.getAttribute('class')),text:document.body.textContent.slice(-2200)})`));
+      }
+      assert.ok(plotted.curves >= 2 && plotted.headings === 2, JSON.stringify({sector, scope, plotted}));
+      assert.equal(plotted.missing, false);
+      assert.equal(plotted.generic, false);
+    }
+  }
+  assert.equal(browserErrors.length, 0, JSON.stringify(browserErrors));
+  console.log('Configured BAU: safely managed + basic curves render for both sectors in Urban/Rural/National.');
   console.log('Browser passed: DRC startup, preserved data/session, all workflow tabs accessible and safe reload.');
 } finally {
   browser.kill('SIGTERM');

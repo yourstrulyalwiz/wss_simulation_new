@@ -47,9 +47,24 @@ inputs just because an import has blanked values used by that existing workflow.
 **Why:** History review showed that blanket clearing of numeric configuration
 prevented the unchanged forecasting code from running. Supplied series can
 already support automatic projections, so requiring a redundant fallback rate
-misdiagnoses the import problem.
+misdiagnoses the import problem. The user explicitly approved restoring the
+established underlying calculations and relevant input fields after that review.
 
 **How to apply:** Check established derivation and default behavior before
 requiring more user inputs. Preserve automatic projections from uploaded data.
 Keep actual unit-cost, technical and inflation assumptions distinct; this rule
 does not authorize carrying over Nepal's country-specific assumptions.
+
+Automatic economic and demographic rows must remain available before financial
+calibration is complete. Clearly distinguish those projections from a fully
+calibrated BAU simulation; never invent funding or service results for a partial
+projection.
+
+**Why:** Restoring the original automatic workflow must not require guessing
+country costs just to display GDP, households or population. Financial results
+still depend on actual costs, technical settings and shared revenue inputs.
+
+**How to apply:** Keep missing calibration errors local to the calculations
+that require it. Preserve explicit zero and custom overrides, show restored
+forecast presets as optional model defaults rather than country observations,
+and repair current inputs without repeating the one-time profile switch.

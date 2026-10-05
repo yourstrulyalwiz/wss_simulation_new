@@ -18,6 +18,20 @@ export async function runCalculation(inputs: any) {
   return res.json();
 }
 
+// Cost-independent calculated rows use the same engine's population/GDP formulas.
+export async function runEconomicProjections(inputs: any) {
+  const res = await fetch(`${BASE_URL}/projections`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(inputs),
+  });
+  if (!res.ok) {
+    const body = await res.json();
+    throw new Error(typeof body.detail === 'string' ? body.detail : 'Projection inputs are invalid.');
+  }
+  return res.json();
+}
+
 // Download a pre-filled Excel template of the year-by-year input table for the given dataset.
 export async function downloadTemplate(inputs: any) {
   const res = await fetch(`${BASE_URL}/template/xlsx`, {

@@ -300,9 +300,9 @@ function YearField({ label, value, onCommit, min, max, tip }: {
   );
 }
 
-interface Props { inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; calculationError?: string; }
+interface Props { inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; calculationError?: string; projectionError?: string; }
 
-export default function InputPanel({ inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate, calculationError }: Props) {
+export default function InputPanel({ inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate, calculationError, projectionError }: Props) {
   const [countries, setCountries] = useState<{name:string, currency:string}[]>([]);
   const [bauSectorLocal, setBauSectorLocal] = useState<'water' | 'sanitation'>('water');
   const rateInputRef = useRef<HTMLInputElement>(null);
@@ -915,10 +915,29 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
               </Section>
 
               <Section title="4. Economic & demographic data" sectionKey="econ_demo" onFocus={onSectionFocus}>
+                {projectionError && <div role="alert" style={{ gridColumn: '1 / -1', color: '#b91c1c', fontSize: 11 }}>
+                  Automatic economic projections could not run: {projectionError}
+                </div>}
                 <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b', marginBottom: 4, padding: '4px 8px', background: '#f8fafc', borderRadius: 4 }}>
                   Enter historical values in neutral-fill cells. Teal-tinted forecast cells are optional. Blank cells fill in from the yearly growth rate, shown in the muted "used" row. GDP growth, population growth, and average household size are auto-calculated.
                 </div>
                 <YearTable rows={econRows} years={years} baseYr2={baseYr2} />
+                <SubHead text="Optional forecast assumptions" />
+                <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
+                  GDP, population and households continue to project automatically from entered data.
+                  GDP fallback growth is used only when there are fewer than two GDP observations.
+                  The rates below show the existing model defaults when no override is entered;
+                  they are not measured DRC inflation.
+                </div>
+                <F label="GDP growth fallback" value={inputs.macro.gdp_growth_forecast ?? 0.05}
+                  onChange={v => u('macro','gdp_growth_forecast',v)} isPercent unit="%" min={-0.99}
+                  tip="Fallback only: with sufficient GDP observations, the model uses growth from the supplied series instead." />
+                <F label="Ongoing local inflation" value={inputs.macro.inflation_local_ongoing ?? 0.05}
+                  onChange={v => u('macro','inflation_local_ongoing',v)} isPercent unit="%" min={-0.99}
+                  tip="Existing model default: 5%. Override with a country-specific assumption. Used after the entered inflation series ends." />
+                <F label="Ongoing US inflation" value={inputs.macro.inflation_us_ongoing ?? 0.022}
+                  onChange={v => u('macro','inflation_us_ongoing',v)} isPercent unit="%" min={-0.99}
+                  tip="Existing model default: 2.2%. Override when relevant to the legacy USD conversion workflow." />
               </Section>
 
               {/* Sector choice ahead of the budget, so the split control below follows one sector
@@ -948,6 +967,10 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
       </>}
 
       {(isBAU || isInputs) && <>
+      {calculationError?.includes('Missing country-specific inputs') &&
+        <div role="alert" style={{ padding: '8px 12px', marginBottom: 8, color: '#9f1239', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 5 }}>
+          {calculationError}
+        </div>}
       {isBAU && sectorToggle}
 
       {/* ===== UNIT COSTS + TECHNICAL (merged, sector-dependent). Targets are now set in the §2 table. ===== */}
@@ -970,7 +993,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
         {renderCostMix('water_costs', 'basic_tech_mix', 'network_cost_per_hh_serv2', ws[1])}
         <SubHead text="Technical parameters" />
         <F label="Useful life of assets" value={inputs.technical.ws_asset_life} onChange={v => u('technical','ws_asset_life',v)} unit="yrs" min={5} max={100} tip="Expected useful life of infrastructure assets — drives the replacement (depreciation) capex." />
-        <F label="% water sold to non-household" value={inputs.technical.ws_non_hh_pct || 0} onChange={v => u('technical','ws_non_hh_pct',v)} isPercent unit="%" tip="Share of water sold to non-household customers (commercial, industrial, institutional) — scales the total capex above the household capex." />
+        <F label="% water sold to non-household" value={inputs.technical.ws_non_hh_pct} onChange={v => u('technical','ws_non_hh_pct',v)} isPercent unit="%" tip="Share of water sold to non-household customers (commercial, industrial, institutional) — scales the total capex above the household capex." />
         <SubHead text="Non-revenue water — feeds the BAU new-capex adder" />
         <F label="Treatment cost as % of capex" value={inputs.water_interventions?.nrw_treatment_cost_pct_capex ?? 0.4} onChange={v => u('water_interventions','nrw_treatment_cost_pct_capex',v)} isPercent unit="%" tip="Part of the new-capex adder: cost × (treat% × NRW% × physical%)" />
         <F label="Current NRW" value={inputs.water_interventions?.nrw_current_pct ?? 0.4} onChange={v => u('water_interventions','nrw_current_pct',v)} isPercent unit="%" tip="Non-revenue water as share of water produced" />
@@ -998,7 +1021,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
         <SanServiceLevelExplainer />
         <SubHead text="Technical parameters" />
         <F label="Useful life of assets" value={inputs.technical.san_asset_life} onChange={v => u('technical','san_asset_life',v)} unit="yrs" min={5} max={100} tip="Expected useful life of infrastructure assets — drives the replacement (depreciation) capex." />
-        <F label="% wastewater from non-household" value={inputs.technical.san_non_hh_pct || 0} onChange={v => u('technical','san_non_hh_pct',v)} isPercent unit="%" tip="Share of wastewater from non-household sources (commercial, industrial, institutional) — scales the total capex above the household capex." />
+        <F label="% wastewater from non-household" value={inputs.technical.san_non_hh_pct} onChange={v => u('technical','san_non_hh_pct',v)} isPercent unit="%" tip="Share of wastewater from non-household sources (commercial, industrial, institutional) — scales the total capex above the household capex." />
       </Section>
       )}
       </>}

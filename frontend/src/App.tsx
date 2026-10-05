@@ -5,7 +5,7 @@ import InterventionPanel from './components/InterventionPanel';
 import RevenueReconciliation from './components/RevenueBase';
 import ResultsDashboard from './components/ResultsDashboard';
 import LiveBAUChart from './components/LiveBAUChart';
-import { fetchDefaults, runCalculation } from './api';
+import { fetchDefaults, runCalculation, runEconomicProjections } from './api';
 import { type ContributionView } from './contributionView';
 import { CurrencyDisplayControl, defaultCurrencyDisplay, type CurrencyDisplaySettings, validRate } from './currencyDisplay';
 import { chooseDevelopmentPreview } from './developmentPreview';
@@ -269,11 +269,24 @@ export default function App() {
   // Live engine results for the ACTIVE dataset (debounced), so the input table can show the engine's
   // computed forecast-year values (population, GDP, budget, allocated/actual capex, …).
   const [results, setResults] = useState<any>(null);
+  const [economicProjections, setEconomicProjections] = useState<any>(null);
+  const [projectionError, setProjectionError] = useState('');
   const [calculationError, setCalculationError] = useState('');
   useEffect(() => {
     if (!activeInputs) return;
     let cancelled = false;
+    setResults(null);
+    setEconomicProjections(null);
+    setProjectionError('');
     const h = setTimeout(() => {
+      runEconomicProjections(activeInputs).then(value => {
+        if (!cancelled) setEconomicProjections(value);
+      }).catch(error => {
+        if (!cancelled) {
+          setEconomicProjections(null);
+          setProjectionError(error instanceof Error ? error.message : String(error));
+        }
+      });
       runCalculation(activeInputs).then(value => {
         if (!cancelled) { setResults(value); setCalculationError(''); }
       }).catch(error => {
@@ -592,7 +605,7 @@ export default function App() {
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         {activeTab === 0 && inputs && (
-          <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} calculationError={calculationError} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
+          <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results || economicProjections} calculationError={calculationError} projectionError={projectionError} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
         )}
         {activeTab === 1 && inputs && (<>

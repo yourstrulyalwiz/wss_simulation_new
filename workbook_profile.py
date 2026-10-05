@@ -4,6 +4,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 from demo_adapter import frontend_defaults
 from excel_io import parse_template
+from calculation_setup import restore_automatic_inputs
 
 PREVIEW_PROFILE_NAME = "DRC_Data_Preview_Settings_Pending"
 
@@ -75,7 +76,7 @@ def import_area(path, area):
                   "projection settings and intervention settings have not been supplied. "
                   "Missing or invalid settings may prevent successful calculations and result exports.",
     }
-    return imported
+    return restore_automatic_inputs(imported)
 
 
 def build_preview(urban_path, rural_path):

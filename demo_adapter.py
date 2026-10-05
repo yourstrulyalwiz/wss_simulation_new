@@ -451,6 +451,9 @@ def _income_distribution(fe: dict) -> IncomeDistribution:
 
 def to_engine(fe: dict) -> ModelInputs:
     """Translate the frontend-shaped inputs into a ModelInputs for the validated engine (BAU)."""
+    from calculation_setup import restore_automatic_inputs, validate_country_inputs
+    fe = restore_automatic_inputs(fe)
+    validate_country_inputs(fe)
     per = fe.get('period', {})
     msy = per.get('model_start_year', _START_YR)
     bi = int(per.get('baseline_year', _BASE_YR) - msy)

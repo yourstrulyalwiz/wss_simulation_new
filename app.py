@@ -9,6 +9,7 @@ import json
 from model.inputs import ModelInputs, CountryConfig
 from model.engine import calculate
 from demo_adapter import frontend_defaults, to_engine, coerce_to_engine
+from calculation_setup import CountryCalibrationError
 from currency_export import validate_currency_display
 
 app = FastAPI(title="WSS Scenarios Model API")
@@ -21,6 +22,11 @@ from pydantic import ValidationError
 @app.exception_handler(ValidationError)
 async def invalid_model_inputs(request, exc):
     return JSONResponse(status_code=422, content={'detail': 'Invalid model inputs: ' + str(exc)})
+
+
+@app.exception_handler(CountryCalibrationError)
+async def missing_country_inputs(request, exc):
+    return JSONResponse(status_code=422, content={'detail': str(exc)})
 
 
 @app.exception_handler(RevenueInputError)
@@ -137,6 +143,12 @@ def delete_profile(name: str):
 @app.post("/api/calculate")
 def run_calculation(inputs: dict = Body(...)):
     return calculate(coerce_to_engine(inputs))
+
+
+@app.post("/api/projections")
+def project_economics(inputs: dict = Body(...)):
+    from calculation_setup import economic_projections
+    return economic_projections(inputs)
 
 
 @app.post("/api/export/csv")

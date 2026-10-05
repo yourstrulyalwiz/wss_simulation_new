@@ -20,7 +20,7 @@ export type LedgerData = {
 };
 export type LedgerRow = {
   key: string; label: string; kind: 'baseline' | 'category' | 'intervention' | 'scenario' | 'detail' | 'target';
-  values: (number | null)[]; unit: string; children?: LedgerRow[]; signedGap?: boolean;
+  values: (number | null)[]; unit: string; children?: LedgerRow[]; signedGap?: boolean; depth?: number;
 };
 const measures: LedgerMeasure[] = ['coverage', 'target', 'accessGap', 'funding', 'fundingApplied',
   'fundingShared', 'fundingOperating', 'fundingRestricted', 'fundingExternal', 'requirementsAnnual',
@@ -122,12 +122,12 @@ export function ledgerRows(data: LedgerData, options: {
   const measure = ledgerMeasure(metric, service, basis);
   const isCoverage = metric === 'coverage';
   const unit = isCoverage ? isShare ? '%' : 'M households' : `B ${currency}`;
-  function series(snapshots: LedgerSnapshot[], key: LedgerMeasure = measure, denominators = snapshots) {
+  function series(snapshots: LedgerSnapshot[], key: LedgerMeasure = measure, denominators = snapshots, component = rung) {
     const byYear = new Map(snapshots.map(s => [s.year, s]));
     const populationByYear = new Map(denominators.map(s => [s.year, s.population]));
     return years.map(year => {
       const snap = byYear.get(year);
-      const value = snap?.values[key][rung];
+      const value = snap?.values[key][component];
       if (value == null || !snap) return null;
       const population = populationByYear.get(year) ?? 0;
       return isCoverage ? isShare ? (population > 0 ? value / population * 100 : 0) : value
@@ -161,28 +161,41 @@ export function ledgerRows(data: LedgerData, options: {
   });
   if (isCoverage) {
     rows.push({ key: 'target', label: 'Original target', kind: 'target', unit, values: series(data.scenario, 'target') });
-    if (service === 'sm') {
+    const gapValues = (snapshots: LedgerSnapshot[], component: number) =>
+      difference(series(snapshots, 'coverage', data.scenario, component),
+        series(snapshots, 'target', data.scenario, component))
+        .map(value => value != null && Math.abs(value) < 1e-12 ? 0 : value);
+    const serviceGap = (component: number, key: string, label: string, depth = 0) => {
       // Subtract the very same series displayed above, after scope aggregation.
       // This reporting difference must not replace local deficits used by the model.
-      const net = difference(series(data.scenario), series(data.scenario, 'target'));
       rows.push({
-        key: 'smNetGap', label: 'SM net gap (scenario − target)', kind: 'detail',
-        unit: isShare ? 'pp' : unit, signedGap: true,
-        values: net.map(value => value != null && Math.abs(value) < 1e-12 ? 0 : value),
+        key, label: `${label} (scenario − target)`, kind: 'detail',
+        unit: isShare ? 'pp' : unit, signedGap: true, depth,
+        values: gapValues(data.scenario, component),
       });
       for (const area of data.areas ?? []) {
         // Use the selected scope denominator so National area contributions add
         // to the National pp gap; single-area views use that area's denominator.
-        const areaNet = difference(series(area.scenario, 'coverage', data.scenario),
-          series(area.scenario, 'target', data.scenario));
         rows.push({
-          key: `smNetGap-${area.key}`, label: `${area.label} SM gap (scenario − target)`,
-          kind: 'detail', unit: isShare ? 'pp' : unit, signedGap: true,
-          values: areaNet.map(value => value != null && Math.abs(value) < 1e-12 ? 0 : value),
+          key: `${key}-${area.key}`,
+          label: `${area.label} ${component === 0 ? 'SM' : 'Basic-only'} gap (scenario − target)`,
+          kind: 'detail', unit: isShare ? 'pp' : unit, signedGap: true, depth: depth + 1,
+          values: gapValues(area.scenario, component),
         });
       }
+    };
+    if (service === 'total') {
+      rows.push({
+        key: 'atLeastBasicNetGap', label: 'At least basic net gap (scenario − target)',
+        kind: 'detail', unit: isShare ? 'pp' : unit, signedGap: true,
+        values: gapValues(data.scenario, 2),
+      });
+      serviceGap(0, 'smNetGap', 'SM net gap', 1);
+      serviceGap(1, 'basicNetGap', 'Basic-only gap', 1);
+    } else if (service === 'sm') {
+      serviceGap(0, 'smNetGap', 'SM net gap');
     } else {
-      detail('accessGap', 'At-least-basic access gap (SM + Basic)');
+      serviceGap(1, 'basicNetGap', 'Basic-only gap');
     }
   } else if (metric === 'funding') {
     if (service === 'total') {

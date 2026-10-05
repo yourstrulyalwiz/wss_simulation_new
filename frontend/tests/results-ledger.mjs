@@ -41,7 +41,7 @@ for (const sector of ['water_supply', 'sanitation']) {
   contributions.push({key:'custom',label:'Enabled zero-effect custom',category:'custom',before:scenario,after:scenario});
   const data = {years,baselineYear:fixture.baseline,base,scenario,contributions,attributionComplete:true,includesDebt:false};
   for (const metric of ['coverage','funding','requirements','gap'])
-    for (const service of metric === 'coverage' ? ['sm','basic'] : ['sm','basic','total'])
+    for (const service of ['sm','basic','total'])
       for (const basis of ['annual','closing'])
         for (const isShare of [false,true]) {
           const options = {metric,service,basis,years,isShare,moneyFactor:.001,currency:'USD'};
@@ -110,9 +110,12 @@ for (const sector of ['water_supply', 'sanitation']) {
   });
   assert.ok(!unavailable.some(row=>row.kind==='category'));
   assert.ok(unavailable.find(row=>row.key==='scenario'));
-  // Basic remains exclusive: the access gap is the separate at-least-basic measure.
+  // Basic remains exclusive, including its signed category gap.
   const basic = ledgerRows(data,{metric:'coverage',service:'basic',basis:'annual',years,isShare:false,moneyFactor:1,currency:'USD'});
   basic.find(row=>row.key==='scenario').values.forEach((value,i)=>close(value,fixture.results.at(-1)[sector].scenario_hh[1][i]));
+  assert.ok(!basic.some(row=>row.key==='accessGap' || row.key==='smNetGap'));
+  basic.find(row=>row.key==='basicNetGap').values.forEach((value,i)=>
+    close(value,basic.find(row=>row.key==='scenario').values[i]-basic.find(row=>row.key==='target').values[i]));
   const smEffects = contributions.flatMap(c=>c.after.map((row,i)=>row.values.coverage[0]-c.before[i].values.coverage[0]));
   const basicEffects = contributions.flatMap(c=>c.after.map((row,i)=>row.values.coverage[1]-c.before[i].values.coverage[1]));
   assert.ok(smEffects.some(value=>value>0) || sector==='sanitation');
@@ -129,13 +132,13 @@ for (const sector of ['water_supply','sanitation']) {
     return result;
   };
   const urban=makeArea(2,2.10), rural=makeArea(1.84,1.69);
-  const rowsFor = (areas,isShare=false,keys=['urban','rural']) => {
+  const rowsFor = (areas,isShare=false,keys=['urban','rural'],service='sm') => {
     const snapshots=ledgerSnapshots(areas,sector,fixture.baseline);
     return ledgerRows({years:urban.years,baselineYear:fixture.baseline,base:snapshots,scenario:snapshots,
       contributions:[],attributionComplete:true,includesDebt:false,
       areas: areas.map((result,i)=>({key:keys[i],label:keys[i]==='urban' ? 'Urban' : 'Rural',
         scenario:ledgerSnapshots([result],sector,fixture.baseline)}))},
-      {metric:'coverage',service:'sm',basis:'annual',years:urban.years,isShare,moneyFactor:1,currency:'USD'});
+      {metric:'coverage',service,basis:'annual',years:urban.years,isShare,moneyFactor:1,currency:'USD'});
   };
   const rows=rowsFor([urban,rural]);
   const values=(rs,key)=>rs.find(row=>row.key===key).values;
@@ -168,6 +171,51 @@ for (const sector of ['water_supply','sanitation']) {
   });
   const ruralShares=rowsFor([rural],true,['rural']);
   close(values(ruralShares,'smNetGap-rural')[0],-.15/3*100);
+  // Combined access decomposes by exclusive service, then by real entered area.
+  urban[sector].target_hh[1]=urban.years.map(()=>1);
+  urban[sector].scenario_hh[1]=urban.years.map(()=>.7);
+  rural[sector].target_hh[1]=rural.years.map(()=>.5);
+  rural[sector].scenario_hh[1]=rural.years.map(()=>.8);
+  for(const isShare of [false,true]) {
+    const total=rowsFor([urban,rural],isShare,['urban','rural'],'total');
+    const basic=rowsFor([urban,rural],isShare,['urban','rural'],'basic');
+    const factor=isShare?100/6:1;
+    for(let i=0;i<urban.years.length;i++){
+      close(values(total,'scenario')[i],5.29*factor);
+      close(values(total,'target')[i],5.34*factor);
+      close(values(total,'atLeastBasicNetGap')[i],-.05*factor);
+      close(values(total,'smNetGap')[i]+values(total,'basicNetGap')[i],values(total,'atLeastBasicNetGap')[i]);
+      for(const key of ['smNetGap','basicNetGap'])
+        close(values(total,`${key}-urban`)[i]+values(total,`${key}-rural`)[i],values(total,key)[i]);
+      close(values(basic,'basicNetGap')[i],values(total,'basicNetGap')[i]);
+    }
+    assert.equal(total.find(r=>r.key==='smNetGap').depth,1);
+    assert.equal(total.find(r=>r.key==='basicNetGap-rural').depth,2);
+    assert.ok(!basic.some(r=>r.key==='accessGap' || r.key.startsWith('smNetGap')));
+    for(const [area,key] of [[urban,'urban'],[rural,'rural']]){
+      const single=rowsFor([area],isShare,[key],'total');
+      for(const component of ['smNetGap','basicNetGap']){
+        close(values(single,component)[0],values(single,`${component}-${key}`)[0]);
+        assert.ok(!single.some(r=>r.key===`${component}-${key==='urban'?'rural':'urban'}`));
+      }
+    }
+  }
+  // Upgrading Basic to SM does not fabricate a combined access shortfall.
+  const upgraded=makeArea(70,80);
+  upgraded.total_hh=upgraded.years.map(()=>100);
+  upgraded[sector].target_hh[1]=upgraded.years.map(()=>30);
+  upgraded[sector].scenario_hh[1]=upgraded.years.map(()=>20);
+  const combined=rowsFor([upgraded],false,['urban'],'total');
+  close(values(combined,'smNetGap')[0],10);
+  close(values(combined,'basicNetGap')[0],-10);
+  close(values(combined,'atLeastBasicNetGap')[0],0);
+  // National-only input must not invent an area split.
+  const snap=ledgerSnapshots([upgraded],sector,fixture.baseline);
+  const national=ledgerRows({years:upgraded.years,baselineYear:fixture.baseline,base:snap,scenario:snap,
+    contributions:[],attributionComplete:false,includesDebt:false},
+    {metric:'coverage',service:'total',basis:'annual',years:upgraded.years,isShare:false,moneyFactor:1,currency:'USD'});
+  assert.ok(!national.some(r=>/-urban$|-rural$/.test(r.key)));
+  assert.ok(national.some(r=>r.key==='atLeastBasicNetGap'));
 }
 const invalid = structuredClone(fixture.results[0]);
 delete invalid.water_supply.scenario_annual_planned_expansion_cost_by_service;

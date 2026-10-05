@@ -30,7 +30,12 @@ const change = async (selector,value) => {
 };
 try {
   await c.call('Page.addScriptToEvaluateOnNewDocument',{source:`
-    window.__ledgerExports=[];window.__ledgerCalls=0;
+    window.__ledgerExports=[];window.__ledgerCalls=0;window.__ledgerCSVs=[];
+    const originalBlobURL=URL.createObjectURL.bind(URL);
+    URL.createObjectURL=blob=>{
+      if(blob.type.startsWith('text/csv')) blob.text().then(text=>window.__ledgerCSVs.push(text));
+      return originalBlobURL(blob);
+    };
     const fetchOriginal=window.fetch.bind(window);
     window.fetch=(url,options)=>{
       if(String(url)==='/api/calculate') window.__ledgerCalls++;
@@ -57,11 +62,12 @@ try {
   const expectedYears = Array.from({length:end-start+1},(_,i)=>String(start+i));
   const calls = await e('window.__ledgerCalls');
   let exports = 0;
+  let csvs = 0;
   for (const sector of ['water','sanitation']) {
     const root = panel(sector);
     for (const metric of ['coverage','funding','requirements','gap']) {
       await change(`${root} select[aria-label$="ledger metric"]`,metric);
-      for (const service of metric==='coverage' ? ['sm','basic'] : ['sm','basic','total']) {
+      for (const service of ['sm','basic','total']) {
         await change(`${root} select[aria-label$="ledger service"]`,service);
         for (const basis of ['requirements','gap'].includes(metric) ? ['annual','closing'] : ['annual']) {
           if (['requirements','gap'].includes(metric))
@@ -104,6 +110,47 @@ try {
                   : v<0 ? text.startsWith('-') && cell.classList.contains('results-ledger__value--shortfall')
                   : text==='0' && cell.classList.contains('results-ledger__value--neutral');
               });})()`),'Signed SM gap formatting/colors incorrect');
+          }
+          if (metric==='coverage') {
+            const target=sheet.rows.find(row=>row[0]==='Original target');
+            await e(`([...document.querySelectorAll('${root} .results-ledger__export button')].find(b=>b.textContent.includes('CSV'))).click()`);
+            await w(`window.__ledgerCSVs.length>${csvs}`,'CSV download did not complete');
+            const csv=await e(`window.__ledgerCSVs[${csvs++}]`);
+            const escape=value=>{
+              const s=value==null?'':String(value);
+              return /[",\n]/.test(s)?'"'+s.replaceAll('"','""')+'"':s;
+            };
+            for(const row of sheet.rows)
+              assert.ok(csv.split('\r\n').includes(row.map(escape).join(',')),'CSV differs from visible/Excel data');
+            assert.equal(await e(`document.querySelectorAll('${root} [data-ledger-row="accessGap"]').length`),0);
+            const gapLabel=service==='sm'?'SM net gap':service==='basic'?'Basic-only gap':'At least basic net gap';
+            const net=sheet.rows.find(row=>row[0]===`${gapLabel} (scenario − target)`);
+            for(let i=2;i<sheet.headers.length;i++)
+              assert.ok(Math.abs(net[i]-(full[i]-target[i]))<1e-10,'Coverage gap does not reconcile');
+            assert.ok(exported.body.filename.includes(service==='total'?'at-least-basic':service==='basic'?'basic-only':'safely-managed'));
+            assert.deepEqual(await e(`[...document.querySelector('${root} select[aria-label$="ledger service"]').options].map(o=>o.textContent)`),
+              ['Safely managed','Basic only','At least basic']);
+            if(service==='basic'){
+              assert.ok(!sheet.rows.some(row=>/SM (net )?gap|At.least.basic access gap/.test(row[0])));
+            }
+            if(service==='total'){
+              const sm=sheet.rows.find(row=>row[0]==='SM net gap (scenario − target)');
+              const basic=sheet.rows.find(row=>row[0]==='Basic-only gap (scenario − target)');
+              for(let i=2;i<sheet.headers.length;i++){
+                assert.ok(Math.abs(sm[i]+basic[i]-net[i])<1e-10,'SM + Basic gap does not reconcile');
+                for(const [row,label] of [[sm,'SM'],[basic,'Basic-only']]){
+                  const urban=sheet.rows.find(r=>r[0]===`Urban ${label} gap (scenario − target)`);
+                  const rural=sheet.rows.find(r=>r[0]===`Rural ${label} gap (scenario − target)`);
+                  assert.ok(Math.abs(urban[i]+rural[i]-row[i])<1e-10,'Area/service gap does not reconcile');
+                }
+              }
+              assert.equal(await e(`document.querySelector('${root} [data-ledger-row="basicNetGap-rural"]').dataset.rowDepth`),'2');
+              // The total selection survives a metric switch; financial labels stay unchanged.
+              await change(`${root} select[aria-label$="ledger metric"]`,'funding');
+              assert.equal(await e(`document.querySelector('${root} select[aria-label$="ledger service"]').selectedOptions[0].textContent`),'Sector total');
+              await change(`${root} select[aria-label$="ledger metric"]`,'coverage');
+              assert.equal(await e(`document.querySelector('${root} select[aria-label$="ledger service"]').value`),'total');
+            }
           }
           const categories = sheet.rows.filter((_,i)=>state.kinds[i]==='category');
           for (let i=2;i<sheet.headers.length;i++)
@@ -155,7 +202,7 @@ try {
   const before = await e(`document.querySelector('${panel('water')} tbody').children.length`);
   await e(`document.querySelector('${panel('water')} [aria-expanded="false"]').click()`);
   assert.ok(await e(`document.querySelector('${panel('water')} tbody').children.length`) > before);
-  await change(`${panel('water')} select[aria-label$="ledger service"]`,'sm');
+  await change(`${panel('water')} select[aria-label$="ledger service"]`,'total');
   await c.call('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false});
   await e(`document.querySelector('${panel('water')}').scrollIntoView({block:'start'})`);
   await sleep(400);
@@ -167,5 +214,11 @@ try {
     return p.getBoundingClientRect().width<=innerWidth && s.scrollWidth>s.clientWidth &&
       getComputedStyle(p.querySelector('th')).position==='sticky';})()`),'Mobile ledger does not contain/freeze its table');
   writeFileSync('/tmp/results-ledger-mobile.png',Buffer.from((await c.call('Page.captureScreenshot',{format:'png'})).data,'base64'));
-  console.log(`Results ledger browser passed: ${exports} real year-column Excel exports across both sectors, services and bases; differing area selections, graph links, expandable categories, unchanged model requests, six charts and desktop/mobile layout.`);
+  await change(`${panel('sanitation')} select[aria-label$="ledger metric"]`,'coverage');
+  await change(`${panel('sanitation')} select[aria-label$="ledger service"]`,'total');
+  await e(`document.querySelector('${panel('sanitation')}').scrollIntoView({block:'start'})`);
+  await sleep(250);
+  assert.ok(await e(`document.querySelector('${panel('sanitation')}').getBoundingClientRect().width<=innerWidth`));
+  writeFileSync('/tmp/results-ledger-sanitation-mobile.png',Buffer.from((await c.call('Page.captureScreenshot',{format:'png'})).data,'base64'));
+  console.log(`Results ledger browser passed: ${exports} real year-column Excel exports and ${csvs} matching coverage CSV downloads across both sectors, all three services and bases; nested service/area gaps, differing area selections, metric switching, graph links, expandable categories, unchanged model requests, six charts and desktop/mobile layout.`);
 } finally {c.close();}

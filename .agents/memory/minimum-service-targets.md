@@ -48,3 +48,21 @@ surplus/shortfall offsets directly in the table.
 **How to apply:** Never invent a split for national-only input data. For National
 percentage-point breakdowns, use the selected National denominator so the area
 contributions reconcile; for a single-area view, use that area's denominator.
+
+## Exclusive and combined coverage reporting
+
+Keep coverage reporting in three distinct views for both Water and Sanitation:
+Safely managed, Basic only, and At least basic (SM + exclusive Basic). The
+Basic-only view must not mix its exclusive coverage/target with a combined
+at-least-basic access-gap row.
+
+**Why:** The user explicitly requested that Basic "only show basic" and that the
+coverage sector total be called At least basic, with SM and Basic gap components
+and Urban/Rural detail under each. An exclusive Basic decrease after an SM
+upgrade is a category difference, not evidence of lost minimum access.
+
+**How to apply:** Report each signed difference as scenario minus original
+target. At least basic's net gap equals SM plus Basic-only differences; the
+70/30 target versus 80/20 scenario reports +10 SM, −10 Basic-only and zero
+combined difference. Keep geographic financing/access obligations local and
+unchanged, even when signed reporting differences offset.

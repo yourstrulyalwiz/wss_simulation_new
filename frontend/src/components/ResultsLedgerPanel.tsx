@@ -36,6 +36,11 @@ const serviceOptions: { value: LedgerService; label: string }[] = [
   { value: 'basic', label: 'Basic' },
   { value: 'total', label: 'Sector total' },
 ];
+const coverageServiceOptions: { value: LedgerService; label: string }[] = [
+  { value: 'sm', label: 'Safely managed' },
+  { value: 'basic', label: 'Basic only' },
+  { value: 'total', label: 'At least basic' },
+];
 
 function slug(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'all';
@@ -53,7 +58,7 @@ function formatValue(value: number | null, unit: string, delta = false) {
 function description(metric: LedgerMetric, service: LedgerService, basis: LedgerBasis, isShare: boolean, currency: string) {
   if (metric === 'coverage') {
     return isShare
-      ? 'Coverage is shown as a share of population. Intervention changes and SM net gap are percentage-point differences.'
+      ? 'Coverage is shown as a share of population. Intervention changes and coverage gaps are percentage-point differences.'
       : 'Coverage is shown in million households. Intervention changes are marginal differences from the preceding scenario state.';
   }
   if (metric === 'funding') {
@@ -110,7 +115,8 @@ export default function ResultsLedgerPanel({
   const exportHeaders = ['Row', 'Unit', ...years.map(String)];
   const exportRows = visibleRows.map(row => [row.label, row.unit, ...row.values]);
   const metricLabel = metricOptions.find(option => option.value === selection.metric)?.label ?? 'Coverage';
-  const serviceLabel = serviceOptions.find(option => option.value === selection.service)?.label ?? 'Safely managed';
+  const selectedServiceOptions = selection.metric === 'coverage' ? coverageServiceOptions : serviceOptions;
+  const serviceLabel = selectedServiceOptions.find(option => option.value === selection.service)?.label ?? 'Safely managed';
   const basisLabel = selection.metric === 'requirements'
     ? selection.basis === 'annual' ? 'annual' : 'catch-up'
     : selection.metric === 'gap'
@@ -125,7 +131,7 @@ export default function ResultsLedgerPanel({
   const setMetric = (metric: LedgerMetric) => {
     onSelectionChange({
       metric,
-      service: metric === 'coverage' && selection.service === 'total' ? 'sm' : selection.service,
+      service: selection.service,
       basis: selection.basis,
     });
   };
@@ -175,8 +181,7 @@ export default function ResultsLedgerPanel({
             value={selection.service}
             onChange={event => onSelectionChange({ ...selection, service: event.target.value as LedgerService })}
           >
-            {serviceOptions
-              .filter(option => selection.metric !== 'coverage' || option.value !== 'total')
+            {selectedServiceOptions
               .map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
@@ -212,15 +217,18 @@ export default function ResultsLedgerPanel({
       <div className="results-ledger__notes">
         <p>{description(selection.metric, selection.service, selection.basis, isShare, currency)}</p>
         {selection.metric === 'coverage' && selection.service === 'basic' && (
-          <p>Coverage and the original target are Basic-only (exclusive of Safely Managed). Basic coverage may fall after SM upgrades. The access-gap row instead assesses the at-least-basic minimum (SM + Basic), not the difference between the Basic-only rows.</p>
+          <p>Coverage, target and gap are Basic-only, excluding Safely Managed. Basic-only coverage can fall when households upgrade to SM; a Basic-only category deficit does not by itself mean lost access or an unmet at-least-basic minimum.</p>
         )}
-        {selection.metric === 'coverage' && selection.service === 'sm' && (
+        {selection.metric === 'coverage' && selection.service === 'total' && (
+          <p>At least basic = Safely Managed + Basic-only. Its net gap equals the SM gap plus the Basic-only gap; upgrading Basic households to SM does not reduce combined access.</p>
+        )}
+        {selection.metric === 'coverage' && (
           <p className="results-ledger__coverage-legend">
-            SM net gap = Combined scenario − Original target; − red means shortfall, + green means surplus, and neutral zero means no net difference.
+            Gap = Combined scenario − Original target; − red means shortfall/category deficit, + green means surplus/category excess, and neutral zero means no net difference.
           </p>
         )}
-        {selection.metric === 'coverage' && selection.service === 'sm' && !!data.areas?.length && (
-          <p>Area SM gaps use scenario − target. {isShare
+        {selection.metric === 'coverage' && !!data.areas?.length && (
+          <p>Area gaps use scenario − target. {isShare
             ? 'Area gaps use the selected scope’s population denominator, so the Urban and Rural contributions add to the National net gap in percentage points.'
             : 'Urban and Rural gaps add to the National net gap; single-area views show only the selected area.'}</p>
         )}
@@ -260,8 +268,8 @@ export default function ResultsLedgerPanel({
                 const isSignedGap = 'signedGap' in row && row.signedGap === true;
                 const open = isExpanded(row.key);
                 return (
-                  <tr key={row.key} data-ledger-row={row.key} data-row-kind={row.kind} className={`results-ledger__row results-ledger__row--${row.kind}`}>
-                    <th className={`results-ledger__rowhead ${isChild ? 'results-ledger__rowhead--child' : ''}`} scope="row">
+                  <tr key={row.key} data-ledger-row={row.key} data-row-kind={row.kind} data-row-depth={row.depth ?? 0} className={`results-ledger__row results-ledger__row--${row.kind}`}>
+                    <th className={`results-ledger__rowhead ${isChild ? 'results-ledger__rowhead--child' : ''}`} style={row.depth ? { paddingLeft: 12 + row.depth * 16 } : undefined} scope="row">
                       {isCategory ? (
                         <button
                           className="results-ledger__expand"
@@ -325,7 +333,7 @@ export default function ResultsLedgerPanel({
           ) : selection.metric === 'gap' ? (
             <p><strong>Gap.</strong> Current-year residual gap = outstanding expansion + replacement obligation − capped replacement credit + cash deficit. Funded expansion receives no second credit; cash deficits are allocated once. Year-end requirement = outstanding expansion + accumulated unpaid replacement and deficits. National sums remaining local obligations; unused or restricted funds elsewhere are not assumed transferable. This is not generally annual requirements minus all available funding. Both include balances: do not sum across years.</p>
           ) : (
-            <p><strong>Coverage.</strong> The signed SM net gap is Combined scenario coverage minus Original target, aggregated across areas; negative values are shortfalls and positive values are surpluses. Local access diagnostics assess each area against its service threshold before aggregation and do not offset surpluses against unmet targets. Share values use population as the denominator; intervention effects and SM net gap are in percentage points.</p>
+            <p><strong>Coverage.</strong> Safely Managed and Basic-only are exclusive; At least basic is their sum. Signed gaps are Combined scenario minus Original target. A Basic-only deficit may reflect upgrades to SM rather than an access shortfall. These reporting differences do not replace local access deficits or financing obligations in the model. Coverage is a year-end level, not a sum of annual levels. Share values use population as the denominator; effects and gaps are in percentage points.</p>
           )}
           <p>Displayed values are rounded for readability. CSV and Excel retain unrounded values and include only the rows currently visible in the table.</p>
         </div>

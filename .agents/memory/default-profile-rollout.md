@@ -90,3 +90,16 @@ scenario. It is a supplied modelling input, not a verified current market rate.
 **How to apply:** Convert illustrative USD unit costs to CDF by multiplying by
 2,309.58. Preserve the entered rate and any supplied reference year. Keep mock
 costs clearly labelled and separate from the original incomplete DRC profile.
+
+The user subsequently authorized entering the illustrative costs into the
+fields so the graphs can run. This authorizes a clearly labelled development
+mock simulation, including remaining blank technical/revenue prerequisites,
+not replacement of the factual DRC profile.
+
+**Why:** The user said to include the converted mock values in the fields after
+the explanation that full graphs also need technical and revenue assumptions.
+
+**How to apply:** Preserve the original full working bundle as a restorable
+scenario, retain existing supplied values and series, and fill blanks only.
+Apply the authorized mock setup once; later clearing or restoring original
+inputs must not trigger automatic refilling. Keep the mock identity visible.

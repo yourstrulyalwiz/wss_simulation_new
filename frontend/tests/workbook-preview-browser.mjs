@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 
 const url = process.env.APP_URL;
+const mockMode = process.env.CHECK_MOCK_SCENARIO === '1';
 assert.ok(url, 'APP_URL must identify the development app.');
 const browser = spawn(process.env.CHROMIUM_PATH || '/repl/tools/bin/chromium',
   ['--headless', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe'],
@@ -47,7 +48,8 @@ try {
   const previous = { __wss_bundle: 1, inputs: { retainedOriginalSession: true },
     altInputs: { rural: { retainedOriginalArea: true } }, scope: { areaRural: true } };
   await send('Page.addScriptToEvaluateOnNewDocument', { source:
-    `if (!localStorage.getItem('wss_development_preview_revision')) {
+    `${mockMode ? '' : "localStorage.setItem('wss_mock_setup_revision', 'drc-mock-inputs-2309.58-v1');"}
+    if (!localStorage.getItem('wss_development_preview_revision')) {
       localStorage.setItem('wss_working_bundle', ${JSON.stringify(JSON.stringify(previous))});
     }` }, sessionId);
   await send('Page.navigate', { url }, sessionId);
@@ -57,9 +59,10 @@ try {
     return result.result.value;
   }
   for (let i = 0; i < 30; i++) {
-    if (await evaluate(`document.body?.textContent?.includes('DRC spreadsheet data preview') || false`)) break;
+    if (await evaluate(`document.body?.textContent?.includes(${JSON.stringify(mockMode ? 'DRC mock simulation' : 'DRC spreadsheet data preview')}) || false`)) break;
     await sleep(200);
   }
+  if (!mockMode) {
   let state = await evaluate(`({
     working: JSON.parse(localStorage.getItem('wss_working_bundle')),
     saved: JSON.parse(localStorage.getItem('wss_demo_scenarios') || '[]'),
@@ -288,6 +291,33 @@ try {
   })()`);
   await send('Page.reload', {}, sessionId);
   await sleep(1200);
+  } else {
+    await sleep(1000);
+    const startup = await evaluate(`({
+      working:JSON.parse(localStorage.getItem('wss_working_bundle')),
+      saved:JSON.parse(localStorage.getItem('wss_demo_scenarios')),
+      revision:localStorage.getItem('wss_mock_setup_revision'),
+      warning:document.body.textContent.includes('not validated DRC estimates'),
+    })`);
+    assert.ok(startup.warning);
+    assert.ok(startup.revision);
+    assert.equal(startup.working.inputs.water_costs.network_cost_per_hh_serv1, 2771496);
+    assert.equal(startup.working.altInputs.rural.sanitation_costs.sewer_cost_per_hh_sserv2, 577395);
+    assert.equal(startup.working.presentation.currencyDisplay.localPerUsd, 2309.58);
+    assert.equal(startup.saved.find(s => s.name === 'Original DRC inputs before mock setup').inputs.inputs.water_costs.network_cost_per_hh_serv1, null);
+    assert.ok(startup.saved.find(s => s.name.includes('DRC mock simulation')));
+    await evaluate(`document.querySelector('[data-section-key="ws_unit_costs"] .wb-section-trigger').click()`);
+    await sleep(200);
+    assert.equal(await evaluate(`document.querySelector('[data-cost-section=water_costs][data-cost-mix=sm_tech_mix] tbody tr input[aria-label*="share"]').value`), '75');
+    assert.equal(await evaluate(`document.querySelector('[data-cost-section=water_costs][data-cost-mix=sm_tech_mix] tbody tr input[aria-label*="cost per household"]').value`), '3,233,412');
+    await evaluate(`document.querySelector('[data-section-key=ws_unit_costs]').scrollIntoView({block:'start'})`);
+    const screenshot = await send('Page.captureScreenshot',{format:'png'},sessionId);
+    writeFileSync('/tmp/wss-mock-cost-fields.png',Buffer.from(screenshot.data,'base64'));
+    await send('Page.reload', {}, sessionId);
+    await sleep(1200);
+    assert.equal(await evaluate(`JSON.parse(localStorage.getItem('wss_demo_scenarios')).filter(s => s.name==='Original DRC inputs before mock setup').length`), 1);
+    console.log('Mock setup: visible filled fields, 2309.58 rate, original backup, named mock scenario and once-only reload verified.');
+  }
   await evaluate(`[...document.querySelectorAll('.wb-tab')].find(b => b.textContent.includes('BAU')).click()`);
   for (const sector of ['Water Supply', 'Sanitation']) {
     await evaluate(`([...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(sector)})).click()`);
@@ -313,6 +343,18 @@ try {
     }
   }
   assert.equal(browserErrors.length, 0, JSON.stringify(browserErrors));
+  if (mockMode) {
+    await evaluate(`[...document.querySelectorAll('.wb-saved-scenario')].find(b => b.textContent.includes('Original DRC inputs before mock setup')).click()`);
+    await sleep(1000);
+    await send('Page.reload', {}, sessionId);
+    await sleep(1200);
+    assert.equal(await evaluate(`JSON.parse(localStorage.getItem('wss_working_bundle')).inputs.water_costs.network_cost_per_hh_serv1`), null,
+      'Restoring the original must not automatically reapply mocks on reload.');
+    await evaluate(`[...document.querySelectorAll('.wb-saved-scenario')].find(b => b.textContent.includes('DRC mock simulation')).click()`);
+    await sleep(1000);
+    assert.equal(await evaluate(`JSON.parse(localStorage.getItem('wss_working_bundle')).inputs.water_costs.network_cost_per_hh_serv1`), 2771496);
+    console.log('Original/mock scenario switching verified; restoring original inputs survives reload.');
+  }
   console.log('Configured BAU: safely managed + basic curves render for both sectors in Urban/Rural/National.');
   console.log('Browser passed: DRC startup, preserved data/session, all workflow tabs accessible and safe reload.');
 } finally {

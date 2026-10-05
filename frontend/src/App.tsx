@@ -42,6 +42,7 @@ function migrateInjectionToggle(area: any) {
 
 export default function App() {
   const [inputs, setInputs] = useState<any>(null);
+  const [mockSetupError, setMockSetupError] = useState('');
   const [activeTab, setActiveTab] = useState(0);
   const [contributionView, setContributionView] = useState<ContributionView>('individual');
   const [currencyDisplay, setCurrencyDisplay] = useState<CurrencyDisplaySettings>(defaultCurrencyDisplay());
@@ -94,7 +95,31 @@ export default function App() {
         session = selected.session;
         savedScenarios = selected.scenarios;
       }
-    } catch (error) { console.warn('Development preview not applied; retaining the working session.', error); }
+      if (preview.mock_setup_revision &&
+          localStorage.getItem('wss_mock_setup_revision') !== preview.mock_setup_revision &&
+          session?.inputs?.profile_metadata?.status === 'data_preview') {
+        const response = await fetch('/api/mock-drc-inputs', {
+          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(session),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || 'Mock inputs could not be applied.');
+        if (cancelled) return;
+        if (result.applied) {
+          const backup = [...savedScenarios,
+            {name: 'Original DRC inputs before mock setup', inputs: session},
+            {name: 'DRC mock simulation (2,309.58 CDF/USD)', inputs: result.bundle}];
+          // If the backup cannot be saved, do not replace the working inputs.
+          localStorage.setItem('wss_demo_scenarios', JSON.stringify(backup));
+          localStorage.setItem('wss_working_bundle', JSON.stringify(result.bundle));
+          localStorage.setItem('wss_mock_setup_revision', preview.mock_setup_revision);
+          session = result.bundle;
+          savedScenarios = backup;
+        }
+      }
+    } catch (error) {
+      console.warn('Development setup not applied; retaining the working session.', error);
+      if (!cancelled) setMockSetupError(error instanceof Error ? error.message : String(error));
+    }
     if (cancelled) return;
     if (session?.inputs) {
       setAltInputs(Object.fromEntries(Object.entries(session.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])));
@@ -103,7 +128,7 @@ export default function App() {
       if (typeof sc.areaUrban === 'boolean') setAreaUrban(sc.areaUrban);
       if (typeof sc.areaRural === 'boolean') setAreaRural(sc.areaRural);
       setInputs(migrateInjectionToggle(session.inputs));
-      if (session.inputs.profile_metadata?.status === 'data_preview') setShowOnboarding(false);
+      if (['data_preview', 'mock_simulation'].includes(session.inputs.profile_metadata?.status)) setShowOnboarding(false);
       if (session.presentation?.currencyDisplay) setCurrencyDisplay(session.presentation.currencyDisplay);
       if (session.presentation?.contributionView) setContributionView(session.presentation.contributionView);
     } else {
@@ -420,10 +445,23 @@ export default function App() {
   // the Intervention Design and Results tabs), so there is no separate Export tab.
   const tabs = ['Data Inputs', 'BAU Scenario', 'Intervention Design', 'Results Dashboard'];
   const isDataPreview = inputs?.profile_metadata?.status === 'data_preview';
+  const isMockSimulation = inputs?.profile_metadata?.status === 'mock_simulation';
 
   return (
     <div className="wb-app" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <RevenueReconciliation inputs={activeInputs} onChange={handleSetActiveInputs} area={inputScope} silent={true} />
+      {mockSetupError && <div role="alert" style={{padding:'8px 16px',background:'#fff1f2',color:'#9f1239'}}>
+        Mock setup could not be applied: {mockSetupError} Your original inputs were retained.
+      </div>}
+      {isMockSimulation && <div role="note" style={{padding:'8px 16px',background:'#fff8e7',color:'#714b10',fontSize:12}}>
+        <strong>DRC mock simulation — illustrative assumptions.</strong> Blank unit costs and remaining technical/revenue fields have been filled for testing.
+        {' '}Conversion: <strong>2,309.58 CDF per US$1</strong> (user supplied). These are not validated DRC estimates.
+        {' '}Restore “Original DRC inputs before mock setup” from Saved scenarios to return to your prior inputs.
+        <details><summary>View initial mock assumptions for this area (later field edits may differ)</summary>
+          {(activeInputs?.profile_metadata?.mock_assumptions || []).map((item: any, index: number) =>
+            <div key={`${item.field}-${index}`}><strong>{item.field}</strong>: {String(item.value)} — {item.basis}</div>)}
+        </details>
+      </div>}
       {isDataPreview && <div role="status" style={{ padding: '8px 16px', background: '#fff8e6', fontSize: 12 }}>
         <strong>DRC spreadsheet data preview — settings pending.</strong> Urban and rural data are loaded.
         {' '}All workflow tabs are available. Missing or invalid model settings may still prevent calculations.

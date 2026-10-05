@@ -121,8 +121,17 @@ def development_preview():
         return {"profile": None}
     with open(filepath, "rb") as file:
         raw = file.read()
+    from mock_drc import MOCK_REVISION
     return {"profile": PREVIEW_PROFILE_NAME, "revision": hashlib.sha256(raw).hexdigest()[:16],
-            "bundle": json.loads(raw)}
+            "bundle": json.loads(raw), "mock_setup_revision": MOCK_REVISION}
+
+
+@app.post("/api/mock-drc-inputs")
+def mock_drc_inputs(bundle: dict = Body(...)):
+    if os.environ.get("REPLIT_DEPLOYMENT") == "1":
+        return JSONResponse(status_code=403, content={"detail": "Mock setup is only available in the development preview."})
+    from mock_drc import populate_mock_bundle
+    return populate_mock_bundle(bundle)
 
 
 @app.post("/api/profiles/{name}")

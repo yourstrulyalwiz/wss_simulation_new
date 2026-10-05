@@ -16,6 +16,7 @@ import BasicCoverageChart, { type BasicCoverageRow } from './BasicCoverageChart'
 import ScenarioGapTables, { type FinanceYear } from './ScenarioGapTables';
 import { aggregateContributionRows, ContributionViewToggle, type ContributionView } from '../contributionView';
 import { CurrencyDisplayControl, type CurrencyDisplaySettings, validRate } from '../currencyDisplay';
+import { aggregateWeightedRevenueRate, connectionRevenueAreaModes, summarizeConnectionRevenueModes } from '../connectionRevenueMode';
 
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
 function round3(v: number): number { return (!isFinite(v) || v === 0) ? 0 : Number(v.toPrecision(3)); }
@@ -77,7 +78,7 @@ interface Props {
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
 type DebtData = { summary: any; rows: any[]; areas: any[] };
-type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[] };
+type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any };
 type Both = { water: Series; sanitation: Series } | null;
 type Row = { key: string; label: string; addHH: number; resources: number | null };
 
@@ -269,6 +270,50 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         const totalHH = years.map((_, i) => resList.reduce((a, res) => a + (res.total_hh[i] || 0), 0));
         const build = (secKey: 'water_supply' | 'sanitation'): Series => {
           const secOf = (res: any) => res[secKey];
+          const revenueFields = [
+            'connection_billed_households', 'household_billed_volume_million_m3',
+            'nonhousehold_billed_volume_million_m3', 'reference_billed_volume_million_m3',
+            'reference_collected_revenue', 'connection_revenue_delta', 'incremental_variable_operating_cost',
+            'connection_net_cash', 'additional_net_cash', 'applicable_tariff', 'applicable_collection_ratio',
+            'billed_volume_million_m3', 'collected_revenue', 'collection_cash', 'tariff_cash',
+          ];
+          const annualField = (sec: any, key: string, index: number) => {
+            const value = sec?.[key];
+            if (Array.isArray(value)) return Number.isFinite(Number(value[index])) ? Number(value[index]) : null;
+            if (typeof value === 'number') return value;
+            return null;
+          };
+          const weightedRevenueRate = (kind: 'bau' | 'scenario', key: 'applicable_tariff' | 'applicable_collection_ratio', index: number) => {
+            const rateKey = kind === 'bau' ? key : `scenario_${key}`;
+            const volumeKey = kind === 'bau' ? 'billed_volume_million_m3' : 'scenario_billed_volume_million_m3';
+            const tariffKey = kind === 'bau' ? 'applicable_tariff' : 'scenario_applicable_tariff';
+            const values = resList.map(result => {
+              const sec = secOf(result);
+              const rate = annualField(sec, rateKey, index);
+              const volume = annualField(sec, volumeKey, index);
+              const tariff = annualField(sec, tariffKey, index);
+              return { rate, volume, tariff };
+            });
+            return aggregateWeightedRevenueRate(values, key === 'applicable_tariff' ? 'volume' : 'tariff-volume');
+          };
+          const revenueRows = years.map((year: number, i: number) => {
+            const row: any = { year };
+            revenueFields.forEach(key => {
+              (['bau', 'scenario'] as const).forEach(kind => {
+                const resultKey = kind === 'bau' ? key : `scenario_${key}`;
+                const available = resList.map(r => annualField(secOf(r), resultKey, i));
+                if (key === 'applicable_tariff' || key === 'applicable_collection_ratio') {
+                  row[`${kind}_${key}`] = weightedRevenueRate(kind, key, i);
+                } else {
+                  row[`${kind}_${key}`] = available.some(v => v != null)
+                    ? available.reduce<number>((total, v) => total + (v ?? 0), 0) : null;
+                }
+              });
+            });
+            return row;
+          });
+          const revenueModes = connectionRevenueAreaModes(resList, datasets, secKey === 'water_supply' ? 'water_supply' : 'sanitation', secKey === 'water_supply' ? 'water' : 'sanitation');
+          const connectionMetadata = summarizeConnectionRevenueModes(revenueModes);
           const bau = sum((r, i) => secOf(r).bau_hh[0][i]);
           const scn = sum((r, i) => secOf(r).scenario_hh[0][i]);
           const tgt = sum((r, i) => secOf(r).target_hh[0][i]);
@@ -390,7 +435,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             },
           };
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
-           return { inv, unit, basicRows, financeRows, debt, accessRows: serviceAccessRows(resList, secKey, baseYr), sum: {
+           return { inv, unit, basicRows, financeRows, debt, revenueRows, revenueModes, connectionMetadata, accessRows: serviceAccessRows(resList, secKey, baseYr), sum: {
             endline: years[endIdx], curCov, bauCov: covPct(bau), scnCov: covPct(scn), tgtCov: covPct(tgt),
             addHH: Math.min(tEnd, scn[endIdx]) - Math.min(tEnd, bau[endIdx]),
             gapBauCum: endRequirement('endline_financing_requirement'), gapScnCum: endRequirement('scenario_endline_financing_requirement'),
@@ -699,6 +744,68 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     );
   };
 
+  const RevenueDetails = ({ series, sector }: { series: Series; sector: string }) => {
+    const fields: { key: string; label: string; unit: string; currency: boolean }[] = [
+      { key: 'connection_billed_households', label: 'Connection billed households', unit: 'households', currency: false },
+      { key: 'household_billed_volume_million_m3', label: 'Household billed volume', unit: 'million m³', currency: false },
+      { key: 'nonhousehold_billed_volume_million_m3', label: 'Non-household billed volume', unit: 'million m³', currency: false },
+      { key: 'reference_billed_volume_million_m3', label: 'Funding reference billed volume', unit: 'million m³', currency: false },
+      { key: 'billed_volume_million_m3', label: 'Total billed volume', unit: 'million m³', currency: false },
+      { key: 'applicable_tariff', label: 'Applicable tariff', unit: `${displayCur}/m³`, currency: true },
+      { key: 'applicable_collection_ratio', label: 'Applicable collection ratio', unit: 'fraction', currency: false },
+      { key: 'reference_collected_revenue', label: 'Reference collected revenue', unit: `million ${displayCur}`, currency: true },
+      { key: 'collected_revenue', label: 'Collected revenue', unit: `million ${displayCur}`, currency: true },
+      { key: 'connection_revenue_delta', label: 'Connection gross-revenue difference', unit: `million ${displayCur}`, currency: true },
+      { key: 'incremental_variable_operating_cost', label: 'Incremental variable operating cost', unit: `million ${displayCur}`, currency: true },
+      { key: 'connection_net_cash', label: 'Connection net cash', unit: `million ${displayCur}`, currency: true },
+      { key: 'collection_cash', label: 'Collection-efficiency cash', unit: `million ${displayCur}`, currency: true },
+      { key: 'tariff_cash', label: 'Tariff-reform cash', unit: `million ${displayCur}`, currency: true },
+      { key: 'additional_net_cash', label: 'Additional net cash', unit: `million ${displayCur}`, currency: true },
+    ];
+    const hasAny = series.revenueRows.some(row => fields.some(f => row[`bau_${f.key}`] != null || row[`scenario_${f.key}`] != null));
+    const exportHeaders = ['Year', ...fields.flatMap(f => [`BAU — ${f.label} (${f.unit})`, `Scenario — ${f.label} (${f.unit})`])];
+    const exportRows = series.revenueRows.map(row => [
+      row.year,
+      ...fields.flatMap(f => ['bau', 'scenario'].map(kind => {
+        const value = row[`${kind}_${f.key}`];
+        if (value == null) return '';
+        return f.currency ? Number(value) * moneyFactor : value;
+      })),
+    ]);
+    const fmt = (v: number | null, f: typeof fields[number]) => {
+      if (v == null || !Number.isFinite(Number(v))) return '—';
+      const converted = f.currency ? Number(v) * moneyFactor : Number(v);
+      return converted.toLocaleString('en-US', { maximumFractionDigits: f.key === 'connection_billed_households' ? 0 : 3 });
+    };
+    const th: React.CSSProperties = { position: 'sticky', top: 0, zIndex: 1, background: '#e8f0f4', borderBottom: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right', fontSize: 10, whiteSpace: 'nowrap' };
+    const td: React.CSSProperties = { borderBottom: '1px solid #edf1f3', padding: '5px 8px', textAlign: 'right', fontSize: 10.5, whiteSpace: 'nowrap' };
+    return <section data-revenue-details={sector} aria-label={`${sector} annual revenue details`} style={{ marginTop: 10, border: '1px solid #cbd5e1', borderRadius: 6, background: '#fbfdfe', padding: '9px 10px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 3 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#164e63' }}>Annual Revenue Details — BAU / scenario</div>
+        {hasAny && <TableExport filename={`${sector}_annual_revenue_details`} sheetName="Revenue details" headers={exportHeaders} rows={exportRows} compact currencyDisplay={detailExportCurrency} />}
+      </div>
+      <p style={{ margin: '3px 0 7px', fontSize: 10.5, color: '#64748b' }}>
+        Monetary results are native currency millions before display conversion. Gross collected revenue is distinct from net cash. Connection net cash is a funding flow, not a one-for-one financing-gap reduction.
+      </p>
+      {!hasAny ? <div style={{ padding: '10px 4px', color: '#64748b', fontSize: 11 }}>Annual revenue diagnostics are not present in the calculation response yet.</div> :
+        <div style={{ overflow: 'auto', maxHeight: 360, border: '1px solid #e2e8f0', borderRadius: 4 }}>
+          <table style={{ borderCollapse: 'collapse', minWidth: 1360, width: '100%' }}>
+            <thead><tr><th style={{ ...th, textAlign: 'left', left: 0 }}>Year</th>{fields.flatMap(f => [
+              <th key={`b-${f.key}`} style={th}>BAU · {f.label}<br /><span style={{ fontWeight: 400 }}>{f.unit}</span></th>,
+              <th key={`s-${f.key}`} style={th}>Scenario · {f.label}<br /><span style={{ fontWeight: 400 }}>{f.unit}</span></th>,
+            ])}</tr></thead>
+            <tbody>{series.revenueRows.map((row: any, i: number) => <tr key={row.year} style={{ background: i % 2 ? '#f6f9fa' : '#fff' }}>
+              <td style={{ ...td, textAlign: 'left', fontWeight: 700 }}>{row.year}</td>
+              {fields.flatMap(f => [
+                <td key={`b-${f.key}`} style={td}>{fmt(row[`bau_${f.key}`], f)}</td>,
+                <td key={`s-${f.key}`} style={td}>{fmt(row[`scenario_${f.key}`], f)}</td>,
+              ])}
+            </tr>)}</tbody>
+          </table>
+        </div>}
+    </section>;
+  };
+
   const sectorBlock = (secKey: 'water' | 'sanitation') => {
     if (!both) return null;
     const s = secKey === 'water' ? both.water : both.sanitation;
@@ -735,11 +842,27 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const noImpact = Math.abs(s.sum.addHH) < 1e-4 && Math.abs(s.sum.gapBauCum - s.sum.gapScnCum) < 1e-4;
     const rows = secKey === 'water' ? table?.water : table?.sanitation;
     const hhCol = secKey === 'water' ? "Added HHs with treated, piped (HHs '000)" : "Added safely-managed HHs (HHs '000)";
+    const modes = s.revenueModes.map((mode: any) => {
+      const effective = String(mode.effective ?? '').toLowerCase().replace(/[_ ]/g, '-');
+      return {
+        ...mode,
+        label: mode.effective === true || effective.includes('connection') || effective === 'dynamic' ? 'Connection-based'
+          : mode.effective === false || effective.includes('exogenous') ? 'Exogenous'
+            : mode.requested ? 'Connection-based requested; effective status not reported' : 'Exogenous',
+      };
+    });
+    const distinctModes = [...new Set(modes.map((mode: any) => mode.label))];
     return (
       <div key={secKey} style={{ marginBottom: 26 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '2px solid #e2e8f0', paddingBottom: 4, marginBottom: 10 }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#1e3a5f' }}>{label}</span>
           <span style={{ fontSize: 11, color: '#64748b' }}>· {scopeName}</span>
+        </div>
+        <div style={{ marginBottom: 10, borderLeft: '3px solid #0f766e', background: '#f0fdfa', padding: '7px 10px', fontSize: 10.5, color: '#334155' }}>
+          <b>Financing / coverage baseline revenue mode:</b> {s.connectionMetadata?.label || (distinctModes.length > 1 ? 'Mixed across areas' : (distinctModes[0] || 'Exogenous'))}
+          {(modes.length > 1 || s.connectionMetadata?.mixed) ? <span> · Per area: {modes.map((mode: any) => `${mode.area}: ${mode.label}`).join(' · ')}</span> : null}
+          {modes.some((mode: any) => mode.errors?.length) && <span> · Validation issues are reported for the affected area.</span>}
+          <div style={{ marginTop: 3 }}>Connection cash can fund eligible work after replacement priority and service-pool limits; it is not itself a coverage intervention or a direct gap credit.</div>
         </div>
         <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '3px solid #0ea5e9', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55, marginBottom: 12 }}>
           <b>By {s.sum.endline}</b>, safely-managed coverage increases from <b>{pct(s.sum.bauCov)}</b> (BAU) to <b>{pct(s.sum.scnCov)}</b> with the current interventions — <b>{sig3(s.sum.addHH)} M</b> more households — against a target of <b>{pct(s.sum.tgtCov)}</b>. The endline financing requirement changes from <b>{sigB(displayMoney(s.sum.gapBauCum))}</b> to <b>{sigB(displayMoney(s.sum.gapScnCum))} B {displayCur}</b>.
@@ -765,6 +888,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         </div>
         <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={displayCur}
           moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency} />
+        <RevenueDetails series={s} sector={secKey} />
         <UtilityDebtSchedule debt={s.debt} currency={displayCur} moneyFactor={moneyFactor} />
         {rows && rows.length > 0 && (
           <div style={{ marginTop: 8 }}>

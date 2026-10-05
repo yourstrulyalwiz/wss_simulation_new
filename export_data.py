@@ -79,6 +79,11 @@ def per_year_table(result, inputs, sector_key):
         ('Baseline collected revenue — annual flow', 'baseline_collected_revenue'),
         ('Scenario collected revenue — annual flow', 'collected_revenue'),
         ('Additional collected revenue — annual flow', 'additional_collected_revenue'),
+        ('Reference collected revenue — annual flow', 'reference_collected_revenue'),
+        ('Connection gross revenue difference — annual flow', 'connection_revenue_delta'),
+        ('Incremental variable operating cost — annual flow', 'incremental_variable_operating_cost'),
+        ('Connection net cash — annual flow', 'connection_net_cash'),
+        ('Total additional net cash — annual flow', 'additional_net_cash'),
         ('Collection cash — annual flow', 'collection_cash'),
         ('Tariff cash incl. collection interaction — annual flow', 'tariff_cash'),
         ('Annual planned expansion cost — flow', 'annual_planned_expansion_cost'),
@@ -132,6 +137,12 @@ def per_year_table(result, inputs, sector_key):
     ]
     headers += [f'{label} — {pass_label} (M HH)'
                 for pass_label in ('BAU', 'scenario') for label, _, _ in access_fields]
+    from revenue_export import FIELDS
+    detailed_revenue_fields = list(FIELDS)
+    headers += [f'Revenue detail: {label} — {pass_label} ({unit.format(currency=cur)})'
+                for pass_label in ('BAU', 'scenario') for label, _, unit in detailed_revenue_fields]
+    headers += ['Revenue mode — BAU', 'Revenue configuration/provenance — source currency',
+                'Revenue validation/limitations']
     rows = []
     for i, y in enumerate(years):
         bau = g('bau_hh', i); scn = g('scenario_hh', i); tgt = g('target_hh', i)
@@ -157,6 +168,17 @@ def per_year_table(result, inputs, sector_key):
                 name = 'scenario_hh' if prefix and key == 'bau_hh' else prefix + key
                 values = sec[name]
                 rows[-1].append(round(values[rung][i] if rung is not None else values[i], 6))
+        for prefix in ('', 'scenario_'):
+            # Excel stores ~15 significant digits; stabilize CSV/workbook round trips
+            # without the old 4-decimal rounding of currency-million ledger summaries.
+            rows[-1] += [float(f'{g(prefix + key, i, rung0=False):.15g}')
+                         for _, key, _ in detailed_revenue_fields]
+        status = sec.get('connection_revenue') or {}
+        import json
+        mode = 'Mixed' if status.get('mixed') else ('Connection-based' if status.get('effective') else 'Exogenous')
+        rows[-1] += [mode, json.dumps(status.get('configuration') or status.get('area_configurations') or {},
+                                    ensure_ascii=False) if y == inputs.get('period', {}).get('baseline_year') else None,
+                     '; '.join((status.get('errors') or []) + (status.get('warnings') or []))]
     return headers, rows
 
 
@@ -423,7 +445,19 @@ def scenario_xlsx(inputs, contribution_view='individual', currency_display=None)
     wb.remove(wb.active)
     display = currency_display or {'mode': 'local', 'source_currency': _cur(inputs), 'display_currency': _cur(inputs), 'rate_note': 'Local-currency results; no conversion applied.', 'price_basis_note': 'Model constant-price basis.'}
     _currency_metadata(wb, display, contribution_view)
+    from revenue_export import revenue_table
+    assumptions = wb.create_sheet('Revenue assumptions')
+    assumptions.append(['Sector', 'Requested mode', 'Effective mode', 'Configuration and provenance', 'Validation errors', 'Model limitations'])
     for sk, name in [('water_supply', 'Water'), ('sanitation', 'Sanitation')]:
+        import json
+        status = result[sk].get('connection_revenue') or {}
+        assumptions.append([name, 'Connection-based' if status.get('requested') else 'Exogenous',
+                            'Connection-based' if status.get('effective') else 'Exogenous',
+                            json.dumps(status.get('configuration') or {}, ensure_ascii=False),
+                            '; '.join(status.get('errors') or []), '; '.join(status.get('warnings') or [])])
+        rh, rr = revenue_table(result, sk, _cur(inputs))
+        rh, rr, _ = _currency_table(rh, rr, display)
+        _write_sheet(wb, f'{name} — revenue details', rh, rr)
         h, r = per_year_table(result, inputs, sk)
         source_h, source_r = h, r
         h, r, money_indexes = _currency_table(h, r, display)
@@ -519,7 +553,7 @@ def table_xlsx(sheets, currency_display=None):
         _currency_metadata(wb, currency_display, 'table')
     notes = wb.create_sheet('Revenue assumptions')
     notes.append(['Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.'])
-    notes.append(['Billed volume grows exogenously; baseline collected revenue is not added to capital.'])
+    notes.append(['Revenue mode follows the saved sector/area configuration. Reference collected revenue is not added to capital; connection net cash is credited once when enabled.'])
     for s in sheets:
         _write_sheet(wb, s.get('name', 'Sheet'), s.get('headers', []), s.get('rows', []))
     if not wb.sheetnames:

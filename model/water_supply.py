@@ -20,6 +20,8 @@ from model.gap_attribution import attribute_gap
 from model.expansion_ledger import ExpansionLedger
 from model.service_gaps import assess_service_gaps, reconcile_expansion_gaps
 from model.utility_revenue import collected_revenue, volume_path, number, RevenueInputError
+from model.service_history import historical_households
+from model.connection_revenue import prepare_connection, annual_connection_cash, DIAGNOSTIC_FIELDS
 
 RUNGS = ["Safely managed", "Basic", "Limited", "Unimproved", "No Service"]
 LOWER = [2, 3, 4]   # Limited, Unimproved, No Service
@@ -264,7 +266,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                selffinance_enabled=False, selffinance_share=0.0, connection_fee=0.0,
                 financial_enabled=False, injection_enabled=False, financial_settings=None, financial_execution_rate=None,
                 extra_cash=None, eligible_nrw_cash=None, custom_cash=None, revenue_base=None, revenue_volume=None,
-                utility_debt_execution=None, full_spending_provided=True):
+                utility_debt_execution=None, full_spending_provided=True, connection_config=None):
     """Shared 4a-4d core. All HH and money values are in MILLIONS; costs in actual currency.
 
     `full_budget` is the sector's FULL budget per year in real terms, from EITHER %GDP mode
@@ -338,60 +340,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     # choose where the BAU rate starts. BACKWARD-COMPAT: with only the start & baseline points entered,
     # mean-YoY over a two-point geometric series equals the previous two-point CAGR, so the validated
     # numbers are unchanged unless richer annual data / a later first year is supplied.
-    fi = max(0, min(int(first_year_idx or 0), bi))
-    hs = hist_series or []
-    def _hist_share(r, t):
-        if r < len(hs):
-            a = hs[r]
-            if a is not None and t < len(a):
-                v = a[t]
-                return float(v) if (v and v > 0) else 0.0
-        if t == 0:
-            return float(pct_start[r] or 0.0)
-        if t == bi:
-            return float(pct_base[r] or 0.0)
-        return 0.0
-    cagr = []                          # kept name; now holds the MEAN-YoY rate per rung
-    unadj_hist = np.zeros((5, bi + 1))
-    for r in range(5):
-        known = {}
-        for t in range(bi + 1):
-            sh = _hist_share(r, t)
-            if sh > 0:
-                known[t] = sh * total_hh[t]                              # entered count = share × total HHs
-        ks = sorted(k for k in known if fi <= k <= bi)
-        yoy = []
-        for j in range(1, len(ks)):
-            t0, t1 = ks[j - 1], ks[j]
-            if known[t0] > 0 and t1 > t0:
-                yoy.append((known[t1] / known[t0]) ** (1.0 / (t1 - t0)) - 1.0)   # annualised between entered years
-        g = float(np.mean(yoy)) if yoy else 0.0
-        cagr.append(g)
-        prev = None
-        for t in range(bi + 1):
-            if t in known:
-                unadj_hist[r, t] = known[t]; prev = known[t]
-            elif prev is not None:
-                unadj_hist[r, t] = prev * (1.0 + g); prev = unadj_hist[r, t]
-            else:
-                unadj_hist[r, t] = 0.0
-
-    # 4a — BAU forecast
-    bau = np.zeros((5, n))
-    # Historical block: the UNADJUSTED per-rung counts above are rescaled to each year's total HHs —
-    # WATER: all five rungs × (total/Σunadj); SANITATION: SM kept, lower proportional, Basic = plug.
-    for t in range(bi + 1):
-        unadj = [unadj_hist[r, t] for r in range(5)]
-        total_unadj = sum(unadj)
-        scale = total_hh[t] / total_unadj if total_unadj > 0 else 0.0
-        if hist_all_proportional:
-            for r in range(5):
-                bau[r, t] = unadj[r] * scale
-        else:
-            for r in LOWER:
-                bau[r, t] = unadj[r] * scale
-            bau[0, t] = unadj[0]
-            bau[1, t] = total_hh[t] - unadj[0] - sum(bau[r, t] for r in LOWER)
+    bau, cagr = historical_households(ctx, pct_start, pct_base, hist_series,
+                                     first_year_idx, hist_all_proportional)
     # ── Budget finalisation ──────────────────────────────────────────────────────────────────────
     # capex_budget = the capex actually SPENT each forecast year (the BAU investment that funds new
     # connections). For pct_gdp/direct this is full_budget × %capex × execution. For 'from_cost' the
@@ -597,6 +547,26 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     billed_volume = np.zeros(n) if revenue_volume is None else np.asarray(revenue_volume)
     baseline_revenue, scenario_revenue, collection_cash, tariff_cash = collected_revenue(
         billed_volume, tariff_current, ce_current_ratio, tariff_add, ce_add_ratio)
+    connection_status, connection_runtime = prepare_connection(
+        connection_config, revenue_base, ctx, bau)
+    revenue_diagnostics = {key: np.zeros(n) for key in DIAGNOSTIC_FIELDS}
+    revenue_diagnostics['reference_billed_volume_million_m3'][:] = billed_volume
+    revenue_diagnostics['reference_collected_revenue'][:] = baseline_revenue
+    revenue_diagnostics['additional_net_cash'][:] = collection_cash + tariff_cash
+    revenue_diagnostics['applicable_tariff'][:] = tariff_current + tariff_add
+    revenue_diagnostics['applicable_collection_ratio'][:] = ce_current_ratio + ce_add_ratio
+    if connection_runtime:
+        for t in range(bi + 1):
+            row = annual_connection_cash(connection_runtime, bau[0, t], bau[1, t], t,
+                                         tariff_current, ce_current_ratio)
+            for key in ('connection_billed_households', 'household_billed_volume_million_m3',
+                        'nonhousehold_billed_volume_million_m3'):
+                revenue_diagnostics[key][t] = row[key]
+            if t == bi:
+                billed_volume[t] = row['billed_volume_million_m3']
+                baseline_revenue[t] = scenario_revenue[t] = row['collected_revenue']
+                revenue_diagnostics['reference_billed_volume_million_m3'][t] = billed_volume[t]
+                revenue_diagnostics['reference_collected_revenue'][t] = baseline_revenue[t]
 
     # ── NRW reduction (test2) ───────────────────────────────────────────────────────────────────────
     # Reduce non-revenue water from nrw_current → nrw_target over start→target year. The recovered
@@ -774,7 +744,17 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # extra caller cash (sanitation's water-NRW-linked sewer revenue). The NRW ledger is negative when
         # fixing costs exceed the water's value that year (drawn from the BAU budget first) and positive
         # later (surplus funds new connections). All the lever terms are 0 when their lever is off.
-        avail = bau_available[t] + collection_cash[t] + tariff_cash[t] + nrw_net[t] + financial_cash[t] + injection_cash[t] + extra_cash_arr[t]
+        if connection_runtime:
+            row = annual_connection_cash(
+                connection_runtime, bau[0, t - 1], bau[1, t - 1], t,
+                tariff_current + tariff_add[t], ce_current_ratio + ce_add_ratio[t])
+            for key in DIAGNOSTIC_FIELDS:
+                revenue_diagnostics[key][t] = row[key]
+            billed_volume[t] = row['billed_volume_million_m3']
+            baseline_revenue[t] = row['baseline_collected_revenue']
+            scenario_revenue[t] = row['collected_revenue']
+            collection_cash[t], tariff_cash[t] = row['collection_cash'], row['tariff_cash']
+        avail = bau_available[t] + collection_cash[t] + tariff_cash[t] + revenue_diagnostics['connection_net_cash'][t] + nrw_net[t] + financial_cash[t] + injection_cash[t] + extra_cash_arr[t]
         available_total[t] = avail
         debt_cash_opening[t] = debt_cash_balance
         debt_cash_available[t] = max(0.0, debt_cash_balance + debt_disbursement_arr[t])
@@ -1010,6 +990,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     reconcile_expansion_gaps(ledger.series['closing_outstanding_hh'], service_gaps, bi, years)
 
     return {
+        'connection_revenue': connection_status,
+        **{key: values.tolist() for key, values in revenue_diagnostics.items()},
         'rungs': RUNGS,
         'cost_per_hh': cost_sm,
         'cost_basic': cost_basic,
@@ -1024,7 +1006,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'billed_volume_million_m3': billed_volume.tolist(),
         'baseline_collected_revenue': baseline_revenue.tolist(),
         'collected_revenue': scenario_revenue.tolist(),
-        'additional_collected_revenue': (collection_cash + tariff_cash).tolist(),
+        'additional_collected_revenue': (collection_cash + tariff_cash + revenue_diagnostics['connection_revenue_delta']).tolist(),
         'collection_cash': collection_cash.tolist(),   # collection-efficiency revenue folded into capex (scenario)
         'tariff_cash': tariff_cash.tolist(),           # tariff-reform revenue folded into capex (scenario)
         'financial_commitment_cash': financial_cash.tolist(),  # GDP target + annual growth
@@ -1174,6 +1156,7 @@ def calculate_water_supply(inputs, ctx, utility_debt_execution=None):
     ws_capex = b.ws_capex_pct if b.ws_capex_pct is not None else b.capex_pct_budget
     res = sector_bau(
         revenue_base=inputs.revenue_bases['water'],
+        connection_config=inputs.connection_revenue.get('water'),
         revenue_volume=volume_path(inputs.revenue_bases['water'], ctx, inputs.constants.days_in_year, inputs.constants.cubic_meter_liters),
         ctx=ctx, period=inputs.period,
         pct_start=[sl.pct_serv1_start, sl.pct_serv2_start, sl.pct_serv3_start, sl.pct_serv4_start, sl.pct_serv5_start],

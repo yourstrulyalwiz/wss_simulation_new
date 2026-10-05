@@ -11,6 +11,14 @@ const require = createRequire(import.meta.url);
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
+const compileTs = (module, filename) => {
+  const jsx = ts.transpileModule(readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  module._compile(jsx, filename);
+};
+require.extensions['.tsx'] = compileTs;
+require.extensions['.ts'] = compileTs;
 const sourcePath = fileURLToPath(new URL('../src/components/RevenueBase.tsx', import.meta.url));
 const compiled = ts.transpileModule(readFileSync(sourcePath, 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 },
@@ -21,6 +29,8 @@ componentModule.paths = Module._nodeModulePaths(path.dirname(sourcePath));
 componentModule._compile(compiled, sourcePath);
 const { default: RevenueReconciliation, RevenueInputErrors, RevenueInputsSection,
   RevenueBaseEditor, restoreBlankRevenueBases, updateRevenueBaseField, revenueBaseErrors } = componentModule.exports;
+const { default: ConnectionRevenue, connectionRevenueErrors, revenueBasesRequestBody } = require('../src/components/ConnectionRevenue.tsx');
+const { aggregateWeightedRevenueRate, connectionRevenueAreaModes, connectionRevenueModeText } = require('../src/connectionRevenueMode.ts');
 const props = {
   inputs: { country_config: { currency: 'LCU' }, period: { baseline_year: 2025 },
     water_interventions: {}, sanitation_interventions: {} },
@@ -99,6 +109,57 @@ assert.match(fresh, /value="2025"/);
 assert.doesNotMatch(fresh, /Resolve the shared billed-revenue base above|Revenue inputs need attention/);
 assert.match(section({ sector: 'sanitation', area: 'rural' }), /rural sanitation/);
 assert.doesNotMatch(section({ sector: 'sanitation' }), /data-revenue-sector="water"/);
+const provenance = Object.fromEntries([
+  'billed_share_sm', 'billed_share_basic', 'household_volume_share', 'marginal_cost',
+].map(key => [key, { source_type: 'assumed', reference_year: 2025, note: `fixture ${key}` }]));
+const connectionConfig = {
+  version: 1, enabled: true, billed_share_sm: 1, billed_share_basic: 1, household_volume_share: 0.7,
+  marginal_cost: 0.2, zero_cost_confirmed: false, alignment: 'estimate', baseline_volume_mld: null,
+  funding_reference: 'fixed', reference_confirmed: true, funding_includes_reforms: false,
+  reference_series: {}, nonhousehold_growth_rate: null, lower_service_billing_acknowledged: false, provenance,
+};
+const connectionInputs = {
+  period: { baseline_year: 2025, forecast_end_year: 2027 },
+  revenue_bases: { water: { reference_year: 2020 } },
+};
+assert.deepEqual(JSON.parse(revenueBasesRequestBody(connectionInputs)), connectionInputs,
+  'Revenue-base status requests must post the raw inputs object, not a component wrapper.');
+assert.deepEqual(connectionRevenueErrors(connectionConfig, connectionInputs, 'water'), [],
+  'An explicitly authorized estimate uses the canonical path; it must not require another baseline-volume estimate or provenance.');
+const observedWithoutValue = { ...connectionConfig, alignment: 'observation' };
+assert.ok(connectionRevenueErrors(observedWithoutValue, connectionInputs, 'water')
+  .some(message => /baseline-year observed billed volume is required/.test(message)),
+'Observation alignment requires an explicit baseline-year volume.');
+const observedWithValue = {
+  ...observedWithoutValue, baseline_volume_mld: 0,
+  provenance: { ...provenance, baseline_volume_mld: { source_type: 'observed', reference_year: 2025, note: 'Measured at baseline' } },
+};
+assert.deepEqual(connectionRevenueErrors(observedWithValue, connectionInputs, 'water'), [],
+  'A measured zero is valid when explicitly sourced and documented.');
+const connectionMarkup = renderToStaticMarkup(React.createElement(ConnectionRevenue, {
+  inputs: { ...connectionInputs, revenue_bases: { water: { reference_year: 2020 } }, connection_revenue: { water: connectionConfig } },
+  onChange() {}, sector: 'water', area: 'urban',
+}));
+assert.match(connectionMarkup, /Authorize estimate from the canonical volume path/);
+assert.doesNotMatch(connectionMarkup, /Observed baseline-year billed volume/);
+assert.equal(aggregateWeightedRevenueRate([
+  { rate: 2, volume: 10, tariff: 2 },
+  { rate: 4, volume: 30, tariff: 4 },
+], 'volume'), 3.5, 'National applicable tariff must be billed-volume weighted.');
+assert.ok(Math.abs(aggregateWeightedRevenueRate([
+  { rate: 0.5, volume: 10, tariff: 2 },
+  { rate: 0.75, volume: 30, tariff: 4 },
+], 'tariff-volume') - (5 / 7)) < 1e-12, 'National collection ratio must be tariff-volume weighted.');
+const nationalModes = connectionRevenueAreaModes([
+  { water_supply: { connection_revenue: { requested: true, effective: true } } },
+  { water_supply: { connection_revenue: { requested: false, effective: false } } },
+], [
+  { country_config: { area: 'Urban' }, connection_revenue: { water: { enabled: true } } },
+  { country_config: { area: 'Rural' }, connection_revenue: { water: { enabled: false } } },
+], 'water_supply', 'water');
+assert.match(connectionRevenueModeText(nationalModes).text, /Mixed across areas/);
+assert.match(connectionRevenueModeText(nationalModes).text, /Urban: connection-based/);
+assert.match(connectionRevenueModeText(nationalModes).text, /Rural: exogenous/);
 assert.equal(renderToStaticMarkup(React.createElement(RevenueReconciliation, { ...props, silent: true })), '',
   'The application must retain background resolution without a top revenue panel.');
 const before = { ...props.inputs, revenue_bases: { sanitation: { ...custom, volume_mld: 9 } } };

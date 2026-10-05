@@ -21,6 +21,7 @@ import { yearAxisInterval } from '../chartAxis';
 import { linesFirstLegend } from './chartLegend';
 import { aggregateContributionRows, type ContributionView, type ViewBand } from '../contributionView';
 import { convertMoney, currencyRateNote, type CurrencyDisplaySettings } from '../currencyDisplay';
+import { connectionRevenueAreaModes, connectionRevenueModeText } from '../connectionRevenueMode';
 
 type Intv = [key: string, label: string, color: string];   // toggle key, legend label, band colour
 // Band palette excludes blue (BAU) and green (target) so those meanings stay reserved (see chartColors).
@@ -60,6 +61,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const [data, setData] = useState<any[]>([]);
   const [bands, setBands] = useState<Intv[]>([]);   // interventions that actually contribute, in stack order
   const [summary, setSummary] = useState<any>(null);
+  const [revenueModeLabel, setRevenueModeLabel] = useState('Effective revenue mode: awaiting calculation');
   const [accessRows, setAccessRows] = useState<AccessRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   // Unit toggle, matching the BAU chart and the Results dashboard: absolute households or share of
@@ -117,6 +119,9 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       Promise.all(payloads.map(post).concat(debtPayload ? [post(debtPayload)] : [])).then(allResults => {
         const results = includeDebt ? allResults.slice(0, -1) : allResults;
         const debtResult = includeDebt ? allResults[allResults.length - 1] : null;
+        setRevenueModeLabel(connectionRevenueModeText(connectionRevenueAreaModes(
+          [results[0]], [inputs], sector === 'water' ? 'water_supply' : 'sanitation', sector,
+        )).text);
         const years: number[] = results[0].years;
         // The engine returns a PURE BAU (`bau_hh`, invariant) plus the SCENARIO safely-managed path under
         // that pass's toggles+customs (`scenario_hh`). Grey base = pure BAU; each pass's scenario_hh gives
@@ -150,7 +155,10 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
           cur: inputs?.country_config?.currency || 'LCU',
         });
         setError(null);
-      }).catch((err: any) => { setError(String(err)); setAccessRows([]); setSummary(null); });
+      }).catch((err: any) => {
+        setError(String(err)); setAccessRows([]); setSummary(null);
+        setRevenueModeLabel('Effective revenue mode could not be confirmed because calculation failed.');
+      });
     }, 350);
     return () => clearTimeout(h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -203,6 +211,9 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   return (
     <div>
       <p title={REVENUE_ATTRIBUTION} style={{ fontSize: 11 }}>{contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : REVENUE_ATTRIBUTION}</p>
+      <div style={{ fontSize: 10.5, color: '#334155', background: '#f0fdfa', borderLeft: '3px solid #0f766e', padding: '5px 8px', marginBottom: 6 }}>
+        {revenueModeLabel}. Connection-based revenue is a baseline model, not an intervention band.
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
         <h3 style={{ fontSize: 14, margin: 0, fontWeight: 600, color: '#1e3a5f' }}>
           {scopeLabel ? scopeLabel + ' ' : ''}{sectorLabel} — {rungName} impact (live)

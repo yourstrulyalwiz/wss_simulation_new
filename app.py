@@ -48,7 +48,16 @@ async def financial_commitment_input_error(request, exc):
 @app.post("/api/revenue-bases")
 def revenue_bases(inputs: dict = Body(...)):
     model = coerce_to_engine(inputs)
-    return resolve_bases(model, build_context(model))
+    ctx = build_context(model)
+    resolved = resolve_bases(model, ctx)
+    from model.connection_revenue import prepare_connection
+    from model.service_history import sector_history
+    for sector, item in resolved.items():
+        item['connection'], _ = prepare_connection(
+            model.connection_revenue.get(sector), item['base'], ctx,
+            sector_history(model, ctx, sector), model.constants.days_in_year,
+            model.constants.cubic_meter_liters)
+    return resolved
 
 app.add_middleware(
     CORSMiddleware,

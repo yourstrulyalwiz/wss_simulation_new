@@ -1,4 +1,4 @@
-"""Shared billed revenue, in local-currency millions; no coverage feedback."""
+"""Canonical shared revenue bases and exogenous paths; optional feedback is in connection_revenue."""
 import copy
 import math
 import numpy as np

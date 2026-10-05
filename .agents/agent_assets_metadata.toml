@@ -28,3 +28,17 @@ mtime_ms = 1791215114728
 storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/b815e2ac-6f9a-4fcc-ab43-7b6f13b75dc6/dd90110e-0645-4c60-822a-3d2015d8b3df"
 storage_version_token = "1791215127599922"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "Gb_eVPHcN8C0vOt9ep83i"
+uri = "file://Programming%20Notes%20Post%20Castalia/Connection-Based%20Revenue%20Assessment%20and%20Programming%20Changes.md"
+type = "text"
+title = "Connection-Based Revenue — Assessment and Completed Changes"
+description = "Implemented graph and ledger treatment, configuration/provenance requirements, operating-cost boundaries, verified examples, export checks and remaining limitations."
+logical_id = "e07c095d-f42d-413b-ba97-ea345ad7f150"
+content_hash = "sha256:fa9d9e1af46f1dfae0fbb4f1e8fc9602937a3ef11c728d1858305e5978c4e042"
+size = 13975
+mtime_ms = 1791217935703
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/e07c095d-f42d-413b-ba97-ea345ad7f150/28e01a85-f012-4278-ac3d-5a259e5c0e77"
+storage_version_token = "1791217946732971"
+content_type = "text/markdown"

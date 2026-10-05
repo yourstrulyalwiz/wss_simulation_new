@@ -666,6 +666,7 @@ def to_engine(fe: dict) -> ModelInputs:
 
     return ModelInputs(
         revenue_bases=fe.get('revenue_bases', {}),
+        connection_revenue=fe.get('connection_revenue', {}),
         revenue_legacy=fe.get('revenue_legacy') or {key: fe.get(key, {}) for key in ('water_interventions', 'sanitation_interventions')},
         country_config=CountryConfig(**{k: v for k, v in fe.get('country_config', {}).items()
                                         if k in CountryConfig.model_fields}),

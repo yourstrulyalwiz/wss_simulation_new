@@ -12,6 +12,7 @@ import { serviceAccessRows, type AccessRow } from '../serviceAccess';
 import TableExport from './TableExport';
 import { convertMoney, currencyRateNote, type CurrencyDisplaySettings, validRate } from '../currencyDisplay';
 import { runCalculation } from '../api';
+import { connectionRevenueAreaModes, connectionRevenueModeText } from '../connectionRevenueMode';
 
 /**
  * BAU vs Target chart driven by the LIVE calculation engine (validated cell-by-cell against the
@@ -67,6 +68,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   const [tableRows, setTableRows] = useState<any[]>([]);
   const [endAnno, setEndAnno] = useState<{ year: number; bau: number; tgt: number; bauShare: number; tgtShare: number; gapHH: number; finGap: number | null; cur: string } | null>(null);
   const [summary, setSummary] = useState<any>(null);
+  const [revenueModeLabel, setRevenueModeLabel] = useState('Effective revenue mode: awaiting calculation');
   const [error, setError] = useState<string | null>(null);
   // Set when the BAU is budget-constrained (frozen): the capex budget is below the replacement need in
   // every forecast year, so no new safely-managed service is built and unit cost has no effect.
@@ -180,6 +182,9 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
     const h = setTimeout(() => {
       Promise.all(datasets.map(inp => runCalculation(inp))).then(resList => {
         if (cancelled) return;
+        setRevenueModeLabel(connectionRevenueModeText(connectionRevenueAreaModes(
+          resList, datasets, sector === 'water' ? 'water_supply' : 'sanitation', sector,
+        )).text);
         const base = resList[0];
         const years: number[] = base.years;
         const secOf = (res: any) => sector === 'water' ? res.water_supply : res.sanitation;
@@ -316,6 +321,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         setTargetLines([]);
         setTargetPoints([]);
         setAccessRows([]);
+        setRevenueModeLabel('Effective revenue mode could not be confirmed because calculation failed.');
         setError(e instanceof Error ? e.message : String(e));
       });
     }, 350);
@@ -564,7 +570,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         {scopeLabel ? scopeLabel + ' ' : ''}{sectorLabel} — {rungNameRaw}: BAU vs Target (live calculation engine)
       </h3>
       <div style={{ fontSize: 10, color: '#065f46', background: '#d1fae5', padding: '4px 8px', borderRadius: 4, marginBottom: 8 }}>
-        Live engine output.{datasets.length > 1 ? ' National = Urban + Rural (summed).' : ' Edits on the Data Inputs tab recompute this chart.'}
+        Live engine output. {revenueModeLabel}{datasets.length > 1 ? ' · National = Urban + Rural (summed).' : ' · Edits on the Data Inputs tab recompute this chart.'}
       </div>
       {constrained && (
         <div style={{ fontSize: 11, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 4, padding: '6px 10px', marginBottom: 8, lineHeight: 1.5 }}>

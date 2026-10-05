@@ -194,6 +194,28 @@ def aggregate(results: List[dict]) -> dict:
             agg.get('budget_used') or [], agg.get('budget_allocated') or [], years, end_asis)
         agg['execution_rate'] = _wavg([s.get('execution_rate') or 0.0 for s in secs], w)
         agg['hist_cagr'] = _agg_hist_cagr(secs, years, end_asis)
+        for prefix in ('', 'scenario_'):
+            metadata = [s.get(prefix + 'connection_revenue') or {} for s in secs]
+            modes = [bool(m.get('effective')) for m in metadata]
+            agg[prefix + 'connection_revenue'] = {
+                'requested': any(m.get('requested') for m in metadata),
+                'effective': all(modes), 'mixed': len(set(modes)) > 1,
+                'area_configurations': metadata,
+            }
+            # Intensive rates are revenue/billed-volume weighted, never summed.
+            volumes = [s.get(prefix + 'billed_volume_million_m3') or [] for s in secs]
+            rates = [s.get(prefix + 'applicable_tariff') or [] for s in secs]
+            for field in ('applicable_tariff', 'applicable_collection_ratio'):
+                vals = [s.get(prefix + field) or [] for s in secs]
+                combined = []
+                for i in range(len(years)):
+                    weights = [(vol[i] if i < len(vol) else 0) *
+                               (rates[j][i] if field.endswith('collection_ratio') and i < len(rates[j]) else 1)
+                               for j, vol in enumerate(volumes)]
+                    denom = sum(weights)
+                    combined.append(sum((v[i] if i < len(v) else 0) * weights[j]
+                                        for j, v in enumerate(vals)) / denom if denom else 0)
+                agg[prefix + field] = combined
         if any(s.get('scenario_utility_debt') for s in secs):
             agg['scenario_utility_debt'] = _aggregate_utility_debt(
                 [s.get('scenario_utility_debt') or {} for s in secs])

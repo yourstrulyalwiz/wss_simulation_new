@@ -885,6 +885,8 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, co
 
     _append_utility_debt_slides(prs, d['blocks'], display_cur, money_factor)
     append_service_access_slides(prs, d['results'])
+    from revenue_export import append_revenue_slides
+    append_revenue_slides(prs, d['results'], source_cur, money_factor, display_cur)
 
     # ── contents + prompts ──────────────────────────────────────────────────────────────────────
     _rebuild_contents(prs.slides[IDX_CONTENTS], _contents_entries(prs, d, present, lever_rows),

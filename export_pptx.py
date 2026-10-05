@@ -298,6 +298,8 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
             add_table(slide, .45, 1.45, 12.4, headers, rows, fontsize=7.5)
 
     append_service_access_slides(prs, {area: result})
+    from revenue_export import append_revenue_slides
+    append_revenue_slides(prs, {area: result}, _cur(inputs), money_factor, cur)
     output = io.BytesIO()
     prs.save(output)
     output.seek(0)

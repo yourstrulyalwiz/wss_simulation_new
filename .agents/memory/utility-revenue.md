@@ -2,17 +2,20 @@
 name: Utility revenue scope and default reconciliation
 description: Standing boundaries for collected-revenue changes.
 ---
-Keep volume growth exogenous; revenue feedback from new connections is separate
-future work. Preserve separate collection and tariff contributions, collection
-first in the full existing order, with the interaction attributed to tariff.
-Do not change NRW benefits as part of tariff/collection fixes.
+For narrow tariff/collection maintenance, keep exogenous volume growth and do
+not introduce additional connection feedback incidentally. The user subsequently
+authorized a separately configurable connection-based baseline feature; see
+connection-revenue-policy.md. Preserve separate collection and tariff contributions,
+collection first in the full existing order, with the interaction attributed to
+tariff. Do not change NRW benefits as part of these revenue fixes.
 
 **Why:** The user explicitly scoped this correction to tariff/collection
 interaction while preserving financing, funded-asset and service-target fixes.
 
 **How to apply:** Reject proposals to merge the contributions or introduce
-elasticity, operating costs, new reinvestment assumptions or connection feedback
-as incidental improvements to this work.
+elasticity, general operating accounts or new reinvestment assumptions as incidental
+improvements. The optional connection feature's explicit marginal-cost adjustment
+is separate from a general operating-cost account.
 
 Automatic revenue-base reconciliation should be silent. Shared revenue input
 entry and its correction controls belong on the first Data Inputs page, directly

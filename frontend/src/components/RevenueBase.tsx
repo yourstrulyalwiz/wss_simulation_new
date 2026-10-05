@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useState } from 'react';
+import ConnectionRevenue from './ConnectionRevenue';
 
 export const REVENUE_ATTRIBUTION = 'Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.';
 
@@ -115,6 +116,7 @@ export function RevenueInputsSection({ inputs, onChange, sector, area }: {
       {' '}These values are also available in Intervention Design. Switching sector or area keeps each dataset separate.
     </p>
     <RevenueBaseEditor inputs={inputs} onChange={onChange} sector={sector} />
+    <ConnectionRevenue inputs={inputs} onChange={onChange} sector={sector} area={area} />
     {errors.length > 0 && <div role="alert" style={{ marginTop: 10, fontSize: 12, color: '#9f1239' }}>
       <strong>Complete or correct this sector's revenue inputs:</strong>
       <ul style={{ margin: '6px 0', paddingLeft: 20 }}>{errors.map(error => <li key={error}>{error}</li>)}</ul>
@@ -141,7 +143,7 @@ export default function RevenueReconciliation({ inputs, onChange, area, silent =
         if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Invalid revenue inputs.');
         let next = inputs;
         for (const sector of ['water', 'sanitation']) {
-          if (!inputs.revenue_bases?.[sector] && data[sector].base) next = save(next, sector, data[sector].base);
+          if (!inputs.revenue_bases?.[sector] && data?.[sector]?.base) next = save(next, sector, data[sector].base);
         }
         setStatus({ key, resolution: data, error: '' });
         if (next !== inputs) onChange(next);

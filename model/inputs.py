@@ -651,6 +651,7 @@ class UtilityDebtInputs(BaseModel):
 # ──────────────────────────────────────────────────────────────────────────
 class ModelInputs(BaseModel):
     revenue_bases: dict = {}
+    connection_revenue: dict = {}
     revenue_legacy: dict = {}
     country_config: CountryConfig = CountryConfig()
     period: PeriodInputs = PeriodInputs()

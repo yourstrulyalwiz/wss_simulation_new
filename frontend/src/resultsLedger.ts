@@ -181,10 +181,6 @@ export function ledgerRows(data: LedgerData, options: {
           values: areaNet.map(value => value != null && Math.abs(value) < 1e-12 ? 0 : value),
         });
       }
-      rows.push({
-        key: 'accessGap', label: 'Unmet SM targets across areas (no surplus offset)', kind: 'detail',
-        unit: isShare ? 'pp' : unit, values: series(data.scenario, 'accessGap'),
-      });
     } else {
       detail('accessGap', 'At-least-basic access gap (SM + Basic)');
     }

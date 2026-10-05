@@ -29,7 +29,9 @@ single-service coverage or attributed financing when labeling graphs.
 
 For the Results SM coverage table, the primary reported gap must be the signed
 combined scenario minus original target for the selected scope, including
-National. Keep locally floored unmet targets as a separate diagnostic.
+National. Keep locally floored unmet targets in the model, but do not show their
+separate row in the Results SM year-column coverage table; the user requested its
+removal after adding the signed Urban/Rural breakdown.
 **Why:** The user explicitly expects the gap beside National target and scenario
 rows to reconcile with those rows; summing local shortfalls under that label
 obscures surplus offsets and was interpreted as incorrect arithmetic.

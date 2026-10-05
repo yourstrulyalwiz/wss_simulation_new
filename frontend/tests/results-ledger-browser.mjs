@@ -89,7 +89,9 @@ try {
             const urbanGap=sheet.rows.find(row=>row[0]==='Urban SM gap (scenario − target)');
             const ruralGap=sheet.rows.find(row=>row[0]==='Rural SM gap (scenario − target)');
             assert.ok(urbanGap && ruralGap,'National gap breakdown missing from export');
-            assert.ok(net && sheet.rows.some(row=>row[0]==='Unmet SM targets across areas (no surplus offset)'));
+            assert.ok(net && !sheet.rows.some(row=>row[0]==='Unmet SM targets across areas (no surplus offset)'));
+            assert.equal(await e(`document.querySelectorAll('${root} [data-ledger-row="accessGap"]').length`),0,
+              'Removed unmet SM target row remains visible');
             assert.equal(net[1],full[1]==='%' ? 'pp' : 'M households');
             for (let i=2;i<sheet.headers.length;i++) {
               assert.ok(Math.abs(net[i]-(full[i]-target[i]))<1e-10,'Exported SM net gap does not reconcile');

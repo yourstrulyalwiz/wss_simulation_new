@@ -216,7 +216,7 @@ export default function ResultsLedgerPanel({
         )}
         {selection.metric === 'coverage' && selection.service === 'sm' && (
           <p className="results-ledger__coverage-legend">
-            SM net gap = Combined scenario − Original target; − red means shortfall, + green means surplus, and neutral zero means no net difference. Local unmet-target diagnostics count each area without offsetting surpluses.
+            SM net gap = Combined scenario − Original target; − red means shortfall, + green means surplus, and neutral zero means no net difference.
           </p>
         )}
         {selection.metric === 'coverage' && selection.service === 'sm' && !!data.areas?.length && (

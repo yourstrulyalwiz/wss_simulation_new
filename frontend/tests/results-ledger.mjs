@@ -141,7 +141,9 @@ for (const sector of ['water_supply','sanitation']) {
   const values=(rs,key)=>rs.find(row=>row.key===key).values;
   values(rows,'target').forEach((v,i)=>{
     close(v,3.84);close(values(rows,'scenario')[i],3.79);
-    close(values(rows,'smNetGap')[i],-.05);close(values(rows,'accessGap')[i],.15);
+    close(values(rows,'smNetGap')[i],-.05);
+    assert.ok(!rows.some(row=>row.key==='accessGap'),'Removed unmet SM target row must not be exported');
+    close(ledgerSnapshots([urban,rural],sector,fixture.baseline)[i].values.accessGap[0],.15);
     close(values(rowsFor([urban]),'smNetGap')[i]+values(rowsFor([rural]),'smNetGap')[i],-.05);
     close(values(rows,'smNetGap-urban')[i],.10);
     close(values(rows,'smNetGap-rural')[i],-.15);

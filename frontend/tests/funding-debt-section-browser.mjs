@@ -20,7 +20,9 @@ d['utility_debt']={'water':dict(cfg),'sanitation':dict(cfg)}
 print(json.dumps(d))
 `],{cwd:fileURLToPath(new URL('../../',import.meta.url)),encoding:'utf8'}));
 const bundle={__wss_bundle:1,inputs,altInputs:{rural:structuredClone(inputs)},
-  scope:{scopeMode:'urban_rural',areaUrban:true,areaRural:true}};
+  scope:{scopeMode:'urban_rural',areaUrban:true,areaRural:true},
+  presentation:{currencyDisplay:{mode:'local',sourceCurrency:inputs.country_config.currency,
+    localPerUsd:120,rateReferenceYear:2024}}};
 const c=await openChromium(process.env.APP_URL);
 const {evaluate:e,waitFor:w}=c;
 const change=async(selector,value)=>{
@@ -63,6 +65,12 @@ try{
         assert.equal(await e(`!!document.querySelector('${root} [data-ledger-row="${key}"]')`),debt);
       const cashLabel=await e(`document.querySelector('${root} [data-ledger-row="fundingOperating"]').textContent`);
       assert.equal(cashLabel.includes('after debt service'),debt);
+      assert.ok(await e(`(()=>{const p=document.querySelector('${root}');
+        const cells=[...p.querySelectorAll('[data-ledger-row="fundingShared"] [data-ledger-year], [data-ledger-row="fundingRestricted"] [data-ledger-year]')]
+          .filter(cell=>cell.title!=='Not available' && Math.abs(Number(cell.title))<10000*120/1e9);
+        return cells.length>0 && cells.every(cell=>cell.textContent.trim()==='0' &&
+          !cell.classList.contains('results-ledger__value--negative'));})()`),
+        'Small native-currency balances must display neutral zero without losing their precise tooltip');
       if(debt){
         assert.equal(await e(`document.querySelector('${root} [data-ledger-row="debtFundingSection"]').textContent`),'With debt servicing');
         assert.equal(await e(`document.querySelector('${root} tbody').lastElementChild.dataset.ledgerRow`),'fundingOperating');
@@ -76,6 +84,10 @@ try{
       await w(`window.__fundingExports.length>${exports} && window.__fundingExports[${exports}].status===200`,'Excel failed');
       const exported=await e(`window.__fundingExports[${exports++}].body`);
       const rows=exported.sheets[0].rows;
+      const exactBalances=await e(`[...document.querySelectorAll('${root} [data-ledger-row="fundingShared"] [data-ledger-year]')]
+        .map(cell=>cell.title==='Not available'?null:Number(cell.title))`);
+      assert.deepEqual(rows.find(row=>row[0]==='Scenario — available but not applied / restricted').slice(2),exactBalances,
+        'Display rounding must not change exact exported balances');
       assert.equal(rows.some(row=>row[0]==='With debt servicing'),debt);
       assert.equal(rows.at(-1)[0],debt?'Ordinary net cash after debt service (signed)':'Ordinary net cash (signed)');
       assert.ok(exported.filename.includes(debt?'with-debt':'without-debt'));

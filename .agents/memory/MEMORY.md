@@ -9,3 +9,4 @@
 - [Graph viewing period](graph-window-policy.md) — open around simulation years with three preceding years; keep longer history selectable without changing model data.
 - [Utility debt scope](utility-debt-policy.md) — use incremental net cash; user deliberately excludes new-connection revenue from debt eligibility.
 - [Results attribution](results-attribution.md) — retain reconciled marginal effects; category display order is not calculation order or a standalone simulation.
+- [Funding-balance materiality](financial-reporting-materiality.md) — US$10,000 is a user-approved display tolerance, not permission to erase obligations.

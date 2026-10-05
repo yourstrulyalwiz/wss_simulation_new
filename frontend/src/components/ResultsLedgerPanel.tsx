@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import TableExport from './TableExport';
 import { ledgerRows } from '../resultsLedger';
 import type { LedgerBasis, LedgerData, LedgerMetric, LedgerRow, LedgerService } from '../resultsLedger';
-import type { CurrencyDisplaySettings } from '../currencyDisplay';
+import { validRate, type CurrencyDisplaySettings } from '../currencyDisplay';
+import { fundingBalanceForDisplay } from '../fundingBalanceDisplay';
 import type { ContributionView } from '../contributionView';
 import './ResultsLedgerPanel.css';
 
@@ -92,6 +93,8 @@ export default function ResultsLedgerPanel({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   useEffect(() => setExpanded({}), [contributionView]);
   const isExpanded = (key: string) => expanded[key] ?? contributionView === 'individual';
+  const balanceRate = validRate(currencyDisplay, currency) ? currencyDisplay.localPerUsd : null;
+  const canRoundBalance = currency.toUpperCase() === 'USD' || balanceRate != null;
   let rows: LedgerRow[] = [];
   let ledgerError = '';
 
@@ -298,12 +301,17 @@ export default function ResultsLedgerPanel({
                       {row.key === 'fundingShared' && (
                         <span data-testid="funding-surplus-note" style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#475569', marginTop: 4 }}>
                           Surplus relative to this year's applied spending. It may include restricted funds and does not mean all remaining needs are funded.
+                          {' '}{canRoundBalance
+                            ? 'Unapplied and restricted balances below US$10,000 display as 0; exports retain exact amounts.'
+                            : 'Rounding balances below US$10,000 requires a valid exchange rate.'}
                         </span>
                       )}
                     </th>
                     <td className="results-ledger__unit">{row.unit}</td>
                     {years.map((year, index) => {
-                      const value = row.values[index] ?? null;
+                      const rawValue = row.values[index] ?? null;
+                      const value = row.key === 'fundingShared' || row.key === 'fundingRestricted'
+                        ? fundingBalanceForDisplay(rawValue, currency, balanceRate) : rawValue;
                       return (
                         <td
                           key={year}
@@ -311,7 +319,7 @@ export default function ResultsLedgerPanel({
                           className={`results-ledger__value${isSignedGap && value != null
                             ? value < 0 ? ' results-ledger__value--shortfall' : value > 0 ? ' results-ledger__value--surplus' : ' results-ledger__value--neutral'
                             : value != null && value < 0 ? ' results-ledger__value--negative' : ''}`}
-                          title={value == null ? 'Not available' : String(value)}
+                          title={rawValue == null ? 'Not available' : String(rawValue)}
                         >
                         {formatValue(value, row.unit, isSignedGap || row.kind === 'category' || row.kind === 'intervention')}
                         </td>

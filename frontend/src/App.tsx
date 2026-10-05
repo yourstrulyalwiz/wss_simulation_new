@@ -272,10 +272,6 @@ export default function App() {
   const [calculationError, setCalculationError] = useState('');
   useEffect(() => {
     if (!activeInputs) return;
-    if (activeInputs.profile_metadata?.status === 'data_preview') {
-      setResults(null); setCalculationError('');
-      return;
-    }
     let cancelled = false;
     const h = setTimeout(() => {
       runCalculation(activeInputs).then(value => {
@@ -411,14 +407,13 @@ export default function App() {
   // the Intervention Design and Results tabs), so there is no separate Export tab.
   const tabs = ['Data Inputs', 'BAU Scenario', 'Intervention Design', 'Results Dashboard'];
   const isDataPreview = inputs?.profile_metadata?.status === 'data_preview';
-  const disabledTabs = new Set<number>(isDataPreview ? [1, 2, 3] : []);
 
   return (
     <div className="wb-app" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {!isDataPreview && <RevenueReconciliation inputs={activeInputs} onChange={handleSetActiveInputs} area={inputScope} />}
+      <RevenueReconciliation inputs={activeInputs} onChange={handleSetActiveInputs} area={inputScope} />
       {isDataPreview && <div role="status" style={{ padding: '8px 16px', background: '#fff8e6', fontSize: 12 }}>
         <strong>DRC spreadsheet data preview — settings pending.</strong> Urban and rural data are loaded.
-        {' '}Switch the editing area to inspect each sheet. Calculations are unavailable until the missing model settings are supplied.
+        {' '}All workflow tabs are available. Missing or invalid model settings may still prevent calculations.
         {' '}The differing GDP forecasts have been retained as uploaded.
       </div>}
       {calculationError && activeInputs?.revenue_bases?.water && activeInputs?.revenue_bases?.sanitation &&
@@ -494,11 +489,8 @@ export default function App() {
       {/* Tab Navigation */}
       <nav className="wb-tab-nav" aria-label="Scenario workflow">
         {tabs.map((tab, i) => {
-          const disabled = disabledTabs.has(i);
           return (
-          <button key={tab} onClick={disabled ? undefined : () => setActiveTab(i)}
-            disabled={disabled}
-            title={disabled ? 'Not available in this build — the intervention engine is not yet ported/validated' : undefined}
+          <button key={tab} onClick={() => setActiveTab(i)}
             className={`wb-tab${activeTab === i ? ' wb-tab-active' : ''}`}>
             <span className="wb-tab-step">{i + 1}</span>
             <span className="wb-tab-label">

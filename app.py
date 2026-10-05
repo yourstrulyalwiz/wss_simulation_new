@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 import json
 from model.inputs import ModelInputs, CountryConfig
 from model.engine import calculate
-from demo_adapter import frontend_defaults, to_engine, coerce_to_engine, DataPreviewError
+from demo_adapter import frontend_defaults, to_engine, coerce_to_engine
 from currency_export import validate_currency_display
 
 app = FastAPI(title="WSS Scenarios Model API")
@@ -18,7 +18,6 @@ from model.engine import build_context
 from pydantic import ValidationError
 
 
-@app.exception_handler(DataPreviewError)
 @app.exception_handler(ValidationError)
 async def invalid_model_inputs(request, exc):
     return JSONResponse(status_code=422, content={'detail': 'Invalid model inputs: ' + str(exc)})

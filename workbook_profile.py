@@ -73,7 +73,7 @@ def import_area(path, area):
         "imported_cells": count,
         "notice": "Spreadsheet data only. Unit costs, technical assumptions, economic "
                   "projection settings and intervention settings have not been supplied. "
-                  "Simulation calculations and exports are unavailable until these are completed.",
+                  "Missing or invalid settings may prevent successful calculations and result exports.",
     }
     return imported
 

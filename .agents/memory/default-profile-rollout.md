@@ -31,5 +31,11 @@ development preview, not loaded directly onto production. Viewing supplied
 data does not authorize importing Nepal assumptions into a DRC simulation.
 
 **How to apply:** Show both uploaded areas and clearly label missing settings;
-keep calculations and result exports unavailable for the incomplete profile.
+keep missing assumptions blank and let ordinary model validation report errors.
+Do not disable navigation or add a calculation/export block based solely on
+the profile being a data preview.
 Treat production activation of the completed simulation as separate work.
+
+**Why:** The user explicitly requested removal of the recently added preview
+restriction. They want to access BAU and the later pages without a readiness
+gate; that does not authorize inventing missing assumptions.

@@ -81,13 +81,26 @@ try {
   const ruralValues = await evaluate(`Array.from(document.querySelectorAll('input')).map(i => i.value)`);
   assert.ok(ruralValues.includes((42.661934).toFixed(2)),
     'The Rural population must differ from Urban and match its workbook.');
+  for (const label of ['BAU Scenario', 'Intervention Design', 'Results Dashboard']) {
+    const opened = await evaluate(`(() => {
+      const tab = Array.from(document.querySelectorAll('.wb-tab')).find(
+        b => b.textContent.replace(/\\s/g, '').includes(${JSON.stringify(label.replace(/\s/g, ''))}));
+      if (!tab || tab.disabled) return false;
+      tab.click(); return true;
+    })()`);
+    assert.equal(opened, true, `${label} must be accessible for the DRC preview.`);
+    await sleep(400);
+    assert.ok(await evaluate(`document.querySelector('.wb-tab-active')?.textContent.replace(/\\s/g, '').includes(${JSON.stringify(label.replace(/\s/g, ''))})`),
+      `${label} must actually open.`);
+    assert.ok(await evaluate(`!!document.querySelector('.wb-app')`), 'Page must remain rendered.');
+  }
   await send('Page.reload', {}, sessionId);
   await sleep(1000);
   state = await evaluate(`JSON.parse(localStorage.getItem('wss_demo_scenarios') || '[]')`);
   assert.equal(state.filter(s => s.name.startsWith('Previous working session')).length, 1,
     'Reload must not archive or reset the session again.');
   assert.equal(browserErrors.length, 0, JSON.stringify(browserErrors));
-  console.log('Browser passed: DRC startup, original-session backup, Urban/Rural spreadsheet values and safe reload.');
+  console.log('Browser passed: DRC startup, preserved data/session, all workflow tabs accessible and safe reload.');
 } finally {
   browser.kill('SIGTERM');
   for (const { timer } of pending.values()) clearTimeout(timer);

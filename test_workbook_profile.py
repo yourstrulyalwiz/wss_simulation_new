@@ -2,7 +2,8 @@ import os
 import unittest
 from unittest.mock import patch
 from workbook_profile import build_preview, PREVIEW_PROFILE_NAME
-from demo_adapter import coerce_to_engine
+from demo_adapter import coerce_to_engine, frontend_defaults
+from pydantic import ValidationError
 from app import development_preview
 
 URBAN = "attached_assets/wss_input_template_urban_1791162260127.xlsx"
@@ -36,8 +37,13 @@ class WorkbookProfileTests(unittest.TestCase):
             self.assertIsNone(area["technical"]["ws_asset_life"])
             self.assertIsNone(area["water_interventions"]["ce_water_sold_mld"])
             self.assertEqual(area["macro"]["exchange_rate"], [])
-            with self.assertRaisesRegex(ValueError, "spreadsheet data preview"):
+            with self.assertRaises(ValidationError):
                 coerce_to_engine(area)
+
+    def test_preview_metadata_does_not_block_valid_inputs(self):
+        inputs = frontend_defaults()
+        inputs["profile_metadata"] = {"status": "data_preview"}
+        self.assertEqual(coerce_to_engine(inputs).period.baseline_year, inputs["period"]["baseline_year"])
 
     def test_no_production_default(self):
         with patch.dict(os.environ, {"REPLIT_DEPLOYMENT": "1"}):

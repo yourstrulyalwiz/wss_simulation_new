@@ -32,3 +32,19 @@ injection, rather than borrowing against an optimistic future revenue peak.
 Debt servicing as the separate fourth workflow stage, with Results fifth.
 Show the same intervention contributions plus signed debt effects, and leave
 new-connection net cash outside repayment eligibility.
+
+## Optional debt and ordinary Results
+
+Debt servicing is optional. Users may go straight from Intervention Design to
+Results without visiting the fourth stage. Disabled or absent borrowing must
+preserve all standard graphs, summaries, tables, scope controls and exports;
+unused blank loan settings must not become prerequisites for ordinary results.
+
+**Why:** The user explicitly clarified that tab 4 is an option and that, without
+it, "every outputs like previously should appear in results dashboard."
+
+**How to apply:** Keep ordinary-input validation strict, but separate it from
+enabled-loan validation. Excluding debt from a Results view must not erase saved
+loan terms or interventions, and its live exports must use that same debt choice
+across all entered areas. Report genuine calculation failures clearly; do not
+silently keep stale charts or fabricate missing intervention contributions.

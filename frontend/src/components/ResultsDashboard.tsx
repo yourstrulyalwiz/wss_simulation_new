@@ -6,6 +6,8 @@ import {
 import { C, INTV_PALETTE as P } from '../chartColors';
 import { yearAxisInterval } from '../chartAxis';
 import { resolveChartWindow } from '../chartWindow';
+import { runCalculation } from '../api';
+import { resultsInputs } from '../resultsDebtMode';
 import { linesFirstLegend } from './chartLegend';
 import ExportButtons from './ExportButtons';
 import ChartExport from './ChartExport';
@@ -79,7 +81,7 @@ interface Props {
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
 type DebtData = { summary: any; rows: any[]; areas: any[]; annualRows: any[] };
-type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any };
+type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any };
 type Both = { water: Series; sanitation: Series } | null;
 type Row = { key: string; label: string; addHH: number; resources: number | null };
 
@@ -210,6 +212,9 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
 }
 
 export default function ResultsDashboard({ geoScope, scenarios, inputs, altInputs, onToggle, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
+  const [includeDebt, setIncludeDebt] = useState(true);
+  const [attempt, setAttempt] = useState(0);
+  const dashboardRef = useRef<HTMLDivElement>(null);
   const [viewScope, setViewScope] = useState<'urban' | 'rural' | 'national'>(
     geoScope === 'urban' ? 'urban' : geoScope === 'rural' ? 'rural' : 'national'
   );
@@ -221,17 +226,20 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // the ENTRY mode (how the user filled the data in), not the Scope dropdown above, which only
   // chooses what this tab displays. In national-entry mode the national dataset lives in altInputs
   // and `inputs` is still the urban primary, so read it explicitly rather than exporting urban.
-  const deckAreas = React.useMemo(() => liveAreas(geoScope, inputs, altInputs), [geoScope, inputs, altInputs]);
+  const deckAreas = React.useMemo(() => Object.fromEntries(
+    Object.entries(liveAreas(geoScope, inputs, altInputs)).map(([area, data]) => [area, resultsInputs(data, includeDebt)])),
+    [geoScope, inputs, altInputs, includeDebt]);
   const [both, setBoth] = useState<Both>(null);
   const [table, setTable] = useState<{ water: Row[]; sanitation: Row[] } | null>(null);
   const [contrib, setContrib] = useState<Contrib>(null);   // per-intervention stacked series
   const [error, setError] = useState<string | null>(null);
+  const [contributionError, setContributionError] = useState<string | null>(null);
 
   // The dataset the user actually filled in. Same asymmetry deckAreas handles above: in national-ENTRY
   // mode the dataset being edited lives in altInputs.national and `inputs` is still the urban primary
   // seed, so it has to be read explicitly — otherwise everything on this tab (charts, tables, the
   // intervention toggles and the whole-scenario exports) reports seed numbers the user never entered.
-  const primary = useMemo(
+  const primaryRaw = useMemo(
     () => (geoScope === 'national' ? (altInputs?.['national'] ?? inputs) : inputs),
     [geoScope, inputs, altInputs]);
   // National entry has no urban/rural split to look at, so the Scope dropdown collapses to National
@@ -239,15 +247,19 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   const effScope = geoScope === 'national' ? 'national' : viewScope;
 
   // Datasets for the chosen scope (national = urban + rural summed, when rural data exists).
-  const datasets = useMemo(() => {
+  const rawDatasets = useMemo(() => {
     // Selecting urban+rural seeds altInputs.rural and switching to national entry does not clear it, so
     // national entry returns its one dataset rather than summing in an area that is no longer in play.
-    if (geoScope === 'national') return [primary];
+    if (geoScope === 'national') return [primaryRaw];
     const rural = altInputs?.['rural'];
-    if (effScope === 'urban') return [primary];
-    if (effScope === 'rural') return [rural ?? primary];
-    return rural ? [primary, rural] : [primary];      // national
-  }, [primary, geoScope, altInputs, effScope]);
+    if (effScope === 'urban') return [primaryRaw];
+    if (effScope === 'rural') return [rural ?? primaryRaw];
+    return rural ? [primaryRaw, rural] : [primaryRaw];      // national
+  }, [primaryRaw, geoScope, altInputs, effScope]);
+  const primary = useMemo(() => resultsInputs(primaryRaw, includeDebt), [primaryRaw, includeDebt]);
+  const datasets = useMemo(() => rawDatasets.map(data => resultsInputs(data, includeDebt)), [rawDatasets, includeDebt]);
+  const hasConfiguredDebt = Object.values(liveAreas(geoScope, inputs, altInputs)).some(data =>
+    ['water', 'sanitation'].some(sector => !!data?.utility_debt?.[sector]?.enabled));
 
   const cur = datasets[0]?.country_config?.currency || 'LCU';
   const resultCurrencies = [...new Set(datasets.map((data: any) => String(data?.country_config?.currency || 'LCU').toUpperCase()))];
@@ -263,13 +275,12 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // ── Fan charts: BAU vs the user's full designed scenario (interventions + customs) ──────────────
   useEffect(() => {
     if (!datasets.length || !datasets[0]) return;
+    let cancelled = false;
     setBoth(null);
     setError(null);
     const h = setTimeout(() => {
-      Promise.all(datasets.map((inp: any) =>
-        fetch('/api/calculate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inp) })
-          .then(r => { if (!r.ok) throw new Error('calc failed (' + r.status + ')'); return r.json(); })
-      )).then(resList => {
+      Promise.all(datasets.map(runCalculation)).then(resList => {
+        if (cancelled) return;
         const years: number[] = resList[0].years;
         const per = datasets[0]?.period || {};
         const baseYr = per.baseline_year ?? years[0];
@@ -465,7 +476,12 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             },
           };
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
-           return { inv, unit, basicRows, financeRows, debt, revenueRows, revenueModes, connectionMetadata, accessRows: serviceAccessRows(resList, secKey, baseYr), sum: {
+           return { inv, unit,
+            coverageRows: years.map((year, i) => ({ year, __bau: bau[i], __scenario: scn[i], __total: totalHH[i], __target: tgt[i] })),
+            financingRows: years.map((year, i) => ({ year,
+              __bau_gap: resList.reduce((total, r) => total + secOf(r).endline_financing_requirement[i], 0) / 1000,
+              __scenario_gap: resList.reduce((total, r) => total + secOf(r).scenario_endline_financing_requirement[i], 0) / 1000 })),
+            basicRows, financeRows, debt, revenueRows, revenueModes, connectionMetadata, accessRows: serviceAccessRows(resList, secKey, baseYr), sum: {
             endline: years[endIdx], curCov, bauCov: covPct(bau), scnCov: covPct(scn), tgtCov: covPct(tgt),
             addHH: Math.min(tEnd, scn[endIdx]) - Math.min(tEnd, bau[endIdx]),
             gapBauCum: endRequirement('endline_financing_requirement'), gapScnCum: endRequirement('scenario_endline_financing_requirement'),
@@ -473,10 +489,10 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         };
         setBoth({ water: build('water_supply'), sanitation: build('sanitation') });
         setError(null);
-      }).catch(e => { setBoth(null); setError(String(e)); });
+      }).catch(e => { if (!cancelled) { setBoth(null); setError(e instanceof Error ? e.message : String(e)); } });
     }, 350);
-    return () => clearTimeout(h);
-  }, [depKey]);
+    return () => { cancelled = true; clearTimeout(h); };
+  }, [depKey, attempt]);
 
   // ── Per-intervention breakdown: cumulative passes over the ENABLED built-in toggles isolate each lever's
   //    marginal safely-managed households (Δ scenario_hh) and gap reduction (Δ scenario_financing_gap) per
@@ -485,6 +501,10 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   //    at the true with-interventions scenario (shown as a single "Custom interventions" band). ───────────
   useEffect(() => {
     if (!datasets.length || !datasets[0]) { setTable(null); setContrib(null); return; }
+    let cancelled = false;
+    setTable(null);
+    setContrib(null);
+    setContributionError(null);
     const enW = WATER_INTV.filter(d => toggles[d.key]);
     const enS = SAN_INTV.filter(d => toggles[d.key]);
     const enabled = [...enW, ...enS];                              // global cumulative order (water then san)
@@ -502,12 +522,12 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         sanitation: { ...(settings?.sanitation || {}), enabled: false },
       });
       const fetchPass = (tg: any, useCustoms: boolean, debtEnabled = false) => Promise.all(datasets.map((inp: any) =>
-        fetch('/api/calculate', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...inp, toggles: tg, custom_interventions: useCustoms ? (inp.custom_interventions || []) : [],
-            utility_debt: debtEnabled ? inp.utility_debt : withoutDebt(inp.utility_debt) }) }).then(r => r.json())));
+        runCalculation({ ...inp, toggles: tg, custom_interventions: useCustoms ? (inp.custom_interventions || []) : [],
+          utility_debt: debtEnabled ? inp.utility_debt : withoutDebt(inp.utility_debt) })));
       const specs = sets.map(tg => ({ tg, customs: false }));
       if (hasCustoms) specs.push({ tg: acc, customs: true });      // final pass = all built-ins on + real customs
       Promise.all(specs.map(s => fetchPass(s.tg, s.customs)).concat(hasUtilityDebt ? [fetchPass(acc, true, true)] : [])).then(allPasses => {
+        if (cancelled) return;
         const debtPass = hasUtilityDebt ? allPasses.pop() : null;
         const passes = allPasses;                                // each pass = results[] (one/dataset)
         const years: number[] = passes[0][0].years;
@@ -588,10 +608,10 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           return rows;
         };
         setTable({ water: rowsFor(WATER_INTV, 'water_supply'), sanitation: rowsFor(SAN_INTV, 'sanitation') });
-      }).catch(() => { /* leave the previous view on a transient fetch error */ });
+      }).catch(e => { if (!cancelled) setContributionError(e instanceof Error ? e.message : String(e)); });
     }, 400);
-    return () => clearTimeout(h);
-  }, [depKey, JSON.stringify(toggles)]);
+    return () => { cancelled = true; clearTimeout(h); };
+  }, [depKey, JSON.stringify(toggles), attempt]);
 
   const isShare = unitMode === 'share';
   const chartWindow = resolveChartWindow(
@@ -611,7 +631,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // Coverage stack in % mode: divide the base, every band, and the target/ceiling by that year's total.
   const asShareStack = (rows: any[], bands: ContribBand[]) => rows.map(r => {
     const tot = r.__total || 0; const d = (v: number) => tot > 0 ? v / tot : 0;
-    const o: any = { ...r, year: r.year, __source_total: tot, __total: tot > 0 ? 1 : 0, __bau: d(r.__bau || 0), __target: d(r.__target || 0) };
+    const o: any = { ...r, year: r.year, __source_total: tot, __total: tot > 0 ? 1 : 0, __bau: d(r.__bau || 0), __target: d(r.__target || 0), __scenario: d(r.__scenario || 0) };
     bands.forEach(b => { o[b.key] = d(r[b.key] || 0); });
     return o;
   });
@@ -845,11 +865,11 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const s = secKey === 'water' ? both.water : both.sanitation;
     const label = secKey === 'water' ? 'Water Supply' : 'Sanitation';
     const cs = secKey === 'water' ? contrib?.water : contrib?.sanitation;
-    const groupedCov = cs && contributionView === 'category' ? aggregateContributionRows(cs.covRows, cs.bands) : { rows: cs?.covRows ?? [], bands: cs?.bands ?? [] };
-    const groupedGap = cs && contributionView === 'category' ? aggregateContributionRows(cs.gapRows, cs.bands) : { rows: cs?.gapRows ?? [], bands: cs?.bands ?? [] };
+    const groupedCov = cs && contributionView === 'category' ? aggregateContributionRows(cs.covRows, cs.bands) : { rows: cs?.covRows ?? s.coverageRows, bands: cs?.bands ?? [] };
+    const groupedGap = cs && contributionView === 'category' ? aggregateContributionRows(cs.gapRows, cs.bands) : { rows: cs?.gapRows ?? s.financingRows, bands: cs?.bands ?? [] };
     const csBands = groupedCov.bands as ContribBand[];
     const gapBands = groupedGap.bands as ContribBand[];
-    const allCovData = cs ? (isShare ? asShareStack(groupedCov.rows, csBands) : groupedCov.rows) : [];
+    const allCovData = isShare ? asShareStack(groupedCov.rows, csBands) : groupedCov.rows;
     const covData = filterChartYears(allCovData);
     const basicData = filterChartYears(s.basicRows);
     const gapData = filterChartYears(groupedGap.rows).map((r: any) => Object.fromEntries(
@@ -869,10 +889,12 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       { key: '__total', name: 'Total households', color: C.total, dash: '8 4', width: 1.25 },
       { key: '__target', name: 'Target', color: C.target, dash: '6 3', width: 2 },
     ];
+    if (!cs) covLines.push({ key: '__scenario', name: 'Full scenario', color: C.bau, dash: '', width: 2 });
     // Gap chart: NO base area — the intervention gap-reduction bands stack UP from zero (what the levers close),
     // and a dashed line marks the total BAU financing gap. The vertical distance from the top of the stack up to
     // that line is the gap still remaining to reach the fully-financed target.
     const gapLines = [{ key: '__bau_gap', name: 'Total financing gap (BAU) — target to close', color: C.gap, dash: '6 3', width: 2 }];
+    if (!cs) gapLines.push({ key: '__scenario_gap', name: 'Full scenario requirement', color: C.bau, dash: '', width: 2 });
     const noImpact = Math.abs(s.sum.addHH) < 1e-4 && Math.abs(s.sum.gapBauCum - s.sum.gapScnCum) < 1e-4;
     const rows = secKey === 'water' ? table?.water : table?.sanitation;
     const hhCol = secKey === 'water' ? "Added HHs with treated, piped (HHs '000)" : "Added safely-managed HHs (HHs '000)";
@@ -887,11 +909,12 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     });
     const distinctModes = [...new Set(modes.map((mode: any) => mode.label))];
     return (
-      <div key={secKey} style={{ marginBottom: 26 }}>
+      <div key={secKey} data-results-sector={secKey} style={{ marginBottom: 26, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '2px solid #e2e8f0', paddingBottom: 4, marginBottom: 10 }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#1e3a5f' }}>{label}</span>
           <span style={{ fontSize: 11, color: '#64748b' }}>· {scopeName}</span>
         </div>
+        <details style={{ marginBottom: 10 }}><summary style={{ cursor: 'pointer', fontSize: 11, color: '#334155' }}>Coverage summary, service gaps and revenue assumptions</summary>
         <div style={{ marginBottom: 10, borderLeft: '3px solid #0f766e', background: '#f0fdfa', padding: '7px 10px', fontSize: 10.5, color: '#334155' }}>
           <b>Financing / coverage baseline revenue mode:</b> {s.connectionMetadata?.label || (distinctModes.length > 1 ? 'Mixed across areas' : (distinctModes[0] || 'Exogenous'))}
           {(modes.length > 1 || s.connectionMetadata?.mixed) ? <span> · Per area: {modes.map((mode: any) => `${mode.area}: ${mode.label}`).join(' · ')}</span> : null}
@@ -907,15 +930,16 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             No interventions are active for {label.toLowerCase()}. Toggle some on above to break down the impact by intervention.
           </div>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 8 }}>
-          <StackChart title={`${label} — safely-managed coverage`} subtitle={contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : "BAU base + each intervention's added households (target & ceiling shown as lines)"}
+        </details>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: 8 }}>
+          <StackChart title={`${label} — safely-managed coverage`} subtitle={!cs ? 'BAU, full scenario, target and total households. Intervention breakdown is pending or unavailable.' : contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : "BAU base + each intervention's added households (target & ceiling shown as lines)"}
             data={covData} yLabel={isShare ? '% of population' : '# households (millions)'}
             base={covBase} bands={csBands} lines={covLines} fmt={covFmt} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_coverage_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_coverage`} currencyDisplay={detailExportCurrency} />
           <BasicCoverageChart title={`${label} — basic coverage`} rows={basicData} isShare={isShare} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_basic_coverage`}
             captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
-          <StackChart title={`${label} — year-end financing requirement (safely managed + basic)`} subtitle={contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : 'Closing expansion balance plus unpaid replacement and negative cash accumulated since baseline. Year-end balances are not additive.'}
+          <StackChart title={`${label} — year-end financing requirement (safely managed + basic)`} subtitle={!cs ? 'BAU and full-scenario year-end requirements. Intervention breakdown is pending or unavailable.' : contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : 'Closing expansion balance plus unpaid replacement and negative cash accumulated since baseline. Year-end balances are not additive.'}
             data={gapData} yLabel={`Year-end requirement (B ${displayCur})`}
             bands={gapBands} lines={gapLines} fmt={gapFmt}
             filename={`${scopeName}_${secKey}_financing_gap_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} currencyDisplay={detailExportCurrency} />
@@ -959,7 +983,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   );
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '18px 26px' }}>
+    <div ref={dashboardRef} data-testid="results-dashboard" style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', padding: '18px 26px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
         <div>
           <h2 style={{ fontSize: 17, color: '#1e3a5f', margin: 0 }}>Results — intervention impact (live)</h2>
@@ -1033,8 +1057,22 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         </div>
       </div>
 
-      {/* Intervention on/off toggles — parameters are set on the Intervention Design tab. */}
-      <div style={{ border: '1px solid #c7d2fe', background: '#f5f7ff', borderRadius: 8, padding: '10px 14px', marginBottom: 18 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+        <label style={{ fontSize: 12, color: '#334155' }}>Debt servicing
+          <select aria-label="Results debt mode" value={hasConfiguredDebt && includeDebt ? 'with_debt' : 'without_debt'}
+            onChange={event => setIncludeDebt(event.target.value === 'with_debt')} style={{ marginLeft: 8, padding: '5px 8px', fontSize: 12 }}>
+            <option value="without_debt">Without debt — standard results</option>
+            <option value="with_debt" disabled={!hasConfiguredDebt}>Include configured borrowing</option>
+          </select>
+        </label>
+        <span style={{ fontSize: 11, color: '#64748b' }}>Optional: configure borrowing in step 4 only if needed.</span>
+        {(['water', 'sanitation'] as const).map(sector => <button key={sector} type="button"
+          onClick={() => dashboardRef.current?.querySelector(`[data-results-sector="${sector}"]`)?.scrollIntoView({ block: 'start' })}
+          style={{ padding: '5px 8px', fontSize: 11 }}>{sector === 'water' ? 'Water supply graphs' : 'Sanitation graphs'}</button>)}
+      </div>
+      {/* Optional edits stay available without pushing the standard graphs off-screen. */}
+      <details style={{ border: '1px solid #c7d2fe', background: '#f5f7ff', borderRadius: 8, padding: '10px 14px', marginBottom: 18 }}>
+        <summary style={{ cursor: 'pointer', fontSize: 12, color: '#312e81' }}>Adjust intervention switches</summary>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12.5, fontWeight: 700, color: '#312e81' }}>Interventions</span>
           <span style={{ fontSize: 10.5, color: '#64748b' }}>Switch each on or off — set its parameters on the <b>Intervention Design</b> tab.</span>
@@ -1043,9 +1081,15 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <ToggleColumn title="Water Supply" defs={WATER_INTV} />
           <ToggleColumn title="Sanitation" defs={SAN_INTV} />
         </div>
-      </div>
+      </details>
 
-      {error && <div style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>{error}</div>}
+      {error && <div role="alert" style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>Results unavailable — {error}
+        <button type="button" onClick={() => setAttempt(value => value + 1)} style={{ marginLeft: 8 }}>Retry results</button>
+      </div>}
+      {contributionError && !error && <div role="alert" style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>
+        Intervention breakdown unavailable — {contributionError}. Full-scenario graphs and outputs are shown when available.
+        <button type="button" onClick={() => setAttempt(value => value + 1)} style={{ marginLeft: 8 }}>Retry breakdown</button>
+      </div>}
       {!both && !error && <div style={{ fontSize: 12, color: '#64748b', padding: '20px 0' }}>Computing…</div>}
 
       {/* Executive summary (table 9) — headline coverage, results-first. */}

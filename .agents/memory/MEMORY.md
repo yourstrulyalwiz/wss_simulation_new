@@ -3,3 +3,4 @@
 - [Funded assets](funded-assets.md) — unfunded work never creates assets; endline need uses closing expansion plus accumulated shortfalls.
 - [Utility revenue](utility-revenue.md) — preserve exogenous volume and separate collection/tariff contributions; avoid incidental changes to NRW or reinvestment.
 - [Stale preview state](stale-preview-state.md) — a preview can retain an older interface even when its exact endpoint serves the current build; preserve saved browser data.
+- [Default profile rollout](default-profile-rollout.md) — new DRC default should open once for existing and new users, backing up prior sessions; omitted settings must be supplied.

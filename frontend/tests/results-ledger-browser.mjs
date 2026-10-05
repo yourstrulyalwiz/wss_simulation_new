@@ -93,6 +93,19 @@ try {
           assert.ok(exported.body.filename.includes('without-debt'));
           const base = sheet.rows.find(row=>row[0]==='BAU');
           const full = sheet.rows.find(row=>row[0]==='Combined scenario');
+          if(metric==='requirements'){
+            for(const [key,label] of [['replacementPaid','Replacement paid — current year'],['expansionPaid','Expansion paid — current year']]){
+              const paid=sheet.rows.find(row=>row[0]===label);
+              assert.ok(paid,`${sector}/${service}/${basis}: paid row missing from export`);
+              const exact=await e(`[...document.querySelectorAll('${root} [data-ledger-row="${key}"] [data-ledger-year]')]
+                .map(cell=>cell.title==='Not available'?null:Number(cell.title))`);
+              assert.deepEqual(paid.slice(2),exact,'Paid spending must match live table data');
+            }
+            await e(`([...document.querySelectorAll('${root} .results-ledger__export button')].find(b=>b.textContent.includes('CSV'))).click()`);
+            await w(`window.__ledgerCSVs.length>${csvs}`,'Requirements CSV did not complete');
+            const csv=await e(`window.__ledgerCSVs[${csvs++}]`);
+            assert.ok(csv.includes('Replacement paid — current year') && csv.includes('Expansion paid — current year'));
+          }
           if (metric==='coverage' && service==='sm') {
             const target=sheet.rows.find(row=>row[0]==='Original target');
             const net=sheet.rows.find(row=>row[0]==='SM net gap (scenario − target)');
@@ -224,5 +237,16 @@ try {
   await sleep(250);
   assert.ok(await e(`document.querySelector('${panel('sanitation')}').getBoundingClientRect().width<=innerWidth`));
   writeFileSync('/tmp/results-ledger-sanitation-mobile.png',Buffer.from((await c.call('Page.captureScreenshot',{format:'png'})).data,'base64'));
-  console.log(`Results ledger browser passed: ${exports} real year-column Excel exports and ${csvs} matching coverage CSV downloads across both sectors, all three services and bases; nested service/area gaps, differing area selections, metric switching, graph links, expandable categories, unchanged model requests, six charts and desktop/mobile layout.`);
+  for(const [sector,width,height] of [['water',1280,900],['sanitation',402,874]]){
+    await c.call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
+    await change(`${panel(sector)} select[aria-label$="ledger metric"]`,'requirements');
+    await change(`${panel(sector)} select[aria-label$="ledger service"]`,'total');
+    await change(`${panel(sector)} select[aria-label$="ledger basis"]`,'closing');
+    await e(`(()=>{const p=document.querySelector('${panel(sector)}');p.scrollIntoView({block:'start'});
+      const scroller=p.querySelector('.results-ledger__table-scroll');scroller.scrollTop=scroller.scrollHeight;})()`);
+    await sleep(250);
+    assert.ok(await e(`document.querySelector('${panel(sector)}').getBoundingClientRect().width<=innerWidth`));
+    writeFileSync(`/tmp/results-paid-${sector}.png`,Buffer.from((await c.call('Page.captureScreenshot',{format:'png'})).data,'base64'));
+  }
+   console.log(`Results ledger browser passed: ${exports} real year-column Excel exports and ${csvs} coverage/requirements CSV downloads across both sectors, all three services and bases; paid replacement/expansion, nested service/area gaps, differing area selections, metric switching, graph links, expandable categories, unchanged model requests, six charts and desktop/mobile layout.`);
 } finally {c.close();}

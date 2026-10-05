@@ -16,3 +16,18 @@ unpaid replacement/negative cash distinct. Endline requirement is closing expans
 plus accumulated annual shortfalls, not a sum of yearly outstanding balances.
 Preserve independent BAU/scenario calculations and physical NRW reuse without
 crediting its service value as sector cash.
+
+## Meaning of paid work in reporting
+
+“Paid” means actual current-year cash funding, not merely the capital credited
+against a target or the value of physical infrastructure reuse.
+
+**Why:** The user requested paid replacement and expansion amounts alongside
+pre-funding requirements to understand why unfinished work carries into the next
+year. Confusing cash spending with target credit can give a misleading explanation.
+
+**How to apply:** Keep replacement payments separate from expansion payments:
+replacement maintains existing assets and does not clear unfinished expansion.
+Expansion cash can include household finance and advance delivery; physical reuse,
+target changes and repricing can also change the closing expansion balance, so do
+not promise that cash paid alone explains every opening-to-closing difference.

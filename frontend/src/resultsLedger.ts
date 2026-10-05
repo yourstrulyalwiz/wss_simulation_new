@@ -7,7 +7,7 @@ export type LedgerMeasure = 'coverage' | 'target' | 'accessGap' | 'funding' | 'f
   'fundingShared' | 'fundingOperating' | 'fundingRestricted' | 'fundingExternal' |
   'requirementsAnnual' | 'requirementsCatchUp' | 'requirementsResidual' | 'gapAnnual' |
   'gapClosing' | 'plannedExpansion' | 'replacement' | 'replacementCredit' | 'cashDeficit' |
-  'outstanding' | 'accumulatedShortfalls' | 'repayments';
+  'outstanding' | 'accumulatedShortfalls' | 'repayments' | 'replacementPaid' | 'expansionPaid';
 export type LedgerVector = [number | null, number | null, number | null]; // SM, Basic, Sector total
 export type LedgerSnapshot = { year: number; population: number; values: Record<LedgerMeasure, LedgerVector> };
 export type LedgerContribution = {
@@ -25,7 +25,8 @@ export type LedgerRow = {
 const measures: LedgerMeasure[] = ['coverage', 'target', 'accessGap', 'funding', 'fundingApplied',
   'fundingShared', 'fundingOperating', 'fundingRestricted', 'fundingExternal', 'requirementsAnnual',
   'requirementsCatchUp', 'requirementsResidual', 'gapAnnual', 'gapClosing', 'plannedExpansion',
-  'replacement', 'replacementCredit', 'cashDeficit', 'outstanding', 'accumulatedShortfalls', 'repayments'];
+  'replacement', 'replacementCredit', 'cashDeficit', 'outstanding', 'accumulatedShortfalls', 'repayments',
+  'replacementPaid', 'expansionPaid'];
 export function ledgerCategory(key: string, custom = false): string {
   if (custom) return 'custom';
   return CONTRIBUTION_CATEGORIES.find(c => (c.keys as readonly string[]).includes(key))?.id ?? 'other';
@@ -81,6 +82,8 @@ export function ledgerSnapshots(results: any[], sector: 'water_supply' | 'sanita
           fundingOperating: [null, null, operating],
           fundingRestricted: [null, null, restricted],
           fundingExternal: vector(external),
+          replacementPaid: vector(p('replacement_funding_applied_by_service')),
+          expansionPaid: vector(add(p('sector_funded_expansion_by_service'), external)),
           requirementsAnnual: vector(add(planned, replacement, deficit)),
           requirementsCatchUp: vector(add(catchUp, replacement, deficit)),
           requirementsResidual: vector(add(residual, replacement, deficit)),
@@ -219,6 +222,8 @@ export function ledgerRows(data: LedgerData, options: {
     detail('replacement', 'Replacement obligation — annual flow');
     detail('cashDeficit', 'Cash deficit — annual flow');
     detail('requirementsCatchUp', 'Pre-funding catch-up need incl. replacement and deficit');
+    detail('replacementPaid', 'Replacement paid — current year');
+    detail('expansionPaid', 'Expansion paid — current year');
     detail('outstanding', 'Outstanding expansion — year-end balance');
     detail('accumulatedShortfalls', 'Accumulated unpaid replacement and cash deficits');
   } else {

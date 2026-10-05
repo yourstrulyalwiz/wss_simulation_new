@@ -50,6 +50,21 @@ for (const sector of ['water_supply', 'sanitation']) {
           assert.ok(categories.some(row=>row.key==='custom' && row.children[0].key==='custom'));
           assert.equal(rows[0].key, 'bau');
           const final = rows.find(row=>row.key==='scenario');
+          if (metric==='requirements') {
+            const rung=service==='sm'?0:service==='basic'?1:2;
+            for (const [key,label] of [['replacementPaid','Replacement paid — current year'],['expansionPaid','Expansion paid — current year']]) {
+              const paid=rows.find(row=>row.key===key);
+              assert.equal(paid.label,label);
+              assert.equal(paid.unit,final.unit);
+              paid.values.forEach((value,i)=>{
+                const exact=scenario[i].values[key][rung];
+                if(exact==null)assert.equal(value,null);
+                else close(value,exact*options.moneyFactor/1000);
+              });
+            }
+            assert.ok(rows.findIndex(row=>row.key==='replacementPaid')>rows.findIndex(row=>row.key==='requirementsCatchUp'));
+            assert.ok(rows.findIndex(row=>row.key==='expansionPaid')<rows.findIndex(row=>row.key==='outstanding'));
+          }
           for (let i=0;i<years.length;i++) {
             if (rows[0].values[i] == null) {
               assert.equal(final.values[i],null);
@@ -93,11 +108,16 @@ for (const sector of ['water_supply', 'sanitation']) {
       const v = snap.values;
       close(v.funding[2],v.fundingApplied[2]+v.fundingShared[2]);
       for (let rung=0;rung<3;rung++) {
+        close(v.fundingApplied[rung],v.replacementPaid[rung]+v.expansionPaid[rung]);
+        const actual = key => reports.reduce((sum,r)=>sum+r[sector][prefix+key]
+          .reduce((amount,row,j)=>amount+(rung===2 || j===rung ? row[i] : 0),0),0);
+        close(v.replacementPaid[rung],actual('replacement_funding_applied_by_service'));
+        close(v.expansionPaid[rung],actual('sector_funded_expansion_by_service')+actual('externally_funded_expansion_by_service'));
         close(v.requirementsAnnual[rung],v.plannedExpansion[rung]+v.replacement[rung]+v.cashDeficit[rung]);
         close(v.gapAnnual[rung],v.outstanding[rung]+v.replacement[rung]-v.replacementCredit[rung]+v.cashDeficit[rung]);
         close(v.gapClosing[rung],v.outstanding[rung]+v.accumulatedShortfalls[rung]);
       }
-      for (const key of ['fundingApplied','requirementsAnnual','requirementsCatchUp','gapAnnual','gapClosing'])
+      for (const key of ['fundingApplied','replacementPaid','expansionPaid','requirementsAnnual','requirementsCatchUp','gapAnnual','gapClosing'])
         close(v[key][0]+v[key][1],v[key][2]);
       close(v.gapAnnual[2],reports.reduce((sum,r)=>sum+r[sector][prefix+'financing_gap'][i],0));
       close(v.gapClosing[2],reports.reduce((sum,r)=>sum+r[sector][prefix+'endline_financing_requirement'][i],0));

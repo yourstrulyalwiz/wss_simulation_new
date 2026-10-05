@@ -237,6 +237,9 @@ export default function ResultsLedgerPanel({
             : 'Urban and Rural gaps add to the National net gap; single-area views show only the selected area.'}</p>
         )}
         {selection.metric !== 'coverage' && <p>Financial reporting starts after baseline {data.baselineYear}. Earlier years are not applicable (—).</p>}
+        {selection.metric === 'requirements' && (
+          <p>Replacement paid and Expansion paid show current-year funded spending, separately from the pre-funding need. Expansion paid reduces unfinished expansion; replacement paid maintains existing assets.</p>
+        )}
         <p>Signed effects are scenario changes: negative funding means less funding; negative requirements or gaps mean a reduction.</p>
         {data.attributionComplete ? (
           <p>Interventions are ordered marginal effects: each change is measured from the state immediately before it, not as an independent run.</p>
@@ -348,7 +351,7 @@ export default function ResultsLedgerPanel({
           {selection.metric === 'funding' ? (
             <p><strong>Funding.</strong> Service rows use allocations actually applied to safely managed or basic service. Sector total reports available funding, including restricted loan cash carried forward; available funding can differ from the amount applied.</p>
           ) : selection.metric === 'requirements' ? (
-            <p><strong>Requirements.</strong> Annual requirement is a flow. Catch-up is the pre-funding expansion need with replacement and cash deficit. Outstanding expansion and accumulated shortfalls are end-of-year balances; do not sum them across years.</p>
+            <p><strong>Requirements.</strong> Annual requirement is a flow. Catch-up is the pre-funding expansion need with replacement and cash deficit. Paid rows show current-year cash spending: expansion includes sector and external household finance, including associated infrastructure, but excludes physical reuse without cash spending. Replacement paid maintains existing assets; it is not deducted from outstanding expansion. Closing expansion also reflects physical upgrades and changes in costs or targets. Outstanding expansion and accumulated shortfalls are end-of-year balances; do not sum them across years.</p>
           ) : selection.metric === 'gap' ? (
             <p><strong>Gap.</strong> Current-year residual gap = outstanding expansion + replacement obligation − capped replacement credit + cash deficit. Funded expansion receives no second credit; cash deficits are allocated once. Year-end requirement = outstanding expansion + accumulated unpaid replacement and deficits. National sums remaining local obligations; unused or restricted funds elsewhere are not assumed transferable. This is not generally annual requirements minus all available funding. Both include balances: do not sum across years.</p>
           ) : (

@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { C, INTV_PALETTE as P } from '../chartColors';
 import { yearAxisInterval } from '../chartAxis';
+import { resolveChartWindow } from '../chartWindow';
 import { linesFirstLegend } from './chartLegend';
 import ExportButtons from './ExportButtons';
 import ChartExport from './ChartExport';
@@ -208,8 +209,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   );
   const [unitMode, setUnitMode] = useState<'count' | 'share'>('count');
   // Graph-only year window. It intentionally does not enter the calculation payload or saved inputs.
-  const [chartStart, setChartStart] = useState<number | null>(null);
-  const [chartEnd, setChartEnd] = useState<number | null>(null);
+  const [chartStartOverride, setChartStart] = useState<number | null>(null);
+  const [chartEndOverride, setChartEnd] = useState<number | null>(null);
   // Areas to ship to the slide-deck export. The deck covers every scope in one file, so this follows
   // the ENTRY mode (how the user filled the data in), not the Scope dropdown above, which only
   // chooses what this tab displays. In national-entry mode the national dataset lives in altInputs
@@ -564,7 +565,11 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   }, [depKey, JSON.stringify(toggles)]);
 
   const isShare = unitMode === 'share';
-  const chartYears: number[] = contrib?.water?.covRows?.map((r: any) => r.year) ?? [];
+  const chartWindow = resolveChartWindow(
+    contrib?.water?.covRows?.map((r: any) => r.year) ?? [],
+    datasets[0]?.period, chartStartOverride, chartEndOverride);
+  const chartYears = chartWindow.years;
+  const chartStart = chartWindow.start, chartEnd = chartWindow.end;
   const filterChartYears = (rows: any[]) => {
     if (!rows.length) return rows;
     const lo = chartStart ?? rows[0].year;

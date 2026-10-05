@@ -18,6 +18,7 @@ import { serviceAccessRows, type AccessRow } from '../serviceAccess';
  */
 import { C, INTV_PALETTE as P } from '../chartColors';
 import { yearAxisInterval } from '../chartAxis';
+import { resolveChartWindow } from '../chartWindow';
 import { linesFirstLegend } from './chartLegend';
 import { aggregateContributionRows, type ContributionView, type ViewBand } from '../contributionView';
 import { convertMoney, currencyRateNote, type CurrencyDisplaySettings } from '../currencyDisplay';
@@ -68,8 +69,8 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   // population. The engine always returns household counts; share mode is a pure display conversion.
   const [unitMode, setUnitMode] = useState<'count' | 'share'>('count');
   // Display-only x-axis window. These values are local UI state and are never written into model inputs.
-  const [chartStart, setChartStart] = useState<number | null>(null);
-  const [chartEnd, setChartEnd] = useState<number | null>(null);
+  const [chartStartOverride, setChartStart] = useState<number | null>(null);
+  const [chartEndOverride, setChartEnd] = useState<number | null>(null);
 
   const depKey = JSON.stringify(inputs) + '|' + sector;
   useEffect(() => {
@@ -188,13 +189,16 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       return o;
     });
   }, [grouped.rows, displayBands, isShare]);
+  const chartWindow = resolveChartWindow(data.map(r => r.year), inputs?.period,
+    chartStartOverride, chartEndOverride);
+  const chartStart = chartWindow.start, chartEnd = chartWindow.end;
   const visibleData = useMemo(() => {
     if (!displayData.length) return displayData;
     const lo = chartStart ?? displayData[0].year;
     const hi = chartEnd ?? displayData[displayData.length - 1].year;
     return displayData.filter((r: any) => r.year >= lo && r.year <= hi);
   }, [displayData, chartStart, chartEnd]);
-  const availableYears = data.map((r: any) => r.year as number);
+  const availableYears = chartWindow.years;
   const fmtAxis = (v: number) => (isShare ? Math.round(v * 100) + '%' : sig(v));
   const fmtVal = (v: number) => (isShare ? (v * 100).toFixed(1) + '%' : sig(v) + ' M');
   // Data series behind the chart, for the "⤓ Excel" export: Year, BAU base, each band, and the ceiling.

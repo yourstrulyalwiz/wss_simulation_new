@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { C } from '../chartColors';
 import { yearAxisInterval } from '../chartAxis';
+import { resolveChartWindow } from '../chartWindow';
 import { linesFirstLegend } from './chartLegend';
 import ChartExport from './ChartExport';
 import ServiceAccessGaps from './ServiceAccessGaps';
@@ -65,6 +66,12 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   const tgtKey = `Target (${rungLabel})`;
   const showMoney = rung === 0;                          // chart annotation/warning only
   const [data, setData] = useState<any[]>([]);
+  const [chartStartOverride, setChartStart] = useState<number | null>(null);
+  const [chartEndOverride, setChartEnd] = useState<number | null>(null);
+  const chartWindow = resolveChartWindow(data.map(r => r.year), datasets[0]?.period,
+    chartStartOverride, chartEndOverride);
+  const isYearVisible = (year: number) => chartWindow.start !== null &&
+    chartWindow.end !== null && year >= chartWindow.start && year <= chartWindow.end;
   const [tableRows, setTableRows] = useState<any[]>([]);
   const [endAnno, setEndAnno] = useState<{ year: number; bau: number; tgt: number; bauShare: number; tgtShare: number; gapHH: number; finGap: number | null; cur: string } | null>(null);
   const [summary, setSummary] = useState<any>(null);
@@ -125,7 +132,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   // overlay, so a "stop once stable" loop would quit early and leave the financing-gap bracket floating.
   // So on every such change we open a short window (below) and re-measure each frame until it settles.
   const settle = useRef(0);
-  useEffect(() => { settle.current = 32; setWinTick(t => t + 1); }, [data, unitMode, wrapW]);
+  useEffect(() => { settle.current = 32; setWinTick(t => t + 1); }, [data, unitMode, wrapW, chartWindow.start, chartWindow.end]);
   useLayoutEffect(() => {
     let raf = 0;
     const again = () => { raf = requestAnimationFrame(() => setWinTick(t => t + 1)); };
@@ -172,7 +179,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
     const xm = (xz.x - xa.x) / (xz.yr - xa.yr), xb = xa.x - xm * xa.yr;
     const ym = (yz.y - ya.y) / (yz.v - ya.v), yb = ya.y - ym * ya.v;
     return finish({ left: sR.left - wR.left, top: sR.top - wR.top, width: sR.width, height: sR.height, xm, xb, ym, yb });
-  }, [data, unitMode, winTick]);
+  }, [data, unitMode, winTick, chartWindow.start, chartWindow.end]);
 
   const [accessRows, setAccessRows] = useState<AccessRow[]>([]);
   const depKey = JSON.stringify(datasets) + '|' + sector;
@@ -343,8 +350,10 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   // In share mode, divide every series by that row's Total households (= share of population, since
   // the model uses one household size). Total households becomes the 100% ceiling.
   const displayData = useMemo(() => {
-    if (!isShare) return data;
-    return data.map(row => {
+    const visible = data.filter(row => chartWindow.start !== null && chartWindow.end !== null &&
+      row.year >= chartWindow.start && row.year <= chartWindow.end);
+    if (!isShare) return visible;
+    return visible.map(row => {
       const tot = row['Total households'] || 0;
       const div = (v: number | null) => v == null ? null : (tot > 0 ? v / tot : 0);
       return {
@@ -354,7 +363,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         [tgtKey]: div(row[tgtKey]),
       };
     });
-  }, [data, isShare, bauKey, tgtKey]);
+  }, [data, isShare, bauKey, tgtKey, chartWindow.start, chartWindow.end]);
 
   const fmtVal = (v: any) => isShare ? ((+(v ?? 0)) * 100).toFixed(1) + '%' : sig3(+(v ?? 0)) + 'M';
   const fmtLabel = (v: any) => isShare ? ((+(v ?? 0)) * 100).toFixed(0) + '%' : sig3(+(v ?? 0)) + 'M';
@@ -400,7 +409,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   // ── Final-year financing-gap annotation ──────────────────────────────────────────────────────
   // A vertical bracket at the last forecast year spanning BAU→Target, labelled with the money gap.
   const GapAnnotation = () => {
-    if (!overlay || !endAnno) return null;
+    if (!overlay || !endAnno || !isYearVisible(endAnno.year)) return null;
     const bauV = isShare ? endAnno.bauShare : endAnno.bau;
     const tgtV = isShare ? endAnno.tgtShare : endAnno.tgt;
     const x = overlay.xm * endAnno.year + overlay.xb;
@@ -495,7 +504,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
       return best;
     };
     const bubbles: Record<number, { x: number; y: number }> = {};
-    targetPoints.filter((p: any) => isTargetVisible(p.year)).forEach((p: any) => {
+    targetPoints.filter((p: any) => isTargetVisible(p.year) && isYearVisible(p.year)).forEach((p: any) => {
       if (closedFlags.has(`t-${p.year}`)) return;
       const cx = overlay.xm * p.year + overlay.xb;
       const cy = overlay.ym * (isShareNow ? p.yShare : p.y) + overlay.yb;
@@ -510,7 +519,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
       bubbles[p.year] = { x: r.x, y: r.y };
     });
     return { bubbles };
-  }, [overlay, targetPoints, visibleTargets, closedFlags, isShareNow]);
+  }, [overlay, targetPoints, visibleTargets, closedFlags, isShareNow, chartWindow.start, chartWindow.end]);
 
   // TargetBubble: a chat-box call-out with a tail pointing at the target point, closeable via ✕ (a closed
   // call-out collapses to a small target marker that reopens it on click).
@@ -606,6 +615,26 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
       )}
       {/* Toolbar: Y-axis unit toggle + per-chart exports */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+        {chartWindow.years.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ fontSize: 11, color: '#475569' }}>Chart years</span>
+          <select aria-label="Chart start year" value={chartWindow.start ?? ''}
+            onChange={e => {
+              const year = Number(e.target.value); setChartStart(year);
+              if (chartWindow.end !== null && year > chartWindow.end) setChartEnd(year);
+            }} style={{ padding: '4px 5px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 11 }}>
+            {chartWindow.years.map(year => <option key={year} value={year}>{year}</option>)}
+          </select>
+          <span style={{ fontSize: 11 }}>to</span>
+          <select aria-label="Chart end year" value={chartWindow.end ?? ''}
+            onChange={e => {
+              const year = Number(e.target.value); setChartEnd(year);
+              if (chartWindow.start !== null && year < chartWindow.start) setChartStart(year);
+            }} style={{ padding: '4px 5px', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 11 }}>
+            {chartWindow.years.map(year => <option key={year} value={year}>{year}</option>)}
+          </select>
+          <button onClick={() => { setChartStart(null); setChartEnd(null); }} title="Restore simulation years with three preceding years"
+            style={{ border: 'none', background: 'transparent', color: '#2563eb', fontSize: 11, cursor: 'pointer' }}>Reset</button>
+        </div>}
         <div style={{ display: 'inline-flex', border: '1px solid #cbd5e1', borderRadius: 6, overflow: 'hidden' }}>
           {([['count', '# Households'], ['share', '% of population']] as const).map(([m, l]) => (
             <button key={m} onClick={() => setUnitMode(m)} style={{
@@ -681,7 +710,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           <svg width={overlay.width} height={overlay.height}
             style={{ position: 'absolute', left: overlay.left, top: overlay.top, overflow: 'visible', pointerEvents: 'none', zIndex: 20 }}>
             {endAnno && endAnno.gapHH > 1e-4 && <GapAnnotation />}
-            {flagPlan && targetPoints.filter((p: any) => isTargetVisible(p.year)).map((p: any) => (
+            {flagPlan && targetPoints.filter((p: any) => isTargetVisible(p.year) && isYearVisible(p.year)).map((p: any) => (
               <g key={`tb-${p.year}`} style={{ pointerEvents: 'auto' }}>
                 <TargetBubble cx={overlay.xm * p.year + overlay.xb} cy={overlay.ym * (isShareNow ? p.yShare : p.y) + overlay.yb}
                   point={p} box={flagPlan.bubbles[p.year]} />

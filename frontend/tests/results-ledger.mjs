@@ -52,7 +52,7 @@ for (const sector of ['water_supply', 'sanitation']) {
           const final = rows.find(row=>row.key==='scenario');
           if (metric==='requirements') {
             const rung=service==='sm'?0:service==='basic'?1:2;
-            for (const [key,label] of [['replacementPaid','Replacement paid — current year'],['expansionPaid','Expansion paid — current year']]) {
+            for (const [key,label] of [['replacementPaid','(-) Replacement paid — current year'],['expansionPaid','(-) Expansion paid — current year']]) {
               const paid=rows.find(row=>row.key===key);
               assert.equal(paid.label,label);
               assert.equal(paid.unit,final.unit);
@@ -62,8 +62,8 @@ for (const sector of ['water_supply', 'sanitation']) {
                 else close(value,exact*options.moneyFactor/1000);
               });
             }
-            assert.ok(rows.findIndex(row=>row.key==='replacementPaid')>rows.findIndex(row=>row.key==='requirementsCatchUp'));
-            assert.ok(rows.findIndex(row=>row.key==='expansionPaid')<rows.findIndex(row=>row.key==='outstanding'));
+            assert.equal(rows.findIndex(row=>row.key==='replacementPaid'),rows.findIndex(row=>row.key==='replacement')+1);
+            assert.equal(rows.findIndex(row=>row.key==='expansionPaid'),rows.findIndex(row=>row.key==='plannedExpansion')+1);
           }
           for (let i=0;i<years.length;i++) {
             if (rows[0].values[i] == null) {

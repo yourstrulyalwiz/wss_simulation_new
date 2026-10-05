@@ -238,7 +238,7 @@ export default function ResultsLedgerPanel({
         )}
         {selection.metric !== 'coverage' && <p>Financial reporting starts after baseline {data.baselineYear}. Earlier years are not applicable (—).</p>}
         {selection.metric === 'requirements' && (
-          <p>Replacement paid and Expansion paid show current-year funded spending, separately from the pre-funding need. Expansion paid reduces unfinished expansion; replacement paid maintains existing assets.</p>
+          <p>The (-) labels mark paid spending; amounts remain positive. Expansion payments apply to the total expansion need, including unfinished work carried forward—not just newly planned expansion. Replacement payments offset current-year replacement obligations.</p>
         )}
         <p>Signed effects are scenario changes: negative funding means less funding; negative requirements or gaps mean a reduction.</p>
         {data.attributionComplete ? (

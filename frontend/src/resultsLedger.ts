@@ -219,11 +219,11 @@ export function ledgerRows(data: LedgerData, options: {
     }
   } else if (metric === 'requirements') {
     detail('plannedExpansion', 'Newly planned expansion — annual flow');
+    detail('expansionPaid', '(-) Expansion paid — current year');
     detail('replacement', 'Replacement obligation — annual flow');
+    detail('replacementPaid', '(-) Replacement paid — current year');
     detail('cashDeficit', 'Cash deficit — annual flow');
     detail('requirementsCatchUp', 'Pre-funding catch-up need incl. replacement and deficit');
-    detail('replacementPaid', 'Replacement paid — current year');
-    detail('expansionPaid', 'Expansion paid — current year');
     detail('outstanding', 'Outstanding expansion — year-end balance');
     detail('accumulatedShortfalls', 'Accumulated unpaid replacement and cash deficits');
   } else {

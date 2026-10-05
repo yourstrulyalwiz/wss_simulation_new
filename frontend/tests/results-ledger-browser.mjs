@@ -94,17 +94,29 @@ try {
           const base = sheet.rows.find(row=>row[0]==='BAU');
           const full = sheet.rows.find(row=>row[0]==='Combined scenario');
           if(metric==='requirements'){
-            for(const [key,label] of [['replacementPaid','Replacement paid — current year'],['expansionPaid','Expansion paid — current year']]){
+            for(const [key,label,parent] of [
+              ['replacementPaid','(-) Replacement paid — current year','replacement'],
+              ['expansionPaid','(-) Expansion paid — current year','plannedExpansion']]){
               const paid=sheet.rows.find(row=>row[0]===label);
               assert.ok(paid,`${sector}/${service}/${basis}: paid row missing from export`);
               const exact=await e(`[...document.querySelectorAll('${root} [data-ledger-row="${key}"] [data-ledger-year]')]
                 .map(cell=>cell.title==='Not available'?null:Number(cell.title))`);
               assert.deepEqual(paid.slice(2),exact,'Paid spending must match live table data');
+              assert.equal(await e(`document.querySelector('${root} [data-ledger-row="${key}"]').previousElementSibling.dataset.ledgerRow`),parent,
+                'Paid spending must directly follow its corresponding requirement');
+              const parentLabel=parent==='replacement'?'Replacement obligation — annual flow':'Newly planned expansion — annual flow';
+              assert.equal(sheet.rows.indexOf(paid),sheet.rows.findIndex(row=>row[0]===parentLabel)+1,'Excel must preserve paired row order');
+              assert.ok(exact.every(value=>value==null || value>=0),'Deduction labels must not negate actual spending');
             }
             await e(`([...document.querySelectorAll('${root} .results-ledger__export button')].find(b=>b.textContent.includes('CSV'))).click()`);
             await w(`window.__ledgerCSVs.length>${csvs}`,'Requirements CSV did not complete');
             const csv=await e(`window.__ledgerCSVs[${csvs++}]`);
-            assert.ok(csv.includes('Replacement paid — current year') && csv.includes('Expansion paid — current year'));
+            assert.ok(csv.includes('(-) Replacement paid — current year') && csv.includes('(-) Expansion paid — current year'));
+            const csvRows=csv.split('\r\n');
+            assert.equal(csvRows.findIndex(row=>row.startsWith('(-) Expansion paid — current year,')),
+              csvRows.findIndex(row=>row.startsWith('Newly planned expansion — annual flow,'))+1);
+            assert.equal(csvRows.findIndex(row=>row.startsWith('(-) Replacement paid — current year,')),
+              csvRows.findIndex(row=>row.startsWith('Replacement obligation — annual flow,'))+1);
           }
           if (metric==='coverage' && service==='sm') {
             const target=sheet.rows.find(row=>row[0]==='Original target');

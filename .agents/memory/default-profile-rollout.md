@@ -39,3 +39,17 @@ Treat production activation of the completed simulation as separate work.
 **Why:** The user explicitly requested removal of the recently added preview
 restriction. They want to access BAU and the later pages without a readiness
 gate; that does not authorize inventing missing assumptions.
+
+Separate missing country assumptions from the model's established automatic
+forecasting and internal configuration. Do not create new mandatory manual
+inputs just because an import has blanked values used by that existing workflow.
+
+**Why:** History review showed that blanket clearing of numeric configuration
+prevented the unchanged forecasting code from running. Supplied series can
+already support automatic projections, so requiring a redundant fallback rate
+misdiagnoses the import problem.
+
+**How to apply:** Check established derivation and default behavior before
+requiring more user inputs. Preserve automatic projections from uploaded data.
+Keep actual unit-cost, technical and inflation assumptions distinct; this rule
+does not authorize carrying over Nepal's country-specific assumptions.

@@ -260,7 +260,7 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
     # The dashboard's scenario spending tables must use the scenario's own
     # obligations and allocation, not BAU need minus an intervention cash total.
     for key in ('new_capex_by_service', 'replacement_by_service',
-                'funded_by_service', 'financing_gap_by_service',
+                'funded_by_service', 'replacement_funding_applied_by_service', 'financing_gap_by_service',
                 'new_capex_total', 'replacement_capex', 'available_total',
                 'bau_replacement_capex', 'replacement_reserved', 'replacement_credit',
                 'replacement_credit_by_service', 'unfunded_replacement',

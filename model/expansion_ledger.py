@@ -22,6 +22,12 @@ class ExpansionLedger:
             'closing_outstanding_hh', 'advance_delivery_hh',
             'endline_financing_requirement_by_service',
             'ancillary_paid_by_service',
+            'annual_planned_expansion_cost_by_service',
+            'prefunding_expansion_cost_by_service',
+            'closing_outstanding_expansion_by_service',
+            'accumulated_shortfalls_by_service',
+            'sector_funded_expansion_by_service',
+            'externally_funded_expansion_by_service',
         )}
         self.series.update({key: np.zeros(n) for key in (
             'annual_planned_expansion_cost', 'catch_up_requirement',
@@ -50,7 +56,11 @@ class ExpansionLedger:
                 weights = np.asarray(sector) * costs
             if weights.sum():
                 self.ancillary = new_ancillary * weights / weights.sum()
-        catch_up = float(due @ costs + self.ancillary.sum() + replacement)
+        # Reporting snapshots preserve pre-funding need and actual service purchases.
+        # They do not feed back into delivery, funding allocation or gap accounting.
+        planned_cost_by_service = planned * costs + (self.ancillary.copy() if new_ancillary else 0)
+        prefunding_cost_by_service = due * costs + self.ancillary.copy()
+        catch_up = float(prefunding_cost_by_service.sum() + replacement)
         delivered = np.asarray(sector) + np.asarray(external) + np.asarray(physical)
         # Only actual capital purchases receive a capital credit; physical reuse is not cash.
         physical_credit = np.minimum(due, physical)
@@ -64,6 +74,14 @@ class ExpansionLedger:
         closing_by_service = self.outstanding * costs + self.ancillary
         self.shortfalls += np.asarray(unpaid_by_service) + np.asarray(deficit_by_service)
         endline = closing_by_service + self.shortfalls
+        sector_weights = np.asarray(sector) * costs
+        external_weights = np.asarray(external) * costs
+        sector_purchases = (
+            sector_weights * sector_capital / sector_weights.sum()
+            if sector_weights.sum() > 0 else np.zeros(2))
+        external_purchases = (
+            external_weights * external_capital / external_weights.sum()
+            if external_weights.sum() > 0 else np.zeros(2))
         values = {
             'opening_outstanding_hh': opening, 'planned_expansion_hh': planned,
             'cancelled_expansion_hh': cancelled, 'delivered_sector_hh': sector,
@@ -82,6 +100,12 @@ class ExpansionLedger:
             'ancillary_paid': paid,
             'ancillary_paid_by_service': paid_by_service,
             'capital_credited_to_due_expansion': float(sector_credit @ costs + paid),
+            'annual_planned_expansion_cost_by_service': planned_cost_by_service,
+            'prefunding_expansion_cost_by_service': prefunding_cost_by_service,
+            'closing_outstanding_expansion_by_service': closing_by_service,
+            'accumulated_shortfalls_by_service': self.shortfalls.copy(),
+            'sector_funded_expansion_by_service': sector_purchases + paid_by_service,
+            'externally_funded_expansion_by_service': external_purchases,
         }
         for key, value in values.items():
             self.series[key][..., t] = value

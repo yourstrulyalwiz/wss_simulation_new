@@ -698,6 +698,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     new_capex_by_service = np.zeros((2, n))
     replacement_by_service = np.zeros((2, n))
     funded_by_service = np.zeros((2, n))
+    replacement_funding_applied_by_service = np.zeros((2, n))
     financing_gap_by_service = np.zeros((2, n))
     # Compatibility alias for funded stock. Neither alias includes outstanding work.
     bau_stock = np.zeros(n); bau_replacement = np.zeros(n)
@@ -764,6 +765,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         debt_cash_available[t] = max(0.0, debt_cash_balance + debt_disbursement_arr[t])
         cash_after_debt_service = avail - debt_service_arr[t]
         replacement_reserved[t] = min(max(cash_after_debt_service, 0.0), max(bau_replacement[t], 0.0))
+        if replacement[t] > 0:
+            replacement_funding_applied_by_service[:, t] = (
+                replacement_reserved[t] * replacement_by_service[:, t] / replacement[t])
         expansion_capital_available[t] = (
             max(0.0, cash_after_debt_service - replacement_reserved[t]) + debt_cash_available[t])
         # ── Investment split (test2) ───────────────────────────────────────────────────────────────────
@@ -1067,6 +1071,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'total_investment_need': total_need.tolist(),  # compatibility: residual new cost + reported replacement, NOT gross need
         'financing_gap': financing_gap.tolist(),
         'funded_by_service': funded_by_service.tolist(),
+        'replacement_funding_applied_by_service': replacement_funding_applied_by_service.tolist(),
         'replacement_reserved': replacement_reserved.tolist(),
         'replacement_credit': replacement_credit.tolist(),
         'replacement_credit_by_service': funded_by_service.tolist(),

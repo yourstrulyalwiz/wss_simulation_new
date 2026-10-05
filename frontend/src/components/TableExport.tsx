@@ -4,8 +4,8 @@ import type { CurrencyDisplaySettings } from '../currencyDisplay';
 
 // Small "⤓ CSV / ⤓ Excel" control placed next to any table. CSV is generated client-side; Excel is built
 // server-side (/api/export/table) so it gets proper column widths, header styling and frozen panes.
-export default function TableExport({ filename, sheetName, headers, rows, compact, currencyDisplay }: {
-  filename: string; sheetName?: string; headers: any[]; rows: any[][]; compact?: boolean; currencyDisplay?: CurrencyDisplaySettings;
+export default function TableExport({ filename, sheetName, headers, rows, compact, currencyDisplay, freezeColumns = 0 }: {
+  filename: string; sheetName?: string; headers: any[]; rows: any[][]; compact?: boolean; currencyDisplay?: CurrencyDisplaySettings; freezeColumns?: number;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   if (!rows || !rows.length) return null;
@@ -15,7 +15,7 @@ export default function TableExport({ filename, sheetName, headers, rows, compac
   };
   const xlsx = async () => {
     setBusy('xlsx');
-    try { await postForBlob('/api/export/table', { filename, sheets: [{ name: sheetName || 'Table', headers, rows }], currency_display: currencyDisplay }, filename + '.xlsx'); }
+    try { await postForBlob('/api/export/table', { filename, sheets: [{ name: sheetName || 'Table', headers, rows, freeze_columns: freezeColumns }], currency_display: currencyDisplay }, filename + '.xlsx'); }
     catch (error) { alert(error instanceof Error ? error.message : 'Excel export failed. Please try again.'); }
     finally { setBusy(null); }
   };

@@ -8,3 +8,4 @@
 - [Minimum service targets](minimum-service-targets.md) — SM satisfies the basic minimum; preserve exclusive categories and assess deficits locally before aggregation.
 - [Graph viewing period](graph-window-policy.md) — open around simulation years with three preceding years; keep longer history selectable without changing model data.
 - [Utility debt scope](utility-debt-policy.md) — use incremental net cash; user deliberately excludes new-connection revenue from debt eligibility.
+- [Results attribution](results-attribution.md) — retain reconciled marginal effects; category display order is not calculation order or a standalone simulation.

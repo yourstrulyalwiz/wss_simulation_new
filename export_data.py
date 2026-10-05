@@ -584,10 +584,15 @@ def table_xlsx(sheets, currency_display=None):
     if currency_display:
         _currency_metadata(wb, currency_display, 'table')
     notes = wb.create_sheet('Revenue assumptions')
-    notes.append(['Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.'])
+    notes.append(['Contributions are incremental in the model calculation order; category grouping can change their display order. Step labels in year-column ledgers identify the calculation order. The tariff contribution includes its interaction with collection improvement.'])
     notes.append(['Revenue mode follows the saved sector/area configuration. Reference collected revenue is not added to capital; connection net cash is credited once when enabled.'])
     for s in sheets:
-        _write_sheet(wb, s.get('name', 'Sheet'), s.get('headers', []), s.get('rows', []))
+        ws = _write_sheet(wb, s.get('name', 'Sheet'), s.get('headers', []), s.get('rows', []))
+        freeze_columns = s.get('freeze_columns', 0)
+        if not isinstance(freeze_columns, int) or not 0 <= freeze_columns <= len(s.get('headers', [])):
+            raise ValueError('Frozen column count must be within the exported table.')
+        from openpyxl.utils import get_column_letter
+        ws.freeze_panes = f'{get_column_letter(freeze_columns + 1)}2'
     if not wb.sheetnames:
         wb.create_sheet('Sheet')
     return _save(wb)

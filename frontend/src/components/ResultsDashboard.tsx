@@ -8,6 +8,8 @@ import { yearAxisInterval } from '../chartAxis';
 import { resolveChartWindow } from '../chartWindow';
 import { runCalculation } from '../api';
 import { resultsInputs } from '../resultsDebtMode';
+import { ledgerSnapshots, ledgerCategory, type LedgerSnapshot, type LedgerContribution, type LedgerMetric, type LedgerService, type LedgerBasis } from '../resultsLedger';
+import ResultsLedgerPanel from './ResultsLedgerPanel';
 import { linesFirstLegend } from './chartLegend';
 import ExportButtons from './ExportButtons';
 import ChartExport from './ChartExport';
@@ -81,7 +83,7 @@ interface Props {
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
 type DebtData = { summary: any; rows: any[]; areas: any[]; annualRows: any[] };
-type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any };
+type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; ledgerBase: LedgerSnapshot[]; ledgerScenario: LedgerSnapshot[]; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any };
 type Both = { water: Series; sanitation: Series } | null;
 type Row = { key: string; label: string; addHH: number; resources: number | null };
 
@@ -89,7 +91,7 @@ type Row = { key: string; label: string; addHH: number; resources: number | null
 // label (plus reserved keys __bau/__total/__target for coverage and __remain for the gap). `bands` lists the
 // interventions that actually contribute (each with its INTV_PALETTE colour), in stack order.
 type ContribBand = { key: string; label: string; color: string; interventionKey?: string; custom?: boolean; members?: { key: string; label: string }[] };
-type ContribSeries = { covRows: any[]; gapRows: any[]; bands: ContribBand[] };
+type ContribSeries = { covRows: any[]; gapRows: any[]; bands: ContribBand[]; ledgerContributions: LedgerContribution[] };
 type Contrib = { water: ContribSeries; sanitation: ContribSeries } | null;
 
 // A stacked-contribution chart: a base area at the bottom, one stacked band per intervention on top (so the
@@ -215,6 +217,16 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   const [includeDebt, setIncludeDebt] = useState(true);
   const [attempt, setAttempt] = useState(0);
   const dashboardRef = useRef<HTMLDivElement>(null);
+  type Selection = { metric: LedgerMetric; service: LedgerService; basis: LedgerBasis };
+  const [ledgerSelection, setLedgerSelection] = useState<Record<'water' | 'sanitation', Selection>>({
+    water: { metric: 'coverage', service: 'sm', basis: 'annual' },
+    sanitation: { metric: 'coverage', service: 'sm', basis: 'annual' },
+  });
+  const showLedger = (sector: 'water' | 'sanitation', selection: Selection) => {
+    setLedgerSelection(current => ({ ...current, [sector]: selection }));
+    setTimeout(() => dashboardRef.current?.querySelector(`[data-results-ledger="${sector}"]`)
+      ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 0);
+  };
   const [viewScope, setViewScope] = useState<'urban' | 'rural' | 'national'>(
     geoScope === 'urban' ? 'urban' : geoScope === 'rural' ? 'rural' : 'national'
   );
@@ -476,7 +488,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             },
           };
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
-           return { inv, unit,
+           return { inv, unit, ledgerBase: ledgerSnapshots(resList, secKey, baseYr, false),
+            ledgerScenario: ledgerSnapshots(resList, secKey, baseYr),
             coverageRows: years.map((year, i) => ({ year, __bau: bau[i], __scenario: scn[i], __total: totalHH[i], __target: tgt[i] })),
             financingRows: years.map((year, i) => ({ year,
               __bau_gap: resList.reduce((total, r) => total + secOf(r).endline_financing_requirement[i], 0) / 1000,
@@ -505,14 +518,14 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     setTable(null);
     setContrib(null);
     setContributionError(null);
-    const enW = WATER_INTV.filter(d => toggles[d.key]);
-    const enS = SAN_INTV.filter(d => toggles[d.key]);
+    const enW = WATER_INTV.filter(d => datasets.some(inp => inp.toggles?.[d.key]));
+    const enS = SAN_INTV.filter(d => datasets.some(inp => inp.toggles?.[d.key]));
     const enabled = [...enW, ...enS];                              // global cumulative order (water then san)
     const hasCustoms = datasets.some((inp: any) => (inp.custom_interventions || []).some((c: any) => c && c.enabled !== false));
     const hasUtilityDebt = datasets.some((inp: any) =>
       ['water', 'sanitation'].some((sector: string) => inp.utility_debt?.[sector]?.enabled && Number(inp.utility_debt?.[sector]?.allocation_share || 0) > 0));
     const h = setTimeout(() => {
-      const off = Object.fromEntries(Object.keys(toggles).map(k => [k, false]));
+      const off = Object.fromEntries([...new Set(datasets.flatMap(inp => Object.keys(inp.toggles || {})))].map(k => [k, false]));
       const sets: any[] = [{ ...off }];                            // pass 0 = BAU (all off)
       let acc: any = { ...off };
       enabled.forEach(d => { acc = { ...acc, [d.key]: true }; sets.push({ ...acc }); });   // +1 pass per lever
@@ -522,7 +535,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         sanitation: { ...(settings?.sanitation || {}), enabled: false },
       });
       const fetchPass = (tg: any, useCustoms: boolean, debtEnabled = false) => Promise.all(datasets.map((inp: any) =>
-        runCalculation({ ...inp, toggles: tg, custom_interventions: useCustoms ? (inp.custom_interventions || []) : [],
+        runCalculation({ ...inp,
+          toggles: Object.fromEntries(Object.keys(off).map(key => [key, !!(tg[key] && inp.toggles?.[key])])),
+          custom_interventions: useCustoms ? (inp.custom_interventions || []) : [],
           utility_debt: debtEnabled ? inp.utility_debt : withoutDebt(inp.utility_debt) })));
       const specs = sets.map(tg => ({ tg, customs: false }));
       if (hasCustoms) specs.push({ tg: acc, customs: true });      // final pass = all built-ins on + real customs
@@ -546,7 +561,14 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
 
         // ── stacked per-year series for one sector ──
         const buildContrib = (defs: IntvDef[], sk: string): ContribSeries => {
-          const en = defs.filter(d => toggles[d.key]);
+          const own = new Set(defs.map(d => d.key));
+          const en = enabled.filter(d => own.has(d.key) || years.some((_, i) => {
+            const idx = idxOf(d);
+            return Math.abs(smY(passes[idx + 1], sk, i) - smY(passes[idx], sk, i)) > 1e-12 ||
+              Math.abs(gapY(passes[idx + 1], sk, i) - gapY(passes[idx], sk, i)) > 1e-12;
+          }));
+          const bandLabel = (d: IntvDef) => own.has(d.key) ? d.label :
+            `${d.key.startsWith('ws_') ? 'Water' : 'Sanitation'}: ${d.label}`;
           const covRows: any[] = [], gapRows: any[] = [];
           years.forEach((y, i) => {
             const covRow: any = { year: y, __bau: +smY(passes[0], sk, i).toFixed(4), __total: +totY(i).toFixed(4), __target: +tgtY(sk, i).toFixed(4) };
@@ -555,9 +577,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             let sumRed = 0;
             en.forEach(d => {
               const idx = idxOf(d);
-              covRow[d.label] = smY(passes[idx + 1], sk, i) - smY(passes[idx], sk, i);
+              covRow[bandLabel(d)] = smY(passes[idx + 1], sk, i) - smY(passes[idx], sk, i);
               const red = gapY(passes[idx], sk, i) - gapY(passes[idx + 1], sk, i);
-              gapRow[d.label] = red / 1000;          // M → B
+              gapRow[bandLabel(d)] = red / 1000;          // M → B
               sumRed += red;
             });
             if (hasCustoms) {
@@ -576,12 +598,29 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             gapRow.__bau_gap = +(bauGap / 1000).toFixed(4);                        // total BAU gap → the target line to close
             covRows.push(covRow); gapRows.push(gapRow);
           });
-          const all: ContribBand[] = en.map(d => ({ key: d.label, label: d.label, color: d.color, interventionKey: d.key }));
+          const all: ContribBand[] = en.map(d => ({ key: bandLabel(d), label: bandLabel(d), color: d.color, interventionKey: d.key }));
           if (hasCustoms) all.push({ key: 'Custom interventions', label: 'Custom interventions', color: P.custom, custom: true });
           if (debtPass) all.push({ key: 'Utility debt financing', label: 'Utility debt financing', color: P.utilityDebt, interventionKey: 'utility_debt_financing' });
           // keep only bands that actually move either chart (an enabled-but-unparameterised lever adds 0)
           const bands = all.filter(b => covRows.some(r => Math.abs(r[b.key] || 0) > 1e-12) || gapRows.some(r => Math.abs(r[b.key] || 0) > 1e-12));
-          return { covRows, gapRows, bands };
+          const snapshots = passes.map(pass => ledgerSnapshots(pass, sk as 'water_supply' | 'sanitation', baseYr));
+          const ledgerContributions: LedgerContribution[] = enabled.map((d, index) => ({
+            key: d.key, label: bandLabel(d), category: ledgerCategory(d.key), order: index + 1,
+            before: snapshots[index], after: snapshots[index + 1],
+          })).filter(edge => own.has(edge.key) || edge.after.some((row, i) =>
+            Object.keys(row.values).some(key => row.values[key as keyof typeof row.values].some((value, rung) =>
+              value != null && Math.abs(value - (edge.before[i].values[key as keyof typeof row.values][rung] ?? 0)) > 1e-12))));
+          if (hasCustoms) ledgerContributions.push({
+            key: 'custom', label: 'Custom interventions', category: ledgerCategory('custom', true), order: nBuiltin + 1,
+            before: snapshots[nBuiltin], after: snapshots[nBuiltin + 1],
+          });
+          if (debtPass) ledgerContributions.push({
+            key: 'utility_debt_financing', label: 'Utility debt financing (conditional on reforms)',
+            order: fullNoDebtIdx + 1,
+            category: ledgerCategory('utility_debt_financing'), before: snapshots[fullNoDebtIdx],
+            after: ledgerSnapshots(debtPass, sk as 'water_supply' | 'sanitation', baseYr),
+          });
+          return { covRows, gapRows, bands, ledgerContributions };
         };
         setContrib({ water: buildContrib(WATER_INTV, 'water_supply'), sanitation: buildContrib(SAN_INTV, 'sanitation') });
 
@@ -931,6 +970,14 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           </div>
         )}
         </details>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: 8, marginBottom: 8 }}>
+          <button type="button" aria-label={`${label} safely managed view table`}
+            onClick={() => showLedger(secKey, { metric: 'coverage', service: 'sm', basis: 'annual' })}>View safely managed table</button>
+          <button type="button" aria-label={`${label} basic view table`}
+            onClick={() => showLedger(secKey, { metric: 'coverage', service: 'basic', basis: 'annual' })}>View basic table</button>
+          <button type="button" aria-label={`${label} financing view table`}
+            onClick={() => showLedger(secKey, { metric: 'gap', service: 'total', basis: 'closing' })}>View financing table</button>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: 8 }}>
           <StackChart title={`${label} — safely-managed coverage`} subtitle={!cs ? 'BAU, full scenario, target and total households. Intervention breakdown is pending or unavailable.' : contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : "BAU base + each intervention's added households (target & ceiling shown as lines)"}
             data={covData} yLabel={isShare ? '% of population' : '# households (millions)'}
@@ -944,8 +991,23 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             bands={gapBands} lines={gapLines} fmt={gapFmt}
             filename={`${scopeName}_${secKey}_financing_gap_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} currencyDisplay={detailExportCurrency} />
         </div>
-        <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={displayCur}
-          moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency} />
+        <ResultsLedgerPanel data={{ years: s.ledgerScenario.map(row => row.year),
+          baselineYear: datasets[0]?.period?.baseline_year ?? s.ledgerScenario[0].year,
+          base: s.ledgerBase, scenario: s.ledgerScenario, contributions: cs?.ledgerContributions ?? [],
+          attributionComplete: !!cs, includesDebt: datasets.some(inp => Object.values(inp.utility_debt || {})
+            .some((config: any) => config?.enabled && config.allocation_share > 0)) }} sector={secKey} label={label} scope={scopeName}
+          years={s.ledgerScenario.filter(row => (chartStart == null || row.year >= chartStart) &&
+            (chartEnd == null || row.year <= chartEnd)).map(row => row.year)}
+          isShare={isShare} currency={displayCur} moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency}
+          contributionView={contributionView}
+          onRetry={() => setAttempt(value => value + 1)}
+          selection={ledgerSelection[secKey]} onSelectionChange={selection =>
+            setLedgerSelection(current => ({ ...current, [secKey]: selection }))} />
+        <details style={{ marginTop: 12, marginBottom: 12 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 12, color: '#334155' }}>Full technical audit ledger and downloads</summary>
+          <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={displayCur}
+            moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency} />
+        </details>
         <RevenueDetails series={s} sector={secKey} />
         <UtilityDebtSchedule debt={s.debt} currency={displayCur} moneyFactor={moneyFactor} />
         {rows && rows.length > 0 && (

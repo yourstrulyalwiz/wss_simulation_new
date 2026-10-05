@@ -289,6 +289,11 @@ export default function ResultsLedgerPanel({
                           {!isChild && <span className="results-ledger__row-tag">{rowKindLabel(row)}</span>}
                         </span>
                       )}
+                      {row.key === 'fundingShared' && (
+                        <span data-testid="funding-surplus-note" style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#475569', marginTop: 4 }}>
+                          Surplus relative to this year's applied spending. It may include restricted funds and does not mean all remaining needs are funded.
+                        </span>
+                      )}
                     </th>
                     <td className="results-ledger__unit">{row.unit}</td>
                     {years.map((year, index) => {

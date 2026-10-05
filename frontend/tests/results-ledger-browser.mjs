@@ -78,6 +78,10 @@ try {
               empty:[...p.querySelectorAll('[data-ledger-year]')].every(n=>n.textContent==='—')};})()`);
           assert.deepEqual(state.years,expectedYears);
           assert.ok(!state.empty,`${sector}/${metric}/${service} is empty`);
+          if(metric==='funding' && service==='total'){
+            assert.ok(await e(`document.querySelector('${root} [data-ledger-row="fundingShared"] [data-testid="funding-surplus-note"]')?.textContent.includes("Surplus relative to this year's applied spending")`),
+              `${sector}: unapplied funding is missing the surplus explanation`);
+          }
           await e(`([...document.querySelectorAll('${root} .results-ledger__export button')].find(b=>b.textContent.includes('Excel'))).click()`);
           await w(`window.__ledgerExports.length>${exports} && window.__ledgerExports[${exports}].status!==null`,'Excel export did not complete');
           const exported = await e(`window.__ledgerExports[${exports++}]`);

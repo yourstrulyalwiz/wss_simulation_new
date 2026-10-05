@@ -216,8 +216,13 @@ export default function ResultsLedgerPanel({
         )}
         {selection.metric === 'coverage' && selection.service === 'sm' && (
           <p className="results-ledger__coverage-legend">
-            SM net gap = Original target − Combined scenario; + red means shortfall, − green means surplus, and neutral zero means no net difference. Local unmet-target diagnostics count each area without offsetting surpluses.
+            SM net gap = Combined scenario − Original target; − red means shortfall, + green means surplus, and neutral zero means no net difference. Local unmet-target diagnostics count each area without offsetting surpluses.
           </p>
+        )}
+        {selection.metric === 'coverage' && selection.service === 'sm' && !!data.areas?.length && (
+          <p>Area SM gaps use scenario − target. {isShare
+            ? 'Area gaps use the selected scope’s population denominator, so the Urban and Rural contributions add to the National net gap in percentage points.'
+            : 'Urban and Rural gaps add to the National net gap; single-area views show only the selected area.'}</p>
         )}
         {selection.metric !== 'coverage' && <p>Financial reporting starts after baseline {data.baselineYear}. Earlier years are not applicable (—).</p>}
         <p>Signed effects are scenario changes: negative funding means less funding; negative requirements or gaps mean a reduction.</p>
@@ -285,7 +290,7 @@ export default function ResultsLedgerPanel({
                           key={year}
                           data-ledger-year={year}
                           className={`results-ledger__value${isSignedGap && value != null
-                            ? value > 0 ? ' results-ledger__value--shortfall' : value < 0 ? ' results-ledger__value--surplus' : ' results-ledger__value--neutral'
+                            ? value < 0 ? ' results-ledger__value--shortfall' : value > 0 ? ' results-ledger__value--surplus' : ' results-ledger__value--neutral'
                             : value != null && value < 0 ? ' results-ledger__value--negative' : ''}`}
                           title={value == null ? 'Not available' : String(value)}
                         >
@@ -320,7 +325,7 @@ export default function ResultsLedgerPanel({
           ) : selection.metric === 'gap' ? (
             <p><strong>Gap.</strong> Current-year residual gap = outstanding expansion + replacement obligation − capped replacement credit + cash deficit. Funded expansion receives no second credit; cash deficits are allocated once. Year-end requirement = outstanding expansion + accumulated unpaid replacement and deficits. National sums remaining local obligations; unused or restricted funds elsewhere are not assumed transferable. This is not generally annual requirements minus all available funding. Both include balances: do not sum across years.</p>
           ) : (
-            <p><strong>Coverage.</strong> The signed SM net gap is Original target minus Combined scenario coverage, aggregated across areas; positive values are shortfalls and negative values are surpluses. Local access diagnostics assess each area against its service threshold before aggregation and do not offset surpluses against unmet targets. Share values use population as the denominator; intervention effects and SM net gap are in percentage points.</p>
+            <p><strong>Coverage.</strong> The signed SM net gap is Combined scenario coverage minus Original target, aggregated across areas; negative values are shortfalls and positive values are surpluses. Local access diagnostics assess each area against its service threshold before aggregation and do not offset surpluses against unmet targets. Share values use population as the denominator; intervention effects and SM net gap are in percentage points.</p>
           )}
           <p>Displayed values are rounded for readability. CSV and Excel retain unrounded values and include only the rows currently visible in the table.</p>
         </div>

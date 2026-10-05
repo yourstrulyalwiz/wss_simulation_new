@@ -68,7 +68,7 @@ for (const sector of ['water_supply', 'sanitation']) {
             const net = rows.find(row=>row.key==='smNetGap');
             assert.equal(net.signedGap, true);
             assert.equal(net.unit, isShare ? 'pp' : 'M households');
-            net.values.forEach((value,i)=>close(value,target.values[i]-final.values[i]));
+            net.values.forEach((value,i)=>close(value,final.values[i]-target.values[i]));
           }
           const limited = ledgerRows(data,{...options,years:years.slice(-3)});
           assert.equal(limited[0].values.length,3);
@@ -129,29 +129,43 @@ for (const sector of ['water_supply','sanitation']) {
     return result;
   };
   const urban=makeArea(2,2.10), rural=makeArea(1.84,1.69);
-  const rowsFor = (areas,isShare=false) => {
+  const rowsFor = (areas,isShare=false,keys=['urban','rural']) => {
     const snapshots=ledgerSnapshots(areas,sector,fixture.baseline);
     return ledgerRows({years:urban.years,baselineYear:fixture.baseline,base:snapshots,scenario:snapshots,
-      contributions:[],attributionComplete:true,includesDebt:false},
+      contributions:[],attributionComplete:true,includesDebt:false,
+      areas: areas.map((result,i)=>({key:keys[i],label:keys[i]==='urban' ? 'Urban' : 'Rural',
+        scenario:ledgerSnapshots([result],sector,fixture.baseline)}))},
       {metric:'coverage',service:'sm',basis:'annual',years:urban.years,isShare,moneyFactor:1,currency:'USD'});
   };
   const rows=rowsFor([urban,rural]);
   const values=(rs,key)=>rs.find(row=>row.key===key).values;
   values(rows,'target').forEach((v,i)=>{
     close(v,3.84);close(values(rows,'scenario')[i],3.79);
-    close(values(rows,'smNetGap')[i],.05);close(values(rows,'accessGap')[i],.15);
-    close(values(rowsFor([urban]),'smNetGap')[i]+values(rowsFor([rural]),'smNetGap')[i],.05);
+    close(values(rows,'smNetGap')[i],-.05);close(values(rows,'accessGap')[i],.15);
+    close(values(rowsFor([urban]),'smNetGap')[i]+values(rowsFor([rural]),'smNetGap')[i],-.05);
+    close(values(rows,'smNetGap-urban')[i],.10);
+    close(values(rows,'smNetGap-rural')[i],-.15);
+    close(values(rows,'smNetGap-urban')[i]+values(rows,'smNetGap-rural')[i],values(rows,'smNetGap')[i]);
   });
-  for (const [target,actual,gap] of [[2,2.1,-.1],[2,1.9,.1],[2,2,0],[2,2+Number.EPSILON,0]]) {
+  const urbanOnly=rowsFor([urban]), ruralOnly=rowsFor([rural],false,['rural']);
+  assert.ok(urbanOnly.some(r=>r.key==='smNetGap-urban') && !urbanOnly.some(r=>r.key==='smNetGap-rural'));
+  assert.ok(ruralOnly.some(r=>r.key==='smNetGap-rural') && !ruralOnly.some(r=>r.key==='smNetGap-urban'));
+  close(values(ruralOnly,'smNetGap-rural')[0],-.15);
+  for (const [target,actual,gap] of [[2,2.1,.1],[2,1.9,-.1],[2,2,0],[2,2+Number.EPSILON,0]]) {
     const row=rowsFor([makeArea(target,actual)]).find(r=>r.key==='smNetGap');
     row.values.forEach(value=>{close(value,gap);assert.ok(!Object.is(value,-0));});
   }
   const shares=rowsFor([urban,rural],true);
   assert.equal(shares.find(row=>row.key==='smNetGap').unit,'pp');
   values(shares,'smNetGap').forEach((v,i)=>{
-    close(v,.05/6*100);
-    close(v,values(shares,'target')[i]-values(shares,'scenario')[i]);
+    close(v,-.05/6*100);
+    close(v,values(shares,'scenario')[i]-values(shares,'target')[i]);
+    close(values(shares,'smNetGap-urban')[i]+values(shares,'smNetGap-rural')[i],v);
+    close(values(shares,'smNetGap-urban')[i],.10/6*100);
+    close(values(shares,'smNetGap-rural')[i],-.15/6*100);
   });
+  const ruralShares=rowsFor([rural],true,['rural']);
+  close(values(ruralShares,'smNetGap-rural')[0],-.15/3*100);
 }
 const invalid = structuredClone(fixture.results[0]);
 delete invalid.water_supply.scenario_annual_planned_expansion_cost_by_service;

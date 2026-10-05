@@ -16,6 +16,7 @@ export type LedgerContribution = {
 export type LedgerData = {
   years: number[]; baselineYear: number; base: LedgerSnapshot[]; scenario: LedgerSnapshot[];
   contributions: LedgerContribution[]; attributionComplete: boolean; includesDebt: boolean;
+  areas?: { key: 'urban' | 'rural'; label: string; scenario: LedgerSnapshot[] }[];
 };
 export type LedgerRow = {
   key: string; label: string; kind: 'baseline' | 'category' | 'intervention' | 'scenario' | 'detail' | 'target';
@@ -121,13 +122,15 @@ export function ledgerRows(data: LedgerData, options: {
   const measure = ledgerMeasure(metric, service, basis);
   const isCoverage = metric === 'coverage';
   const unit = isCoverage ? isShare ? '%' : 'M households' : `B ${currency}`;
-  function series(snapshots: LedgerSnapshot[], key: LedgerMeasure = measure) {
+  function series(snapshots: LedgerSnapshot[], key: LedgerMeasure = measure, denominators = snapshots) {
     const byYear = new Map(snapshots.map(s => [s.year, s]));
+    const populationByYear = new Map(denominators.map(s => [s.year, s.population]));
     return years.map(year => {
       const snap = byYear.get(year);
       const value = snap?.values[key][rung];
       if (value == null || !snap) return null;
-      return isCoverage ? isShare ? (snap.population > 0 ? value / snap.population * 100 : 0) : value
+      const population = populationByYear.get(year) ?? 0;
+      return isCoverage ? isShare ? (population > 0 ? value / population * 100 : 0) : value
         : value * moneyFactor / 1000;
     });
   }
@@ -161,12 +164,23 @@ export function ledgerRows(data: LedgerData, options: {
     if (service === 'sm') {
       // Subtract the very same series displayed above, after scope aggregation.
       // This reporting difference must not replace local deficits used by the model.
-      const net = difference(series(data.scenario, 'target'), series(data.scenario));
+      const net = difference(series(data.scenario), series(data.scenario, 'target'));
       rows.push({
-        key: 'smNetGap', label: 'SM net gap (target − scenario)', kind: 'detail',
+        key: 'smNetGap', label: 'SM net gap (scenario − target)', kind: 'detail',
         unit: isShare ? 'pp' : unit, signedGap: true,
         values: net.map(value => value != null && Math.abs(value) < 1e-12 ? 0 : value),
       });
+      for (const area of data.areas ?? []) {
+        // Use the selected scope denominator so National area contributions add
+        // to the National pp gap; single-area views use that area's denominator.
+        const areaNet = difference(series(area.scenario, 'coverage', data.scenario),
+          series(area.scenario, 'target', data.scenario));
+        rows.push({
+          key: `smNetGap-${area.key}`, label: `${area.label} SM gap (scenario − target)`,
+          kind: 'detail', unit: isShare ? 'pp' : unit, signedGap: true,
+          values: areaNet.map(value => value != null && Math.abs(value) < 1e-12 ? 0 : value),
+        });
+      }
       rows.push({
         key: 'accessGap', label: 'Unmet SM targets across areas (no surplus offset)', kind: 'detail',
         unit: isShare ? 'pp' : unit, values: series(data.scenario, 'accessGap'),

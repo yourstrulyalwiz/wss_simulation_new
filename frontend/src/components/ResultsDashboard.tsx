@@ -8,7 +8,7 @@ import { yearAxisInterval } from '../chartAxis';
 import { resolveChartWindow } from '../chartWindow';
 import { runCalculation } from '../api';
 import { resultsInputs } from '../resultsDebtMode';
-import { ledgerSnapshots, ledgerCategory, type LedgerSnapshot, type LedgerContribution, type LedgerMetric, type LedgerService, type LedgerBasis } from '../resultsLedger';
+import { ledgerSnapshots, ledgerCategory, type LedgerSnapshot, type LedgerContribution, type LedgerMetric, type LedgerService, type LedgerBasis, type LedgerData } from '../resultsLedger';
 import ResultsLedgerPanel from './ResultsLedgerPanel';
 import { linesFirstLegend } from './chartLegend';
 import ExportButtons from './ExportButtons';
@@ -83,7 +83,7 @@ interface Props {
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
 type DebtData = { summary: any; rows: any[]; areas: any[]; annualRows: any[] };
-type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; ledgerBase: LedgerSnapshot[]; ledgerScenario: LedgerSnapshot[]; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any };
+type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; ledgerBase: LedgerSnapshot[]; ledgerScenario: LedgerSnapshot[]; ledgerAreas: LedgerData['areas']; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any };
 type Both = { water: Series; sanitation: Series } | null;
 type Row = { key: string; label: string; addHH: number; resources: number | null };
 
@@ -490,6 +490,12 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
            return { inv, unit, ledgerBase: ledgerSnapshots(resList, secKey, baseYr, false),
             ledgerScenario: ledgerSnapshots(resList, secKey, baseYr),
+            ledgerAreas: geoScope === 'national' ? [] : resList.map((result, index) => {
+              const key: 'urban' | 'rural' = effScope === 'rural' || (effScope === 'national' &&
+                (resList.length > 1 ? index === 1 : geoScope === 'rural')) ? 'rural' : 'urban';
+              return { key, label: key === 'urban' ? 'Urban' : 'Rural',
+                scenario: ledgerSnapshots([result], secKey, baseYr) };
+            }),
             coverageRows: years.map((year, i) => ({ year, __bau: bau[i], __scenario: scn[i], __total: totalHH[i], __target: tgt[i] })),
             financingRows: years.map((year, i) => ({ year,
               __bau_gap: resList.reduce((total, r) => total + secOf(r).endline_financing_requirement[i], 0) / 1000,
@@ -505,7 +511,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       }).catch(e => { if (!cancelled) { setBoth(null); setError(e instanceof Error ? e.message : String(e)); } });
     }, 350);
     return () => { cancelled = true; clearTimeout(h); };
-  }, [depKey, attempt]);
+  }, [depKey, attempt, effScope, geoScope]);
 
   // ── Per-intervention breakdown: cumulative passes over the ENABLED built-in toggles isolate each lever's
   //    marginal safely-managed households (Δ scenario_hh) and gap reduction (Δ scenario_financing_gap) per
@@ -993,7 +999,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         </div>
         <ResultsLedgerPanel data={{ years: s.ledgerScenario.map(row => row.year),
           baselineYear: datasets[0]?.period?.baseline_year ?? s.ledgerScenario[0].year,
-          base: s.ledgerBase, scenario: s.ledgerScenario, contributions: cs?.ledgerContributions ?? [],
+          base: s.ledgerBase, scenario: s.ledgerScenario, areas: s.ledgerAreas, contributions: cs?.ledgerContributions ?? [],
           attributionComplete: !!cs, includesDebt: datasets.some(inp => Object.values(inp.utility_debt || {})
             .some((config: any) => config?.enabled && config.allocation_share > 0)) }} sector={secKey} label={label} scope={scopeName}
           years={s.ledgerScenario.filter(row => (chartStart == null || row.year >= chartStart) &&

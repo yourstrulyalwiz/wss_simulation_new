@@ -85,16 +85,21 @@ try {
           const full = sheet.rows.find(row=>row[0]==='Combined scenario');
           if (metric==='coverage' && service==='sm') {
             const target=sheet.rows.find(row=>row[0]==='Original target');
-            const net=sheet.rows.find(row=>row[0]==='SM net gap (target − scenario)');
+            const net=sheet.rows.find(row=>row[0]==='SM net gap (scenario − target)');
+            const urbanGap=sheet.rows.find(row=>row[0]==='Urban SM gap (scenario − target)');
+            const ruralGap=sheet.rows.find(row=>row[0]==='Rural SM gap (scenario − target)');
+            assert.ok(urbanGap && ruralGap,'National gap breakdown missing from export');
             assert.ok(net && sheet.rows.some(row=>row[0]==='Unmet SM targets across areas (no surplus offset)'));
             assert.equal(net[1],full[1]==='%' ? 'pp' : 'M households');
-            for (let i=2;i<sheet.headers.length;i++)
-              assert.ok(Math.abs(net[i]-(target[i]-full[i]))<1e-10,'Exported SM net gap does not reconcile');
+            for (let i=2;i<sheet.headers.length;i++) {
+              assert.ok(Math.abs(net[i]-(full[i]-target[i]))<1e-10,'Exported SM net gap does not reconcile');
+              assert.ok(Math.abs(urbanGap[i]+ruralGap[i]-net[i])<1e-10,'Urban + Rural gaps do not reconcile');
+            }
             assert.ok(await e(`(()=>{const cells=[...document.querySelectorAll('${root} [data-ledger-row="smNetGap"] [data-ledger-year]')];
               return cells.length>0 && cells.every(cell=>{
                 const v=Number(cell.title),text=cell.textContent.trim();
-                return v>0 ? text.startsWith('+') && cell.classList.contains('results-ledger__value--shortfall')
-                  : v<0 ? text.startsWith('-') && cell.classList.contains('results-ledger__value--surplus')
+                return v>0 ? text.startsWith('+') && cell.classList.contains('results-ledger__value--surplus')
+                  : v<0 ? text.startsWith('-') && cell.classList.contains('results-ledger__value--shortfall')
                   : text==='0' && cell.classList.contains('results-ledger__value--neutral');
               });})()`),'Signed SM gap formatting/colors incorrect');
           }
@@ -106,6 +111,40 @@ try {
     }
   }
   assert.equal(await e('window.__ledgerCalls'),calls,'Display-only changes re-ran the model');
+  // Scope switching must retain only actual selected areas, in both sectors and exports.
+  const scopeChange=async value=>{
+    await e(`(()=>{const s=[...document.querySelectorAll('select')].find(s=>['urban','rural','national']
+      .every(value=>[...s.options].some(o=>o.value===value)));s.value=${JSON.stringify(value)};
+      s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  };
+  for (const scope of ['urban','rural','national']) {
+    await scopeChange(scope);
+    for (const sector of ['water','sanitation']) {
+      const root=panel(sector);
+      await w(`!!document.querySelector('${root}')`,'Ledger missing after scope switch');
+      await change(`${root} select[aria-label$="ledger metric"]`,'coverage');
+      await change(`${root} select[aria-label$="ledger service"]`,'sm');
+      await w(`(()=>{const p=document.querySelector('${root}');
+        return !!p && ${scope==='national'
+          ? "!!p.querySelector('[data-ledger-row=\"smNetGap-urban\"]') && !!p.querySelector('[data-ledger-row=\"smNetGap-rural\"]')"
+          : `!!p.querySelector('[data-ledger-row="smNetGap-${scope}"]') && !p.querySelector('[data-ledger-row="smNetGap-${scope==='urban'?'rural':'urban'}"]')`};
+      })()`,'Area gap rows do not match selected scope');
+      await e(`([...document.querySelectorAll('button')].find(b=>b.textContent==='% of population')).click()`);
+      await sleep(80);
+      await e(`([...document.querySelectorAll('${root} .results-ledger__export button')].find(b=>b.textContent.includes('Excel'))).click()`);
+      await w(`window.__ledgerExports.length>${exports} && window.__ledgerExports[${exports}].status!==null`,'Scope export did not complete');
+      const exported=await e(`window.__ledgerExports[${exports++}]`);
+      assert.equal(exported.status,200);
+      const sheet=exported.body.sheets[0];
+      const net=sheet.rows.find(r=>r[0]==='SM net gap (scenario − target)');
+      const areas=sheet.rows.filter(r=>/^(Urban|Rural) SM gap/.test(r[0]));
+      assert.equal(areas.length,scope==='national'?2:1);
+      assert.ok(areas.every(r=>r[1]==='pp'));
+      for(let i=2;i<sheet.headers.length;i++)
+        assert.ok(Math.abs(areas.reduce((sum,r)=>sum+r[i],0)-net[i])<1e-10,'Share breakdown does not reconcile');
+    }
+  }
+  await e(`([...document.querySelectorAll('button')].find(b=>b.textContent==='# Households')).click()`);
   await e(`document.querySelector('[data-results-sector="water"] [aria-label$="basic view table"]').click()`);
   await w(`document.querySelector('${panel('water')}').dataset.ledgerMetric==='coverage' &&
     document.querySelector('${panel('water')}').dataset.ledgerService==='basic'`,'Graph link did not select Basic table');

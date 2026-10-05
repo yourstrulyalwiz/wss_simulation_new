@@ -121,6 +121,7 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None, utility_debt_execu
             'injection_end_year': si.fin_injection_end_year,
         },
         financial_execution_rate=b.execution_rate,
+        full_spending_provided=b.san_total_spending_provided,
         full_budget=full_budget, capex_pct=san_capex,
         growth_capex_pct=1.0,   # sanitation 4a SM growth uses the sanitation capex budget (I!333)
         hist_all_proportional=False,  # sanitation history I!193-197 = SM kept / Basic plug / lower proportional

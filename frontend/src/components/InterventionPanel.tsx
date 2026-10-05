@@ -187,9 +187,9 @@ function TechMixEditor({ inputs, onChange, section, CUR }: {
   );
 }
 
-interface Props { inputs: any; onChange: (i: any) => void; results?: any; sectorTab?: 'water' | 'sanitation'; onSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (key: string) => void; geoScope?: string; chartScope?: string; contributionView: ContributionView; onContributionViewChange: (v: ContributionView) => void; currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void; onEditCurrencyRate: () => void; }
+interface Props { inputs: any; onChange: (i: any) => void; results?: any; calculationError?: string; sectorTab?: 'water' | 'sanitation'; onSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (key: string) => void; geoScope?: string; chartScope?: string; contributionView: ContributionView; onContributionViewChange: (v: ContributionView) => void; currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void; onEditCurrencyRate: () => void; }
 
-export default function InterventionPanel({ inputs, onChange, results, sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
+export default function InterventionPanel({ inputs, onChange, results, calculationError = '', sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
   // Budget execution (executed budget ÷ allocated budget) is COMPUTED by the live engine from the
   // historical budget rows — it is shown read-only as the current value in the Budget-execution
   // intervention (no user override). NB: internally still keyed capeff_*/ws_capital_efficiency_enabled
@@ -205,6 +205,8 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
   const CUR = inputs?.country_config?.currency || 'LCU';
   const scopeLabel = geoScope === 'national' ? 'National' : geoScope === 'rural' ? 'Rural' : 'Urban';
   const scopeLower = scopeLabel.toLowerCase();
+  const scheduleYear = (iv: any, field: string, end = false) =>
+    Number.isFinite(iv[field]) ? iv[field] : (end ? inputs.period.forecast_end_year : inputs.period.baseline_year + 1);
 
   // ── Affordability lever (microfinance + means-based grant) helpers ──────────────────────────────
   const miniInput: React.CSSProperties = { width: '100%', padding: '5px 7px', borderRadius: 4, fontSize: 12,
@@ -293,6 +295,8 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
     const sectorResult = section === 'water_interventions' ? results?.water_supply : results?.sanitation;
     const baselineShare = sectorResult?.baseline_bau_total_spending_share;
     const baselineYear = inputs?.period?.baseline_year;
+    const estimated = sectorResult?.baseline_spending_reference_source === 'cost_derived_equivalent';
+    const addedCapital = sectorResult?.scenario_financial_commitment_cash?.reduce((sum: number, value: number) => sum + value, 0);
     const option = (field: string, label: string, fields: React.ReactNode) => (
       <div style={{ gridColumn: '1 / -1', border: '1px solid #dbeafe', borderRadius: 6, padding: 10, background: '#f8fbff' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 650, color: '#1e3a5f' }}>
@@ -304,31 +308,45 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
       </div>
     );
     return (<>
-      <div style={{ gridColumn: '1 / -1', border: '1px solid #dbeafe', background: '#f8fbff',
+      <div data-financial-reference={section} style={{ gridColumn: '1 / -1', border: '1px solid #dbeafe', background: '#f8fbff',
         borderRadius: 6, padding: '10px 12px', fontSize: 12, color: '#1e3a5f' }}>
-        <span style={{ fontWeight: 700 }}>Baseline BAU total spending share{baselineYear ? ` (${baselineYear})` : ''}: </span>
+        <span style={{ fontWeight: 700 }}>Baseline BAU total spending share{estimated ? ' (estimated)' : ''}{baselineYear ? ` (${baselineYear})` : ''}: </span>
         <strong>{typeof baselineShare === 'number' && Number.isFinite(baselineShare)
           ? `${(baselineShare * 100).toFixed(4)}% of GDP`
-          : 'Unavailable — check baseline real GDP'}</strong>
+          : !results && !calculationError ? 'Calculating baseline spending…'
+          : calculationError ? `Unavailable — ${calculationError}`
+          : 'Unavailable — check baseline real GDP, capital share and execution rate'}</strong>
+        {estimated && <div style={{fontSize:10.5, marginTop:4}}>
+          No total spending input was supplied. This is the cost-derived BAU investment divided by the capital share and execution rate, expressed as a share of GDP—not observed public expenditure.
+        </div>}
+        {baselineShare === 0 && !!iv.fin_growth_enabled && <div style={{fontSize:10.5,marginTop:4}}>
+          A percentage increase on zero spending adds no funds. Enter a spending baseline in Data Inputs or use a GDP spending target.
+        </div>}
         <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 4, lineHeight: 1.4 }}>
           Reference only: baseline BAU total sector spending ÷ baseline real GDP, before the capex share and
           execution rate. The target is compared with each forecast year’s BAU total spending, not this fixed share.
         </div>
       </div>
+      {Number.isFinite(addedCapital) && <div data-financial-capital={section} style={{gridColumn:'1 / -1',fontSize:12,color:'#1e3a5f'}}>
+        Added effective capital over the forecast: <strong>{addedCapital.toLocaleString('en-US', {maximumFractionDigits:2})} {CUR} million (real)</strong>.
+        <div style={{fontSize:10.5,color:'#64748b',marginTop:4}}>
+          After the capital share and execution rate. Funds may first cover operating deficits and replacement before expanding service.
+        </div>
+      </div>}
       <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b' }}>
         Select either or both options. Enabled options overlap additively and apply only to the intervention scenario.
       </div>
       {option('fin_gdp_enabled', 'Target spending as a share of GDP', <>
         <F label="Target total spending share" value={iv.fin_gdp_target_share} onChange={v => u(section, 'fin_gdp_target_share', Math.max(0, v))} isPercent unit="% of GDP"
           tip="Enter the target total sector-spending share, not the percentage increase. Only the positive difference above BAU is added." />
-        <F label="Start year" value={iv.fin_gdp_start_year} onChange={v => u(section, 'fin_gdp_start_year', v)}
+        <F label="Start year" value={scheduleYear(iv, 'fin_gdp_start_year')} onChange={v => u(section, 'fin_gdp_start_year', v)}
           tip="The target total spending share applies from this year onward." />
       </>)}
       {option('fin_growth_enabled', 'Annual percentage increase in spending', <>
         <F label="Annual spending increase" value={iv.fin_growth_rate} onChange={v => u(section, 'fin_growth_rate', Math.max(0, v))} isPercent unit="% per year"
           tip="The increase compounds annually from the start year through the end year." />
-        <F label="Start year" value={iv.fin_growth_start_year} onChange={v => u(section, 'fin_growth_start_year', v)} />
-        <F label="End year" value={iv.fin_growth_end_year} onChange={v => u(section, 'fin_growth_end_year', v)} />
+        <F label="Start year" value={scheduleYear(iv, 'fin_growth_start_year')} onChange={v => u(section, 'fin_growth_start_year', v)} />
+        <F label="End year" value={scheduleYear(iv, 'fin_growth_end_year', true)} onChange={v => u(section, 'fin_growth_end_year', v)} />
       </>)}
     </>);
   };
@@ -349,10 +367,10 @@ export default function InterventionPanel({ inputs, onChange, results, sectorTab
             <option value="recurring">Recurring annually</option>
           </select>
         </div>
-        <F label={iv.fin_injection_mode === 'recurring' ? 'Start year' : 'Injection year'} value={iv.fin_injection_start_year}
+        <F label={iv.fin_injection_mode === 'recurring' ? 'Start year' : 'Injection year'} value={scheduleYear(iv, 'fin_injection_start_year')}
           onChange={v => u(section, 'fin_injection_start_year', v)} />
         {iv.fin_injection_mode === 'recurring' &&
-          <F label="End year" value={iv.fin_injection_end_year} onChange={v => u(section, 'fin_injection_end_year', v)} />}
+          <F label="End year" value={scheduleYear(iv, 'fin_injection_end_year', true)} onChange={v => u(section, 'fin_injection_end_year', v)} />}
     </>);
   };
 

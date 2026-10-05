@@ -16,6 +16,7 @@ app = FastAPI(title="WSS Scenarios Model API")
 from model.utility_revenue import RevenueInputError, resolve_bases
 from model.utility_debt import UtilityDebtInputError
 from model.engine import build_context
+from model.water_supply import FinancialCommitmentInputError
 from pydantic import ValidationError
 
 
@@ -36,6 +37,11 @@ async def revenue_input_error(request, exc):
 
 @app.exception_handler(UtilityDebtInputError)
 async def utility_debt_input_error(request, exc):
+    return JSONResponse(status_code=422, content={'detail': str(exc)})
+
+
+@app.exception_handler(FinancialCommitmentInputError)
+async def financial_commitment_input_error(request, exc):
     return JSONResponse(status_code=422, content={'detail': str(exc)})
 
 

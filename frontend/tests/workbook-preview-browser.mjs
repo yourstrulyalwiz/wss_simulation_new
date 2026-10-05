@@ -355,6 +355,64 @@ try {
     assert.equal(await evaluate(`JSON.parse(localStorage.getItem('wss_working_bundle')).inputs.water_costs.network_cost_per_hh_serv1`), 2771496);
     console.log('Original/mock scenario switching verified; restoring original inputs survives reload.');
   }
+  if (mockMode && process.env.CHECK_FINANCIAL_COMMITMENTS === '1') {
+    await evaluate(`[...document.querySelectorAll('.wb-tab')].find(b => b.textContent.includes('INTERVENTION') || b.textContent.includes('Intervention')).click()`);
+    await sleep(700);
+    for (const sector of ['Water Supply', 'Sanitation']) {
+      await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(sector)}).click()`);
+      await sleep(800);
+      const section = sector === 'Water Supply' ? 'water_interventions' : 'sanitation_interventions';
+      await evaluate(`(() => {
+        const label = [...document.querySelectorAll('label')].find(l => l.textContent.trim() === 'Increase in Financial Commitments');
+        if (!label) throw new Error('Financial commitment controls not found');
+        if (!label.querySelector('input').checked) label.querySelector('input').click();
+        const header = label.parentElement;
+        if (header.querySelector('button').textContent.includes('Show')) header.querySelector('button').click();
+      })()`);
+      await sleep(900);
+      const baseline = await evaluate(`document.querySelector('[data-financial-reference=${section}]').textContent`);
+      assert.ok(baseline.includes('(estimated)'), baseline);
+      assert.ok(Number(baseline.match(/([0-9.]+)% of GDP/)?.[1]) > 0, baseline);
+      await evaluate(`(() => {
+        const label = [...document.querySelectorAll('label')].find(l => l.textContent.trim() === 'Annual percentage increase in spending');
+        if (!label.querySelector('input').checked) label.querySelector('input').click();
+      })()`);
+      await sleep(200);
+      const years = await evaluate(`(() => {
+        const label = [...document.querySelectorAll('label')].find(l => l.textContent.trim() === 'Annual percentage increase in spending');
+        return [...label.parentElement.querySelectorAll('input')].map(i => i.value);
+      })()`);
+      assert.ok(years.includes('2026') && years.includes('2035'), JSON.stringify(years));
+      await evaluate(`(() => {
+        const label = [...document.querySelectorAll('label')].find(l => l.textContent.trim().startsWith('Annual spending increase'));
+        const input = label.parentElement.querySelector('input');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'10');
+        input.dispatchEvent(new Event('input',{bubbles:true}));
+        input.dispatchEvent(new Event('change',{bubbles:true}));
+        input.blur();
+      })()`);
+      await sleep(1200);
+      const state = await evaluate(`(async () => {
+        const bundle=JSON.parse(localStorage.getItem('wss_working_bundle'));
+        const response=await fetch('/api/calculate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(bundle.inputs)});
+        const result=await response.json();
+        return {iv:bundle.inputs[${JSON.stringify(section)}], status:response.status,
+          cash:result[${JSON.stringify(sector === 'Water Supply' ? 'water_supply' : 'sanitation')}]?.scenario_financial_commitment_cash,
+          text:document.querySelector('[data-financial-capital=${section}]')?.textContent};
+      })()`);
+      assert.equal(state.iv.fin_growth_rate, .1);
+      assert.equal(state.status, 200);
+      assert.ok(state.cash.some(value => value > 0));
+      assert.ok(state.text?.includes('Added effective capital over the forecast'));
+      await evaluate(`document.querySelector('[data-financial-reference=${section}]').scrollIntoView({block:'start'})`);
+      if (sector === 'Water Supply') {
+        const shot = await send('Page.captureScreenshot',{format:'png'},sessionId);
+        writeFileSync('/tmp/wss-financial-commitments.png',Buffer.from(shot.data,'base64'));
+      }
+    }
+    assert.equal(browserErrors.length, 0, JSON.stringify(browserErrors));
+    console.log('Financial commitments: estimated nonzero baseline, default forecast dates, editable 10% increase and positive additional capital verified in both sectors.');
+  }
   console.log('Configured BAU: safely managed + basic curves render for both sectors in Urban/Rural/National.');
   console.log('Browser passed: DRC startup, preserved data/session, all workflow tabs accessible and safe reload.');
 } finally {

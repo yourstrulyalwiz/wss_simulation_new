@@ -534,6 +534,8 @@ def to_engine(fe: dict) -> ModelInputs:
     budget = WSSBudgetInputs(
         ws_budget_pct_gdp=macro.get('ws_budget_pct_gdp', _WS_BUDGET_PCT),
         san_budget_pct_gdp=macro.get('san_budget_pct_gdp', _SAN_BUDGET_PCT),
+        ws_total_spending_provided=macro.get('ws_total_spending_provided', True),
+        san_total_spending_provided=macro.get('san_total_spending_provided', True),
         capex_pct_budget=macro.get('capex_pct_budget', 0.21),
         # Per-sector capex share; None -> engine falls back to capex_pct_budget (legacy payloads).
         ws_capex_pct=macro.get('ws_capex_pct'),

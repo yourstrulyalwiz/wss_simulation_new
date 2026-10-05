@@ -130,6 +130,10 @@ def custom_streams(ctx, period, base_sm_cost, customs, sector):
     return net_cash, cf
 
 
+class FinancialCommitmentInputError(ValueError):
+    """An enabled spending intervention has an invalid calendar schedule."""
+
+
 def sector_full_budget(ctx, *, budget_pct, direct_series, direct_ongoing, mode):
     """The sector's FULL budget per year in real terms (millions).
 
@@ -259,7 +263,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                selffinance_enabled=False, selffinance_share=0.0, connection_fee=0.0,
                 financial_enabled=False, injection_enabled=False, financial_settings=None, financial_execution_rate=None,
                 extra_cash=None, eligible_nrw_cash=None, custom_cash=None, revenue_base=None, revenue_volume=None,
-                utility_debt_execution=None):
+                utility_debt_execution=None, full_spending_provided=True):
     """Shared 4a-4d core. All HH and money values are in MILLIONS; costs in actual currency.
 
     `full_budget` is the sector's FULL budget per year in real terms, from EITHER %GDP mode
@@ -421,17 +425,38 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     financial_cash = np.zeros(n)
     injection_cash = np.zeros(n)
     fs = financial_settings or {}
+    commitment_exec = execution_rate if financial_execution_rate is None else financial_execution_rate
+    financial_capex_factor = max(0.0, float(capex_pct)) * max(0.0, float(commitment_exec))
+    commitment_base = full_budget_in
+    spending_reference_source = 'entered_total_spending'
+    if budget_source == 'from_cost' and not full_spending_provided:
+        # No observed total spending was supplied. Express the existing derived
+        # BAU investment as an equivalent total budget using the SAME treatment
+        # applied to new commitments; this is an estimate, never observed spending.
+        if financial_capex_factor > 0:
+            commitment_base = np.asarray(full_budget, dtype=float) / financial_capex_factor
+            spending_reference_source = 'cost_derived_equivalent'
+        else:
+            spending_reference_source = 'unavailable_zero_capex_factor'
+    if commitment_base.shape[0] < n:
+        commitment_base = np.concatenate([commitment_base, np.zeros(n - commitment_base.shape[0])])
     if financial_enabled or injection_enabled:
         gdp = np.asarray(gdp_real if gdp_real is not None else ctx['gdp_real_local'], dtype=float)
+        if financial_enabled and fs.get('gdp_enabled') and int(fs.get('gdp_start_year') or 0) <= 0:
+            raise FinancialCommitmentInputError("Enter a positive start year for the GDP spending target.")
+        if financial_enabled and fs.get('growth_enabled'):
+            start, end = int(fs.get('growth_start_year') or 0), int(fs.get('growth_end_year') or 0)
+            if start <= 0 or end < start:
+                raise FinancialCommitmentInputError("Annual spending increase needs a positive start year and an end year no earlier than the start year.")
+        if injection_enabled:
+            start, end = int(fs.get('injection_start_year') or 0), int(fs.get('injection_end_year') or 0)
+            if start <= 0 or (fs.get('injection_mode') == 'recurring' and end < start):
+                raise FinancialCommitmentInputError("Funding injection needs a positive start year and, when recurring, an end year no earlier than the start year.")
         # The financial levers are defined against TOTAL sector spending even when the BAU connection
         # budget itself is derived from historical service costs. `full_budget_in` preserves that total
-        # spending series across budget modes. New commitments then pass through the sector's ordinary
+        # spending series when supplied, otherwise the explicitly estimated equivalent above.
+        # New commitments then pass through the sector's ordinary
         # capex share and execution rate before becoming capital available for connections.
-        commitment_base = full_budget_in
-        if commitment_base.shape[0] < n:
-            commitment_base = np.concatenate([commitment_base, np.zeros(n - commitment_base.shape[0])])
-        commitment_exec = execution_rate if financial_execution_rate is None else financial_execution_rate
-        financial_capex_factor = max(0.0, float(capex_pct)) * max(0.0, float(commitment_exec))
         for t, y in enumerate(years):
             if y <= by:
                 continue
@@ -1030,9 +1055,11 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # share of the TOTAL-spending series the commitment compares against,
         # not the capex budget (which can be cost-derived in from_cost mode).
         'baseline_bau_total_spending_share': (
-            float(full_budget_in[bi] / ctx['gdp_real_local'][bi])
-            if ctx['gdp_real_local'][bi] > 0 else None
+            float(commitment_base[bi] / ctx['gdp_real_local'][bi])
+            if ctx['gdp_real_local'][bi] > 0 and spending_reference_source != 'unavailable_zero_capex_factor' else None
         ),
+        'baseline_spending_reference_source': spending_reference_source,
+        'financial_commitment_base': commitment_base.tolist(),
         **ledger.result(),
         'opening_stock': opening_stock,
         'household_gap': hh_gap.tolist(),
@@ -1168,6 +1195,7 @@ def calculate_water_supply(inputs, ctx, utility_debt_execution=None):
             'injection_end_year': nrw.fin_injection_end_year,
         },
         financial_execution_rate=b.execution_rate,
+        full_spending_provided=b.ws_total_spending_provided,
         extra_cash=cust_cash,                                  # custom new-revenue net cash → water capex
         custom_cash=cust_cash,
         utility_debt_execution=utility_debt_execution,

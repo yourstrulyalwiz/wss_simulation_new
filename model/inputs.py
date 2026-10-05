@@ -263,6 +263,9 @@ class WSSBudgetInputs(BaseModel):
     san_capex_pct: Optional[float] = None   # sanitation capex as % of sanitation budget (sheet G328)
     ws_budget_pct_gdp: float = 0.0016496186144332283   # #97 water supply budget as % of GDP (sheet G324)
     san_budget_pct_gdp: float = 0.0004  # #98 sanitation budget as % of GDP (final.xlsx sheet G331)
+    # Missing spending is distinct from explicitly entered zero in cost-derived mode.
+    ws_total_spending_provided: bool = True
+    san_total_spending_provided: bool = True
     # Budget execution rate (%GDP mode only): the share of the ALLOCATED capex budget that is
     # actually spent. actual capex = allocated (%GDP × real GDP × %capex) × execution_rate. A single
     # rate shared by both sectors. 1.0 = full execution (reproduces the pre-execution-rate results).

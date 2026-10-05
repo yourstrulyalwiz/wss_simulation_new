@@ -43,11 +43,24 @@ def restore_automatic_inputs(inputs):
         # %GDP parameters are not used in these modes. Do not borrow Nepal's rates.
         for key in ("ws_budget_pct_gdp", "san_budget_pct_gdp"):
             if macro.get(key) is None:
+                macro[key.replace("_budget_pct_gdp", "_total_spending_provided")] = False
                 macro[key] = 0.0
     for prefix in ("ws", "san"):
         key = f"{prefix}_budget_ongoing"
         if bau.get(key) is None:
             bau[key] = WSSBudgetInputs.model_fields[f"{prefix}_budget_direct_ongoing"].default
+    for sector in ("water", "sanitation"):
+        intervention = restored.get(f"{sector}_interventions")
+        if isinstance(intervention, dict):
+            for field, default in {
+                "fin_gdp_start_year": baseline + 1,
+                "fin_growth_start_year": baseline + 1,
+                "fin_growth_end_year": period.get("forecast_end_year", baseline + 1),
+                "fin_injection_start_year": baseline + 1,
+                "fin_injection_end_year": period.get("forecast_end_year", baseline + 1),
+            }.items():
+                if intervention.get(field) is None:
+                    intervention[field] = default
     # An unused, cleared reform target must not become zero below the actual
     # shared baseline. Neutral targets come from THIS area's entered base, never
     # a different country's reform assumptions. Enabled reform targets stay required.

@@ -10,3 +10,20 @@ All added commitments are full-spending amounts and become capital available for
 **Why:** This prevents double-counting BAU, keeps the intervention economically consistent across budget modes, preserves the agreed distinction between pledged spending and effective capital, and lets users identify injections separately from spending commitments.
 
 **How to apply:** Use these rules for calculations, attribution, and exports in both water supply and sanitation. Keep sector and geographic-area settings independent. When reading old saved inputs, migrate an enabled injection before constructing cumulative attribution passes; otherwise the injection can be counted under commitments instead.
+
+When total spending is genuinely missing in cost-derived mode, use the derived
+BAU investment's equivalent total spending (investment divided by capital share
+and execution rate) as an explicitly estimated commitment reference. Do not
+replace any supplied spending, including explicit zero.
+
+**Why:** The DRC mock scenario has cost-derived investment but no supplied total
+spending. Treating that missing input as an observed zero hid the baseline GDP
+share and made annual growth ineffective. This inference is a modelling
+equivalent, not measured public expenditure.
+
+**How to apply:** Retain missing-versus-zero provenance through normalization,
+use the same inferred reference for the baseline display and GDP/growth cash
+calculation, and label the estimate. A zero capital/execution factor cannot
+support inversion; show the reference as unavailable. Blank financial schedules
+use the first forecast year through forecast end; invalid enabled schedules
+must fail explicitly rather than compound from year zero.

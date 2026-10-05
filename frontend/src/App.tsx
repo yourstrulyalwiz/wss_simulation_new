@@ -681,7 +681,7 @@ export default function App() {
           </div>
         </>)}
         {activeTab === 2 && inputs && (
-          <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} contributionView={contributionView} onContributionViewChange={setContributionView}
+          <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} calculationError={calculationError} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} contributionView={contributionView} onContributionViewChange={setContributionView}
             currencyDisplay={currencyDisplay} onEditCurrencyRate={editCurrencyRate} onCurrencyDisplayChange={updateCurrencyDisplay} />
         )}
         {/* Guide panel — tabs 0, 1, 2 */}

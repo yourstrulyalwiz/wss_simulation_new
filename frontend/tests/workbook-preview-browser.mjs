@@ -413,6 +413,81 @@ try {
     assert.equal(browserErrors.length, 0, JSON.stringify(browserErrors));
     console.log('Financial commitments: estimated nonzero baseline, default forecast dates, editable 10% increase and positive additional capital verified in both sectors.');
   }
+  if (mockMode && process.env.CHECK_CONTRIBUTION_CATEGORIES === '1') {
+    await evaluate(`(() => {
+      const b=JSON.parse(localStorage.getItem('wss_working_bundle'));
+      for (const inputs of [b.inputs,...Object.values(b.altInputs || {})]) {
+        for (const [prefix,section] of [['ws','water_interventions'],['san','sanitation_interventions']]) {
+          inputs.toggles[prefix+'_financial_commitment_enabled']=true;
+          inputs.toggles[prefix+'_costeff_enabled']=true;
+          Object.assign(inputs[section], {fin_growth_enabled:true,fin_growth_rate:.1,
+            fin_growth_start_year:2026,fin_growth_end_year:2035,basic_share:.3,
+            costeff_current_pct:0,costeff_target_pct:.2,costeff_start_year:2026,costeff_target_year:2030});
+        }
+      }
+      localStorage.setItem('wss_working_bundle',JSON.stringify(b));
+    })()`);
+    await send('Page.reload',{},sessionId);
+    await sleep(1500);
+    await evaluate(`[...document.querySelectorAll('.wb-tab')].find(b=>b.textContent.toLowerCase().includes('intervention')).click()`);
+    await sleep(1800);
+    await evaluate(`(() => {
+      window.__chartExports=[];
+      const original=window.fetch;
+      window.fetch=(url,options)=> {
+        if (String(url).includes('/api/export/chart')) window.__chartExports.push(JSON.parse(options.body));
+        return original(url,options);
+      };
+    })()`);
+    for (const sector of ['Water Supply','Sanitation']) {
+      await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(sector)}).click()`);
+      await sleep(1600);
+      const originalInputs=await evaluate(`JSON.stringify(JSON.parse(localStorage.getItem('wss_working_bundle')).inputs)`);
+      await evaluate(`document.querySelector('[aria-label="Contribution view"]').querySelectorAll('button')[1].click()`);
+      await sleep(900);
+      const charts=await evaluate(`[...document.querySelectorAll('.recharts-wrapper')].map(w=>({
+        funding:[...w.querySelectorAll('.recharts-area-area')].filter(p=>p.getAttribute('fill')==='#0f766e' && p.getAttribute('d')?.length>10).length,
+        investment:[...w.querySelectorAll('.recharts-area-area')].filter(p=>p.getAttribute('fill')==='#7238f8' && p.getAttribute('d')?.length>10).length,
+        legend:w.querySelector('.recharts-legend-wrapper')?.textContent
+      }))`);
+      assert.equal(charts.length,2);
+      for (const chart of charts) {
+        assert.equal(chart.funding,1,JSON.stringify({sector,chart}));
+        assert.equal(chart.investment,1,JSON.stringify({sector,chart}));
+        assert.ok(chart.legend.includes('Funding Mobilization') && !chart.legend.includes('category:'),chart.legend);
+      }
+      await evaluate(`[...document.querySelectorAll('button')].filter(b=>b.title?.includes('Excel') && b.closest('div')).slice(-2)[0].click()`);
+      await sleep(650);
+      const exported=await evaluate(`window.__chartExports.at(-1)`);
+      assert.ok(exported?.sheets?.[0],JSON.stringify(exported));
+      const sheet=exported.sheets[0];
+      const index=sheet.headers.indexOf('Funding Mobilization');
+      assert.ok(index>=0 && sheet.rows.some(r=>Math.abs(r[index])>0));
+      await evaluate(`[...document.querySelectorAll('button')].filter(b=>b.textContent.trim()==='% of population').forEach(b=>b.click())`);
+      await sleep(900);
+      assert.equal(await evaluate(`document.querySelectorAll('.recharts-area-area[fill="#0f766e"]').length`),2);
+      assert.equal(await evaluate(`JSON.stringify(JSON.parse(localStorage.getItem('wss_working_bundle')).inputs)`),originalInputs);
+      await evaluate(`document.querySelector('[aria-label="Contribution view"]').querySelectorAll('button')[0].click()`);
+      await sleep(900);
+      assert.ok(await evaluate(`[...document.querySelectorAll('.recharts-legend-wrapper')].every(w=>w.textContent.includes('Financial commitments'))`));
+      console.log('Category contributions verified:',sector,'both rungs, count/share modes, category legend, nonzero Excel export and individual-view roundtrip.');
+    }
+    await evaluate(`document.querySelector('[aria-label="Contribution view"]').querySelectorAll('button')[1].click()`);
+    await sleep(900);
+    const categoryShot=await send('Page.captureScreenshot',{format:'png'},sessionId);
+    writeFileSync('/tmp/wss-contribution-categories.png',Buffer.from(categoryShot.data,'base64'));
+    await evaluate(`[...document.querySelectorAll('.wb-tab')].find(b=>b.textContent.toLowerCase().includes('results')).click()`);
+    await sleep(2200);
+    const dashboard=await evaluate(`({
+      charts:document.querySelectorAll('.recharts-wrapper').length,
+      funding:document.querySelectorAll('.recharts-area-area[fill="#0f766e"]').length,
+      legends:[...document.querySelectorAll('.recharts-legend-wrapper')].map(w=>w.textContent)
+    })`);
+    assert.ok(dashboard.charts>=6 && dashboard.funding>=2,JSON.stringify(dashboard));
+    assert.ok(dashboard.legends.filter(t=>t.includes('Funding Mobilization')).length>=2,JSON.stringify(dashboard));
+    console.log('Results dashboard category coverage/financing charts verified for both sectors.');
+    assert.equal(browserErrors.length,0,JSON.stringify(browserErrors));
+  }
   console.log('Configured BAU: safely managed + basic curves render for both sectors in Urban/Rural/National.');
   console.log('Browser passed: DRC startup, preserved data/session, all workflow tabs accessible and safe reload.');
 } finally {

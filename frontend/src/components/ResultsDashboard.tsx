@@ -705,6 +705,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const groupedCov = cs && contributionView === 'category' ? aggregateContributionRows(cs.covRows, cs.bands) : { rows: cs?.covRows ?? [], bands: cs?.bands ?? [] };
     const groupedGap = cs && contributionView === 'category' ? aggregateContributionRows(cs.gapRows, cs.bands) : { rows: cs?.gapRows ?? [], bands: cs?.bands ?? [] };
     const csBands = groupedCov.bands as ContribBand[];
+    const gapBands = groupedGap.bands as ContribBand[];
     const allCovData = cs ? (isShare ? asShareStack(groupedCov.rows, csBands) : groupedCov.rows) : [];
     const covData = filterChartYears(allCovData);
     const basicData = filterChartYears(s.basicRows);
@@ -756,7 +757,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
           <StackChart title={`${label} — year-end financing requirement`} subtitle={contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : 'Closing expansion balance plus unpaid replacement and negative cash accumulated since baseline. Year-end balances are not additive.'}
             data={gapData} yLabel={`Year-end requirement (B ${displayCur})`}
-            bands={csBands} lines={gapLines} fmt={gapFmt}
+            bands={gapBands} lines={gapLines} fmt={gapFmt}
             filename={`${scopeName}_${secKey}_financing_gap_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} currencyDisplay={detailExportCurrency} />
         </div>
         <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={displayCur}

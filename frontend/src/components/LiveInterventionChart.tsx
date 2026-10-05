@@ -155,13 +155,13 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const sectorLabel = sector === 'water' ? 'Water Supply' : 'Sanitation';
   const chartRef = useRef<HTMLDivElement>(null);
   const isShare = unitMode === 'share';
-  const sourceBands: ViewBand[] = bands.map(([key, label, color]) => ({
+  const sourceBands: ViewBand[] = useMemo(() => bands.map(([key, label, color]) => ({
     key: label, label, color, interventionKey: key.startsWith('custom_') ? undefined : key,
     custom: key.startsWith('custom_'),
-  }));
+  })), [bands]);
   const grouped = useMemo(() => contributionView === 'category'
     ? aggregateContributionRows(data, sourceBands) : { rows: data, bands: sourceBands },
-    [data, contributionView, sector]);
+    [data, contributionView, sourceBands]);
   const displayBands = grouped.bands.map(b => [b.key, b.label, b.color] as Intv);
   // Share mode divides the BAU base, every intervention band and the ceiling by that year's total
   // households, so the stack still adds up and the ceiling becomes a flat 100%. One household size
@@ -172,7 +172,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       const tot = r['Total households'] || 0;
       const d = (v: number) => (tot > 0 ? (+v || 0) / tot : 0);
       const o: any = { ...r, year: r.year, __source_total: tot, 'Total households': tot > 0 ? 1 : 0, [baseKey]: d(r[baseKey]) };
-      displayBands.forEach(([, label]) => { o[label] = d(r[label]); });
+      displayBands.forEach(([key]) => { o[key] = d(r[key]); });
       return o;
     });
   }, [grouped.rows, displayBands, isShare]);
@@ -187,7 +187,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const fmtVal = (v: number) => (isShare ? (v * 100).toFixed(1) + '%' : sig(v) + ' M');
   // Data series behind the chart, for the "⤓ Excel" export: Year, BAU base, each band, and the ceiling.
   const exportHeaders = ['Year', baseKey, ...displayBands.map(([, label]) => label), 'Total households'];
-  const exportRows = visibleData.map((r: any) => [r.year, r[baseKey], ...displayBands.map(([, label]) => r[label] ?? 0), r['Total households']]);
+  const exportRows = visibleData.map((r: any) => [r.year, r[baseKey], ...displayBands.map(([key]) => r[key] ?? 0), r['Total households']]);
   // Native Excel chart: grey BAU base + each contributing intervention band as stacked areas, ceiling as a line.
   const chartSpec = {
     category: 'Year', stacked: true,
@@ -284,7 +284,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
               the always-present legend is the secondary encoding. */}
           <Area type="monotone" dataKey={baseKey} stackId="s" fill={C.bauFill} stroke={C.bau} fillOpacity={0.7} strokeWidth={1.5} legendType="rect" isAnimationActive animationDuration={600} animationEasing="ease-out" />
           {displayBands.map(([k, label, color]) => (
-            <Area key={k} type="monotone" dataKey={label} stackId="s" fill={color} stroke={color} fillOpacity={0.6} strokeWidth={1.75} strokeOpacity={1} legendType="rect" isAnimationActive animationDuration={600} animationEasing="ease-out" />
+            <Area key={k} type="monotone" dataKey={k} name={label} stackId="s" fill={color} stroke={color} fillOpacity={0.6} strokeWidth={1.75} strokeOpacity={1} legendType="rect" isAnimationActive animationDuration={600} animationEasing="ease-out" />
           ))}
           {/* Total households — the coverage ceiling, drawn on top (not stacked). */}
           <Line type="monotone" dataKey="Total households" stroke={C.total} strokeWidth={1.5} strokeDasharray="6 4" dot={false} legendType="plainline" isAnimationActive animationDuration={600} />

@@ -7,3 +7,4 @@
 - [Default profile rollout](default-profile-rollout.md) — new DRC default should open once for existing and new users, backing up prior sessions; omitted settings must be supplied.
 - [Minimum service targets](minimum-service-targets.md) — SM satisfies the basic minimum; preserve exclusive categories and assess deficits locally before aggregation.
 - [Graph viewing period](graph-window-policy.md) — open around simulation years with three preceding years; keep longer history selectable without changing model data.
+- [Utility debt scope](utility-debt-policy.md) — use incremental net cash; user deliberately excludes new-connection revenue from debt eligibility.

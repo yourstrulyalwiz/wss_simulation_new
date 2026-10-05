@@ -432,21 +432,23 @@ def _append_utility_debt_slides(prs, blocks, display_currency, money_factor):
                         f"{area_debt.get('repayment_structure') or '—'}, disbursement "
                         f"{area_debt.get('disbursement_year') or '—'}, grace "
                         f"{area_debt.get('principal_grace_years') or 0} years, maturity "
-                        f"{area_debt.get('maturity_year') or '—'}."
+                        f"{area_debt.get('maturity_year') or '—'}. Sources: "
+                        f"{', '.join(area_debt.get('revenue_sources', ['collection', 'tariff', 'nrw'])) or 'none'}."
                     )
                 details.extend([
                     f"Accepted principal: {bn(float(debt.get('accepted_principal') or 0) * money_factor)} B {display_currency} · total principal repaid: {bn(float(debt.get('total_principal_repaid') or 0) * money_factor)} B · total interest: {bn(float(debt.get('total_interest') or 0) * money_factor)} B",
                     f"Closing restricted proceeds: {bn(float(debt.get('closing_restricted_cash') or 0) * money_factor)} B {display_currency}. Loan proceeds are not debt-service capacity.",
                     str(debt.get('tail_capacity_assumption') or 'Annual debt service is checked against verified capacity.'),
+                    str(debt.get('net_revenue_assumption') or 'Incremental revenue net of modeled costs; new connections excluded.'),
                 ])
-                note = slide.shapes.add_textbox(Inches(.65), Inches(.9), Inches(12.0), Inches(1.25))
+                note = slide.shapes.add_textbox(Inches(.65), Inches(.9), Inches(12.0), Inches(1.8))
                 note.text_frame.word_wrap = True
                 for i, text in enumerate(details):
                     p = note.text_frame.paragraphs[0] if i == 0 else note.text_frame.add_paragraph()
                     p.text = text
-                    p.font.size = Pt(9)
+                    p.font.size = Pt(8)
                     p.font.color.rgb = RGBColor(0x33, 0x41, 0x55)
-                top = 2.25
+                top = 2.85
             else:
                 years_text = f"Years {page[0]['year']}–{page[-1]['year']}" if page else 'No annual schedule'
                 subtitle = slide.shapes.add_textbox(Inches(.6), Inches(.85), Inches(12), Inches(.3))

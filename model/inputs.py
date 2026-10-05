@@ -631,6 +631,7 @@ class InterventionToggles(BaseModel):
 # and the sector investment ledger records how much was actually spent.
 class UtilityDebtSectorInputs(BaseModel):
     enabled: bool = False
+    revenue_sources: List[Literal['collection', 'tariff', 'nrw']] = ['collection', 'tariff', 'nrw']
     allocation_share: float = 0.0
     annual_real_interest_rate: Optional[float] = None
     disbursement_year: Optional[int] = None

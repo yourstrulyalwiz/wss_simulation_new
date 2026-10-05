@@ -78,7 +78,7 @@ interface Props {
 }
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
-type DebtData = { summary: any; rows: any[]; areas: any[] };
+type DebtData = { summary: any; rows: any[]; areas: any[]; annualRows: any[] };
 type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any };
 type Both = { water: Series; sanitation: Series } | null;
 type Row = { key: string; label: string; addHH: number; resources: number | null };
@@ -171,6 +171,7 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
   const amount = (value: number) => `${sigB(value * moneyFactor)} B`;
   const money = (value: number) => amount(Number(value || 0));
   const summary = debt.summary || {};
+  const sourceLabels: Record<string, string> = { collection: 'Collection efficiency', tariff: 'Tariff reforms', nrw: 'NRW reductions' };
   return (
     <section style={{ marginTop: 12, border: '1px solid #cbd5e1', borderRadius: 7, background: '#fff', padding: '10px 12px' }}>
       <h4 style={{ margin: '0 0 5px', color: '#1e3a5f', fontSize: 12.5 }}>Utility debt financing — {currency}</h4>
@@ -178,15 +179,18 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
         Status: <b>{summary.status || 'not enabled'}</b> · accepted principal: <b>{money(summary.accepted_principal)}</b> · scheduled interest: <b>{money(summary.total_interest)}</b> · closing restricted proceeds: <b>{money(summary.closing_restricted_cash)}</b>
       </div>
       <div style={{ fontSize: 10.5, color: '#64748b', marginBottom: 8, lineHeight: 1.45 }}>
-        Per-area assumptions: {debt.areas.filter(a => a.enabled).map((a, i) =>
-          <span key={i}>{i ? ' · ' : ''}{a.area}: {((Number(a.allocation_share) || 0) * 100).toFixed(1)}% allocation, {((Number(a.annual_real_interest_rate) || 0) * 100).toFixed(2)}% real rate, {a.repayment_structure || 'annuity'}, disbursed {a.disbursement_year || '—'}, maturity {a.maturity_year || '—'}, {a.verified_feasible ? 'verified' : (a.status || 'not sized')}</span>)}
+        Per-area assumptions: {debt.areas.filter(a => a.enabled).map((a, i) => {
+          const selected: string[] = Array.isArray(a.revenue_sources) ? a.revenue_sources.filter((key: string) => key in sourceLabels) : Object.keys(sourceLabels);
+          return <span key={i}>{i ? ' · ' : ''}{a.area}: {((Number(a.allocation_share) || 0) * 100).toFixed(1)}% allocation, {((Number(a.annual_real_interest_rate) || 0) * 100).toFixed(2)}% real rate, {a.repayment_structure || 'annuity'}, disbursed {a.disbursement_year || '—'}, maturity {a.maturity_year || '—'}, sources {selected.length ? selected.map(key => sourceLabels[key]).join(', ') : 'none'}, {a.verified_feasible ? 'verified' : (a.status || 'not sized')}{a.net_revenue_assumption ? `; ${a.net_revenue_assumption}` : ''}</span>;
+        })}
       </div>
       <div style={{ fontSize: 10, color: '#64748b', marginBottom: 6 }}>{summary.tail_capacity_assumption || 'Loan proceeds and eligible operating cash are reported separately.'}</div>
       {debt.rows.length > 0 && <div style={{ overflowX: 'auto', maxHeight: 320 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5, whiteSpace: 'nowrap' }}>
           <thead><tr>{[
             'Year', 'Opening principal', 'Disbursement', 'Principal paid', 'Interest paid',
-            'Debt service', 'Service capacity', 'Shortfall', 'Opening restricted cash',
+            'Debt service', 'Service capacity', 'Shortfall', 'Collection net cash', 'Tariff net cash', 'NRW net cash',
+            'Selected net revenue', 'Protected eligible revenue', 'Repayment headroom', 'Opening restricted cash',
             'Loan-funded investment', 'Closing restricted cash',
           ].map(h => <th key={h} style={{ position: 'sticky', top: 0, background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', padding: '5px 7px', textAlign: h === 'Year' ? 'left' : 'right' }}>{h}</th>)}</tr></thead>
           <tbody>{debt.rows.map((r: any) => <tr key={r.year}>
@@ -194,6 +198,8 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
             {[
               r.opening_principal, r.disbursement, r.principal_payment, r.interest_payment,
               r.total_debt_service, r.annual_service_capacity, r.payment_shortfall,
+              r.collection_net_cash, r.tariff_net_cash, r.nrw_net_cash,
+              r.eligible_additional_revenue, r.protected_eligible_revenue, r.repayment_headroom,
               r.opening_restricted_cash, r.investment_from_loan_proceeds, r.closing_restricted_cash,
             ].map((v: number, i: number) => <td key={i} style={{ borderBottom: '1px solid #eef2f7', padding: '4px 7px', textAlign: 'right' }}>{money(v)}</td>)}
           </tr>)}</tbody>
@@ -257,6 +263,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // ── Fan charts: BAU vs the user's full designed scenario (interventions + customs) ──────────────
   useEffect(() => {
     if (!datasets.length || !datasets[0]) return;
+    setBoth(null);
+    setError(null);
     const h = setTimeout(() => {
       Promise.all(datasets.map((inp: any) =>
         fetch('/api/calculate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inp) })
@@ -412,7 +420,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const debtFields = [
             'opening_principal', 'disbursement', 'principal_payment', 'interest_payment',
             'total_debt_service', 'closing_principal', 'eligible_additional_revenue',
-            'pre_debt_available_capital', 'replacement_requirement', 'annual_service_capacity',
+            'collection_net_cash', 'tariff_net_cash', 'nrw_net_cash', 'protected_eligible_revenue',
+            'repayment_headroom', 'pre_debt_available_capital', 'replacement_requirement', 'annual_service_capacity',
             'payment_shortfall', 'opening_restricted_cash', 'investment_from_loan_proceeds',
             'closing_restricted_cash',
           ];
@@ -421,10 +430,30 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             debtFields.forEach(k => { total[k] += Number(row[k] || 0); });
             debtRowMap.set(Number(row.year), total);
           }));
+          const annualRevenueMap = new Map<number, any>();
+          debtAreas.forEach(area => (Array.isArray(area.annual_revenue) ? area.annual_revenue : []).forEach((row: any) => {
+            const year = Number(row.year);
+            if (!Number.isFinite(year)) return;
+            const total = annualRevenueMap.get(year) || { year, collection_net_cash: 0, tariff_net_cash: 0, nrw_net_cash: 0,
+              eligible_additional_revenue: 0, protected_eligible_revenue: 0, pre_debt_available_capital: 0,
+              replacement_requirement: 0, annual_service_capacity: 0, repayment_headroom: 0 };
+            ['collection_net_cash', 'tariff_net_cash', 'nrw_net_cash', 'eligible_additional_revenue',
+              'protected_eligible_revenue', 'pre_debt_available_capital', 'replacement_requirement',
+              'annual_service_capacity', 'repayment_headroom'].forEach(key => { total[key] += Number(row[key] || 0); });
+            annualRevenueMap.set(year, total);
+          }));
+          annualRevenueMap.forEach((annual, year) => {
+            const total = debtRowMap.get(year) || { year, ...Object.fromEntries(debtFields.map(key => [key, 0])) };
+            debtFields.forEach(key => {
+              if (annual[key] != null) total[key] = annual[key];
+            });
+            debtRowMap.set(year, total);
+          });
           const sumDebt = (key: string) => debtAreas.reduce((sum, a) => sum + Number(a[key] || 0), 0);
           const debt: DebtData = {
             areas: debtAreas,
             rows: [...debtRowMap.values()].sort((a, b) => a.year - b.year),
+            annualRows: [...annualRevenueMap.values()].sort((a, b) => a.year - b.year),
             summary: {
               enabled: debtAreas.some(a => a.enabled),
               status: [...new Set(debtAreas.filter(a => a.enabled).map(a => a.status))].join(' · ') || 'disabled',

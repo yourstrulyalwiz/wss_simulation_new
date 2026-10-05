@@ -6,6 +6,7 @@ import ExportButtons from './ExportButtons';
 import { RevenueBaseEditor, REVENUE_ATTRIBUTION } from './RevenueBase';
 import { ContributionViewToggle, type ContributionView } from '../contributionView';
 import { CurrencyDisplayControl, type CurrencyDisplaySettings } from '../currencyDisplay';
+import UtilityDebtPreview from './UtilityDebtPreview';
 
 function Section({ title, children, defaultOpen = false, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; sectionKey?: string; onFocus?: (key: string) => void }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -190,6 +191,17 @@ function TechMixEditor({ inputs, onChange, section, CUR }: {
 interface Props { inputs: any; onChange: (i: any) => void; results?: any; calculationError?: string; sectorTab?: 'water' | 'sanitation'; onSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (key: string) => void; geoScope?: string; chartScope?: string; contributionView: ContributionView; onContributionViewChange: (v: ContributionView) => void; currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void; onEditCurrencyRate: () => void; }
 
 export default function InterventionPanel({ inputs, onChange, results, calculationError = '', sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
+  const debtResultFreshness = React.useRef({ inputs, result: results, waiting: false, sawEmpty: !results });
+  if (debtResultFreshness.current.inputs !== inputs) {
+    debtResultFreshness.current = { inputs, result: results, waiting: true, sawEmpty: !results };
+  } else if (debtResultFreshness.current.waiting) {
+    if (!results) debtResultFreshness.current.sawEmpty = true;
+    else if (debtResultFreshness.current.sawEmpty && results !== debtResultFreshness.current.result) {
+      debtResultFreshness.current.waiting = false;
+    }
+    if (results !== debtResultFreshness.current.result) debtResultFreshness.current.result = results;
+  }
+  const debtResultsFresh = !debtResultFreshness.current.waiting;
   // Budget execution (executed budget ÷ allocated budget) is COMPUTED by the live engine from the
   // historical budget rows — it is shown read-only as the current value in the Budget-execution
   // intervention (no user override). NB: internally still keyed capeff_*/ws_capital_efficiency_enabled
@@ -607,6 +619,14 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             repayment_structure: 'annuity', loan_ceiling: null,
           };
           const debt = inputs.utility_debt?.[sectorTab] || fallback;
+          const debtSourceOptions = [
+            ['collection', 'Collection efficiency'],
+            ['tariff', 'Tariff reforms'],
+            ['nrw', 'NRW reductions'],
+          ] as const;
+          const selectedDebtSources: string[] = Array.isArray(debt.revenue_sources)
+            ? debt.revenue_sources.filter((source: string) => debtSourceOptions.some(([key]) => key === source))
+            : debtSourceOptions.map(([key]) => key);
           const updateDebt = (key: string, value: any) => onChange({
             ...inputs,
             utility_debt: {
@@ -622,13 +642,34 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
                 <div>
                   <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', margin: '0 0 4px' }}>Utility debt financing</h3>
                   <div style={{ fontSize: 11, lineHeight: 1.45, color: '#64748b' }}>
-                    The utility borrows for {sectorTab === 'water' ? 'water' : 'sanitation'} infrastructure. Annual debt service is sized only against this sector’s eligible tariff, collection and net NRW cash; loan proceeds cannot repay the loan.
+                    The utility borrows for {sectorTab === 'water' ? 'water' : 'sanitation'} infrastructure. Select which incremental net cash streams may support debt service; loan proceeds cannot repay the loan.
                   </div>
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, fontSize: 12, fontWeight: 600, color: '#334155' }}>
                   <input type="checkbox" checked={!!debt.enabled} onChange={e => updateDebt('enabled', e.target.checked)} />
                   Enable
                 </label>
+              </div>
+              <div style={{ marginTop: 10, border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 9px', background: '#fbfcfd' }}>
+                <div style={{ fontSize: 11, fontWeight: 650, color: '#334155', marginBottom: 6 }}>Eligible revenue sources</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px' }}>
+                  {debtSourceOptions.map(([key, label]) => (
+                    <label key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#475569', cursor: 'pointer' }}>
+                      <input type="checkbox" aria-label={`Debt source: ${label}`} checked={selectedDebtSources.includes(key)}
+                        onChange={event => {
+                          const next = event.target.checked
+                            ? [...selectedDebtSources, key]
+                            : selectedDebtSources.filter(source => source !== key);
+                          updateDebt('revenue_sources', next);
+                        }}
+                        style={{ width: 15, height: 15, accentColor: '#2563eb' }} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10, lineHeight: 1.4, color: '#718096', marginTop: 5 }}>
+                  Choices are independent and do not switch on interventions. New connections are not eligible. Leaving this unset preserves all three sources for older saved scenarios.
+                </div>
               </div>
               {debt.enabled && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginTop: 12 }}>
                 <F label="Eligible-revenue allocation" value={debt.allocation_share ?? 0} onChange={v => updateDebt('allocation_share', v)} isPercent unit="%" tip="Share of positive eligible additional revenue, capped by available capital after replacement, that may support annual utility debt service." />
@@ -649,6 +690,8 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
                   First principal payment: <b>{firstPrincipalYear}</b>. Grace-period interest is still payable. Unspent proceeds remain restricted to sector investment and are not treated as revenue.
                 </div>
               </div>}
+              <UtilityDebtPreview debt={debt} result={results?.[sectorTab === 'water' ? 'water_supply' : 'sanitation']?.scenario_utility_debt}
+                currency={CUR} currencyDisplay={currencyDisplay} calculationError={calculationError} fresh={debtResultsFresh} />
             </section>
           );
         })()}

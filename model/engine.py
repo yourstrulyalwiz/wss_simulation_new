@@ -240,7 +240,7 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
 
     `bau_kwargs` / `scn_kwargs` pass PER-PASS extra arguments to `calc_fn` (used to feed sanitation the
     water-NRW recovered volume: 0 in the BAU pass, the water scenario volume in the scenario pass)."""
-    from model.utility_debt import solve_scenario, validate_config
+    from model.utility_debt import solve_scenario, validate_config, revenue_capacity_rows, NET_REVENUE_ASSUMPTION
     bau = calc_fn(bau_inputs, ctx, **(bau_kwargs or {}))
     cfg = validate_config(debt_config, ctx['years'], scn_inputs.period.baseline_year)
     if cfg.get('enabled'):
@@ -261,6 +261,12 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
             'accepted_principal': 0.0, 'requested_max_principal': 0.0,
             'total_interest': 0.0, 'total_principal_repaid': 0.0,
             'closing_restricted_cash': 0.0, 'schedule': [],
+            'revenue_sources': cfg['revenue_sources'],
+            'net_revenue_assumption': NET_REVENUE_ASSUMPTION,
+            'annual_revenue': [
+                {**r, 'total_debt_service': 0.0, 'repayment_headroom': 0.0}
+                for r in revenue_capacity_rows(scn, ctx['years'], scn_inputs.period.baseline_year, cfg, debt_asset_life)
+            ],
         }
     scn['utility_debt'] = debt_summary
     bau['scenario_hh'] = scn['bau_hh']                                  # SM path WITH interventions

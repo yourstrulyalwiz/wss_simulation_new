@@ -251,6 +251,20 @@ def _aggregate_utility_debt(summaries: List[dict]) -> dict:
         result[key] = sum(float(s.get(key) or 0.0) for s in summaries)
     result['tail_capacity_assumption'] = next(
         (s.get('tail_capacity_assumption') for s in enabled if s.get('tail_capacity_assumption')), None)
+    result['net_revenue_assumption'] = next(
+        (s.get('net_revenue_assumption') for s in summaries if s.get('net_revenue_assumption')), None)
+    result['revenue_sources'] = sorted(set(
+        source for s in summaries for source in s.get('revenue_sources', ['collection', 'tariff', 'nrw'])))
+    revenue_by_year = {}
+    for summary in summaries:
+        for row in summary.get('annual_revenue', []):
+            target = revenue_by_year.setdefault(row['year'], {'year': row['year']})
+            for key, value in row.items():
+                if key == 'post_target':
+                    target[key] = bool(target.get(key)) or bool(value)
+                elif key != 'year' and isinstance(value, (int, float)):
+                    target[key] = target.get(key, 0.0) + float(value or 0.0)
+    result['annual_revenue'] = [revenue_by_year[y] for y in sorted(revenue_by_year)]
     return result
 
 

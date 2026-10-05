@@ -294,6 +294,8 @@ def _utility_debt_tables(sec, currency):
         ['Enabled', bool(debt.get('enabled')), ''],
         ['Verified feasible', bool(debt.get('verified_feasible')), ''],
         ['Eligible-revenue allocation share', debt.get('allocation_share', 0.0), ''],
+        ['Selected revenue sources', ', '.join(debt.get('revenue_sources', ['collection', 'tariff', 'nrw'])) or 'None', ''],
+        ['Net revenue assumption', debt.get('net_revenue_assumption', ''), ''],
         ['Annual real interest rate', debt.get('annual_real_interest_rate'), ''],
         ['Repayment structure', debt.get('repayment_structure'), ''],
         ['Disbursement year', debt.get('disbursement_year'), ''],
@@ -315,9 +317,16 @@ def _utility_debt_tables(sec, currency):
         ('interest_payment', f'Interest payment ({currency} M)'),
         ('total_debt_service', f'Total debt service ({currency} M)'),
         ('eligible_additional_revenue', f'Eligible additional revenue ({currency} M)'),
+        ('collection_net_cash', f'Collection incremental cash ({currency} M)'),
+        ('tariff_net_cash', f'Tariff incremental cash ({currency} M)'),
+        ('nrw_net_cash', f'NRW net cash ({currency} M)'),
+        ('nrw_sales_cash', f'NRW sales cash ({currency} M)'),
+        ('nrw_implementation_cost', f'NRW implementation costs ({currency} M)'),
+        ('protected_eligible_revenue', f'Protected eligible net revenue ({currency} M)'),
         ('pre_debt_available_capital', f'Pre-debt available capital ({currency} M)'),
         ('replacement_requirement', f'Replacement requirement ({currency} M)'),
         ('annual_service_capacity', f'Annual service capacity ({currency} M)'),
+        ('repayment_headroom', f'Repayment headroom ({currency} M)'),
         ('payment_shortfall', f'Payment shortfall ({currency} M)'),
         ('closing_principal', f'Closing principal ({currency} M)'),
         ('opening_restricted_cash', f'Opening restricted cash ({currency} M)'),
@@ -327,7 +336,10 @@ def _utility_debt_tables(sec, currency):
     schedule_headers = ['Year', *[label for _, label in fields]]
     schedule_rows = [
         [row.get('year'), *[row.get(key, 0.0) for key, _ in fields]]
-        for row in (debt.get('schedule') or [])
+        for row in [
+            {**row, **next((s for s in debt.get('schedule', []) if s['year'] == row['year']), {})}
+            for row in debt.get('annual_revenue', debt.get('schedule') or [])
+        ]
     ]
     return (summary_headers, summary_rows), (schedule_headers, schedule_rows)
 

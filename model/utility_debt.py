@@ -8,6 +8,15 @@ from __future__ import annotations
 
 import math
 
+REVENUE_SOURCES = ('collection', 'tariff', 'nrw')
+NET_REVENUE_ASSUMPTION = (
+    'Incremental cash net of modeled costs, not an audited utility operating surplus. '
+    'Baseline available capital is assumed already net of operating obligations and existing debt. '
+    'Collection/tariff reforms do not independently model additional administration or operating costs; '
+    'NRW deducts modeled implementation costs. Costs already netted are not deducted again. '
+    'New-connection revenue is excluded from eligibility.'
+)
+
 
 class UtilityDebtInputError(ValueError):
     """Raised when an enabled utility debt configuration is incomplete or invalid."""
@@ -21,6 +30,12 @@ def normalize_config(config):
 
 def validate_config(config, years, baseline_year):
     cfg = normalize_config(config)
+    sources = cfg.get('revenue_sources', list(REVENUE_SOURCES))
+    if (not isinstance(sources, list)
+            or any(s not in REVENUE_SOURCES for s in sources)
+            or len(set(sources)) != len(sources)):
+        raise UtilityDebtInputError('Choose distinct collection, tariff or NRW revenue sources only.')
+    cfg['revenue_sources'] = list(sources)
     share = cfg.get('allocation_share', 0.0)
     try:
         share = float(share)
@@ -162,6 +177,55 @@ def schedule_unit_capacity(config, capacity_by_year):
     return min(bounds) if bounds else 0.0
 
 
+def revenue_capacity_rows(result, years, baseline_year, config, asset_life=30):
+    """Selected cash restricts eligibility; it never adds another financing credit."""
+    cfg = normalize_config(config)
+    sources = cfg.get('revenue_sources', list(REVENUE_SOURCES))
+    share = float(cfg.get('allocation_share', 0.0)) if cfg.get('enabled') else 0.0
+    n = len(years)
+    def value(key, i):
+        values = result.get(key) or []
+        return float(values[i] or 0.0) if i < len(values) else 0.0
+    def row(year, i, tail=False):
+        collection = value('collection_cash', i)
+        tariff = value('tariff_cash', i)
+        nrw = value('nrw_net', i)
+        linked = value('eligible_nrw_link_cash', i)
+        available = value('available_total', i)
+        replacement = value('replacement_capex', i)
+        if tail:
+            # The service simulation/network stops growing. Retain separately identified
+            # recurring sales, not a terminal net amount containing temporary works.
+            recurring = value('nrw_recurring_cash', i) if 'nrw_recurring_cash' in result else min(0.0, nrw)
+            available += recurring - nrw
+            nrw = recurring
+            available -= value('exogenous_injection_cash', i) + value('custom_cash', i)
+            replacement = value('funded_asset_stock', i) / max(1.0, float(asset_life))
+        streams = {'collection': collection, 'tariff': tariff, 'nrw': nrw + linked}
+        eligible = sum(streams[s] for s in sources)
+        protected = min(max(0.0, eligible), max(0.0, available - replacement))
+        return {
+            'year': int(year), 'post_target': tail,
+            'collection_net_cash': collection, 'tariff_net_cash': tariff,
+            'nrw_net_cash': nrw + linked,
+            'nrw_sales_cash': value('nrw_sales_cash', i) + linked,
+            'nrw_implementation_cost': 0.0 if tail else value('nrw_implementation_cost', i),
+            'eligible_additional_revenue': eligible,
+            'pre_debt_available_capital': available,
+            'replacement_requirement': replacement,
+            'protected_eligible_revenue': protected,
+            'annual_service_capacity': share * protected,
+        }
+    # Keep the sector diagnostic consistent with the actual selected pool.
+    result['eligible_additional_revenue'] = [
+        row(year, i)['eligible_additional_revenue'] for i, year in enumerate(years)]
+    rows = [row(year, i) for i, year in enumerate(years) if int(year) > baseline_year]
+    maturity = cfg.get('maturity_year') if cfg.get('enabled') else None
+    if maturity is not None:
+        rows.extend(row(year, n - 1, True) for year in range(int(years[-1]) + 1, int(maturity) + 1))
+    return rows
+
+
 def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30):
     """Size, rerun and verify a single non-revolving utility loan.
 
@@ -174,7 +238,6 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
     kwargs = dict(calc_kwargs or {})
     reference = calc_fn(inputs, ctx, **kwargs)
     years = [int(y) for y in ctx['years']]
-    target_end = years[-1]
     share = cfg['allocation_share']
     zero_plan = {
         'loan_amount': 0.0, 'schedule': [], 'disbursement': [0.0] * len(years),
@@ -184,7 +247,9 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
 
     def summary(status, result, principal=0.0, requested_max=0.0,
                 verified=False, capacities=None, schedule=None):
-        capacities = capacities or {}
+        details = revenue_capacity_rows(result, years, inputs.period.baseline_year, cfg, asset_life)
+        detail_by_year = {r['year']: r for r in details}
+        capacities = {r['year']: r['annual_service_capacity'] for r in details}
         schedules = schedule or []
         rows_by_year = {int(y): i for i, y in enumerate(years)}
         out_rows = []
@@ -198,27 +263,15 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
                 disbursed = float(result['utility_debt_disbursement'][i] or 0.0)
                 used = float(result['utility_debt_investment_used'][i] or 0.0)
                 cash_close = float(result['utility_debt_cash_closing'][i] or 0.0)
-                eligible = float(result['eligible_additional_revenue'][i] or 0.0)
-                predebt = float(result['available_total'][i] or 0.0)
-                replacement_need = float(result['replacement_capex'][i] or 0.0)
             else:
                 cash_open = previous_cash
                 disbursed = used = 0.0
                 cash_close = previous_cash
-                eligible = float(result['eligible_additional_revenue'][-1] or 0.0)
-                predebt = max(
-                    0.0,
-                    float(result['available_total'][-1] or 0.0)
-                    - float((result.get('exogenous_injection_cash') or [0.0])[-1] or 0.0)
-                    - float((result.get('custom_cash') or [0.0])[-1] or 0.0))
-                terminal_stock = float((result.get('funded_asset_stock') or [0.0])[-1] or 0.0)
-                replacement_need = terminal_stock / max(1.0, float(asset_life))
             out_rows.append({
                 **row,
-                'eligible_additional_revenue': eligible,
-                'pre_debt_available_capital': predebt,
-                'replacement_requirement': replacement_need,
+                **detail_by_year[year],
                 'annual_service_capacity': float(capacities.get(year, 0.0)),
+                'repayment_headroom': float(capacities.get(year, 0.0)) - float(row['total_debt_service']),
                 'payment_shortfall': max(
                     0.0, float(row['total_debt_service']) - float(capacities.get(year, 0.0))),
                 'opening_restricted_cash': cash_open,
@@ -227,12 +280,27 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
                 'closing_restricted_cash': cash_close,
             })
             previous_cash = cash_close
+        payment_by_year = {r['year']: r for r in out_rows}
+        annual_revenue = []
+        for detail in details:
+            payment = payment_by_year.get(detail['year'], {})
+            service = payment.get('total_debt_service', 0.0)
+            annual_revenue.append({
+                **detail,
+                'principal_payment': payment.get('principal_payment', 0.0),
+                'interest_payment': payment.get('interest_payment', 0.0),
+                'total_debt_service': service,
+                'repayment_headroom': detail['annual_service_capacity'] - service,
+            })
         return {
             'schema_version': 1,
             'status': status,
             'enabled': bool(cfg.get('enabled')),
             'verified_feasible': bool(verified),
             'allocation_share': share,
+            'revenue_sources': cfg['revenue_sources'],
+            'net_revenue_assumption': NET_REVENUE_ASSUMPTION,
+            'annual_revenue': annual_revenue,
             'annual_real_interest_rate': cfg.get('annual_real_interest_rate'),
             'repayment_structure': cfg.get('repayment_structure'),
             'disbursement_year': cfg.get('disbursement_year'),
@@ -246,8 +314,10 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
             'total_principal_repaid': sum(float(row['principal_payment']) for row in schedules),
             'closing_restricted_cash': final_cash,
             'tail_capacity_assumption': (
-                'Terminal eligible revenue and recurring resources held constant; one-off injection '
-                'and terminal custom cash excluded; funded assets held at closing stock.'
+                'Repayment continues through maturity. Terminal recurring cash is held constant in real terms; '
+                'one-off injections and custom cash are excluded. NRW sales are retained only for completed '
+                'modeled works; network-growth implementation costs cease with the frozen network. '
+                'Funded assets are held at closing stock with replacement reserved. No new coverage or borrowing.'
             ),
             'schedule': out_rows,
         }
@@ -258,28 +328,8 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
         return reference, zero_plan, summary('zero allocation share', reference), reference
 
     def capacity_map(result):
-        available = result['available_total']
-        eligible = result['eligible_additional_revenue']
-        replacement = result['replacement_capex']
-        capacities = {}
-        for i, year in enumerate(years):
-            if year <= inputs.period.baseline_year:
-                continue
-            resources = max(0.0, float(available[i]) - float(replacement[i]))
-            capacities[year] = share * min(max(0.0, float(eligible[i])), resources)
-        if target_end < int(cfg['maturity_year']):
-            terminal_eligible = float(eligible[-1])
-            terminal_available = (
-                float(available[-1])
-                - float((result.get('exogenous_injection_cash') or [0.0])[-1] or 0.0)
-                - float((result.get('custom_cash') or [0.0])[-1] or 0.0))
-            terminal_stock = float((result.get('funded_asset_stock') or [0.0])[-1] or 0.0)
-            terminal_replacement = terminal_stock / max(1.0, float(asset_life))
-            tail_resources = max(0.0, terminal_available - terminal_replacement)
-            tail_capacity = share * min(max(0.0, terminal_eligible), tail_resources)
-            for year in range(target_end + 1, int(cfg['maturity_year']) + 1):
-                capacities[year] = tail_capacity
-        return capacities
+        return {r['year']: r['annual_service_capacity'] for r in revenue_capacity_rows(
+            result, years, inputs.period.baseline_year, cfg, asset_life)}
 
     capacities = capacity_map(reference)
     upper = schedule_unit_capacity(cfg, capacities)

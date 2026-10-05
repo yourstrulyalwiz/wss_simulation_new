@@ -250,12 +250,14 @@ def frontend_defaults() -> dict:
             'schema_version': 1,
             'water': {
                 'enabled': False, 'allocation_share': 0.0,
+                'revenue_sources': ['collection', 'tariff', 'nrw'],
                 'annual_real_interest_rate': None, 'disbursement_year': _BASE_YR + 1,
                 'principal_grace_years': 0, 'maturity_year': _END_YR,
                 'repayment_structure': 'annuity', 'loan_ceiling': None,
             },
             'sanitation': {
                 'enabled': False, 'allocation_share': 0.0,
+                'revenue_sources': ['collection', 'tariff', 'nrw'],
                 'annual_real_interest_rate': None, 'disbursement_year': _BASE_YR + 1,
                 'principal_grace_years': 0, 'maturity_year': _END_YR,
                 'repayment_structure': 'annuity', 'loan_ceiling': None,

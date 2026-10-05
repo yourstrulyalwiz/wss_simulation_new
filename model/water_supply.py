@@ -580,6 +580,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     nrw_reduction = np.zeros(n)                       # NRW percentage-points recovered vs current (≥0)
     nrw_upgrade_cum = np.zeros(n)                     # cumulative basic→SM upgrades (million HH)
     nrw_net = np.zeros(n)                             # money ledger: value − fixing cost, per year (millions)
+    nrw_sales_cash = np.zeros(n)
+    nrw_implementation_cost = np.zeros(n)
     nrw_recovered_phys = np.zeros(n)                  # recovered PHYSICAL (deliverable) water per year (M m³/yr) —
                                                       # this is the water that becomes wastewater the sanitation
                                                       # sector can charge for (see the san NRW-linked lever).
@@ -620,6 +622,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             cap_prev = (nrw_reduction[t - 1] * nrw_vol_m3day * _vol_factor(t - 1, nrw_start, nrw_vol_growth)) if t > 0 else 0.0
             capex = nrw_capex_unit_m3day * max(0.0, cap_now - cap_prev) / 1_000_000.0   # millions
             nrw_net[t] = value - capex
+            nrw_sales_cash[t] = value
+            nrw_implementation_cost[t] = capex
 
     # Forecast keeps a SELF-CONTAINED unadjusted series (sheet r36-40): each rung compounds from its
     # OWN prior unadjusted value (NOT the rescaled/adjusted prior), seeded at the baseline from the
@@ -1012,6 +1016,11 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'financial_commitment_cash': financial_cash.tolist(),  # GDP target + annual growth
         'exogenous_injection_cash': injection_cash.tolist(),   # separately attributable effective capex
         'nrw_net': nrw_net.tolist(),                   # NRW money ledger (value − fixing cost) folded into capex
+        'nrw_sales_cash': nrw_sales_cash.tolist(),
+        'nrw_implementation_cost': nrw_implementation_cost.tolist(),
+        'nrw_recurring_cash': (
+            nrw_sales_cash if nrw_enabled and (not nrw_target_year or nrw_target_year <= years[-1])
+            else np.minimum(nrw_net, 0.0)).tolist(),
         'nrw_recovered_phys_vol': nrw_recovered_phys.tolist(),  # recovered physical water per year (M m³/yr) → wastewater
         'nrw_link_cash': extra_cash_arr.tolist(),      # caller-injected extra capex cash (san water-NRW-linked revenue)
         'eligible_nrw_link_cash': eligible_nrw_cash_arr[:n].tolist(),

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { downloadTemplate, importTemplate } from '../api';
 import NumInput from './NumInput';
+import { RevenueInputsSection } from './RevenueBase';
 import { CurrencyDisplayControl, currencyRateNote, defaultCurrencyDisplay, type CurrencyDisplaySettings } from '../currencyDisplay';
 
 // Explains why sanitation's safely-managed and basic rungs share ONE technology mix: the JMP service
@@ -299,9 +300,9 @@ function YearField({ label, value, onCommit, min, max, tip }: {
   );
 }
 
-interface Props { inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; }
+interface Props { inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; calculationError?: string; }
 
-export default function InputPanel({ inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate }: Props) {
+export default function InputPanel({ inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate, calculationError }: Props) {
   const [countries, setCountries] = useState<{name:string, currency:string}[]>([]);
   const [bauSectorLocal, setBauSectorLocal] = useState<'water' | 'sanitation'>('water');
   const rateInputRef = useRef<HTMLInputElement>(null);
@@ -933,6 +934,13 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
                   section={bauSector === 'water' ? 'water_interventions' : 'sanitation_interventions'}
                   sector={bauSector === 'water' ? 'water supply' : 'sanitation'} />
               </Section>
+              <Section title="6. Revenue Inputs" sectionKey="revenue_inputs" onFocus={onSectionFocus}>
+                {calculationError && inputs.revenue_bases?.water && inputs.revenue_bases?.sanitation &&
+                  <div role="alert" style={{ gridColumn: '1 / -1', padding: '8px 10px', color: '#9f1239', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 5 }}>
+                    {calculationError}
+                  </div>}
+                <RevenueInputsSection inputs={inputs} onChange={onChange} sector={bauSector} area={geoScope} />
+              </Section>
             </>
           );
         })()}
@@ -944,7 +952,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
 
       {/* ===== UNIT COSTS + TECHNICAL (merged, sector-dependent). Targets are now set in the §2 table. ===== */}
       {bauSector === 'water' && (
-      <Section title={`6. ${scopeLabel} Water Supply — Unit Costs & Technical Parameters`} cols={2} sectionKey="ws_unit_costs" onFocus={onSectionFocus}>
+      <Section title={`7. ${scopeLabel} Water Supply — Unit Costs & Technical Parameters`} cols={2} sectionKey="ws_unit_costs" onFocus={onSectionFocus}>
         <SubHead text="Unit costs (nominal → real)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ws[0]}</b> and <b>{ws[1]}</b> weighted costs, built from the technology mixes below.
@@ -971,7 +979,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
       )}
 
       {bauSector === 'sanitation' && (
-      <Section title={`6. ${scopeLabel} Sanitation — Unit Costs & Technical Parameters`} cols={2} sectionKey="san_unit_costs" onFocus={onSectionFocus}>
+      <Section title={`7. ${scopeLabel} Sanitation — Unit Costs & Technical Parameters`} cols={2} sectionKey="san_unit_costs" onFocus={onSectionFocus}>
         <SubHead text="Unit costs (nominal → real)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ss[0]}</b> and <b>{ss[1]}</b> weighted costs, built from the technology mixes below.

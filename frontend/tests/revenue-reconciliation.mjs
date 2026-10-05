@@ -19,7 +19,8 @@ const componentModule = new Module(sourcePath);
 componentModule.filename = sourcePath;
 componentModule.paths = Module._nodeModulePaths(path.dirname(sourcePath));
 componentModule._compile(compiled, sourcePath);
-const { default: RevenueReconciliation, RevenueInputErrors, restoreBlankRevenueBases } = componentModule.exports;
+const { default: RevenueReconciliation, RevenueInputErrors, RevenueInputsSection,
+  RevenueBaseEditor, restoreBlankRevenueBases, updateRevenueBaseField, revenueBaseErrors } = componentModule.exports;
 const props = {
   inputs: { country_config: { currency: 'LCU' }, period: { baseline_year: 2025 },
     water_interventions: {}, sanitation_interventions: {} },
@@ -88,6 +89,35 @@ const partial = { ...draftInputs, revenue_bases: { water: { ...blank, tariff: 10
 assert.equal(restoreBlankRevenueBases(partial), partial, 'Partially entered values must never be reset.');
 const legacyOrigin = { ...draftInputs, revenue_bases: { water: { ...blank, origin: 'collection' } } };
 assert.equal(restoreBlankRevenueBases(legacyOrigin), legacyOrigin, 'Only user-entered empty drafts can be reset.');
+const section = extra => renderToStaticMarkup(React.createElement(RevenueInputsSection,
+  { ...props, sector: 'water', ...extra }));
+const fresh = section({});
+assert.match(fresh, /data-revenue-sector="water"/);
+assert.match(fresh, /data-revenue-field="volume_mld"/);
+assert.match(fresh, /Volume reference year/);
+assert.match(fresh, /value="2025"/);
+assert.doesNotMatch(fresh, /Resolve the shared billed-revenue base above|Revenue inputs need attention/);
+assert.match(section({ sector: 'sanitation', area: 'rural' }), /rural sanitation/);
+assert.doesNotMatch(section({ sector: 'sanitation' }), /data-revenue-sector="water"/);
+assert.equal(renderToStaticMarkup(React.createElement(RevenueReconciliation, { ...props, silent: true })), '',
+  'The application must retain background resolution without a top revenue panel.');
+const before = { ...props.inputs, revenue_bases: { sanitation: { ...custom, volume_mld: 9 } } };
+const entered = updateRevenueBaseField(before, 'water', 'volume_mld', 21);
+assert.equal(before.revenue_bases.water, undefined, 'Typing must not mutate source inputs.');
+assert.equal(entered.revenue_bases.water.reference_year, 2025);
+assert.equal(entered.revenue_bases.water.volume_mld, 21);
+assert.equal(entered.revenue_bases.sanitation, before.revenue_bases.sanitation, 'Preserve the other sector.');
+let complete = updateRevenueBaseField(entered, 'water', 'tariff', 0);
+complete = updateRevenueBaseField(complete, 'water', 'collection_ratio', 0);
+assert.deepEqual(revenueBaseErrors(complete, 'water'), {}, 'Explicit zero inputs are valid.');
+assert.equal(complete.revenue_bases.water.growth_rate, null, 'Blank growth must retain population-based projection.');
+assert.match(section({ inputs: updateRevenueBaseField(complete, 'water', 'collection_ratio', 1.2) }), /between 0 and 1/);
+assert.equal(updateRevenueBaseField(complete, 'water', 'tariff', null).revenue_bases.water.tariff, null,
+  'Clearing must keep the custom draft, not replace it with legacy values.');
+assert.equal(restoreBlankRevenueBases(draftInputs, ['water']).revenue_bases.sanitation, draftInputs.revenue_bases.sanitation,
+  'First-page recovery must affect only the selected sector.');
+assert.match(renderToStaticMarkup(React.createElement(RevenueBaseEditor, { ...props, sector: 'water' })), /data-revenue-field="tariff"/,
+  'Intervention editors must use the same always-available shared-base form.');
 // Optional real-browser fixture made from the actual rendered component/CSS.
 // Chromium executes the native toggle checks without adding dependencies.
 if (process.env.REVENUE_TOGGLE_HTML) {

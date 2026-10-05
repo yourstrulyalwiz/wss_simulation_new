@@ -14,18 +14,20 @@ interaction while preserving financing, funded-asset and service-target fixes.
 elasticity, operating costs, new reinvestment assumptions or connection feedback
 as incidental improvements to this work.
 
-Automatic revenue-base reconciliation should be silent. Only actual failures
-should show inline errors with a way to correct the inputs. Users must be able
-to minimize the correction details while keeping a compact warning visible.
+Automatic revenue-base reconciliation should be silent. Shared revenue input
+entry and its correction controls belong on the first Data Inputs page, directly
+after Budget, following the existing sector toggle and the selected area.
+Do not show a revenue-input message at the top of the application.
 
-**Why:** The user approved hiding automatic reconciliation in production while
-retaining genuine input errors; valid legacy fallback is not a reason to ask
-users to reconcile values manually. They also requested minimization because
-the correction panel occupied too much app space.
+**Why:** The user explicitly asked to replace the top message with a revenue
+section after Budget, using the existing Water Supply / Sanitation toggle.
+They still need direct access to the inputs without errors elsewhere in the
+model preventing entry; valid legacy fallback should not require manual action.
 
-**How to apply:** Preserve automatic migration and input validation. Do not
-reintroduce a loading/reconciliation popup, silently accept invalid bases, or
-leave users without correction controls when a saved profile is invalid.
+**How to apply:** Preserve automatic migration and input validation. Keep
+canonical shared bases available for both first-page editing and intervention
+editing. Show local field errors in the revenue section, preserve independent
+sector/area values, and do not reintroduce a top reconciliation panel.
 
 Recovery must be explicit and preserve entered custom revenue values, including
 zeros and partially completed inputs. Never silently overwrite an invalid

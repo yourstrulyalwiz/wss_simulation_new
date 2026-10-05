@@ -410,14 +410,12 @@ export default function App() {
 
   return (
     <div className="wb-app" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <RevenueReconciliation inputs={activeInputs} onChange={handleSetActiveInputs} area={inputScope} />
+      <RevenueReconciliation inputs={activeInputs} onChange={handleSetActiveInputs} area={inputScope} silent={true} />
       {isDataPreview && <div role="status" style={{ padding: '8px 16px', background: '#fff8e6', fontSize: 12 }}>
         <strong>DRC spreadsheet data preview — settings pending.</strong> Urban and rural data are loaded.
         {' '}All workflow tabs are available. Missing or invalid model settings may still prevent calculations.
         {' '}The differing GDP forecasts have been retained as uploaded.
       </div>}
-      {calculationError && activeInputs?.revenue_bases?.water && activeInputs?.revenue_bases?.sanitation &&
-        <div role="alert" style={{ padding: 12, background: '#fff1f2', color: '#9f1239' }}>{calculationError}</div>}
       {/* Header */}
       <header className="wb-header">
         <div className="wb-brand-lockup">
@@ -594,7 +592,7 @@ export default function App() {
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         {activeTab === 0 && inputs && (
-          <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
+          <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} calculationError={calculationError} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
         )}
         {activeTab === 1 && inputs && (<>

@@ -81,6 +81,44 @@ try {
   const ruralValues = await evaluate(`Array.from(document.querySelectorAll('input')).map(i => i.value)`);
   assert.ok(ruralValues.includes((42.661934).toFixed(2)),
     'The Rural population must differ from Urban and match its workbook.');
+  assert.equal(await evaluate(`!!document.querySelector('[aria-label="Revenue input errors"]')`), false,
+    'The old revenue message must not appear at the top.');
+  assert.equal(await evaluate(`(() => {
+    const keys = Array.from(document.querySelectorAll('[data-section-key]')).map(e => e.dataset.sectionKey);
+    return keys.indexOf('revenue_inputs') === keys.indexOf('budget') + 1;
+  })()`), true, 'Revenue Inputs must be immediately after Budget.');
+  await evaluate(`document.querySelector('[data-section-key="revenue_inputs"] .wb-section-trigger').click()`);
+  await sleep(200);
+  async function enterRevenue(sector, values) {
+    assert.equal(await evaluate(`document.querySelector('[data-section-key="revenue_inputs"] [data-revenue-sector]')?.dataset.revenueSector`),
+      sector, 'Revenue form must follow the sector toggle.');
+    for (const [field, value] of Object.entries(values)) {
+      await evaluate(`(() => {
+        const input = document.querySelector('[data-section-key="revenue_inputs"] [data-revenue-field="${field}"]');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(String(value))});
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`);
+      await sleep(60);
+    }
+  }
+  await enterRevenue('water', { volume_mld: 33.3, tariff: 600, collection_ratio: 0.72, growth_rate: 0.013 });
+  await evaluate(`Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Sanitation').click()`);
+  await sleep(200);
+  await enterRevenue('sanitation', { volume_mld: 12.3, tariff: 400, collection_ratio: 0.8 });
+  await evaluate(`Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim().toLowerCase() === 'urban').click()`);
+  await sleep(200);
+  await evaluate(`Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Water Supply').click()`);
+  await sleep(200);
+  assert.equal(await evaluate(`document.querySelector('[data-section-key="revenue_inputs"] [data-revenue-field="volume_mld"]').value`), '',
+    'Urban revenue must not inherit Rural values.');
+  await enterRevenue('water', { volume_mld: 80.25, tariff: 700, collection_ratio: 0.85 });
+  await sleep(1000);
+  const revenueBundle = await evaluate(`JSON.parse(localStorage.getItem('wss_working_bundle'))`);
+  assert.equal(revenueBundle.inputs.revenue_bases.water.volume_mld, 80.25);
+  assert.equal(revenueBundle.altInputs.rural.revenue_bases.water.volume_mld, 33.3);
+  assert.equal(revenueBundle.altInputs.rural.revenue_bases.water.growth_rate, 0.013);
+  assert.equal(revenueBundle.altInputs.rural.revenue_bases.sanitation.volume_mld, 12.3);
+  assert.equal(revenueBundle.altInputs.rural.revenue_bases.sanitation.collection_ratio, 0.8);
   for (const label of ['BAU Scenario', 'Intervention Design', 'Results Dashboard']) {
     const opened = await evaluate(`(() => {
       const tab = Array.from(document.querySelectorAll('.wb-tab')).find(
@@ -99,6 +137,10 @@ try {
   state = await evaluate(`JSON.parse(localStorage.getItem('wss_demo_scenarios') || '[]')`);
   assert.equal(state.filter(s => s.name.startsWith('Previous working session')).length, 1,
     'Reload must not archive or reset the session again.');
+  const reloaded = await evaluate(`JSON.parse(localStorage.getItem('wss_working_bundle'))`);
+  assert.equal(reloaded.inputs.revenue_bases.water.volume_mld, 80.25);
+  assert.equal(reloaded.altInputs.rural.revenue_bases.water.volume_mld, 33.3);
+  assert.equal(reloaded.altInputs.rural.revenue_bases.sanitation.volume_mld, 12.3);
   assert.equal(browserErrors.length, 0, JSON.stringify(browserErrors));
   console.log('Browser passed: DRC startup, preserved data/session, all workflow tabs accessible and safe reload.');
 } finally {

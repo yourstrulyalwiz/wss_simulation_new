@@ -39,9 +39,12 @@ Debt servicing is optional. Users may go straight from Intervention Design to
 Results without visiting the fourth stage. Disabled or absent borrowing must
 preserve all standard graphs, summaries, tables, scope controls and exports;
 unused blank loan settings must not become prerequisites for ordinary results.
+Results must open with debt excluded, even when an enabled loan is saved in
+either area. Including configured borrowing is an explicit view choice.
 
 **Why:** The user explicitly clarified that tab 4 is an option and that, without
 it, "every outputs like previously should appear in results dashboard."
+They subsequently requested that Results default to without debt servicing.
 
 **How to apply:** Keep ordinary-input validation strict, but separate it from
 enabled-loan validation. Excluding debt from a Results view must not erase saved

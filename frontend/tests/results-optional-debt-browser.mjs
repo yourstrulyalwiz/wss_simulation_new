@@ -90,10 +90,14 @@ try {
     maturity_year: base.period.forecast_end_year + 3, repayment_structure: 'annuity', loan_ceiling: .01 };
   await c.call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
   await load(borrowing); await graphs();
+  assert.equal(await e(`document.querySelector('[aria-label="Results debt mode"]').value`), 'without_debt',
+    'Results must default to excluding debt even when saved borrowing is enabled');
+  assert.ok(await e(`!document.querySelector('[data-testid="results-dashboard"]').textContent.includes('Utility debt financing —')`));
+  await mode('with_debt');
   assert.equal(await e(`document.querySelector('[aria-label="Results debt mode"]').value`), 'with_debt');
   await e(`window.__resultCalls=[]`);
   await mode('without_debt');
-  assert.ok(await e(`window.__resultCalls.length>0 && window.__resultCalls.every(d=>
+  assert.ok(await e(`window.__resultCalls.every(d=>
     !d.utility_debt.water.enabled && !d.utility_debt.sanitation.enabled)`));
   assert.equal(await e(`JSON.parse(localStorage.getItem('wss_working_bundle')).inputs.utility_debt.water.enabled`), true);
   assert.ok(await e(`!document.querySelector('[data-testid="results-dashboard"]').textContent.includes('Utility debt financing —')`));
@@ -127,6 +131,12 @@ try {
   const incomplete = structuredClone(borrowing);
   incomplete.utility_debt.water.annual_real_interest_rate = null;
   await load(incomplete);
+  await graphs();
+  assert.equal(await e(`document.querySelector('[aria-label="Results debt mode"]').value`), 'without_debt');
+  assert.ok(await e(`!document.querySelector('[role="alert"]')`),
+    'Incomplete saved loan terms must not block default standard results');
+  await e(`(()=>{const s=document.querySelector('[aria-label="Results debt mode"]');s.value='with_debt';
+    s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await w(`document.querySelector('[role="alert"]')?.textContent.includes('Results unavailable')`, 'Expected loan validation error');
   await mode('without_debt');
   assert.ok(await e(`!document.querySelector('[role="alert"]')`));
@@ -137,8 +147,11 @@ try {
   await e(`(()=>{const s=[...document.querySelectorAll('select')].find(s=>['urban','rural','national']
     .every(v=>[...s.options].some(o=>o.value===v)));s.value='urban';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await sleep(450); await graphs();
+  assert.equal(await e(`document.querySelector('[aria-label="Results debt mode"]').value`), 'without_debt',
+    'Loans in other areas must not change the default debt choice');
+  await mode('with_debt');
   assert.equal(await e(`document.querySelector('[aria-label="Results debt mode"]').value`), 'with_debt',
-    'Global debt choice must acknowledge loans in other exported areas');
+    'Explicit debt inclusion must remain available for loans in other exported areas');
   await e(`window.__resultCalls=[]`);
   await mode('without_debt');
   assert.ok(await e(`window.__resultCalls.every(d=>!d.utility_debt.water.enabled)`));

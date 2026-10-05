@@ -214,7 +214,7 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
 }
 
 export default function ResultsDashboard({ geoScope, scenarios, inputs, altInputs, onToggle, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
-  const [includeDebt, setIncludeDebt] = useState(true);
+  const [includeDebt, setIncludeDebt] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const dashboardRef = useRef<HTMLDivElement>(null);
   type Selection = { metric: LedgerMetric; service: LedgerService; basis: LedgerBasis };

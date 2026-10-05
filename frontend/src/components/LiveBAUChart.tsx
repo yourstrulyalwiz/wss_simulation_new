@@ -9,6 +9,7 @@ import { linesFirstLegend } from './chartLegend';
 import ChartExport from './ChartExport';
 import TableExport from './TableExport';
 import { convertMoney, currencyRateNote, type CurrencyDisplaySettings, validRate } from '../currencyDisplay';
+import { runCalculation } from '../api';
 
 /**
  * BAU vs Target chart driven by the LIVE calculation engine (validated cell-by-cell against the
@@ -172,11 +173,10 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   const depKey = JSON.stringify(datasets) + '|' + sector;
   useEffect(() => {
     if (!datasets.length) return;
+    let cancelled = false;
     const h = setTimeout(() => {
-      Promise.all(datasets.map(inp =>
-        fetch('/api/calculate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inp) })
-          .then(r => { if (!r.ok) throw new Error('calc failed (' + r.status + ')'); return r.json(); })
-      )).then(resList => {
+      Promise.all(datasets.map(inp => runCalculation(inp))).then(resList => {
+        if (cancelled) return;
         const base = resList[0];
         const years: number[] = base.years;
         const secOf = (res: any) => sector === 'water' ? res.water_supply : res.sanitation;
@@ -301,9 +301,19 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           cumNeed,
         });
         setError(null);
-      }).catch(e => setError(String(e)));
+      }).catch(e => {
+        if (cancelled) return;
+        setData([]);
+        setTableRows([]);
+        setEndAnno(null);
+        setSummary(null);
+        setConstrained(null);
+        setTargetLines([]);
+        setTargetPoints([]);
+        setError(e instanceof Error ? e.message : String(e));
+      });
     }, 350);
-    return () => clearTimeout(h);
+    return () => { cancelled = true; clearTimeout(h); };
   }, [depKey]);
 
   const sectorLabel = sector === 'water' ? 'Water Supply' : 'Sanitation';

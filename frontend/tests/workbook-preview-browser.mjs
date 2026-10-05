@@ -131,6 +131,13 @@ try {
     assert.ok(await evaluate(`document.querySelector('.wb-tab-active')?.textContent.replace(/\\s/g, '').includes(${JSON.stringify(label.replace(/\s/g, ''))})`),
       `${label} must actually open.`);
     assert.ok(await evaluate(`!!document.querySelector('.wb-app')`), 'Page must remain rendered.');
+    if (label === 'BAU Scenario') {
+      await sleep(1200);
+      assert.ok(await evaluate(`document.body.textContent.includes('as_is_forecast_length')`),
+        'BAU must show the real missing forecast-setting error.');
+      assert.equal(await evaluate(`document.body.textContent.includes('calc failed (422)')`), false,
+        'Do not replace actionable validation details with a generic status code.');
+    }
   }
   await send('Page.reload', {}, sessionId);
   await sleep(1000);

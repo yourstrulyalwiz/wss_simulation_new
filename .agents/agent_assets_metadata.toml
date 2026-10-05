@@ -14,3 +14,17 @@ mtime_ms = 1791214112411
 storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/bbf7dc03-9d51-4904-90a1-feb79683a7a9/efe2797d-9e88-4257-a5da-fc1fc6be7a16"
 storage_version_token = "1791214127021404"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "MFVIkzL7bjXRQdYO84WI_"
+uri = "file://.local/tasks/connection-based-revenue-assessment.md"
+type = "text"
+title = "Connection-Based Revenue — Assessment and Proposal"
+description = "Graph and ledger treatment, current-model assessment, collection and operating-cost assumptions, data inputs, proposed programming changes and acceptance examples."
+logical_id = "b815e2ac-6f9a-4fcc-ab43-7b6f13b75dc6"
+content_hash = "sha256:f4752e4f56deb44ea3b4a9c19ab692b8c3434cd1fd29f3ce1ec498e8142b751a"
+size = 13386
+mtime_ms = 1791215114728
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/b815e2ac-6f9a-4fcc-ab43-7b6f13b75dc6/dd90110e-0645-4c60-822a-3d2015d8b3df"
+storage_version_token = "1791215127599922"
+content_type = "text/markdown"

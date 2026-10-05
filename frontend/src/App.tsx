@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BUNDLE_KEY, isBundle, areasOf } from './areaBundle';
 import InputPanel from './components/InputPanel';
 import InterventionPanel from './components/InterventionPanel';
+import DebtServicingPanel from './components/DebtServicingPanel';
 import RevenueReconciliation from './components/RevenueBase';
 import ResultsDashboard from './components/ResultsDashboard';
 import LiveBAUChart from './components/LiveBAUChart';
@@ -294,9 +295,11 @@ export default function App() {
   // Live engine results for the ACTIVE dataset (debounced), so the input table can show the engine's
   // computed forecast-year values (population, GDP, budget, allocated/actual capex, …).
   const [results, setResults] = useState<any>(null);
+  const resultInputs = useRef<any>(null);
   const [economicProjections, setEconomicProjections] = useState<any>(null);
   const [projectionError, setProjectionError] = useState('');
   const [calculationError, setCalculationError] = useState('');
+  const [calculationRevision, setCalculationRevision] = useState(0);
   useEffect(() => {
     if (!activeInputs) return;
     let cancelled = false;
@@ -313,13 +316,18 @@ export default function App() {
         }
       });
       runCalculation(activeInputs).then(value => {
-        if (!cancelled) { setResults(value); setCalculationError(''); }
+        if (!cancelled) { resultInputs.current = activeInputs; setResults(value); setCalculationError(''); }
       }).catch(error => {
         if (!cancelled) { setResults(null); setCalculationError(error.message); }
       });
     }, 350);
     return () => { cancelled = true; clearTimeout(h); };
-  }, [activeInputs]);
+  }, [activeInputs, calculationRevision]);
+  const retryCalculation = useCallback(() => {
+    setResults(null);
+    setCalculationError('');
+    setCalculationRevision(revision => revision + 1);
+  }, []);
   const handleSetActiveInputs = useCallback((newInputs: any) => {
     const resized = resizeMacroArrays(newInputs);
     const oldStart = inputs?.period?.model_start_year, newStart = resized?.period?.model_start_year;
@@ -443,7 +451,7 @@ export default function App() {
 
   // Exports now live throughout the tool (per-table, per-chart, and the whole-scenario Export buttons on
   // the Intervention Design and Results tabs), so there is no separate Export tab.
-  const tabs = ['Data Inputs', 'BAU Scenario', 'Intervention Design', 'Results Dashboard'];
+  const tabs = ['Data Inputs', 'BAU Scenario', 'Intervention Design', 'Debt servicing', 'Results Dashboard'];
   const isDataPreview = inputs?.profile_metadata?.status === 'data_preview';
   const isMockSimulation = inputs?.profile_metadata?.status === 'mock_simulation';
 
@@ -559,7 +567,7 @@ export default function App() {
       {/* Main Content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Scope bar. Full controls (mode + include) only on Data Inputs; BAU & Intervention get just the Editing switch. The dashboard has its own scope dropdown. */}
-        {activeTab <= 2 && (
+        {activeTab <= 3 && (
           <div className="wb-scope-bar">
             {activeTab === 0 ? (
               <div onClickCapture={dismissScopeHint} className="wb-scope-card" style={{
@@ -684,8 +692,14 @@ export default function App() {
           <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} calculationError={calculationError} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} contributionView={contributionView} onContributionViewChange={setContributionView}
             currencyDisplay={currencyDisplay} onEditCurrencyRate={editCurrencyRate} onCurrencyDisplayChange={updateCurrencyDisplay} />
         )}
-        {/* Guide panel — tabs 0, 1, 2 */}
-        {activeTab <= 2 && (
+        {activeTab === 3 && inputs && (
+          <DebtServicingPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={resultInputs.current === activeInputs ? results : null} calculationError={calculationError}
+            sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} contributionView={contributionView}
+            onContributionViewChange={setContributionView} currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay}
+            onEditCurrencyRate={editCurrencyRate} onSectionFocus={focusGuideSection} onRetry={retryCalculation} />
+        )}
+        {/* Guide panel — input, BAU, intervention and debt-servicing stages */}
+        {activeTab <= 3 && (
           <>
             <button onClick={() => setShowGuide(!showGuide)} className="wb-guide-toggle" style={{
               position: 'absolute', right: showGuide ? 320 : 0, top: 12,
@@ -702,7 +716,7 @@ export default function App() {
           </>
         )}
 
-        {activeTab === 3 && (
+        {activeTab === 4 && (
           <ResultsDashboard geoScope={chartScope} scenarios={scenarios} inputs={inputs} altInputs={altInputs} onToggle={setToggle} contributionView={contributionView} onContributionViewChange={setContributionView}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
         )}
@@ -792,6 +806,9 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
             </li>
             <li style={{ marginBottom: 6 }}>
               <strong>Intervention Design</strong> — Pick Water Supply or Sanitation, switch each intervention on or off with its toggle, and set its parameters, which include collection efficiency, NRW reduction, budget execution improvement, capex efficiency (a unit-cost discount), optimised technology selection, tariff reform, and microfinance (with a self-finance carve-out and a means-based grant inside it). Add your own under <em>Custom Interventions</em> at the bottom. The impact graph updates live.
+            </li>
+            <li style={{ marginBottom: 6 }}>
+              <strong>Debt servicing</strong> — Carry the selected area’s intervention scenario into a single utility loan. Choose eligible reform revenue, a forecast disbursement year, an allocation share and repayment terms. Compare the no-debt borrowing base with the financed scenario, inspect the annual ledger and track signed access-gap changes. New connection net cash is not a debt source.
             </li>
             <li style={{ marginBottom: 0 }}>
               <strong>Results Dashboard</strong> — Compare BAU and intervention scenarios. Toggle interventions and adjust the target years to see the impact on coverage and the financing gap. Export the whole scenario as PowerPoint, Excel, or CSV — or download any individual chart (PNG / JPG / Excel) or table (CSV / Excel) from its own button.
@@ -1176,6 +1193,16 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
       </div>
     ),
   },
+  utility_debt: {
+    title: 'Debt servicing — utility borrowing',
+    content: (
+      <div>
+        <p style={{ margin: '0 0 6px' }}>Debt servicing carries the intervention scenario forward without changing intervention settings. Select among collection, tariff and NRW net cash as independent repayment sources; choices do not switch on interventions.</p>
+        <p style={{ margin: '0 0 6px' }}>The model anchors an initial principal bound to the selected forecast-year protected revenue capacity, then verifies every payment through maturity. It may reduce the final loan for a later shortfall. Loan proceeds are restricted investment cash, not revenue.</p>
+        <p style={{ margin: 0 }}>Active connection-based billing can affect customer-driven collection and tariff reform growth. The separate connection net-cash stream is not debt eligible. The annual table distinguishes reference/no-debt borrowing-base values from financed-scenario cash and replacement obligations.</p>
+      </div>
+    ),
+  },
 };
 
 // Which guide sections belong to each tab (only these show in that tab's Guide panel)
@@ -1192,6 +1219,7 @@ const guideKeysByTab: Record<number, string[]> = {
     'san_interventions', 'san_ce', 'san_budget_exec', 'san_capex_eff', 'san_techmix', 'san_nrw_link', 'san_tariff', 'san_microfinance',
     'custom_interventions',
   ],
+  3: ['utility_debt'],
 };
 
 function DataGuide({ tab, activeSection, onSelectSection, sector }: { tab: number; activeSection: string | null; onSelectSection?: (key: string) => void; sector?: 'water' | 'sanitation' }) {
@@ -1213,7 +1241,7 @@ function DataGuide({ tab, activeSection, onSelectSection, sector }: { tab: numbe
     .filter(k => tab !== 2 || k === 'custom_interventions' || k.startsWith(prefix));
 
   return (
-    <div ref={scrollRef} style={{
+    <div ref={scrollRef} className="wb-data-guide" style={{
       width: 320, borderLeft: '1px solid #e2e8f0', background: '#fafaff', overflowY: 'auto',
       padding: '16px 18px', fontSize: 11, flexShrink: 0,
     }}>

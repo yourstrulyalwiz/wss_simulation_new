@@ -27,7 +27,7 @@ const { evaluate: e, waitFor: w } = c;
 const selector = 'input[aria-label^="Debt source:"]';
 async function interventionTab() {
   await e(`document.querySelector('.wb-onboarding-overlay')?.click()`);
-  await e(`([...document.querySelectorAll('.wb-tab')].find(b=>b.textContent.replace(/\\s/g,'').toLowerCase().includes('interventiondesign'))).click()`);
+  await e(`([...document.querySelectorAll('.wb-tab')].find(b=>b.textContent.replace(/\\s/g,'').toLowerCase().includes('debtservicing'))).click()`);
 }
 async function ready() {
   await w(`!!document.querySelector('[data-debt-metric="Supportable borrowing"]') &&
@@ -46,12 +46,34 @@ async function verify(sector = 'water_supply') {
   const row = response.annual_revenue.find(r => r.year === year);
   assert.ok(row);
   for (const [label, expected] of [
-    ['Additional annual net revenue', row.eligible_additional_revenue],
+    ['Additional annual net revenue', row.total_additional_net_revenue],
     ['Annual service capacity', row.annual_service_capacity],
     ['Supportable borrowing', response.accepted_principal],
   ]) {
     const text = await e(`document.querySelector('[data-debt-metric=${JSON.stringify(label)}]').lastElementChild.textContent`);
     assert.equal(Number(text.split(' ')[0].replaceAll(',', '')), Number(expected.toFixed(2)), `${label}: ${text}`);
+  }
+  for (const [label, key] of [
+    ['Start-year protected revenue base', 'start_year_protected_revenue'],
+    ['Start-year servicing limit', 'start_year_capacity'],
+    ['Start-year principal bound', 'start_year_principal_bound'],
+  ]) {
+    const text = await e(`([...document.querySelectorAll('.debt-diagnostics div')]
+      .find(d=>d.querySelector('span')?.textContent===${JSON.stringify(label)})).querySelector('b').textContent`);
+    assert.equal(Number(text.split(' ')[0].replaceAll(',', '')), Number(response[key].toFixed(2)), label);
+  }
+  const table = await e(`(()=>{
+    const t=document.querySelector('[data-testid="debt-annual-table"]');
+    return {headers:[...t.querySelectorAll('thead th')].map(c=>c.textContent),
+      cells:[...t.querySelector('tr[data-year="${year}"]').children].map(c=>c.textContent)};
+  })()`);
+  for (const [label, key] of [
+    ['Debt service', 'total_debt_service'],
+    ['Cash after replacement', 'available_after_replacement'],
+    ['Reference collected revenue · no debt', 'reference_collected_revenue'],
+  ]) {
+    assert.equal(Number(table.cells[table.headers.indexOf(label)].replaceAll(',', '')),
+      Number(row[key].toFixed(2)), `${year} ${label}`);
   }
   return response;
 }
@@ -61,15 +83,33 @@ try {
   await e(`localStorage.setItem('wss_working_bundle',${JSON.stringify(JSON.stringify(bundle))})`);
   await c.call('Page.reload');
   await w(`!!document.querySelector('.wb-tab')`, 'Reload failed');
+  assert.equal(await e(`document.querySelectorAll('.wb-tab').length`), 5);
+  await e(`document.querySelector('.wb-onboarding-overlay')?.click()`);
+  await e(`document.querySelectorAll('.wb-tab')[2].click()`);
+  await w(`document.querySelectorAll('.recharts-wrapper svg.recharts-surface').length>=2`, 'Intervention charts missing');
+  assert.equal(await e(`document.querySelectorAll(${JSON.stringify(selector)}).length`), 0);
+  assert.ok(!await e(`document.querySelector('input[aria-label="Enable utility borrowing"]')`));
   await interventionTab();
   await w(`document.querySelectorAll(${JSON.stringify(selector)}).length===3`, 'Expected exactly three debt sources');
   assert.deepEqual(await e(`[...document.querySelectorAll(${JSON.stringify(selector)})].map(x=>x.checked)`), [true, true, true]);
   let debt = await verify();
   assert.ok(debt.accepted_principal > 0);
+  await w(`document.querySelectorAll('.debt-gap-grid .debt-gap-card').length===4`, 'Coverage/access-gap comparison missing');
+  assert.equal(await e(`document.querySelector('[data-testid="debt-annual-table"] tr.is-start-year').dataset.year`),
+    String(inputs.period.baseline_year+5));
+  const priorBound = debt.start_year_principal_bound;
+  await e(`(()=>{const s=document.querySelector('select[aria-label="Loan start year"]');
+    s.value=${JSON.stringify(String(inputs.period.baseline_year+6))};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  debt = await verify();
+  assert.equal(debt.disbursement_year, inputs.period.baseline_year+6);
+  assert.notEqual(debt.start_year_principal_bound, priorBound);
+  assert.equal(await e(`document.querySelector('[data-testid="debt-annual-table"] tr.is-start-year').dataset.year`),
+    String(debt.disbursement_year));
+  assert.equal(debt.annual_revenue.filter(r=>r.loan_disbursement>0).length, 1);
   await e(`(()=>{const s=document.querySelector('select[aria-label="Utility debt detail year"]');
     s.value=${JSON.stringify(String(inputs.period.forecast_end_year + 3))};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await verify();
-  assert.ok((await e(`document.querySelector('[data-testid="utility-debt-preview"]').textContent`)).includes('Post-target repayment assumption'));
+  assert.ok((await e(`document.querySelector('[data-testid="utility-debt-preview"]').textContent`)).includes('Post-target assumption'));
   await e(`document.querySelector('input[aria-label="Debt source: NRW reductions"]').click()`);
   debt = await verify();
   assert.deepEqual(debt.revenue_sources, ['collection', 'tariff']);
@@ -86,23 +126,34 @@ try {
   await ready();
   assert.deepEqual(await e(`[...document.querySelectorAll(${JSON.stringify(selector)})].map(x=>x.checked)`), [false, false, false]);
   // Disabling financing must preserve explicit source choices.
-  await e(`([...document.querySelectorAll('h3')].find(h=>h.textContent==='Utility debt financing')).closest('section').querySelector('input[type=checkbox]').click()`);
+  await e(`document.querySelector('input[aria-label="Enable utility borrowing"]').click()`);
   assert.deepEqual(await e(`JSON.parse(localStorage.getItem('wss_working_bundle')).inputs.utility_debt.water.revenue_sources`), []);
-  await e(`([...document.querySelectorAll('h3')].find(h=>h.textContent==='Utility debt financing')).closest('section').querySelector('input[type=checkbox]').click()`);
+  await verify();
+  assert.ok(await e(`!!document.querySelector('[data-testid="debt-annual-table"]')`));
+  await e(`document.querySelector('input[aria-label="Enable utility borrowing"]').click()`);
   await verify();
   await e(`([...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Sanitation')).click()`);
   await verify('sanitation');
   assert.deepEqual(await e(`[...document.querySelectorAll(${JSON.stringify(selector)})].map(x=>x.checked)`), [true, true, true]);
   assert.equal(c.errors.length, 0, JSON.stringify(c.errors));
   await c.call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1600, deviceScaleFactor: 1, mobile: false });
+  await w(`document.querySelectorAll('.debt-chart-stack .recharts-wrapper').length===2 &&
+    [...document.querySelectorAll('.debt-chart-stack .recharts-wrapper')]
+      .every(chart=>chart.querySelectorAll('.recharts-cartesian-axis-tick-value').length>0)`,
+    'Debt graph data did not finish loading');
+  await e(`document.querySelector('.debt-results-pane').scrollTop=0;
+    if(document.querySelector('.wb-data-guide'))document.querySelector('.wb-guide-toggle')?.click()`);
+  await sleep(300);
+  const overview = await c.call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  writeFileSync('/tmp/debt-servicing-overview.png', Buffer.from(overview.data, 'base64'));
   await e(`(()=>{const s=document.querySelector('select[aria-label="Utility debt detail year"]');
     s.value=${JSON.stringify(String(inputs.period.baseline_year + 5))};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await sleep(300);
-  await e(`([...document.querySelectorAll('h3')].find(h=>h.textContent==='Utility debt financing')).closest('section').scrollIntoView({block:'start'})`);
+  await e(`document.querySelector('.debt-ledger-section').scrollIntoView({block:'start'})`);
   await sleep(300);
-  const clip = await e(`(()=>{const r=([...document.querySelectorAll('h3')].find(h=>h.textContent==='Utility debt financing')).closest('section').getBoundingClientRect();
+  const clip = await e(`(()=>{const r=document.querySelector('.debt-ledger-section').getBoundingClientRect();
     return {x:r.left+scrollX,y:r.top+scrollY,width:r.width,height:Math.min(r.height,innerHeight-r.top),scale:1};})()`);
   const shot = await c.call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip });
   writeFileSync('/tmp/utility-debt-panel.png', Buffer.from(shot.data, 'base64'));
-  console.log('Utility debt browser passed: three sources, legacy defaults, live backend-matched net revenue/capacity/principal, tail years, empty selection, persistence, enable/disable and both sectors.');
+  console.log('Debt servicing browser passed: five tabs, intervention-only stage, graphs, annual ledger, start-year sizing/highlight, backend-matched diagnostics, coverage/gaps, source choices, tail years, persistence, disabled table and both sectors.');
 } finally { c.close(); }

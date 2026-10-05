@@ -16,6 +16,12 @@ NET_REVENUE_ASSUMPTION = (
     'NRW deducts modeled implementation costs. Costs already netted are not deducted again. '
     'New-connection revenue is excluded from eligibility.'
 )
+SIZING_ASSUMPTION = (
+    'The selected loan-start year supplies the no-debt intervention revenue base. '
+    'Its protected capacity limits the initial principal; future revenue growth does not increase that bound. '
+    'Every payment is also checked against its own year’s capacity through maturity, '
+    'including replacement obligations from funded assets. The loan is disbursed once.'
+)
 
 
 class UtilityDebtInputError(ValueError):
@@ -215,6 +221,20 @@ def revenue_capacity_rows(result, years, baseline_year, config, asset_life=30):
             'replacement_requirement': replacement,
             'protected_eligible_revenue': protected,
             'annual_service_capacity': share * protected,
+            'baseline_collected_revenue': value('baseline_collected_revenue', i),
+            # Reserve reference_* for the no-debt scenario copies in summary().
+            'funding_reference_collected_revenue': value('reference_collected_revenue', i)
+                if (result.get('connection_revenue') or {}).get('effective')
+                else value('baseline_collected_revenue', i),
+            'collected_revenue': value('collected_revenue', i),
+            'billed_volume_million_m3': value('billed_volume_million_m3', i),
+            'connection_billed_households': value('connection_billed_households', i)
+                if (result.get('connection_revenue') or {}).get('effective') else None,
+            'connection_gross_revenue': value('connection_revenue_delta', i),
+            'connection_variable_cost_difference': value('incremental_variable_operating_cost', i),
+            'connection_net_cash': value('connection_net_cash', i),
+            'total_additional_net_revenue': sum(streams.values()) + value('connection_net_cash', i),
+            'available_after_replacement': max(0.0, available - replacement),
         }
     # Keep the sector diagnostic consistent with the actual selected pool.
     result['eligible_additional_revenue'] = [
@@ -226,7 +246,8 @@ def revenue_capacity_rows(result, years, baseline_year, config, asset_life=30):
     return rows
 
 
-def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30):
+def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30,
+                   reference_result=None):
     """Size, rerun and verify a single non-revolving utility loan.
 
     The callback is the sector calculator. Each candidate is run through its
@@ -236,7 +257,7 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
     """
     cfg = validate_config(config, ctx['years'], inputs.period.baseline_year)
     kwargs = dict(calc_kwargs or {})
-    reference = calc_fn(inputs, ctx, **kwargs)
+    reference = reference_result if reference_result is not None else calc_fn(inputs, ctx, **kwargs)
     years = [int(y) for y in ctx['years']]
     share = cfg['allocation_share']
     zero_plan = {
@@ -244,6 +265,11 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
         'principal_payment': [0.0] * len(years), 'interest_payment': [0.0] * len(years),
         'debt_service': [0.0] * len(years),
     }
+    reference_rows = revenue_capacity_rows(reference, years, inputs.period.baseline_year, cfg, asset_life)
+    reference_by_year = {r['year']: r for r in reference_rows}
+    start_row = reference_by_year.get(cfg.get('disbursement_year'), {})
+    start_capacity = float(start_row.get('annual_service_capacity', 0.0))
+    start_bound = 0.0
 
     def summary(status, result, principal=0.0, requested_max=0.0,
                 verified=False, capacities=None, schedule=None):
@@ -287,11 +313,28 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
             service = payment.get('total_debt_service', 0.0)
             annual_revenue.append({
                 **detail,
+                **{'reference_' + key: value for key, value in
+                   reference_by_year.get(detail['year'], {}).items()
+                   if key not in ('year', 'post_target')},
+                'loan_disbursement': payment.get('disbursement', 0.0),
                 'principal_payment': payment.get('principal_payment', 0.0),
                 'interest_payment': payment.get('interest_payment', 0.0),
                 'total_debt_service': service,
                 'repayment_headroom': detail['annual_service_capacity'] - service,
             })
+        payment_limits = [
+            (capacities.get(r['year'], 0.0) / r['total_debt_service'] * principal, r['year'])
+            for r in schedules if r['total_debt_service'] > 1e-15
+        ] if principal > 0 else []
+        tightest = min(payment_limits, default=None)
+        binding = status
+        if verified:
+            if cfg.get('loan_ceiling') is not None and principal >= float(cfg['loan_ceiling']) - 1e-7:
+                binding = 'loan ceiling'
+            elif principal >= start_bound - max(1e-7, principal * 1e-9):
+                binding = 'loan-start year capacity'
+            else:
+                binding = 'annual repayment capacity (including funded-asset replacement)'
         return {
             'schema_version': 1,
             'status': status,
@@ -301,6 +344,13 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
             'revenue_sources': cfg['revenue_sources'],
             'net_revenue_assumption': NET_REVENUE_ASSUMPTION,
             'annual_revenue': annual_revenue,
+            'start_year_revenue': float(start_row.get('eligible_additional_revenue', 0.0)),
+            'start_year_protected_revenue': float(start_row.get('protected_eligible_revenue', 0.0)),
+            'start_year_capacity': start_capacity,
+            'start_year_principal_bound': start_bound,
+            'limiting_repayment_year': tightest[1] if tightest else None,
+            'binding_constraint': binding,
+            'sizing_assumption': SIZING_ASSUMPTION,
             'annual_real_interest_rate': cfg.get('annual_real_interest_rate'),
             'repayment_structure': cfg.get('repayment_structure'),
             'disbursement_year': cfg.get('disbursement_year'),
@@ -332,7 +382,10 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
             result, years, inputs.period.baseline_year, cfg, asset_life)}
 
     capacities = capacity_map(reference)
-    upper = schedule_unit_capacity(cfg, capacities)
+    # Anchor to the chosen start year, not the first payment year or a future average.
+    start_bound = schedule_unit_capacity(
+        cfg, {r['year']: start_capacity for r in build_schedule(1.0, cfg)})
+    upper = min(start_bound, schedule_unit_capacity(cfg, capacities))
     if cfg.get('loan_ceiling') is not None:
         upper = min(upper, float(cfg['loan_ceiling']))
     if not math.isfinite(upper) or upper <= 1e-10:

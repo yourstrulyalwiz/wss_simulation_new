@@ -228,7 +228,9 @@ def _aggregate_utility_debt(summaries: List[dict]) -> dict:
     """Sum debt balances and annual schedules without averaging area-specific loan assumptions."""
     summaries = [s for s in summaries if s]
     numeric = ('accepted_principal', 'requested_max_principal', 'total_interest',
-               'total_principal_repaid', 'closing_restricted_cash')
+               'total_principal_repaid', 'closing_restricted_cash',
+               'start_year_revenue', 'start_year_protected_revenue',
+               'start_year_capacity', 'start_year_principal_bound')
     rows_by_year = {}
     for summary in summaries:
         for row in summary.get('schedule') or []:
@@ -253,6 +255,10 @@ def _aggregate_utility_debt(summaries: List[dict]) -> dict:
         (s.get('tail_capacity_assumption') for s in enabled if s.get('tail_capacity_assumption')), None)
     result['net_revenue_assumption'] = next(
         (s.get('net_revenue_assumption') for s in summaries if s.get('net_revenue_assumption')), None)
+    result['sizing_assumption'] = next(
+        (s.get('sizing_assumption') for s in summaries if s.get('sizing_assumption')), None)
+    result['binding_constraint'] = 'Area-specific loans; see individual area constraints'
+    result['limiting_repayment_year'] = None
     result['revenue_sources'] = sorted(set(
         source for s in summaries for source in s.get('revenue_sources', ['collection', 'tariff', 'nrw'])))
     revenue_by_year = {}

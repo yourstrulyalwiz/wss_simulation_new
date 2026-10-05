@@ -17,3 +17,18 @@ unfinished connection-revenue integration.
 unchanged. Explain modeled net-cash assumptions rather than claiming a complete
 or audited utility operating surplus. Borrowing is incremental financing, not
 a lender credit assessment.
+
+## Loan-start sizing and workflow boundary
+
+Size a single loan injection from the selected start year's no-debt intervention
+revenue capacity. Later revenue growth must not enlarge that initial borrowing
+bound; payment-year shortfalls and added replacement obligations may reduce it.
+Preserve the existing intervention investment split and upgrade rules.
+
+**Why:** The user requested a start-year revenue allocation funding one loan
+injection, rather than borrowing against an optimistic future revenue peak.
+
+**How to apply:** Keep Intervention Design as the intervention-only stage and
+Debt servicing as the separate fourth workflow stage, with Results fifth.
+Show the same intervention contributions plus signed debt effects, and leave
+new-connection net cash outside repayment eligibility.

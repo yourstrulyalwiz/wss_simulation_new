@@ -240,34 +240,12 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
 
     `bau_kwargs` / `scn_kwargs` pass PER-PASS extra arguments to `calc_fn` (used to feed sanitation the
     water-NRW recovered volume: 0 in the BAU pass, the water scenario volume in the scenario pass)."""
-    from model.utility_debt import solve_scenario, validate_config, revenue_capacity_rows, NET_REVENUE_ASSUMPTION
+    from model.utility_debt import solve_scenario, validate_config
     bau = calc_fn(bau_inputs, ctx, **(bau_kwargs or {}))
     cfg = validate_config(debt_config, ctx['years'], scn_inputs.period.baseline_year)
-    if cfg.get('enabled'):
-        scn, _, debt_summary, scn_without_debt = solve_scenario(
-            calc_fn, scn_inputs, ctx, cfg, calc_kwargs=scn_kwargs,
-            asset_life=debt_asset_life)
-    else:
-        scn = calc_fn(scn_inputs, ctx, **(scn_kwargs or {})) if any_toggle_on else bau
-        scn_without_debt = scn
-        debt_summary = {
-            'schema_version': 1, 'status': 'disabled', 'enabled': False,
-            'verified_feasible': False, 'allocation_share': cfg['allocation_share'],
-            'annual_real_interest_rate': cfg.get('annual_real_interest_rate'),
-            'repayment_structure': cfg.get('repayment_structure'),
-            'disbursement_year': cfg.get('disbursement_year'),
-            'principal_grace_years': cfg.get('principal_grace_years', 0),
-            'maturity_year': cfg.get('maturity_year'), 'loan_ceiling': cfg.get('loan_ceiling'),
-            'accepted_principal': 0.0, 'requested_max_principal': 0.0,
-            'total_interest': 0.0, 'total_principal_repaid': 0.0,
-            'closing_restricted_cash': 0.0, 'schedule': [],
-            'revenue_sources': cfg['revenue_sources'],
-            'net_revenue_assumption': NET_REVENUE_ASSUMPTION,
-            'annual_revenue': [
-                {**r, 'total_debt_service': 0.0, 'repayment_headroom': 0.0}
-                for r in revenue_capacity_rows(scn, ctx['years'], scn_inputs.period.baseline_year, cfg, debt_asset_life)
-            ],
-        }
+    scn, _, debt_summary, scn_without_debt = solve_scenario(
+        calc_fn, scn_inputs, ctx, cfg, calc_kwargs=scn_kwargs,
+        asset_life=debt_asset_life, reference_result=bau if not any_toggle_on else None)
     scn['utility_debt'] = debt_summary
     bau['scenario_hh'] = scn['bau_hh']                                  # SM path WITH interventions
     bau['scenario_financing_gap'] = scn['financing_gap']
@@ -299,6 +277,8 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
         bau['scenario_' + key] = scn.get(key, [])
     bau['scenario_utility_debt'] = debt_summary
     bau['scenario_without_utility_debt_hh'] = scn_without_debt['bau_hh']
+    for key in SERVICE_GAP_FIELDS:
+        bau['scenario_without_utility_debt_' + key] = scn_without_debt[key]
     bau['scenario_without_utility_debt_financing_gap'] = scn_without_debt['financing_gap']
     bau['scenario_without_utility_debt_endline_financing_requirement'] = scn_without_debt[
         'endline_financing_requirement']

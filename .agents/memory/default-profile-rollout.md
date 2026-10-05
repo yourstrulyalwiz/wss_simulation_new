@@ -21,3 +21,15 @@ instead of authorizing inheritance from the model defaults.
 
 **How to apply:** Obtain the supplied settings or a complete saved dev profile
 before activating the template-derived profile as the default simulation.
+
+A template-only data preview is permitted in development before the full model
+settings are supplied. Do not load that incomplete preview into the live
+production session or present calculated results using assumed settings.
+
+**Why:** The user clarified that they wanted the uploaded data visible in the
+development preview, not loaded directly onto production. Viewing supplied
+data does not authorize importing Nepal assumptions into a DRC simulation.
+
+**How to apply:** Show both uploaded areas and clearly label missing settings;
+keep calculations and result exports unavailable for the incomplete profile.
+Treat production activation of the completed simulation as separate work.

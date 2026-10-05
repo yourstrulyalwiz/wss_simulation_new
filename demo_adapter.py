@@ -381,6 +381,10 @@ def financial_toggles(inputs: dict) -> dict:
     return tg
 
 
+class DataPreviewError(ValueError):
+    """A data-only profile is not yet a calibrated simulation."""
+
+
 def coerce_to_engine(inputs: dict) -> ModelInputs:
     """Accept EITHER shape and return a ModelInputs.
 
@@ -389,6 +393,9 @@ def coerce_to_engine(inputs: dict) -> ModelInputs:
     (budget under macro.*, water_costs.network_cost_per_hh_*, water_service.serv1_ts,
     macro.inflation_nepal). Frontend markers are checked FIRST so demo-side additions (e.g. the
     tech-mix calculator fields) can never flip a demo payload into the engine path."""
+    if (inputs.get('profile_metadata') or {}).get('status') == 'data_preview':
+        raise DataPreviewError('This is a spreadsheet data preview. Supply unit costs, technical assumptions '
+                         'and the remaining model settings before running a simulation or exporting results.')
     inputs = {**inputs, 'toggles': financial_toggles(inputs),
               'revenue_legacy': inputs.get('revenue_legacy') or {
                   key: inputs.get(key, {}) for key in ('water_interventions', 'sanitation_interventions')}}

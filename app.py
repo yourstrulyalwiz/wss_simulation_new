@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 import json
 from model.inputs import ModelInputs, CountryConfig
 from model.engine import calculate
-from demo_adapter import frontend_defaults, to_engine, coerce_to_engine
+from demo_adapter import frontend_defaults, to_engine, coerce_to_engine, DataPreviewError
 from currency_export import validate_currency_display
 
 app = FastAPI(title="WSS Scenarios Model API")
@@ -18,6 +18,7 @@ from model.engine import build_context
 from pydantic import ValidationError
 
 
+@app.exception_handler(DataPreviewError)
 @app.exception_handler(ValidationError)
 async def invalid_model_inputs(request, exc):
     return JSONResponse(status_code=422, content={'detail': 'Invalid model inputs: ' + str(exc)})
@@ -95,6 +96,22 @@ def get_profile(name: str):
         return {"error": "Profile not found"}
     with open(filepath) as f:
         return json.load(f)
+
+
+@app.get("/api/development-preview")
+def development_preview():
+    """One-time preview bootstrap, never a production default."""
+    import hashlib
+    from workbook_profile import PREVIEW_PROFILE_NAME
+    if os.environ.get("REPLIT_DEPLOYMENT") == "1":
+        return {"profile": None}
+    filepath = os.path.join(os.path.dirname(__file__), "profiles", f"{PREVIEW_PROFILE_NAME}.json")
+    if not os.path.exists(filepath):
+        return {"profile": None}
+    with open(filepath, "rb") as file:
+        raw = file.read()
+    return {"profile": PREVIEW_PROFILE_NAME, "revision": hashlib.sha256(raw).hexdigest()[:16],
+            "bundle": json.loads(raw)}
 
 
 @app.post("/api/profiles/{name}")

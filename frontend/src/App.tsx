@@ -8,6 +8,7 @@ import LiveBAUChart from './components/LiveBAUChart';
 import { fetchDefaults, runCalculation } from './api';
 import { type ContributionView } from './contributionView';
 import { CurrencyDisplayControl, defaultCurrencyDisplay, type CurrencyDisplaySettings, validRate } from './currencyDisplay';
+import { chooseDevelopmentPreview } from './developmentPreview';
 
 // The BAU view stacks two charts with identical elements: Safely managed (rung 0) then Basic (rung 1).
 function BAUChartPair(props: { inputsList: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; currencyDisplay: CurrencyDisplaySettings }) {
@@ -73,8 +74,28 @@ export default function App() {
   // Restore the last working session (all areas + entry mode) before falling back to the defaults,
   // so a refresh no longer silently drops whatever was entered for Rural or National.
   useEffect(() => {
+    let cancelled = false;
+    const initialize = async () => {
     let session: any = null;
     try { session = JSON.parse(localStorage.getItem('wss_working_bundle') || 'null'); } catch { /* corrupt — ignore */ }
+    let savedScenarios: any[] = [];
+    try { savedScenarios = JSON.parse(localStorage.getItem('wss_demo_scenarios') || '[]'); } catch { /* corrupt — ignore */ }
+    try {
+      const response = await fetch('/api/development-preview');
+      if (!response.ok) throw new Error('Could not check the development preview profile.');
+      const preview = await response.json();
+      if (cancelled) return;
+      const selected = chooseDevelopmentPreview(session, savedScenarios, preview, localStorage.getItem('wss_development_preview_revision'));
+      if (selected.switched) {
+        // Back up work before switching. If storage fails, retain the original session.
+        localStorage.setItem('wss_demo_scenarios', JSON.stringify(selected.scenarios));
+        localStorage.setItem('wss_working_bundle', JSON.stringify(selected.session));
+        localStorage.setItem('wss_development_preview_revision', preview.revision);
+        session = selected.session;
+        savedScenarios = selected.scenarios;
+      }
+    } catch (error) { console.warn('Development preview not applied; retaining the working session.', error); }
+    if (cancelled) return;
     if (session?.inputs) {
       setAltInputs(Object.fromEntries(Object.entries(session.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])));
       const sc = session.scope || {};
@@ -82,21 +103,25 @@ export default function App() {
       if (typeof sc.areaUrban === 'boolean') setAreaUrban(sc.areaUrban);
       if (typeof sc.areaRural === 'boolean') setAreaRural(sc.areaRural);
       setInputs(migrateInjectionToggle(session.inputs));
+      if (session.inputs.profile_metadata?.status === 'data_preview') setShowOnboarding(false);
       if (session.presentation?.currencyDisplay) setCurrencyDisplay(session.presentation.currencyDisplay);
       if (session.presentation?.contributionView) setContributionView(session.presentation.contributionView);
     } else {
-      fetchDefaults().then(v => setInputs(migrateInjectionToggle(v))).catch(() => {});
+      const defaults = await fetchDefaults();
+      if (!cancelled) setInputs(migrateInjectionToggle(defaults));
     }
     refreshProfiles();
-    const saved = localStorage.getItem('wss_demo_scenarios');
-    if (saved) {
-      try { setScenarios(JSON.parse(saved).map((sc: any) => ({
+    if (savedScenarios.length) {
+      setScenarios(savedScenarios.map((sc: any) => ({
         ...sc, inputs: isBundle(sc.inputs) ? {
           ...sc.inputs, inputs: migrateInjectionToggle(sc.inputs.inputs),
           altInputs: Object.fromEntries(Object.entries(sc.inputs.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])),
         } : migrateInjectionToggle(sc.inputs),
-      }))); } catch { /* corrupt saved scenarios — ignore */ }
+      })));
     }
+    };
+    initialize().catch(error => console.error('Could not load the initial simulation.', error));
+    return () => { cancelled = true; };
   }, []);
 
   const resizeMacroArrays = useCallback((inp: any) => {
@@ -166,6 +191,7 @@ export default function App() {
 
   const applyBundle = useCallback((obj: any) => {
     if (!obj) return;
+    if ((isBundle(obj) ? obj.inputs : obj)?.profile_metadata?.status === 'data_preview') setActiveTab(0);
     if (!isBundle(obj)) {                       // legacy / defaults: a bare inputs object
       setAltInputs({});
       handleSetInputs(obj);
@@ -246,6 +272,10 @@ export default function App() {
   const [calculationError, setCalculationError] = useState('');
   useEffect(() => {
     if (!activeInputs) return;
+    if (activeInputs.profile_metadata?.status === 'data_preview') {
+      setResults(null); setCalculationError('');
+      return;
+    }
     let cancelled = false;
     const h = setTimeout(() => {
       runCalculation(activeInputs).then(value => {
@@ -380,11 +410,17 @@ export default function App() {
   // Exports now live throughout the tool (per-table, per-chart, and the whole-scenario Export buttons on
   // the Intervention Design and Results tabs), so there is no separate Export tab.
   const tabs = ['Data Inputs', 'BAU Scenario', 'Intervention Design', 'Results Dashboard'];
-  const disabledTabs = new Set<number>();
+  const isDataPreview = inputs?.profile_metadata?.status === 'data_preview';
+  const disabledTabs = new Set<number>(isDataPreview ? [1, 2, 3] : []);
 
   return (
     <div className="wb-app" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <RevenueReconciliation inputs={activeInputs} onChange={handleSetActiveInputs} area={inputScope} />
+      {!isDataPreview && <RevenueReconciliation inputs={activeInputs} onChange={handleSetActiveInputs} area={inputScope} />}
+      {isDataPreview && <div role="status" style={{ padding: '8px 16px', background: '#fff8e6', fontSize: 12 }}>
+        <strong>DRC spreadsheet data preview — settings pending.</strong> Urban and rural data are loaded.
+        {' '}Switch the editing area to inspect each sheet. Calculations are unavailable until the missing model settings are supplied.
+        {' '}The differing GDP forecasts have been retained as uploaded.
+      </div>}
       {calculationError && activeInputs?.revenue_bases?.water && activeInputs?.revenue_bases?.sanitation &&
         <div role="alert" style={{ padding: 12, background: '#fff1f2', color: '#9f1239' }}>{calculationError}</div>}
       {/* Header */}

@@ -194,7 +194,7 @@ function F({ label, value, onChange, unit, step, isPercent, min, max, tip, slide
 }) {
   const labelColor = fieldType === 'linked' ? '#16a34a' : fieldType === 'computed' ? '#94a3b8' : '#0000cc';
   const rawPct = Math.round(value * 1e4) / 1e2; // 2 decimal places for %
-  const displayVal = isPercent ? (fieldType === 'computed' ? Math.round(rawPct * 100) / 100 : rawPct) : (integer ? Math.round(value) : Math.round(value * 100) / 100);
+  const displayVal = value == null ? NaN : isPercent ? (fieldType === 'computed' ? Math.round(rawPct * 100) / 100 : rawPct) : (integer ? Math.round(value) : Math.round(value * 100) / 100);
   const displayMin = min !== undefined ? (isPercent ? Math.round(min * 1e10) / 1e8 : min) : undefined;
   const displayMax = max !== undefined ? (isPercent ? Math.round(max * 1e10) / 1e8 : max) : undefined;
   const outOfRange = (displayMin !== undefined && displayVal < displayMin) || (displayMax !== undefined && displayVal > displayMax);

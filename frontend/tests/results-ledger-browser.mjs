@@ -54,7 +54,7 @@ try {
   await e(`(()=>{const s=[...document.querySelectorAll('select')].find(s=>['urban','rural','national']
     .every(value=>[...s.options].some(o=>o.value===value)));s.value='national';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await w(`!!document.querySelector('[data-results-ledger="water"] [data-ledger-row="tariff"]')`,'Rural-only intervention missing in combined scope');
-  assert.equal(await e(`document.querySelectorAll('.recharts-wrapper').length`),6);
+   assert.equal(await e(`document.querySelectorAll('.recharts-wrapper').length`),8);
   const start = inputs.period.baseline_year + 1;
   const end = Math.min(start+4,inputs.period.forecast_end_year);
   await change('[aria-label="Graph start year"]',String(start));
@@ -69,8 +69,16 @@ try {
       await change(`${root} select[aria-label$="ledger metric"]`,metric);
       for (const service of ['sm','basic','total']) {
         await change(`${root} select[aria-label$="ledger service"]`,service);
-        for (const basis of ['requirements','gap'].includes(metric) ? ['annual','closing'] : ['annual']) {
-          if (['requirements','gap'].includes(metric))
+          if (metric === 'requirements' || metric === 'gap') {
+            for (let depth = 0; depth < 8; depth++) {
+              const count = await e(`(()=>{const buttons=[...document.querySelectorAll('${root} button[aria-expanded="false"]')];
+                buttons.forEach(b=>b.click());return buttons.length;})()`);
+              if (!count) break;
+              await sleep(80);
+            }
+          }
+        for (const basis of ['requirements','gap'].includes(metric) ? ['source'] : ['annual']) {
+          if (['requirements','gap'].includes(metric) && basis !== 'source')
             await change(`${root} select[aria-label$="ledger basis"]`,basis);
           const state = await e(`(()=>{const p=document.querySelector('${root}');
             return {years:[...p.querySelectorAll('thead th')].slice(2).map(n=>n.textContent),
@@ -82,53 +90,51 @@ try {
             assert.ok(await e(`document.querySelector('${root} [data-ledger-row="fundingShared"] [data-testid="funding-surplus-note"]')?.textContent.includes("Surplus relative to this year's applied spending")`),
               `${sector}: unapplied funding is missing the surplus explanation`);
           }
-          await e(`([...document.querySelectorAll('${root} .results-ledger__export button')].find(b=>b.textContent.includes('Excel'))).click()`);
+          const rowsAtExport = await e(`(()=>{const count=document.querySelectorAll('${root} [data-row-kind]').length;
+            [...document.querySelectorAll('${root} .results-ledger__export button')].find(b=>b.textContent.includes('Excel')).click();
+            return count;})()`);
           await w(`window.__ledgerExports.length>${exports} && window.__ledgerExports[${exports}].status!==null`,'Excel export did not complete');
           const exported = await e(`window.__ledgerExports[${exports++}]`);
           assert.equal(exported.status,200);
           const sheet = exported.body.sheets[0];
-          assert.deepEqual(sheet.headers,['Row','Unit',...expectedYears]);
-          assert.equal(sheet.freeze_columns,2);
-          assert.equal(sheet.rows.length,state.kinds.length);
+           assert.deepEqual(sheet.headers,['Scenario','Sector','Geography','Service','Component','Timing','Additive','Status / limitation','Hierarchy depth','Row','Unit',...expectedYears]);
+           assert.equal(sheet.freeze_columns,9);
+          assert.equal(sheet.rows.length,rowsAtExport);
           assert.ok(exported.body.filename.includes('without-debt'));
-          const base = sheet.rows.find(row=>row[0]==='BAU');
-          const full = sheet.rows.find(row=>row[0]==='Combined scenario');
+           const rowLabel = row=>row[9].trim();
+           const base = sheet.rows.find(row=>rowLabel(row)==='BAU');
+           const full = sheet.rows.find(row=>rowLabel(row)==='Combined scenario');
+           const sourceFinancial = ['requirements','gap'].includes(metric);
+           if(sourceFinancial){
+             assert.ok(sheet.rows.some(row=>rowLabel(row).includes(metric==='requirements'
+               ? 'Requirements before this year' : 'Remaining financing need at year-end')));
+             assert.ok(sheet.rows.every(row=>row[0]==='Combined scenario'));
+             assert.ok(sheet.rows.every(row=>typeof row[6]==='string' && typeof row[8]==='number'));
+             assert.ok(await e(`(()=>{const s=document.querySelector('${root} select[aria-label$="financial view"]');
+               return !!s && [...s.options].some(o=>o.textContent==='Effects of interventions');})()`),
+               'Effects of interventions view is not accessible');
+           }
           if(metric==='requirements'){
-            for(const [key,label,parent] of [
-              ['replacementPaid','(-) Replacement paid — current year','replacement'],
-              ['expansionPaid','(-) Expansion paid — current year','plannedExpansion']]){
-              const paid=sheet.rows.find(row=>row[0]===label);
-              assert.ok(paid,`${sector}/${service}/${basis}: paid row missing from export`);
-              const exact=await e(`[...document.querySelectorAll('${root} [data-ledger-row="${key}"] [data-ledger-year]')]
-                .map(cell=>cell.title==='Not available'?null:Number(cell.title))`);
-              assert.deepEqual(paid.slice(2),exact,'Paid spending must match live table data');
-              assert.equal(await e(`document.querySelector('${root} [data-ledger-row="${key}"]').previousElementSibling.dataset.ledgerRow`),parent,
-                'Paid spending must directly follow its corresponding requirement');
-              const parentLabel=parent==='replacement'?'Replacement obligation — annual flow':'Newly planned expansion — annual flow';
-              assert.equal(sheet.rows.indexOf(paid),sheet.rows.findIndex(row=>row[0]===parentLabel)+1,'Excel must preserve paired row order');
-              assert.ok(exact.every(value=>value==null || value>=0),'Deduction labels must not negate actual spending');
-            }
+             assert.ok(sheet.rows.some(row=>rowLabel(row)==='Funding applied during the year'));
+             assert.ok(sheet.rows.some(row=>rowLabel(row).includes('Scheduled expansion cost — reference')));
+             assert.ok(sheet.rows.some(row=>row[5]==='Reference — annual flow' && row[6].startsWith('No')));
             await e(`([...document.querySelectorAll('${root} .results-ledger__export button')].find(b=>b.textContent.includes('CSV'))).click()`);
             await w(`window.__ledgerCSVs.length>${csvs}`,'Requirements CSV did not complete');
             const csv=await e(`window.__ledgerCSVs[${csvs++}]`);
-            assert.ok(csv.includes('(-) Replacement paid — current year') && csv.includes('(-) Expansion paid — current year'));
-            const csvRows=csv.split('\r\n');
-            assert.equal(csvRows.findIndex(row=>row.startsWith('(-) Expansion paid — current year,')),
-              csvRows.findIndex(row=>row.startsWith('Newly planned expansion — annual flow,'))+1);
-            assert.equal(csvRows.findIndex(row=>row.startsWith('(-) Replacement paid — current year,')),
-              csvRows.findIndex(row=>row.startsWith('Replacement obligation — annual flow,'))+1);
+             assert.ok(csv.includes('Requirements before this year'));
+             assert.ok(csv.includes('Household expansion paid (sector + external)'));
           }
           if (metric==='coverage' && service==='sm') {
-            const target=sheet.rows.find(row=>row[0]==='Original target');
-            const net=sheet.rows.find(row=>row[0]==='SM net gap (scenario − target)');
-            const urbanGap=sheet.rows.find(row=>row[0]==='Urban SM gap (scenario − target)');
-            const ruralGap=sheet.rows.find(row=>row[0]==='Rural SM gap (scenario − target)');
+             const target=sheet.rows.find(row=>rowLabel(row)==='Original target');
+             const net=sheet.rows.find(row=>rowLabel(row)==='SM net gap (scenario − target)');
+             const urbanGap=sheet.rows.find(row=>rowLabel(row)==='Urban SM gap (scenario − target)');
+             const ruralGap=sheet.rows.find(row=>rowLabel(row)==='Rural SM gap (scenario − target)');
             assert.ok(urbanGap && ruralGap,'National gap breakdown missing from export');
             assert.ok(net && !sheet.rows.some(row=>row[0]==='Unmet SM targets across areas (no surplus offset)'));
             assert.equal(await e(`document.querySelectorAll('${root} [data-ledger-row="accessGap"]').length`),0,
               'Removed unmet SM target row remains visible');
-            assert.equal(net[1],full[1]==='%' ? 'pp' : 'M households');
-            for (let i=2;i<sheet.headers.length;i++) {
+             assert.equal(net[10],full[10]==='%' ? 'pp' : 'M households');
+             for (let i=11;i<sheet.headers.length;i++) {
               assert.ok(Math.abs(net[i]-(full[i]-target[i]))<1e-10,'Exported SM net gap does not reconcile');
               assert.ok(Math.abs(urbanGap[i]+ruralGap[i]-net[i])<1e-10,'Urban + Rural gaps do not reconcile');
             }
@@ -141,7 +147,7 @@ try {
               });})()`),'Signed SM gap formatting/colors incorrect');
           }
           if (metric==='coverage') {
-            const target=sheet.rows.find(row=>row[0]==='Original target');
+             const target=sheet.rows.find(row=>rowLabel(row)==='Original target');
             await e(`([...document.querySelectorAll('${root} .results-ledger__export button')].find(b=>b.textContent.includes('CSV'))).click()`);
             await w(`window.__ledgerCSVs.length>${csvs}`,'CSV download did not complete');
             const csv=await e(`window.__ledgerCSVs[${csvs++}]`);
@@ -152,24 +158,24 @@ try {
             for(const row of sheet.rows)
               assert.ok(csv.split('\r\n').includes(row.map(escape).join(',')),'CSV differs from visible/Excel data');
             assert.equal(await e(`document.querySelectorAll('${root} [data-ledger-row="accessGap"]').length`),0);
-            const gapLabel=service==='sm'?'SM net gap':service==='basic'?'Basic-only gap':'At least basic net gap';
-            const net=sheet.rows.find(row=>row[0]===`${gapLabel} (scenario − target)`);
-            for(let i=2;i<sheet.headers.length;i++)
+             const gapLabel=service==='sm'?'SM net gap':service==='basic'?'Basic-only gap':'At least basic net gap';
+             const net=sheet.rows.find(row=>rowLabel(row)===`${gapLabel} (scenario − target)`);
+             for(let i=11;i<sheet.headers.length;i++)
               assert.ok(Math.abs(net[i]-(full[i]-target[i]))<1e-10,'Coverage gap does not reconcile');
             assert.ok(exported.body.filename.includes(service==='total'?'at-least-basic':service==='basic'?'basic-only':'safely-managed'));
             assert.deepEqual(await e(`[...document.querySelector('${root} select[aria-label$="ledger service"]').options].map(o=>o.textContent)`),
               ['Safely managed','Basic only','At least basic']);
             if(service==='basic'){
-              assert.ok(!sheet.rows.some(row=>/SM (net )?gap|At.least.basic access gap/.test(row[0])));
+               assert.ok(!sheet.rows.some(row=>/SM (net )?gap|At.least.basic access gap/.test(rowLabel(row))));
             }
             if(service==='total'){
-              const sm=sheet.rows.find(row=>row[0]==='SM net gap (scenario − target)');
-              const basic=sheet.rows.find(row=>row[0]==='Basic-only gap (scenario − target)');
-              for(let i=2;i<sheet.headers.length;i++){
+                const sm=sheet.rows.find(row=>rowLabel(row)==='SM net gap (scenario − target)');
+                const basic=sheet.rows.find(row=>rowLabel(row)==='Basic-only gap (scenario − target)');
+               for(let i=11;i<sheet.headers.length;i++){
                 assert.ok(Math.abs(sm[i]+basic[i]-net[i])<1e-10,'SM + Basic gap does not reconcile');
                 for(const [row,label] of [[sm,'SM'],[basic,'Basic-only']]){
-                  const urban=sheet.rows.find(r=>r[0]===`Urban ${label} gap (scenario − target)`);
-                  const rural=sheet.rows.find(r=>r[0]===`Rural ${label} gap (scenario − target)`);
+                   const urban=sheet.rows.find(r=>rowLabel(r)===`Urban ${label} gap (scenario − target)`);
+                   const rural=sheet.rows.find(r=>rowLabel(r)===`Rural ${label} gap (scenario − target)`);
                   assert.ok(Math.abs(urban[i]+rural[i]-row[i])<1e-10,'Area/service gap does not reconcile');
                 }
               }
@@ -181,9 +187,10 @@ try {
               assert.equal(await e(`document.querySelector('${root} select[aria-label$="ledger service"]').value`),'total');
             }
           }
-          const categories = sheet.rows.filter((_,i)=>state.kinds[i]==='category');
-          for (let i=2;i<sheet.headers.length;i++)
-            assert.ok(Math.abs(base[i]+categories.reduce((sum,row)=>sum+row[i],0)-full[i])<1e-8,'Export does not reconcile');
+           const categories = sheet.rows.filter((_,i)=>state.kinds[i]==='category');
+           if(!sourceFinancial && base && full)
+             for (let i=11;i<sheet.headers.length;i++)
+               assert.ok(Math.abs(base[i]+categories.reduce((sum,row)=>sum+row[i],0)-full[i])<1e-8,'Export does not reconcile');
         }
       }
     }
@@ -214,11 +221,12 @@ try {
       const exported=await e(`window.__ledgerExports[${exports++}]`);
       assert.equal(exported.status,200);
       const sheet=exported.body.sheets[0];
-      const net=sheet.rows.find(r=>r[0]==='SM net gap (scenario − target)');
-      const areas=sheet.rows.filter(r=>/^(Urban|Rural) SM gap/.test(r[0]));
+        const label=row=>row[9].trim();
+        const net=sheet.rows.find(r=>label(r)==='SM net gap (scenario − target)');
+        const areas=sheet.rows.filter(r=>/^(Urban|Rural) SM gap/.test(label(r)));
       assert.equal(areas.length,scope==='national'?2:1);
-      assert.ok(areas.every(r=>r[1]==='pp'));
-      for(let i=2;i<sheet.headers.length;i++)
+        assert.ok(areas.every(r=>r[10]==='pp'));
+        for(let i=11;i<sheet.headers.length;i++)
         assert.ok(Math.abs(areas.reduce((sum,r)=>sum+r[i],0)-net[i])<1e-10,'Share breakdown does not reconcile');
     }
   }
@@ -253,12 +261,11 @@ try {
     await c.call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
     await change(`${panel(sector)} select[aria-label$="ledger metric"]`,'requirements');
     await change(`${panel(sector)} select[aria-label$="ledger service"]`,'total');
-    await change(`${panel(sector)} select[aria-label$="ledger basis"]`,'closing');
     await e(`(()=>{const p=document.querySelector('${panel(sector)}');p.scrollIntoView({block:'start'});
       const scroller=p.querySelector('.results-ledger__table-scroll');scroller.scrollTop=scroller.scrollHeight;})()`);
     await sleep(250);
     assert.ok(await e(`document.querySelector('${panel(sector)}').getBoundingClientRect().width<=innerWidth`));
     writeFileSync(`/tmp/results-paid-${sector}.png`,Buffer.from((await c.call('Page.captureScreenshot',{format:'png'})).data,'base64'));
   }
-   console.log(`Results ledger browser passed: ${exports} real year-column Excel exports and ${csvs} coverage/requirements CSV downloads across both sectors, all three services and bases; paid replacement/expansion, nested service/area gaps, differing area selections, metric switching, graph links, expandable categories, unchanged model requests, six charts and desktop/mobile layout.`);
+    console.log(`Results ledger browser passed: ${exports} real metadata-rich year-column Excel exports and ${csvs} CSV downloads across both sectors and services; source hierarchy, paid reporting, nested area gaps, metric switching, graph links, exports, unchanged model requests, eight charts and desktop/mobile layout.`);
 } finally {c.close();}

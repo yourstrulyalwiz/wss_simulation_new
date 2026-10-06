@@ -44,7 +44,7 @@ for (const sector of ['water_supply', 'sanitation']) {
     for (const service of ['sm','basic','total'])
       for (const basis of ['annual','closing'])
         for (const isShare of [false,true]) {
-          const options = {metric,service,basis,years,isShare,moneyFactor:.001,currency:'USD'};
+          const options = {metric,service,basis,years,isShare,moneyFactor:.001,currency:'USD',view:'effects'};
           const rows = ledgerRows(data, options);
           const categories = rows.filter(row=>row.kind==='category');
           assert.ok(categories.some(row=>row.key==='custom' && row.children[0].key==='custom'));
@@ -52,7 +52,7 @@ for (const sector of ['water_supply', 'sanitation']) {
           const final = rows.find(row=>row.key==='scenario');
           if (metric==='requirements') {
             const rung=service==='sm'?0:service==='basic'?1:2;
-            for (const [key,label] of [['replacementPaid','(-) Replacement paid — current year'],['expansionPaid','(-) Expansion paid — current year']]) {
+            for (const [key,label] of [['replacementPaid','Replacement paid — current year'],['expansionPaid','Expansion paid — current year (household and ancillary)']]) {
               const paid=rows.find(row=>row.key===key);
               assert.equal(paid.label,label);
               assert.equal(paid.unit,final.unit);
@@ -71,7 +71,9 @@ for (const sector of ['water_supply', 'sanitation']) {
               if (metric !== 'coverage') assert.ok(years[i]<=fixture.baseline);
               continue;
             }
-            close(rows[0].values[i] + categories.reduce((sum,row)=>sum+row.values[i],0),final.values[i]);
+            const bridge = categories.reduce((sum,row)=>sum+row.values[i],0);
+            close(metric === 'requirements' || metric === 'gap'
+              ? rows[0].values[i] - bridge : rows[0].values[i] + bridge,final.values[i]);
             for (const row of categories)
               close(row.values[i],row.children.reduce((sum,child)=>sum+child.values[i],0));
             comparisons++;
@@ -123,6 +125,34 @@ for (const sector of ['water_supply', 'sanitation']) {
       close(v.gapClosing[2],reports.reduce((sum,r)=>sum+r[sector][prefix+'endline_financing_requirement'][i],0));
       close(v.requirementsCatchUp[2],reports.reduce((sum,r)=>sum+
         r[sector][prefix+'catch_up_requirement'][i]+r[sector][prefix+'cash_deficit'][i],0));
+      const exactSources = [
+        ['scheduledExpansion','scheduled_household_expansion_by_service'],
+        ['prefundingHousehold','prefunding_household_expansion_by_service'],
+        ['closingHousehold','closing_household_expansion_by_service'],
+        ['prefundingAncillary','prefunding_ancillary_by_service'],
+        ['closingAncillary','closing_ancillary_by_service'],
+        ['currentUnpaidReplacement','current_unpaid_replacement_by_service'],
+        ['priorReplacementShortfall','prior_replacement_shortfall_by_service'],
+        ['accumulatedReplacementShortfall','accumulated_replacement_shortfall_by_service'],
+        ['currentCashShortfall','current_cash_shortfall_by_service'],
+        ['priorCashShortfall','prior_cash_shortfall_by_service'],
+        ['accumulatedCashShortfall','accumulated_cash_shortfall_by_service'],
+        ['householdExpansionPaid','household_expansion_paid_by_service'],
+        ['noncashDeliveryHH','noncash_delivery_hh_by_service'],
+        ['noncashDeliveryCredit','noncash_delivery_credit_by_service'],
+        ['cancelledExpansionCost','cancelled_household_expansion_cost_by_service'],
+        ['outstandingRepricing','outstanding_repricing_by_service'],
+        ['openingExpansionCost','opening_household_expansion_cost_by_service'],
+        ['advanceDeliveryCredit','advance_delivery_credit_by_service'],
+        ['newAncillaryCommitment','new_ancillary_commitment_by_service'],
+      ];
+      if (snap.year > fixture.baseline) for (const [measure, field] of exactSources) {
+        const engine = reports.map(r => r[sector][prefix + field]);
+        assert.ok(engine.every(Array.isArray), `${prefix}${field} source field must be present`);
+        for (let serviceIndex=0;serviceIndex<2;serviceIndex++)
+          assert.equal(v[measure][serviceIndex],engine.reduce((sum, rows) => sum + rows[serviceIndex][i], 0),
+            `${measure} exact source mapping`);
+      }
     }
   }
   const unavailable = ledgerRows({...data,attributionComplete:false},{
@@ -250,5 +280,8 @@ for (const sector of ['water_supply','sanitation']) {
 }
 const invalid = structuredClone(fixture.results[0]);
 delete invalid.water_supply.scenario_annual_planned_expansion_cost_by_service;
-assert.throws(()=>ledgerSnapshots([invalid],'water_supply',fixture.baseline),/Missing service ledger measure/);
+const missingSource = ledgerSnapshots([invalid],'water_supply',fixture.baseline);
+const firstForecast = missingSource.find(row=>row.year>fixture.baseline);
+assert.equal(firstForecast.values.plannedExpansion[0],null,'Missing financial sources remain unavailable');
+assert.equal(firstForecast.values.requirementsAnnual[0],null,'Unknown requirement totals are not replaced with zero');
 console.log(`Results ledger tests passed: ${comparisons} unrounded scenario bridges; signed/local SM gaps, National aggregation, financial component identities, service splits, shares, currency, year filters, explicit missing data and breakdown fallback.`);

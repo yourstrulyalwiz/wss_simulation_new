@@ -16,6 +16,11 @@ class ExpansionLedger:
         self.ancillary_committed = False
         self.ancillary = np.zeros(2)
         self.shortfalls = np.zeros(2)
+        # Parallel reporting counters only. Keep the legacy combined accumulator
+        # and all model calculations unchanged, including their arithmetic order.
+        self.replacement_shortfalls = np.zeros(2)
+        self.cash_shortfalls = np.zeros(2)
+        self.last_costs = None
         self.series = {key: np.zeros((2, n)) for key in (
             'opening_outstanding_hh', 'planned_expansion_hh', 'cancelled_expansion_hh',
             'delivered_sector_hh', 'delivered_external_hh', 'delivered_physical_hh',
@@ -28,6 +33,26 @@ class ExpansionLedger:
             'accumulated_shortfalls_by_service',
             'sector_funded_expansion_by_service',
             'externally_funded_expansion_by_service',
+            'scheduled_household_expansion_by_service',
+            'prefunding_household_expansion_by_service',
+            'closing_household_expansion_by_service',
+            'prefunding_ancillary_by_service',
+            'closing_ancillary_by_service',
+            'current_unpaid_replacement_by_service',
+            'prior_replacement_shortfall_by_service',
+            'accumulated_replacement_shortfall_by_service',
+            'current_cash_shortfall_by_service',
+            'prior_cash_shortfall_by_service',
+            'accumulated_cash_shortfall_by_service',
+            'household_expansion_paid_by_service',
+            'sector_household_expansion_paid_by_service',
+            'noncash_delivery_hh_by_service',
+            'noncash_delivery_credit_by_service',
+            'cancelled_household_expansion_cost_by_service',
+            'outstanding_repricing_by_service',
+            'opening_household_expansion_cost_by_service',
+            'advance_delivery_credit_by_service',
+            'new_ancillary_commitment_by_service',
         )}
         self.series.update({key: np.zeros(n) for key in (
             'annual_planned_expansion_cost', 'catch_up_requirement',
@@ -60,6 +85,9 @@ class ExpansionLedger:
         # They do not feed back into delivery, funding allocation or gap accounting.
         planned_cost_by_service = planned * costs + (self.ancillary.copy() if new_ancillary else 0)
         prefunding_cost_by_service = due * costs + self.ancillary.copy()
+        prefunding_ancillary = self.ancillary.copy()
+        prior_replacement = self.replacement_shortfalls.copy()
+        prior_cash = self.cash_shortfalls.copy()
         catch_up = float(prefunding_cost_by_service.sum() + replacement)
         delivered = np.asarray(sector) + np.asarray(external) + np.asarray(physical)
         # Only actual capital purchases receive a capital credit; physical reuse is not cash.
@@ -73,6 +101,8 @@ class ExpansionLedger:
             self.ancillary *= 1 - paid / self.ancillary.sum()
         closing_by_service = self.outstanding * costs + self.ancillary
         self.shortfalls += np.asarray(unpaid_by_service) + np.asarray(deficit_by_service)
+        self.replacement_shortfalls += np.asarray(unpaid_by_service)
+        self.cash_shortfalls += np.asarray(deficit_by_service)
         endline = closing_by_service + self.shortfalls
         sector_weights = np.asarray(sector) * costs
         external_weights = np.asarray(external) * costs
@@ -106,10 +136,33 @@ class ExpansionLedger:
             'accumulated_shortfalls_by_service': self.shortfalls.copy(),
             'sector_funded_expansion_by_service': sector_purchases + paid_by_service,
             'externally_funded_expansion_by_service': external_purchases,
+            'scheduled_household_expansion_by_service': planned * costs,
+            'prefunding_household_expansion_by_service': due * costs,
+            'closing_household_expansion_by_service': self.outstanding * costs,
+            'prefunding_ancillary_by_service': prefunding_ancillary,
+            'closing_ancillary_by_service': self.ancillary.copy(),
+            'current_unpaid_replacement_by_service': np.asarray(unpaid_by_service),
+            'prior_replacement_shortfall_by_service': prior_replacement,
+            'accumulated_replacement_shortfall_by_service': self.replacement_shortfalls.copy(),
+            'current_cash_shortfall_by_service': np.asarray(deficit_by_service),
+            'prior_cash_shortfall_by_service': prior_cash,
+            'accumulated_cash_shortfall_by_service': self.cash_shortfalls.copy(),
+            'household_expansion_paid_by_service': sector_purchases + external_purchases,
+            'sector_household_expansion_paid_by_service': sector_purchases,
+            'noncash_delivery_hh_by_service': np.asarray(physical),
+            'noncash_delivery_credit_by_service': physical_credit * costs,
+            'cancelled_household_expansion_cost_by_service': cancelled * costs,
+            'outstanding_repricing_by_service': (
+                opening * (costs - self.last_costs) if self.last_costs is not None else np.zeros(2)),
+            'opening_household_expansion_cost_by_service': (
+                opening * (self.last_costs if self.last_costs is not None else costs)),
+            'advance_delivery_credit_by_service': np.maximum(opening + planned - cancelled - due, 0) * costs,
+            'new_ancillary_commitment_by_service': prefunding_ancillary.copy() if new_ancillary else np.zeros(2),
         }
         for key, value in values.items():
             self.series[key][..., t] = value
         self.required = required
+        self.last_costs = costs.copy()
         return closing_by_service, paid
 
     def result(self):

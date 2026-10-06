@@ -42,3 +42,17 @@ mtime_ms = 1791217935703
 storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/e07c095d-f42d-413b-ba97-ea345ad7f150/28e01a85-f012-4278-ac3d-5a259e5c0e77"
 storage_version_token = "1791217946732971"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "cxsdnAmOFwsvNDFG2sVG2"
+uri = "file://screenshots/financing-ledger/verification.html"
+type = "html"
+title = "Ledger verification and five screenshots"
+description = "Default, expanded, effects, coverage and remaining-need views, with changed files, exact source mappings, checks and preserved limitations."
+logical_id = "31e5ce66-77e8-43a4-8558-a5a38995a405"
+content_hash = "sha256:44bb08f5b2412451cfbc97f8a9b3530dd8643e0f7b2824357e48c78ec22829a3"
+size = 1294069
+mtime_ms = 1791265342534
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/31e5ce66-77e8-43a4-8558-a5a38995a405/7bdd2ba7-c0ee-4ba6-b533-833051b8aee7"
+storage_version_token = "1791265343349095"
+content_type = "text/html"

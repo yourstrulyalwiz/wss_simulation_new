@@ -8,7 +8,7 @@ import { yearAxisInterval } from '../chartAxis';
 import { resolveChartWindow } from '../chartWindow';
 import { runCalculation } from '../api';
 import { resultsInputs } from '../resultsDebtMode';
-import { ledgerSnapshots, ledgerCategory, type LedgerSnapshot, type LedgerContribution, type LedgerMetric, type LedgerService, type LedgerBasis, type LedgerData } from '../resultsLedger';
+import { ledgerSnapshots, ledgerRows, ledgerCategory, type LedgerSnapshot, type LedgerContribution, type LedgerMetric, type LedgerService, type LedgerBasis, type LedgerData } from '../resultsLedger';
 import ResultsLedgerPanel from './ResultsLedgerPanel';
 import { linesFirstLegend } from './chartLegend';
 import ExportButtons from './ExportButtons';
@@ -219,8 +219,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   const dashboardRef = useRef<HTMLDivElement>(null);
   type Selection = { metric: LedgerMetric; service: LedgerService; basis: LedgerBasis };
   const [ledgerSelection, setLedgerSelection] = useState<Record<'water' | 'sanitation', Selection>>({
-    water: { metric: 'coverage', service: 'sm', basis: 'annual' },
-    sanitation: { metric: 'coverage', service: 'sm', basis: 'annual' },
+    water: { metric: 'coverage', service: 'sm', basis: 'closing' },
+    sanitation: { metric: 'coverage', service: 'sm', basis: 'closing' },
   });
   const showLedger = (sector: 'water' | 'sanitation', selection: Selection) => {
     setLedgerSelection(current => ({ ...current, [sector]: selection }));
@@ -494,6 +494,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
               const key: 'urban' | 'rural' = effScope === 'rural' || (effScope === 'national' &&
                 (resList.length > 1 ? index === 1 : geoScope === 'rural')) ? 'rural' : 'urban';
               return { key, label: key === 'urban' ? 'Urban' : 'Rural',
+                base: ledgerSnapshots([result], secKey, baseYr, false),
                 scenario: ledgerSnapshots([result], secKey, baseYr) };
             }),
             coverageRows: years.map((year, i) => ({ year, __bau: bau[i], __scenario: scn[i], __total: totalHH[i], __target: tgt[i] })),
@@ -942,6 +943,24 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     if (!cs) gapLines.push({ key: '__scenario_gap', name: 'Full scenario requirement', color: C.bau, dash: '', width: 2 });
     const noImpact = Math.abs(s.sum.addHH) < 1e-4 && Math.abs(s.sum.gapBauCum - s.sum.gapScnCum) < 1e-4;
     const rows = secKey === 'water' ? table?.water : table?.sanitation;
+    const ledgerData: LedgerData = {
+      years: s.ledgerScenario.map(row => row.year),
+      baselineYear: datasets[0]?.period?.baseline_year ?? s.ledgerScenario[0].year,
+      base: s.ledgerBase, scenario: s.ledgerScenario, areas: s.ledgerAreas,
+      contributions: cs?.ledgerContributions ?? [], attributionComplete: !!cs,
+      includesDebt: datasets.some(inp => Object.values(inp.utility_debt || {})
+        .some((config: any) => config?.enabled && config.allocation_share > 0)),
+    };
+    const visibleLedgerYears = s.ledgerScenario.filter(row => (chartStart == null || row.year >= chartStart) &&
+      (chartEnd == null || row.year <= chartEnd)).map(row => row.year);
+    const chartService = ledgerSelection[secKey].service;
+    const closingValues = (sourceKind: 'bau' | 'scenario') => ledgerRows(ledgerData, {
+      metric: 'gap', service: chartService, basis: 'closing', years: visibleLedgerYears,
+      isShare: false, moneyFactor, currency: displayCur, view: 'source', sourceKind,
+    })[0]?.values ?? visibleLedgerYears.map(() => null);
+    const needBAU = closingValues('bau');
+    const needScenario = closingValues('scenario');
+    const needChartRows = visibleLedgerYears.map((year, i) => ({ year, bau: needBAU[i], scenario: needScenario[i] }));
     const hhCol = secKey === 'water' ? "Added HHs with treated, piped (HHs '000)" : "Added safely-managed HHs (HHs '000)";
     const modes = s.revenueModes.map((mode: any) => {
       const effective = String(mode.effective ?? '').toLowerCase().replace(/[_ ]/g, '-');
@@ -992,7 +1011,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <BasicCoverageChart title={`${label} — basic coverage`} rows={basicData} isShare={isShare} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_basic_coverage`}
             captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
-          <StackChart title={`${label} — year-end financing requirement (safely managed + basic)`} subtitle={!cs ? 'BAU and full-scenario year-end requirements. Intervention breakdown is pending or unavailable.' : contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : 'Closing expansion balance plus unpaid replacement and negative cash accumulated since baseline. Year-end balances are not additive.'}
+          <StackChart title={`${label} — advanced intervention-effects bridge (reported endline requirement)`} subtitle={!cs ? 'Advanced marginal effects on the existing endline-financing measure; attribution is pending or unavailable.' : 'Advanced view of the existing reported endline measure. Bands are signed reductions from BAU: positive reduces need, negative increases it. This is not the remaining-need balance; use the companion line below.'}
             data={gapData} yLabel={`Year-end requirement (B ${displayCur})`}
             bands={gapBands} lines={gapLines} fmt={gapFmt}
             filename={`${scopeName}_${secKey}_financing_gap_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} currencyDisplay={detailExportCurrency} />
@@ -1009,6 +1028,45 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           onRetry={() => setAttempt(value => value + 1)}
           selection={ledgerSelection[secKey]} onSelectionChange={selection =>
             setLedgerSelection(current => ({ ...current, [secKey]: selection }))} />
+        <section className="remaining-need-chart" aria-label={`${label} remaining financing need chart`}>
+          <div className="remaining-need-chart__heading">
+            <div>
+              <span>Closing balance · B {displayCur} / {scopeName} / {chartService === 'sm' ? 'Safely managed' : chartService === 'basic' ? 'Basic-only' : 'At least Basic'}</span>
+              <h3>Remaining financing need—with interventions</h3>
+              <p>BAU and combined scenario use the same closing source series as the year-end ledger. Effects show changes from BAU, not remaining need.</p>
+            </div>
+            <div className="remaining-need-chart__tools">
+              <strong>{visibleLedgerYears.length ? `${visibleLedgerYears[0]}–${visibleLedgerYears[visibleLedgerYears.length - 1]}` : 'No years selected'}</strong>
+              <TableExport filename={`${scopeName}_${secKey}_${chartService}_remaining_need_${displayCur}`}
+                sheetName="Closing need" compact currencyDisplay={detailExportCurrency} freezeColumns={7}
+                headers={['Year','Sector','Geography / scope','Service','Timing','Unit','BAU remaining need','Combined-scenario remaining need']}
+                rows={needChartRows.map(row => [row.year, label, scopeName,
+                  chartService === 'sm' ? 'Safely managed' : chartService === 'basic' ? 'Basic-only' : 'At least Basic',
+                  'Year-end balance', `B ${displayCur}`, row.bau, row.scenario])} />
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <ComposedChart data={needChartRows} margin={{ top: 12, right: 22, bottom: 8, left: 10 }}>
+              <CartesianGrid strokeDasharray="3 4" stroke="#dce5e5" />
+              <XAxis dataKey="year" tick={{ fontSize: 10 }} interval={yearAxisInterval(needChartRows)} />
+              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => sig3(Number(v))}>
+                <Label value={`B ${displayCur}`} angle={-90} position="insideLeft" style={{ fontSize: 10, fill: '#64748b' }} />
+              </YAxis>
+              <Tooltip formatter={(value: any, name: any) => [
+                value == null ? 'Not reported' : `${sig3(Number(value))} B ${displayCur}`, name,
+              ]} />
+              <Legend />
+              <Line type="monotone" dataKey="bau" name="Remaining financing need — BAU" stroke="#78939a"
+                strokeWidth={2} strokeDasharray="5 4" dot={false} connectNulls={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="scenario" name="Remaining financing need—with interventions" stroke="#087f78"
+                strokeWidth={2.8} dot={false} connectNulls={false} isAnimationActive={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+          {needChartRows.length > 0 && needChartRows.every(row => row.bau == null && row.scenario == null) &&
+            <p className="remaining-need-chart__unavailable" role="status">
+              Exact closing source fields are not present in this result set; balances are unavailable rather than inferred.
+            </p>}
+        </section>
         <details style={{ marginTop: 12, marginBottom: 12 }}>
           <summary style={{ cursor: 'pointer', fontSize: 12, color: '#334155' }}>Full technical audit ledger and downloads</summary>
           <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={displayCur}

@@ -16,3 +16,15 @@ existing graphs. Standalone comparisons were not explicitly selected.
 order, preserve signed Basic reductions after SM upgrades, and treat borrowing
 as conditional on prior reforms. Ask before switching to standalone attribution;
 it requires a separate combined-effects adjustment, not simple addition.
+
+For financial need, positive intervention effects mean **reductions** in need,
+not increases: BAU minus the ordered reductions equals the combined scenario.
+Coverage and funding retain after-minus-before changes.
+
+**Why:** The approved financial reporting brief chose an understandable reduction
+convention while retaining the existing marginal calculation order. Legacy
+residual effects must not be presented as effects on the full closing obligation.
+
+**How to apply:** Keep the same financial metric and sign convention across the
+effect table, graph, legend and exports. Keep legacy residual bands explicitly
+advanced when the headline reports a different closing balance.

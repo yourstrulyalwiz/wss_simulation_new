@@ -1,3 +1,10 @@
+.results-ledger__table tr[data-ledger-row="source-total"] > th,
+.results-ledger__table tr[data-ledger-row="source-total"] > td {
+  position: sticky;
+  top: 36px;
+  z-index: 3;
+  background: #e6f2f3;
+}
 .results-ledger {
   --ledger-navy: #014972;
   --ledger-teal: #009ca7;
@@ -307,6 +314,20 @@
 }
 .results-ledger__row-label { display: inline-flex; align-items: center; }
 .results-ledger__rowhead--child { padding-left: 24px !important; }
+.results-ledger__row--area .results-ledger__rowhead,
+.results-ledger__row--service .results-ledger__rowhead { color: var(--ledger-navy); font-weight: 750; }
+.results-ledger__row--component .results-ledger__rowhead { color: #536973; font-weight: 500; }
+.results-ledger__row--area .results-ledger__rowhead,
+.results-ledger__row--area .results-ledger__value { background: #f7faf9; }
+.results-ledger__component-note {
+  display: block;
+  margin: 4px 0 0 27px;
+  color: #8b5b36;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: normal;
+}
 .results-ledger__branch {
   width: 13px;
   height: 1px;
@@ -382,4 +403,55 @@
   .results-ledger__table .results-ledger__unit { min-width: 86px; }
   .results-ledger__reconciliation summary { padding: 11px 14px; }
   .results-ledger__reconciliation-body { padding: 0 14px 13px; }
+}
+
+.remaining-need-chart {
+  margin: 12px 0 16px;
+  padding: 15px 18px 10px;
+  border: 1px solid #d6e2df;
+  border-radius: 7px;
+  background: #f8fbf9;
+  color: #26434a;
+}
+.remaining-need-chart__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 15px;
+}
+.remaining-need-chart__heading span {
+  color: #5f817d;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.remaining-need-chart__heading h3 {
+  margin: 4px 0;
+  color: #173f43;
+  font-size: clamp(15px, 1.5vw, 19px);
+  letter-spacing: -.025em;
+}
+.remaining-need-chart__heading p {
+  margin: 0 0 6px;
+  color: #5a706f;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.remaining-need-chart__heading > strong {
+  padding: 6px 9px;
+  border: 1px solid #d5e2df;
+  border-radius: 4px;
+  color: #315f5b;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.remaining-need-chart__unavailable {
+  margin: 0 0 10px;
+  color: #805538;
+  font-size: 10px;
+}
+@media (max-width: 640px) {
+  .remaining-need-chart { padding: 13px 10px 7px; }
+  .remaining-need-chart__heading { display: grid; }
 }

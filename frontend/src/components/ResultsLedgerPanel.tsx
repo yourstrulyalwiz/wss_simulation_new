@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import TableExport from './TableExport';
 import { ledgerRows } from '../resultsLedger';
-import type { LedgerBasis, LedgerData, LedgerMetric, LedgerRow, LedgerService } from '../resultsLedger';
+import type { LedgerBasis, LedgerData, LedgerMetric, LedgerRow, LedgerService, LedgerView } from '../resultsLedger';
 import { validRate, type CurrencyDisplaySettings } from '../currencyDisplay';
 import { fundingBalanceForDisplay } from '../fundingBalanceDisplay';
 import type { ContributionView } from '../contributionView';
@@ -56,7 +56,7 @@ function formatValue(value: number | null, unit: string, delta = false) {
   return formatted;
 }
 
-function description(metric: LedgerMetric, service: LedgerService, basis: LedgerBasis, isShare: boolean, currency: string) {
+function description(metric: LedgerMetric, service: LedgerService, basis: LedgerBasis, isShare: boolean, currency: string, view: LedgerView) {
   if (metric === 'coverage') {
     return isShare
       ? 'Coverage is shown as a share of population. Intervention changes and coverage gaps are percentage-point differences.'
@@ -68,10 +68,12 @@ function description(metric: LedgerMetric, service: LedgerService, basis: Ledger
       : `Service views show actual funds applied to ${service === 'sm' ? 'safely managed' : 'basic'} service, not all funds available to the sector.`;
   }
   if (metric === 'requirements') {
+    if (view === 'source') return 'Requirements before this year’s funding. Scheduled expansion is a reference flow; unpaid obligations are shown by source and are not inferred from available funding.';
     return basis === 'annual'
       ? 'Annual requirements are flows: planned expansion, replacement obligations and cash deficit.'
       : 'Catch-up requirements are the pre-funding need, including replacement and cash deficit. Year-end balances below are shown separately and are not summed across years.';
   }
+  if (view === 'source') return 'Remaining financing need at year-end. This is a closing balance; do not sum balances across years or subtract available funding again.';
   return basis === 'annual'
     ? 'Current-year residual gap includes outstanding expansion and this year’s unpaid replacement and cash deficit. It is not a pure annual flow: do not add it across years.'
     : 'Year-end requirement is a closing balance, not an annual flow. Do not add year-end balances across years.';
@@ -91,8 +93,13 @@ export default function ResultsLedgerPanel({
   data, sector, label, scope, years, isShare, currency, moneyFactor, currencyDisplay, selection, onSelectionChange, onRetry, contributionView,
 }: ResultsLedgerPanelProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  useEffect(() => setExpanded({}), [contributionView]);
-  const isExpanded = (key: string) => expanded[key] ?? contributionView === 'individual';
+  const [reportingView, setReportingView] = useState<LedgerView>('source');
+  const [sourceKind, setSourceKind] = useState<'scenario' | 'bau'>('scenario');
+  useEffect(() => setExpanded({ 'source-total': true }), [contributionView, reportingView, sourceKind]);
+  const isExpanded = (key: string) => expanded[key] ?? (
+    reportingView === 'source' && (selection.metric === 'requirements' || selection.metric === 'gap')
+      ? key === 'source-total' : contributionView === 'individual'
+  );
   const balanceRate = validRate(currencyDisplay, currency) ? currencyDisplay.localPerUsd : null;
   const canRoundBalance = currency.toUpperCase() === 'USD' || balanceRate != null;
   let rows: LedgerRow[] = [];
@@ -107,29 +114,37 @@ export default function ResultsLedgerPanel({
       isShare,
       moneyFactor,
       currency,
+      view: reportingView,
+      sourceKind,
     });
   } catch (error) {
     ledgerError = error instanceof Error ? error.message : 'The ledger could not be calculated.';
   }
 
-  const visibleRows = rows.flatMap(row => [
-    row,
-    ...(row.children && isExpanded(row.key) ? row.children : []),
+  const flatten = (items: LedgerRow[], depth = 0): (LedgerRow & { depth: number })[] =>
+    items.flatMap(row => [{ ...row, depth: row.depth ?? depth },
+      ...(row.children && isExpanded(row.key) ? flatten(row.children, depth + 1) : [])]);
+  const visibleRows = flatten(rows);
+  const exportHeaders = ['Scenario', 'Sector', 'Geography', 'Service', 'Component', 'Timing', 'Additive', 'Status / limitation', 'Hierarchy depth', 'Row', 'Unit', ...years.map(String)];
+  const exportRows = visibleRows.map(row => [
+    reportingView === 'effects' ? 'BAU-to-scenario ordered attribution' : sourceKind === 'bau' ? 'BAU' : 'Combined scenario',
+    sector, row.geography ?? scope, row.service ?? '', row.component ?? '', row.timing ?? '',
+    row.children?.length || row.timing?.startsWith('Reference') || row.timing?.startsWith('Reporting diagnostic') ? 'No — subtotal/reference' : 'Yes',
+    row.status ?? '', row.depth, `${'  '.repeat(row.depth)}${row.label}`, row.unit, ...row.values,
   ]);
-  const exportHeaders = ['Row', 'Unit', ...years.map(String)];
-  const exportRows = visibleRows.map(row => [row.label, row.unit, ...row.values]);
   const metricLabel = metricOptions.find(option => option.value === selection.metric)?.label ?? 'Coverage';
   const selectedServiceOptions = selection.metric === 'coverage' ? coverageServiceOptions : serviceOptions;
   const serviceLabel = selectedServiceOptions.find(option => option.value === selection.service)?.label ?? 'Safely managed';
   const basisLabel = selection.metric === 'requirements'
-    ? selection.basis === 'annual' ? 'annual' : 'catch-up'
+    ? reportingView === 'source' ? 'before-funding' : selection.basis === 'annual' ? 'annual' : 'catch-up'
     : selection.metric === 'gap'
-      ? selection.basis === 'annual' ? 'annual-residual' : 'year-end'
+    ? reportingView === 'source' ? 'year-end-closing' : selection.basis === 'annual' ? 'annual-residual' : 'year-end'
       : 'not-applicable';
   const filename = [
     'service-ledger', sector, slug(scope), slug(metricLabel), slug(serviceLabel), slug(basisLabel), slug(currency),
     selection.metric === 'coverage' ? isShare ? 'percent-and-pp' : 'households' : 'billions',
-    'reconciled', data.includesDebt ? 'with-debt' : 'without-debt', `${years[0]}-${years[years.length - 1]}`,
+    reportingView === 'source' ? sourceKind : 'intervention-effects',
+    data.includesDebt ? 'with-debt' : 'without-debt', `${years[0]}-${years[years.length - 1]}`,
   ].join('-');
 
   const setMetric = (metric: LedgerMetric) => {
@@ -161,12 +176,32 @@ export default function ResultsLedgerPanel({
             headers={exportHeaders}
             rows={exportRows}
             currencyDisplay={currencyDisplay}
-            freezeColumns={2}
+            freezeColumns={9}
           />
         </div>
       </div>
 
       <div className="results-ledger__controls">
+        {(selection.metric === 'requirements' || selection.metric === 'gap') && (
+          <>
+            <label className="results-ledger__control">
+              <span>Financial view</span>
+              <select aria-label={`${label} financial view`} value={reportingView}
+                onChange={event => setReportingView(event.target.value as LedgerView)}>
+                <option value="source">Where the requirement/gap comes from</option>
+                <option value="effects">Effects of interventions</option>
+              </select>
+            </label>
+            {reportingView === 'source' && <label className="results-ledger__control">
+              <span>Reference scenario</span>
+              <select aria-label={`${label} source scenario`} value={sourceKind}
+                onChange={event => setSourceKind(event.target.value as 'scenario' | 'bau')}>
+                <option value="scenario">Combined scenario</option>
+                <option value="bau">BAU</option>
+              </select>
+            </label>}
+          </>
+        )}
         <label className="results-ledger__control">
           <span>Measure</span>
           <select
@@ -190,7 +225,7 @@ export default function ResultsLedgerPanel({
           </select>
         </label>
 
-        {(selection.metric === 'requirements' || selection.metric === 'gap') && (
+        {(selection.metric === 'requirements' || selection.metric === 'gap') && reportingView === 'effects' && (
           <label className="results-ledger__control results-ledger__basis">
             <span>{selection.metric === 'requirements' ? 'Requirement basis' : 'Gap basis'}</span>
             <select
@@ -200,12 +235,12 @@ export default function ResultsLedgerPanel({
             >
               {selection.metric === 'requirements' ? (
                 <>
-                  <option value="annual">Annual flow</option>
+                  <option value="annual">Annual requirement</option>
                   <option value="closing">Catch-up before funding</option>
                 </>
               ) : (
                 <>
-                  <option value="annual">Current-year residual gap</option>
+                  <option value="annual">Closing expansion plus current-year financial shortfall</option>
                   <option value="closing">Year-end requirement</option>
                 </>
               )}
@@ -219,7 +254,7 @@ export default function ResultsLedgerPanel({
       </div>
 
       <div className="results-ledger__notes">
-        <p>{description(selection.metric, selection.service, selection.basis, isShare, currency)}</p>
+        <p>{description(selection.metric, selection.service, selection.basis, isShare, currency, reportingView)}</p>
         {selection.metric === 'coverage' && selection.service === 'basic' && (
           <p>Coverage, target and gap are Basic-only, excluding Safely Managed. Basic-only coverage can fall when households upgrade to SM; a Basic-only category deficit does not by itself mean lost access or an unmet at-least-basic minimum.</p>
         )}
@@ -237,10 +272,16 @@ export default function ResultsLedgerPanel({
             : 'Urban and Rural gaps add to the National net gap; single-area views show only the selected area.'}</p>
         )}
         {selection.metric !== 'coverage' && <p>Financial reporting starts after baseline {data.baselineYear}. Earlier years are not applicable (—).</p>}
-        {selection.metric === 'requirements' && (
-          <p>The (-) labels mark paid spending; amounts remain positive. Expansion payments apply to the total expansion need, including unfinished work carried forward—not just newly planned expansion. Replacement payments offset current-year replacement obligations.</p>
+        {(selection.metric === 'requirements' || selection.metric === 'gap') && reportingView === 'source' && (
+          <p>{selection.metric === 'requirements'
+            ? 'Requirements before this year’s funding use the exact pre-funding household, ancillary, current replacement and current cash-shortfall reports. Scheduled expansion is a reference annual flow, not added to the unpaid subtotal.'
+            : 'Remaining financing need at year-end is a closing balance, not a flow to sum over years. It uses the closing household, ancillary, accumulated legacy replacement and accumulated cash reports.'}
+            {' '}Replacement shortfall remains the unchanged legacy measure and is not a verified settleable backlog. Ancillary allocations retain the engine’s first-committed-expansion weighting and are not independently validated. Advance delivery, repricing, cancellations and noncash credit are separately labelled diagnostics, not additional cash spending.</p>
         )}
-        <p>Signed effects are scenario changes: negative funding means less funding; negative requirements or gaps mean a reduction.</p>
+        {selection.metric === 'requirements' && reportingView === 'effects' && (
+          <p>Paid rows are positive recorded spending; household expansion separates sector cash from external finance. Noncash physical reuse and its credited value are reported separately; neither is cash spending.</p>
+        )}
+        <p>Positive intervention effects mean a reduction in financial need; negative values mean need increased. Coverage and funding retain their own labelled change signs.</p>
         {data.attributionComplete ? (
           <p>Interventions are ordered marginal effects: each change is measured from the state immediately before it, not as an independent run.</p>
         ) : (
@@ -270,12 +311,8 @@ export default function ResultsLedgerPanel({
             </thead>
             <tbody>
               {visibleRows.map(row => {
-                if (row.kind === 'section') return (
-                  <tr key={row.key} data-ledger-row={row.key} data-row-kind={row.kind} className="results-ledger__row results-ledger__row--section">
-                    <th scope="rowgroup" colSpan={years.length + 2}>{row.label}</th>
-                  </tr>
-                );
-                const isCategory = row.kind === 'category';
+                const isExpandable = !!row.children?.length;
+                const isCategory = isExpandable;
                 const isChild = row.kind === 'intervention';
                 const isSignedGap = 'signedGap' in row && row.signedGap === true;
                 const open = isExpanded(row.key);
@@ -287,21 +324,22 @@ export default function ResultsLedgerPanel({
                           className="results-ledger__expand"
                           type="button"
                           aria-expanded={open}
-                          aria-label={`${open ? 'Collapse' : 'Expand'} ${row.label}`}
+                            aria-label={`${open ? 'Collapse' : 'Expand'} ${row.label}`}
                           onClick={() => toggleCategory(row.key)}
                         >
                           <span className="results-ledger__chevron" aria-hidden="true">{open ? '−' : '+'}</span>
                           <span>{row.label}</span>
-                          <span className="results-ledger__row-tag">{rowKindLabel(row)}</span>
+                          <span className="results-ledger__row-tag">{row.timing ?? rowKindLabel(row)}</span>
                         </button>
                       ) : (
                         <span className="results-ledger__row-label">
                           {isChild && <span className="results-ledger__branch" aria-hidden="true" />}
                           {row.label}
-                          {!isChild && <span className="results-ledger__row-tag">{rowKindLabel(row)}</span>}
+                          {!isChild && <span className="results-ledger__row-tag">{row.timing ?? rowKindLabel(row)}</span>}
                         </span>
                       )}
-                      {row.key === 'fundingShared' && (
+                      {row.status && <span className="results-ledger__component-note">{row.status}</span>}
+                      {(row.key === 'fundingShared' || row.component === 'fundingShared') && (
                         <span data-testid="funding-surplus-note" style={{ display: 'block', fontSize: 10, fontWeight: 400, color: '#475569', marginTop: 4 }}>
                           Surplus relative to this year's applied spending. It may include restricted funds and does not mean all remaining needs are funded.
                           {' '}{canRoundBalance
@@ -313,7 +351,8 @@ export default function ResultsLedgerPanel({
                     <td className="results-ledger__unit">{row.unit}</td>
                     {years.map((year, index) => {
                       const rawValue = row.values[index] ?? null;
-                      const value = row.key === 'fundingShared' || row.key === 'fundingRestricted'
+                      const value = row.key === 'fundingShared' || row.key === 'fundingRestricted' ||
+                        row.component === 'fundingShared' || row.component === 'fundingRestricted'
                         ? fundingBalanceForDisplay(rawValue, currency, balanceRate) : rawValue;
                       return (
                         <td

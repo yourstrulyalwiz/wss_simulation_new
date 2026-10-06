@@ -20,7 +20,7 @@ from model.gap_attribution import attribute_gap
 from model.expansion_ledger import ExpansionLedger
 from model.service_gaps import assess_service_gaps, reconcile_expansion_gaps
 from model.utility_revenue import collected_revenue, volume_path, number, RevenueInputError
-from model.service_history import historical_households
+from model.service_history import historical_households, historical_transition_counts
 from model.connection_revenue import prepare_connection, annual_connection_cash, DIAGNOSTIC_FIELDS
 
 RUNGS = ["Safely managed", "Basic", "Limited", "Unimproved", "No Service"]
@@ -348,13 +348,13 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     # budget IS the capital investment, so no further %capex split applies (capex%/execution = 1).
     if budget_source == 'from_cost':
         gdp = np.asarray(gdp_real if gdp_real is not None else ctx['gdp_real_local'], dtype=float)
-        # Historical budget = cost of the NEW connections added that year (Safely-managed + Basic),
-        # floored per rung at 0 (a shrinking rung is not refunded).
+        # Historical budget follows the forward transition convention: below
+        # Basic -> Basic entries and Basic -> SM upgrades. Basic-only stock
+        # growth misses entries offset by upgrades; neither decline is refunded.
         hist_budget = np.zeros(n)
-        for t in range(1, bi + 1):
-            d_sm = max(0.0, bau[0, t] - bau[0, t - 1])
-            d_basic = max(0.0, bau[1, t] - bau[1, t - 1])
-            hist_budget[t] = d_sm * cost_sm + d_basic * cost_basic
+        sm_upgrades, basic_entries = historical_transition_counts(
+            bau[0, :bi + 1], bau[1, :bi + 1])
+        hist_budget[1:bi + 1] = sm_upgrades * cost_sm + basic_entries * cost_basic
         ratios = [hist_budget[t] / gdp[t] for t in range(1, bi + 1) if gdp[t] > 0 and hist_budget[t] > 0]
         ratio = float(np.mean(ratios)) if ratios else 0.0                            # mean historical budget/GDP
         ov = np.asarray(budget_override, dtype=float) if (budget_override is not None and len(budget_override)) else np.zeros(0)

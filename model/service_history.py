@@ -2,6 +2,20 @@
 import numpy as np
 
 
+def historical_transition_counts(sm, basic_only):
+    """Infer positive adjacent transition counts from exclusive service stocks.
+
+    Basic entries grow at-least-Basic access (SM + Basic-only); SM upgrades
+    separately grow SM. Counts retain their input units, including millions.
+    Declines never refund investment. This inference does not identify every
+    household's actual historical transition.
+    """
+    sm = np.asarray(sm, dtype=float)
+    basic_only = np.asarray(basic_only, dtype=float)
+    return (np.maximum(np.diff(sm), 0.0),
+            np.maximum(np.diff(sm + basic_only), 0.0))
+
+
 def historical_households(ctx, pct_start, pct_base, hist_series=None,
                           first_year_idx=0, hist_all_proportional=False):
     bi, total_hh = ctx['bi'], ctx['total_hh']

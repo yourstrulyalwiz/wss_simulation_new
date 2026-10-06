@@ -98,8 +98,19 @@ Two filling rules matter, because both let a user enter as much or as little as 
 The capital that drives everything is derived, not entered year by year. Three modes exist; the
 `test2` default is **`from_cost`**:
 
-- **Historical budget** = the cost of the new connections actually added that year:
-  `Σ_rung max(0, ΔHH) × unit cost`, over the safely-managed and Basic rungs. In other words, the
+- **Historical budget** = the inferred cost of positive service transitions that year:
+  `max(0, ΔSM_HH) × SM_cost + max(0, Δ(SM_HH + Basic_only_HH)) × Basic_entry_cost`.
+  Basic-only is an exclusive household stock, not the number of new Basic entries:
+  an SM upgrade leaves that category. The combined SM + Basic-only stock measures
+  at-least-Basic access, so its positive growth infers below-Basic entries. Costs
+  are inferred independently in each sector and area before monetary aggregation.
+  This retains the forward two-stage convention and existing unit-cost meanings:
+  an entry followed by an upgrade incurs both transition charges. It is not a
+  reconstruction of every household's actual historical transition, nor a
+  resolution of incremental versus full SM upgrade pricing. Counts and money
+  retain their millions convention; declines do not refund investment. Replacement
+  remains separate, and explicit budgets/overrides retain their existing behavior.
+  In other words, the
   model *reads the past budget off the observed coverage growth*, rather than asking for it.
 - **Forecast budget** = mean historical (budget ÷ real GDP) × real GDP for that year.
 - Any year can be overridden directly.

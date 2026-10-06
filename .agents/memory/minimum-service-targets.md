@@ -66,3 +66,17 @@ target. At least basic's net gap equals SM plus Basic-only differences; the
 70/30 target versus 80/20 scenario reports +10 SM, −10 Basic-only and zero
 combined difference. Keep geographic financing/access obligations local and
 unchanged, even when signed reporting differences offset.
+
+## Financial interpretation indicators
+
+Alongside financial interpretation, show national signed coverage attainment and
+positive local unmet targets as two distinct indicators, for both SM and
+at-least-Basic thresholds. This is separate from the earlier removal of the
+unmet-SM row from the signed SM coverage table.
+
+**Why:** The later ledger brief explicitly requires explaining how national
+surplus can coexist with unmet area-specific targets.
+
+**How to apply:** Preserve the signed coverage table semantics. In the financial
+interpretation indicators, never net an urban surplus against rural unmet
+households, and never add household deficits to monetary obligations.

@@ -31,3 +31,18 @@ replacement maintains existing assets and does not clear unfinished expansion.
 Expansion cash can include household finance and advance delivery; physical reuse,
 target changes and repricing can also change the closing expansion balance, so do
 not promise that cash paid alone explains every opening-to-closing difference.
+
+## Legacy obligations must remain qualified
+
+Accumulating an unpaid-replacement diagnostic does not itself establish a
+legitimate, settleable deferred obligation. Until a separate correction verifies
+carry-forward and repayment behavior, financial reporting must identify that
+component as a legacy measure and qualify totals containing it. Ancillary
+allowances similarly need their actual calibration/status explained.
+
+**Why:** The user's ledger instructions explicitly distinguish explaining the
+current balance from validating replacement carryover or ancillary assumptions.
+
+**How to apply:** Add exact reporting breakdowns where needed, but do not invent
+missing allocations, repayments or corrected totals through frontend arithmetic.
+Show shared/unallocated obligations separately when attribution is unavailable.

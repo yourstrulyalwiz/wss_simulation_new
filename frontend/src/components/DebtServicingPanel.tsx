@@ -7,6 +7,7 @@ import { CurrencyDisplayControl, displayCurrency, type CurrencyDisplaySettings }
 import ExportButtons from './ExportButtons';
 import TableExport from './TableExport';
 import { runCalculation } from '../api';
+import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
 import './debt-servicing.css';
 
 type Props = {
@@ -42,12 +43,13 @@ export default function DebtServicingPanel({
   const chartRunKey = `${sectorTab}:${JSON.stringify(inputs)}`;
   return (
     <div className="debt-workspace" data-testid="debt-servicing-panel">
-      <DebtServicingControls inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} onChange={onChange} onSectionFocus={onSectionFocus} />
+      <DebtServicingControls inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} onChange={onChange} onSectionFocus={onSectionFocus}
+        referenceSourceCash={Number(detail?.reference_year) === Number(debt.disbursement_year) ? detail?.reference_source_cash : undefined} />
       <main className="debt-results-pane">
         <div className="debt-results-toolbar">
           <div className="debt-sector-tabs" role="group" aria-label="Debt servicing sector">
             {(['water', 'sanitation'] as const).map(sector => (
-              <button key={sector} type="button" aria-pressed={sectorTab === sector} onClick={() => onSectorChange(sector)}>
+            <button key={sector} type="button" aria-pressed={sectorTab === sector} onClick={() => onSectorChange(sector)}>
                 {sector === 'water' ? 'Water supply' : 'Sanitation'}
               </button>
             ))}
@@ -62,22 +64,22 @@ export default function DebtServicingPanel({
         </div>
         <div className="debt-story-heading">
           <div>
-            <span className="debt-eyebrow">FINANCING → SERVICE ACCESS</span>
+            <span className="debt-eyebrow">INDICATIVE LOAN FUNDING → SERVICE ACCESS</span>
             <h2>{areaLabel} {sectorTab === 'water' ? 'water supply' : 'sanitation'}</h2>
           </div>
-          <p>Every colored band carries forward from the intervention plan. Debt is the final, signed comparison.</p>
+          <p>Intervention impact remains separate; loan proceeds are shown as a distinct funding comparison.</p>
         </div>
+        <UtilityDebtPreview debt={debt} result={detail} currency={currency} currencyDisplay={currencyDisplay}
+          calculationError={calculationError} fresh={!!results && !calculationError} onRetry={onRetry} />
         <div className="debt-chart-stack">
           <LiveInterventionChart key={`${chartRunKey}:sm`} inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} rung={0} contributionView={contributionView} currencyDisplay={currencyDisplay} />
           <LiveInterventionChart key={`${chartRunKey}:basic`} inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} rung={1} contributionView={contributionView} currencyDisplay={currencyDisplay} />
         </div>
         <section className="debt-ledger-section">
           <div className="debt-section-heading">
-            <div><span className="debt-eyebrow">YEAR-BY-YEAR · REAL {displayCurrency(currencyDisplay, currency).toUpperCase()} MILLIONS</span><h2>Revenue base &amp; repayment ledger</h2></div>
-            <span className={`debt-status-pill${debt.enabled ? ' is-enabled' : ''}`}>{debt.enabled ? 'Borrowing enabled' : 'No debt scenario'}</span>
+            <div><span className="debt-eyebrow">YEAR-BY-YEAR · SERVICE ACCESS</span><h2>Coverage comparison</h2></div>
+            <span className={`debt-status-pill${debt.enabled ? ' is-enabled' : ''}`}>{debt.enabled ? 'Indicative borrowing enabled' : 'Borrowing excluded'}</span>
           </div>
-          <UtilityDebtPreview debt={debt} result={detail} currency={currency} currencyDisplay={currencyDisplay}
-            calculationError={calculationError} fresh={!!results && !calculationError} onRetry={onRetry} />
           <AccessGapComparison inputs={inputs} withDebt={results} sectorKey={sectorKey} />
         </section>
       </main>
@@ -141,10 +143,10 @@ function AccessGapComparison({ inputs, withDebt, sectorKey }: { inputs: any; wit
   }).filter((row): row is any[] => !!row));
 
   return (
-    <div className="debt-gap-comparison">
+      <div className="debt-gap-comparison">
       <div className="debt-gap-heading">
         <div><span className="debt-eyebrow">SIGNED DIFFERENCE · HOUSEHOLDS</span><h3>Access &amp; coverage comparison</h3></div>
-        <p>Financed scenario minus a view-only no-debt run. Coverage gains are positive; smaller access gaps are negative. Repayment-year effects stay in view.</p>
+        <p>{LOAN_FUNDING_QUALIFICATION}</p>
       </div>
       <div className="debt-gap-grid">
         {metricDefinitions.map(metric => {
@@ -153,18 +155,18 @@ function AccessGapComparison({ inputs, withDebt, sectorKey }: { inputs: any; wit
             <span>{metric.label}</span>
             <strong className={favorable(metric.kind, final.change) ? 'is-favorable' : 'is-adverse'}>{fmtSigned(final.change)}</strong>
             <small>{final.year} · {final.points == null ? 'percentage-point change unavailable' : `${final.points > 0 ? '+' : ''}${final.points.toFixed(3)} pp`}</small>
-            <small>No debt {fmt(final.before)} → Financed {fmt(final.after)}</small>
+            <small>Without loan funding {fmt(final.before)} → With indicative loan funding {fmt(final.after)}</small>
           </div>;
         })}
       </div>
       <div className="debt-gap-table-scroll">
         <div className="debt-gap-export">
           <TableExport filename="debt_servicing_access_comparison" sheetName="Coverage and gaps"
-            headers={['Year', 'Measure', 'No debt (M HH)', 'Financed (M HH)', 'Signed change (M HH)', 'Signed change (pp)']}
-            rows={exportRows} compact />
+          headers={['Year', 'Measure', 'Without loan funding (M HH)', 'With indicative loan funding (M HH)', 'Signed change (M HH)', 'Signed change (pp)', 'Qualification']}
+            rows={exportRows.map(row => [...row, LOAN_FUNDING_QUALIFICATION])} compact />
         </div>
         <table>
-          <thead><tr><th>Year</th><th>Measure</th><th>No debt</th><th>Financed</th><th>Signed HH change</th><th>Signed pp change</th></tr></thead>
+          <thead><tr><th>Year</th><th>Measure</th><th>Without loan funding</th><th>With indicative loan funding</th><th>Signed HH change</th><th>Signed pp change</th></tr></thead>
           <tbody>{years.flatMap(year => metricDefinitions.map(metric => {
             const value = metric.values.find(item => item.year === year);
             if (!value) return null;

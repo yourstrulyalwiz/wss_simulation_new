@@ -1,4 +1,5 @@
 import React from 'react';
+import { migrateLoanFundingConfig, validateLoanFundingConfig } from '../loanFunding';
 
 const SOURCES = [
   ['collection', 'Collection efficiency'],
@@ -12,43 +13,34 @@ type Props = {
   scopeLabel: string;
   onChange: (next: any) => void;
   onSectionFocus?: (key: string) => void;
+  referenceSourceCash?: Record<string, number | null | undefined>;
 };
 
-export default function DebtServicingControls({ inputs, sector, scopeLabel, onChange, onSectionFocus }: Props) {
+export default function DebtServicingControls({ inputs, sector, scopeLabel, onChange, onSectionFocus, referenceSourceCash }: Props) {
   const period = inputs.period || {};
   const start = Number(period.baseline_year || 2025) + 1;
   const end = Number(period.forecast_end_year || start);
   const years = Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
-  const defaults = {
-    enabled: false,
-    allocation_share: 0,
-    annual_real_interest_rate: null,
-    disbursement_year: years[0] ?? start,
-    principal_grace_years: 0,
-    maturity_year: end,
-    repayment_structure: 'annuity',
-    loan_ceiling: null,
-  };
-  const debt = { ...defaults, ...(inputs.utility_debt?.[sector] || {}) };
+  const debt = migrateLoanFundingConfig(inputs.utility_debt?.[sector] || {
+    schema_version: 2, mode: 'indicative_lump_sum', revenue_sources: [],
+  });
   const sourceKeys = Array.isArray(debt.revenue_sources)
     ? debt.revenue_sources.filter((key: string) => SOURCES.some(([source]) => source === key))
-    : SOURCES.map(([key]) => key);
+    : [];
   const setDebt = (key: string, value: any) => {
     onSectionFocus?.('utility_debt');
     onChange({
       ...inputs,
-      utility_debt: { ...(inputs.utility_debt || {}), [sector]: { ...debt, [key]: value } },
+      utility_debt: { ...(inputs.utility_debt || {}), [sector]: { ...debt, [key]: value, schema_version: 2, mode: 'indicative_lump_sum' } },
     });
   };
-  const selectedStartYear = years.includes(Number(debt.disbursement_year))
-    ? Number(debt.disbursement_year)
-    : (years[0] ?? start);
+  const selectedStartYear = years.includes(Number(debt.disbursement_year)) ? Number(debt.disbursement_year) : '';
   const invalidStoredStartYear = debt.disbursement_year != null && !years.includes(Number(debt.disbursement_year));
   const intervention = inputs[sector === 'water' ? 'water_interventions' : 'sanitation_interventions'] || {};
   const basicShare = Number(intervention.basic_share);
   const validSplit = Number.isFinite(basicShare);
-  const firstPrincipalYear = Number(debt.disbursement_year || selectedStartYear)
-    + Number(debt.principal_grace_years || 0) + 1;
+  const errors = validateLoanFundingConfig(debt, period);
+  const currency = inputs?.country_config?.currency || 'LCU';
 
   const fieldStyle: React.CSSProperties = {
     width: '100%', minWidth: 0, padding: '8px 10px', border: '1px solid #d7d5c8',
@@ -75,11 +67,11 @@ export default function DebtServicingControls({ inputs, sector, scopeLabel, onCh
 
   return (
     <aside className="debt-controls">
-      <div className="debt-eyebrow">STEP 04 · CAPITAL &amp; REPAYMENT</div>
+      <div className="debt-eyebrow">STEP 04 · LOAN FUNDING</div>
       <div className="debt-panel-heading">
         <div>
-          <h2>Debt servicing</h2>
-          <p>Trace a single utility loan from its revenue base through repayments to service access.</p>
+          <h2>Loan funding</h2>
+          <p>Size one indicative proceeds injection from a selected year’s intervention cash.</p>
         </div>
         <span className="debt-step-mark" aria-hidden="true">04</span>
       </div>
@@ -91,11 +83,11 @@ export default function DebtServicingControls({ inputs, sector, scopeLabel, onCh
       <section className="debt-control-card">
         <div className="debt-enable-row">
           <div>
-            <h3>Utility borrowing</h3>
-            <p>One disbursement, invested through the existing intervention scenario.</p>
+            <h3>Indicative borrowing</h3>
+            <p>A single proceeds injection supports infrastructure investment.</p>
           </div>
           <label className="debt-switch">
-            <input type="checkbox" aria-label="Enable utility borrowing" checked={!!debt.enabled} onChange={event => setDebt('enabled', event.target.checked)} />
+            <input type="checkbox" aria-label="Include indicative borrowing" checked={!!debt.enabled} onChange={event => setDebt('enabled', event.target.checked)} />
             <span>{debt.enabled ? 'On' : 'Off'}</span>
           </label>
         </div>
@@ -112,54 +104,45 @@ export default function DebtServicingControls({ inputs, sector, scopeLabel, onCh
               <span>Basic <b>{(basicShare * 100).toFixed(1)}%</b></span>
             </div>
           </> : <div className="debt-unavailable">Investment split is not configured in this area.</div>}
-          <small>Debt does not add a separate split or bypass existing upgrade rules.</small>
+          <small>Loan proceeds follow the intervention plan’s existing investment mix.</small>
         </div>
 
         <div className="debt-source-block">
-          <div className="debt-source-title">Independent eligible revenue sources</div>
+          <div className="debt-source-title">Eligible intervention cash · reference year</div>
           {SOURCES.map(([key, label]) => (
             <label key={key} className="debt-source-option">
-              <input type="checkbox" aria-label={`Debt source: ${label}`} checked={sourceKeys.includes(key)}
+              <input type="checkbox" aria-label={`Eligible source: ${label}`} checked={sourceKeys.includes(key)}
                 onChange={event => setDebt('revenue_sources', event.target.checked
                   ? [...sourceKeys, key] : sourceKeys.filter((source: string) => source !== key))} />
-              <span>{label}</span>
+              <span>{label}{referenceSourceCash?.[key] == null ? '' : <small className="debt-source-value">{Number(referenceSourceCash[key]).toLocaleString('en-US', { maximumFractionDigits: 2 })} {currency} mn</small>}</span>
             </label>
           ))}
-          <p>Selections do not switch on reforms. Active connection-based billing can grow customer-based collection and tariff reform revenue; standalone connection net cash is excluded.</p>
+          <p>Selection does not enable a reform. Only selected collection, tariff and NRW net cash is eligible.</p>
         </div>
 
         <div className={`debt-terms${debt.enabled ? '' : ' debt-terms-disabled'}`}>
-          {field('Revenue allocation', debt.allocation_share ?? 0, value => setDebt('allocation_share', value ?? 0), { percent: true, unit: '%' })}
-          {field('Real interest rate', debt.annual_real_interest_rate, value => setDebt('annual_real_interest_rate', value), { percent: true, unit: '%', min: 0, placeholder: 'Required' })}
+          {field('Pooled allocation', debt.allocation_share, value => setDebt('allocation_share', value), { percent: true, unit: '%', min: 0, step: 0.1 })}
+          {field('Annual real interest rate', debt.annual_real_interest_rate, value => setDebt('annual_real_interest_rate', value), { percent: true, unit: '%', min: 0, placeholder: 'Required', step: 0.01 })}
           <label style={{ display: 'grid', gap: 5, fontSize: 11, color: '#536563' }}>
-            <span>Loan start year</span>
-            <select aria-label="Loan start year" value={selectedStartYear} onChange={event => setDebt('disbursement_year', Number(event.target.value))} style={fieldStyle} disabled={!years.length}>
-              {years.map(year => <option key={year} value={year}>{year}</option>)}
+            <span>Reference / injection year</span>
+            <select aria-label="Reference / injection year" value={selectedStartYear} onChange={event => setDebt('disbursement_year', Number(event.target.value))} style={fieldStyle} disabled={!years.length}>
+              <option value="">Choose a year</option>{years.map(year => <option key={year} value={year}>{year}</option>)}
             </select>
           </label>
-          {field('Principal grace', debt.principal_grace_years ?? 0, value => setDebt('principal_grace_years', value ?? 0), { min: 0, step: 1, unit: 'years' })}
-          {field('Final payment year', debt.maturity_year ?? end, value => setDebt('maturity_year', value ?? end), { step: 1 })}
-          <label style={{ display: 'grid', gap: 5, fontSize: 11, color: '#536563' }}>
-            <span>Repayment structure</span>
-            <select value={debt.repayment_structure || 'annuity'} onChange={event => setDebt('repayment_structure', event.target.value)} style={fieldStyle}>
-              <option value="annuity">Annuity</option>
-              <option value="equal_principal">Equal principal</option>
-            </select>
-          </label>
-          {field('Optional principal ceiling', debt.loan_ceiling, value => setDebt('loan_ceiling', value), { min: 0, unit: 'mn', placeholder: 'No ceiling' })}
+          {field('Loan term', debt.loan_term_years, value => setDebt('loan_term_years', value), { min: 1, step: 1, unit: 'years', placeholder: 'Required' })}
         </div>
-        {!debt.enabled && <div className="debt-disabled-note">Turn borrowing on to edit repayment assumptions. The annual revenue ledger remains available below.</div>}
-        {invalidStoredStartYear && <div className="debt-invalid-year" role="status">
+        {!debt.enabled && <div className="debt-disabled-note">Borrowing is excluded. Blank rate and term do not affect standard results.</div>}
+        {Object.entries(errors).map(([key, message]) => <div className="debt-invalid-year" role="status" key={key}>{message}</div>)}
+        {(debt.migration_notice ?? debt.migration_note) && <div className="debt-disabled-note">{debt.migration_notice ?? debt.migration_note}</div>}
+        {invalidStoredStartYear && !debt.enabled && <div className="debt-invalid-year" role="status">
           Saved loan start year {String(debt.disbursement_year)} is outside the current forecast window. Choose a listed year to update it.
         </div>}
 
-        <div className="debt-first-payment">
-          <span>First principal payment</span><strong>{firstPrincipalYear}</strong>
-          <small>Interest is due during grace. Proceeds are restricted to investment and never count as revenue.</small>
-        </div>
+        <div className="debt-first-payment"><span>Repayment accounting</span><strong>Deferred</strong>
+          <small>Rate and term size indicative proceeds only; no principal or interest deduction is modeled.</small></div>
       </section>
       <div className="debt-control-footnote">
-        Sizing, cash protection, replacement and full-maturity verification are calculated by the model. This view does not recreate loan formulas.
+        The model calculates the selected-year reference pool and indicative principal. The frontend only presents its outputs.
       </div>
     </aside>
   );

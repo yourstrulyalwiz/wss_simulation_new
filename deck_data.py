@@ -212,7 +212,7 @@ def intervention_rows(passes, enabled, has_custom, sk: str, years, by, final_res
                 for i in range(len(years))]
         add_hh = _at(after[sk].get('scenario_hh'), e, 0) - _at(before[sk].get('scenario_hh'), e, 0)
         out.append({
-            'key': 'utility_debt_financing', 'label': 'Utility debt financing',
+            'key': 'utility_debt_financing', 'label': 'Indicative loan funding — repayment accounting deferred',
             'color': '#334155', 'kind': 'funding',
             'added_hh': add_hh, 'money_m': float(debt.get('accepted_principal') or 0.0),
             'band': band,

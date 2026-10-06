@@ -80,12 +80,12 @@ def restore_automatic_inputs(inputs):
                 interventions[field] = base[source]
     debt = restored.get("utility_debt")
     if isinstance(debt, dict):
-        if debt.get("schema_version") is None:
-            debt.pop("schema_version", None)
+        from model.utility_debt import normalize_indicative_config
+        debt["schema_version"] = 2
         for sector in ("water", "sanitation"):
             config = debt.get(sector)
-            if isinstance(config, dict) and not config.get("enabled"):
-                debt[sector] = {key: value for key, value in config.items() if value is not None}
+            if isinstance(config, dict):
+                debt[sector] = normalize_indicative_config(config)
     return restored
 
 

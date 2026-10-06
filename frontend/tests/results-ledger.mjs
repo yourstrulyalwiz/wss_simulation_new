@@ -29,6 +29,33 @@ print(json.dumps({'results':results,'keys':keys,'baseline':d['period']['baseline
 `], { cwd: fileURLToPath(new URL('../../', import.meta.url)), maxBuffer: 32 * 1024 * 1024, encoding: 'utf8' }));
 
 const close = (a,b) => assert.ok(Math.abs(a-b) < 1e-8, `${a} != ${b}`);
+// Distinct direct BAU/scenario values catch selecting the wrong arrays even if a derived bridge balances.
+for (const sector of ['water_supply', 'sanitation']) {
+  const direct = structuredClone(fixture.results.at(-1));
+  const sec = direct[sector];
+  const testIndex = direct.years.findIndex(y => y > fixture.baseline);
+  const length = direct.years.length;
+  sec.available_total = Array(length).fill(11);
+  sec.scenario_available_total = Array(length).fill(37);
+  sec.utility_debt_service = Array(length).fill(2);
+  sec.scenario_utility_debt_service = Array(length).fill(3);
+  sec.utility_debt_cash_available = Array(length).fill(5);
+  sec.scenario_utility_debt_cash_available = Array(length).fill(19);
+  sec.scenario_utility_debt = { annual_injection: direct.years.map(year => ({
+    year, disbursement: year === direct.years[testIndex] ? 13 : 0,
+    opening_unspent_proceeds: 4, investment_from_loan_proceeds: 7, closing_unspent_proceeds: 10,
+  })) };
+  const actualScenario = ledgerSnapshots([direct], sector, fixture.baseline, true)[testIndex].values;
+  const actualBau = ledgerSnapshots([direct], sector, fixture.baseline, false)[testIndex].values;
+  close(actualScenario.fundingOperating[2], 34);
+  close(actualScenario.fundingRestricted[2], 19);
+  close(actualScenario.loanInjection[2], 13);
+  close(actualScenario.loanOpeningUnspent[2], 4);
+  close(actualScenario.loanInvestment[2], 7);
+  close(actualScenario.loanClosingUnspent[2], 10);
+  close(actualBau.fundingOperating[2], 11);
+  close(actualBau.fundingRestricted[2], 0);
+}
 let comparisons = 0;
 for (const sector of ['water_supply', 'sanitation']) {
   const snapshots = fixture.results.map(result => ledgerSnapshots([result], sector, fixture.baseline));
@@ -175,7 +202,9 @@ for (const sector of ['water_supply', 'sanitation']) {
   assert.ok(!ordinary.some(r=>['debtFundingSection','fundingRestricted','repayments'].includes(r.key)));
   assert.equal(ordinary.find(r=>r.key==='fundingOperating').label,'Ordinary net cash (signed)');
   const debtFunding=ledgerRows({...data,includesDebt:true},fundingOptions);
-  assert.equal(debtFunding.find(r=>r.key==='debtFundingSection').label,'With debt servicing');
+  assert.equal(debtFunding.find(r=>r.key==='debtFundingSection').label,'Indicative loan funding · repayment accounting deferred');
+  for (const key of ['loanInjection','loanOpeningUnspent','loanInvestment','loanClosingUnspent'])
+    assert.ok(debtFunding.some(row => row.key === key));
   assert.equal(debtFunding.at(-1).key,'fundingOperating');
   assert.equal(debtFunding.at(-1).kind,'summary');
   assert.ok(debtFunding.findIndex(r=>r.key==='debtFundingSection')>debtFunding.findIndex(r=>r.key==='fundingExternal'));

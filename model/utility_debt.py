@@ -1,8 +1,8 @@
-"""Utility-level loan schedules and conservative capacity sizing.
+"""Indicative, one-time utility loan funding with deferred repayments.
 
 Amounts use the model's local-currency millions. The schedule is real and
-annual; loan proceeds are kept separate from the recurring cash available for
-debt service.
+annual; restricted proceeds remain separate from ordinary cash. Legacy
+repayment helpers are preserved but inactive in the product workflow.
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def normalize_config(config):
     return dict(config or {})
 
 
-def validate_config(config, years, baseline_year):
+def _validate_legacy_config(config, years, baseline_year):
     cfg = normalize_config(config)
     sources = cfg.get('revenue_sources', list(REVENUE_SOURCES))
     if (not isinstance(sources, list)
@@ -246,7 +246,7 @@ def revenue_capacity_rows(result, years, baseline_year, config, asset_life=30):
     return rows
 
 
-def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30,
+def _solve_affordability_legacy(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30,
                    reference_result=None):
     """Size, rerun and verify a single non-revolving utility loan.
 
@@ -255,7 +255,7 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
     recalculated. Only a candidate whose full-maturity schedule passes every
     annual capacity test is returned.
     """
-    cfg = validate_config(config, ctx['years'], inputs.period.baseline_year)
+    cfg = _validate_legacy_config(config, ctx['years'], inputs.period.baseline_year)
     kwargs = dict(calc_kwargs or {})
     reference = reference_result if reference_result is not None else calc_fn(inputs, ctx, **kwargs)
     years = [int(y) for y in ctx['years']]
@@ -436,3 +436,190 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
         schedule=accepted_plan['schedule'])
     accepted['utility_debt'] = output
     return accepted, accepted_plan, output, reference
+
+
+# Preserved schedule/affordability helpers above are inactive. The only active
+# product mode is indicative funding; contractual repayments are not modeled.
+INDICATIVE_QUALIFICATION = (
+    "Indicative loan proceeds — repayment accounting deferred. Loan sizing uses "
+    "the selected year's additional net cash and assumes equal annual repayments. "
+    "Principal and interest payments are not deducted from model funding in this version."
+)
+
+
+def normalize_indicative_config(config):
+    cfg = normalize_config(config)
+    if not cfg.get('enabled') and cfg.get('allocation_share') in (None, ''):
+        cfg['allocation_share'] = 0.0
+    mode = cfg.get('mode')
+    if mode not in (None, '', 'indicative_lump_sum'):
+        raise UtilityDebtInputError('Only indicative lump-sum loan funding is supported.')
+    legacy_keys = ('principal_grace_years', 'maturity_year', 'repayment_structure', 'loan_ceiling')
+    legacy = dict(cfg.get('legacy_parameters') or cfg.get('legacy_metadata') or {})
+    if cfg.get('migration_note') and not cfg.get('migration_notice'):
+        cfg['migration_notice'] = cfg['migration_note']
+    if mode != 'indicative_lump_sum':
+        legacy.update({k: cfg[k] for k in legacy_keys if k in cfg})
+        if cfg.get('loan_term_years') in (None, ''):
+            try:
+                start, end = float(cfg['disbursement_year']), float(cfg['maturity_year'])
+                term = end - start
+                if all(math.isfinite(v) and v.is_integer() for v in (start, end, term)) and term > 0:
+                    cfg['loan_term_years'] = int(term)
+            except (KeyError, TypeError, ValueError, OverflowError):
+                pass
+        if legacy:
+            cfg['migration_notice'] = (
+                'Legacy loan settings migrated to indicative sizing. The old maturity span '
+                'supplies the term where valid; grace, repayment structure and ceiling are inactive.'
+            )
+    for key in legacy_keys:
+        cfg.pop(key, None)
+    for key in ('annual_real_interest_rate', 'loan_term_years', 'disbursement_year'):
+        if cfg.get(key) == '':
+            cfg[key] = None
+    cfg.update(mode='indicative_lump_sum', legacy_parameters=legacy)
+    return cfg
+
+
+def _finite_number(value, label):
+    if isinstance(value, bool):
+        raise UtilityDebtInputError(f'{label} must be a finite number.')
+    try:
+        number = float(value)
+    except (ValueError, TypeError, OverflowError):
+        raise UtilityDebtInputError(f'{label} must be a finite number.')
+    if not math.isfinite(number):
+        raise UtilityDebtInputError(f'{label} must be a finite number.')
+    return number
+
+
+def validate_config(config, years, baseline_year):
+    cfg = normalize_indicative_config(config)
+    sources = cfg.get('revenue_sources', list(REVENUE_SOURCES))
+    if (not isinstance(sources, list) or any(s not in REVENUE_SOURCES for s in sources)
+            or len(set(sources)) != len(sources)):
+        raise UtilityDebtInputError('Choose distinct collection, tariff or NRW revenue sources only.')
+    cfg['revenue_sources'] = sources.copy()
+    share = _finite_number(cfg.get('allocation_share', 0), 'Revenue allocation')
+    if not 0 <= share <= 1:
+        raise UtilityDebtInputError('Revenue allocation must be between 0% and 100%.')
+    cfg['allocation_share'] = share
+    cfg['enabled'] = bool(cfg.get('enabled', False))
+    rate = cfg.get('annual_real_interest_rate')
+    if rate is not None:
+        rate = _finite_number(rate, 'Annual real interest rate')
+        if rate < 0:
+            raise UtilityDebtInputError('Annual real interest rate cannot be negative.')
+        cfg['annual_real_interest_rate'] = rate
+    term = cfg.get('loan_term_years')
+    if term is not None:
+        term = _finite_number(term, 'Loan term')
+        if term <= 0 or not term.is_integer():
+            raise UtilityDebtInputError('Loan term must be a positive whole number of years.')
+        cfg['loan_term_years'] = int(term)
+    if not cfg['enabled'] or share == 0 or not sources:
+        return cfg
+    if rate is None:
+        raise UtilityDebtInputError('Enter an annual real interest rate for indicative borrowing (zero is valid).')
+    if term is None:
+        raise UtilityDebtInputError('Enter a positive whole-number loan term for indicative borrowing.')
+    year = _finite_number(cfg.get('disbursement_year'), 'Reference / injection year')
+    if not year.is_integer() or int(year) not in [int(y) for y in years if int(y) > baseline_year]:
+        raise UtilityDebtInputError('Reference / injection year must be a forecast year within the simulation horizon.')
+    cfg['disbursement_year'] = int(year)
+    return cfg
+
+
+def indicative_principal(annual_allocation, rate, term):
+    annual = _finite_number(annual_allocation, 'Hypothetical annual allocation')
+    rate = _finite_number(rate, 'Annual real interest rate')
+    term = _finite_number(term, 'Loan term')
+    if annual < 0 or rate < 0 or term <= 0 or not term.is_integer():
+        raise UtilityDebtInputError('Allocation and rate must be nonnegative; term must be a positive whole number.')
+    factor = term if rate == 0 else -math.expm1(-term * math.log1p(rate)) / rate
+    principal = annual * factor
+    if not math.isfinite(factor) or not math.isfinite(principal):
+        raise UtilityDebtInputError('Indicative loan amount must be finite.')
+    return principal, factor
+
+
+def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30,
+                   reference_result=None, force_financed_run=False):
+    """Freeze one intervention-only reference, size once and inject once.
+
+    No repayment schedule, future capacity checks, investment protection,
+    ceiling or iterative resizing runs in this active workflow.
+    """
+    cfg = validate_config(config, ctx['years'], inputs.period.baseline_year)
+    kwargs = dict(calc_kwargs or {})
+    reference = reference_result if reference_result is not None else calc_fn(inputs, ctx, **kwargs)
+    years = [int(y) for y in ctx['years']]
+    sources = cfg['revenue_sources']
+    status = ('disabled' if not cfg['enabled'] else 'zero_allocation' if cfg['allocation_share'] == 0
+              else 'no_selected_sources' if not sources else 'indicative')
+    year = cfg.get('disbursement_year')
+    source_cash = {s: None for s in REVENUE_SOURCES}
+    principal = factor = annual = signed = pool = 0.0
+    if year in years and year > inputs.period.baseline_year:
+        index = years.index(year)
+        for source, keys in (
+            ('collection', ('collection_cash',)), ('tariff', ('tariff_cash',)),
+            ('nrw', ('nrw_net', 'eligible_nrw_link_cash')),
+        ):
+            numbers = []
+            for key in keys:
+                values = reference.get(key)
+                value = values[index] if values is not None and index < len(values) else None
+                try:
+                    numbers.append(_finite_number(value, f'{source} reference cash'))
+                except UtilityDebtInputError:
+                    if status == 'indicative' and source in sources:
+                        raise UtilityDebtInputError(f'Missing or invalid {source} cash in the selected reference year.')
+                    break
+            else:
+                source_cash[source] = sum(numbers)
+    if sources and all(source_cash[s] is not None for s in sources):
+        signed = sum(source_cash[s] for s in sources)
+        pool = max(0.0, signed)
+        annual = cfg['allocation_share'] * pool
+    if status == 'indicative':
+        principal, factor = indicative_principal(annual, cfg['annual_real_interest_rate'], cfg['loan_term_years'])
+        if pool == 0:
+            status = 'no_positive_pool'
+    plan = {
+        'loan_amount': principal, 'schedule': [],
+        'disbursement': [principal if y == year else 0.0 for y in years],
+        'principal_payment': [0.0] * len(years),
+        'interest_payment': [0.0] * len(years), 'debt_service': [0.0] * len(years),
+    }
+    financed = (calc_fn(inputs, ctx, **{**kwargs, 'utility_debt_execution': plan})
+                if principal > 0 or force_financed_run else reference)
+    injection = []
+    for i, y in enumerate(years):
+        def cash(field):
+            values = financed.get(field)
+            if values is None or i >= len(values):
+                if principal > 0:
+                    raise UtilityDebtInputError(f'Missing loan proceeds accounting: {field}.')
+                return 0.0
+            return _finite_number(values[i], field)
+        injection.append({
+            'year': y, 'disbursement': plan['disbursement'][i],
+            'opening_unspent_proceeds': cash('utility_debt_cash_opening'),
+            'investment_from_loan_proceeds': cash('utility_debt_investment_used'),
+            'closing_unspent_proceeds': cash('utility_debt_cash_closing'),
+        })
+    summary = {
+        **cfg, 'schema_version': 2, 'status': status, 'repayment_accounting': 'deferred',
+        'feasibility_status': 'not_assessed', 'verified_feasible': False,
+        'reference_year': year, 'reference_source_cash': source_cash,
+        'selected_signed_pool': signed, 'eligible_pool': pool,
+        'annual_allocation': annual, 'annual_real_interest_rate': cfg.get('annual_real_interest_rate'),
+        'loan_term_years': cfg.get('loan_term_years'), 'annuity_factor': factor,
+        'indicative_principal': principal, 'accepted_principal': principal,
+        'annual_injection': injection, 'closing_restricted_cash': injection[-1]['closing_unspent_proceeds'],
+        'net_revenue_assumption': NET_REVENUE_ASSUMPTION,
+        'qualification': INDICATIVE_QUALIFICATION,
+    }
+    return financed, plan, summary, reference

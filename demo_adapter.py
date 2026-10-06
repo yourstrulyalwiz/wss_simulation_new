@@ -247,20 +247,18 @@ def frontend_defaults() -> dict:
         'income_distribution': {'brackets': [dict(b) for b in _INCOME_BRACKETS_DEFAULT]},
         'custom_interventions': [],
         'utility_debt': {
-            'schema_version': 1,
+            'schema_version': 2,
             'water': {
                 'enabled': False, 'allocation_share': 0.0,
                 'revenue_sources': ['collection', 'tariff', 'nrw'],
                 'annual_real_interest_rate': None, 'disbursement_year': _BASE_YR + 1,
-                'principal_grace_years': 0, 'maturity_year': _END_YR,
-                'repayment_structure': 'annuity', 'loan_ceiling': None,
+                'mode': 'indicative_lump_sum', 'loan_term_years': None,
             },
             'sanitation': {
                 'enabled': False, 'allocation_share': 0.0,
                 'revenue_sources': ['collection', 'tariff', 'nrw'],
                 'annual_real_interest_rate': None, 'disbursement_year': _BASE_YR + 1,
-                'principal_grace_years': 0, 'maturity_year': _END_YR,
-                'repayment_structure': 'annuity', 'loan_ceiling': None,
+                'mode': 'indicative_lump_sum', 'loan_term_years': None,
             },
         },
     }

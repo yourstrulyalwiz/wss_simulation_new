@@ -631,6 +631,10 @@ class InterventionToggles(BaseModel):
 # and the sector investment ledger records how much was actually spent.
 class UtilityDebtSectorInputs(BaseModel):
     enabled: bool = False
+    mode: Optional[Literal['indicative_lump_sum']] = None
+    loan_term_years: Optional[int] = None
+    legacy_parameters: dict = {}
+    migration_notice: Optional[str] = None
     revenue_sources: List[Literal['collection', 'tariff', 'nrw']] = ['collection', 'tariff', 'nrw']
     allocation_share: float = 0.0
     annual_real_interest_rate: Optional[float] = None
@@ -642,7 +646,7 @@ class UtilityDebtSectorInputs(BaseModel):
 
 
 class UtilityDebtInputs(BaseModel):
-    schema_version: int = 1
+    schema_version: int = 2
     water: UtilityDebtSectorInputs = UtilityDebtSectorInputs()
     sanitation: UtilityDebtSectorInputs = UtilityDebtSectorInputs()
 

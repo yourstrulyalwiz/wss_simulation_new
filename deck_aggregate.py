@@ -225,6 +225,32 @@ def aggregate(results: List[dict]) -> dict:
 
 
 def _aggregate_utility_debt(summaries: List[dict]) -> dict:
+    """Add actual injections/balances, never pool eligibility or average terms."""
+    from model.utility_debt import INDICATIVE_QUALIFICATION
+    areas = [s for s in summaries if s]
+    by_year = {}
+    for area in areas:
+        for row in area.get('annual_injection') or []:
+            target = by_year.setdefault(row['year'], {'year': row['year']})
+            for key in ('disbursement', 'opening_unspent_proceeds',
+                        'investment_from_loan_proceeds', 'closing_unspent_proceeds'):
+                target[key] = target.get(key, 0) + row.get(key, 0)
+    result = {
+        'schema_version': 2, 'mode': 'indicative_lump_sum',
+        'status': ' · '.join(dict.fromkeys(a.get('status', 'disabled') for a in areas)),
+        'enabled': any(a.get('enabled') for a in areas), 'areas': areas,
+        'repayment_accounting': 'deferred', 'feasibility_status': 'not_assessed',
+        'verified_feasible': False, 'qualification': INDICATIVE_QUALIFICATION,
+        'annual_injection': [by_year[y] for y in sorted(by_year)],
+    }
+    for key in ('indicative_principal', 'annual_allocation', 'selected_signed_pool',
+                'eligible_pool', 'closing_restricted_cash'):
+        result[key] = sum(a.get(key) or 0 for a in areas)
+    result['accepted_principal'] = result['indicative_principal']
+    return result
+
+
+def _aggregate_legacy_utility_debt(summaries: List[dict]) -> dict:
     """Sum debt balances and annual schedules without averaging area-specific loan assumptions."""
     summaries = [s for s in summaries if s]
     numeric = ('accepted_principal', 'requested_max_principal', 'total_interest',

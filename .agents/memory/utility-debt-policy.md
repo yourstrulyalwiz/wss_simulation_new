@@ -20,16 +20,21 @@ a lender credit assessment.
 
 ## Loan-start sizing and workflow boundary
 
-Size a single loan injection from the selected start year's no-debt intervention
-revenue capacity. Later revenue growth must not enlarge that initial borrowing
-bound; payment-year shortfalls and added replacement obligations may reduce it.
-Preserve the existing intervention investment split and upgrade rules.
+Size one indicative loan injection from the selected year's signed, selected
+intervention cash pool in a frozen no-loan reference. Floor the sum at zero,
+then apply allocation and the ordinary annuity present-value factor. The same
+year receives the injection. Repayment accounting, fees and affordability
+verification are deferred: neither annual allocation nor interest/principal
+payments deduct cash in this version. Do not restore start-year capital
+protection, future-year checks, ceilings or iterative resizing.
 
-**Why:** The user requested a start-year revenue allocation funding one loan
-injection, rather than borrowing against an optimistic future revenue peak.
+**Why:** On 2026-10-06 the user's simplified-loan specification explicitly
+superseded the earlier affordability constraints and full-maturity repayment
+verification. This is an indicative gross financing scenario, not free finance
+or verified affordable borrowing.
 
 **How to apply:** Keep Intervention Design as the intervention-only stage and
-Debt servicing as the separate fourth workflow stage, with Results fifth.
+ Loan funding as the separate fourth workflow stage, with Results fifth.
 Show the same intervention contributions plus signed debt effects, and leave
 new-connection net cash outside repayment eligibility.
 

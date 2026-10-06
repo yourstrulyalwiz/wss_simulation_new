@@ -228,7 +228,7 @@ def _ui_aliases(sec):
 
 
 def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, bau_kwargs=None, scn_kwargs=None,
-                          debt_config=None, debt_asset_life=30):
+                          debt_config=None, debt_asset_life=30, reference_kwargs=None):
     """Run a sector's calculation as TWO independent passes and merge them.
 
     BAU pass (`bau_inputs`, every intervention toggle forced OFF) is the canonical business-as-usual
@@ -243,9 +243,12 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
     from model.utility_debt import solve_scenario, validate_config
     bau = calc_fn(bau_inputs, ctx, **(bau_kwargs or {}))
     cfg = validate_config(debt_config, ctx['years'], scn_inputs.period.baseline_year)
+    reference = (bau if not any_toggle_on else
+                 calc_fn(scn_inputs, ctx, **reference_kwargs) if reference_kwargs is not None else None)
     scn, _, debt_summary, scn_without_debt = solve_scenario(
         calc_fn, scn_inputs, ctx, cfg, calc_kwargs=scn_kwargs,
-        asset_life=debt_asset_life, reference_result=bau if not any_toggle_on else None)
+        asset_life=debt_asset_life, reference_result=reference,
+        force_financed_run=reference_kwargs is not None and reference_kwargs != (scn_kwargs or {}))
     scn['utility_debt'] = debt_summary
     bau['scenario_hh'] = scn['bau_hh']                                  # SM path WITH interventions
     bau['scenario_financing_gap'] = scn['financing_gap']
@@ -277,6 +280,7 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
         bau['scenario_' + key] = scn.get(key, [])
     bau['scenario_utility_debt'] = debt_summary
     bau['scenario_without_utility_debt_hh'] = scn_without_debt['bau_hh']
+    bau['scenario_without_utility_debt_nrw_recovered_phys_vol'] = scn_without_debt.get('nrw_recovered_phys_vol', [])
     for key in SERVICE_GAP_FIELDS:
         bau['scenario_without_utility_debt_' + key] = scn_without_debt[key]
     bau['scenario_without_utility_debt_financing_gap'] = scn_without_debt['financing_gap']
@@ -343,10 +347,12 @@ def calculate(inputs: ModelInputs) -> dict:
         debt_config=water_debt, debt_asset_life=inputs.technical.ws_asset_life)
     nrw_vol_bau = water.get('nrw_recovered_phys_vol', [])
     nrw_vol_scn = water.get('scenario_nrw_recovered_phys_vol', nrw_vol_bau)
+    nrw_vol_reference = water['scenario_without_utility_debt_nrw_recovered_phys_vol']
     sanitation = _sector_with_scenario(
         calculate_sanitation, bau_inputs, inputs, ctx, any_toggle_on,
         bau_kwargs={'nrw_recovered_vol': nrw_vol_bau},
         scn_kwargs={'nrw_recovered_vol': nrw_vol_scn},
+        reference_kwargs={'nrw_recovered_vol': nrw_vol_reference},
         debt_config=sanitation_debt, debt_asset_life=inputs.technical.san_asset_life)
     return {
         'years': ctx['years'].tolist(),

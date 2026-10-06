@@ -6,6 +6,7 @@ import { validRate, type CurrencyDisplaySettings } from '../currencyDisplay';
 import { fundingBalanceForDisplay } from '../fundingBalanceDisplay';
 import type { ContributionView } from '../contributionView';
 import './ResultsLedgerPanel.css';
+import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
 
 type Selection = { metric: LedgerMetric; service: LedgerService; basis: LedgerBasis };
 
@@ -125,12 +126,12 @@ export default function ResultsLedgerPanel({
     items.flatMap(row => [{ ...row, depth: row.depth ?? depth },
       ...(row.children && isExpanded(row.key) ? flatten(row.children, depth + 1) : [])]);
   const visibleRows = flatten(rows);
-  const exportHeaders = ['Scenario', 'Sector', 'Geography', 'Service', 'Component', 'Timing', 'Additive', 'Status / limitation', 'Hierarchy depth', 'Row', 'Unit', ...years.map(String)];
+  const exportHeaders = ['Scenario', 'Sector', 'Geography', 'Service', 'Component', 'Timing', 'Additive', 'Status / limitation', 'Hierarchy depth', 'Row', 'Unit', ...years.map(String), ...(data.includesDebt ? ['Loan funding qualification'] : [])];
   const exportRows = visibleRows.map(row => [
     reportingView === 'effects' ? 'BAU-to-scenario ordered attribution' : sourceKind === 'bau' ? 'BAU' : 'Combined scenario',
     sector, row.geography ?? scope, row.service ?? '', row.component ?? '', row.timing ?? '',
     row.children?.length || row.timing?.startsWith('Reference') || row.timing?.startsWith('Reporting diagnostic') ? 'No — subtotal/reference' : 'Yes',
-    row.status ?? '', row.depth, `${'  '.repeat(row.depth)}${row.label}`, row.unit, ...row.values,
+    row.status ?? '', row.depth, `${'  '.repeat(row.depth)}${row.label}`, row.unit, ...row.values, ...(data.includesDebt ? [LOAN_FUNDING_QUALIFICATION] : []),
   ]);
   const metricLabel = metricOptions.find(option => option.value === selection.metric)?.label ?? 'Coverage';
   const selectedServiceOptions = selection.metric === 'coverage' ? coverageServiceOptions : serviceOptions;
@@ -144,7 +145,7 @@ export default function ResultsLedgerPanel({
     'service-ledger', sector, slug(scope), slug(metricLabel), slug(serviceLabel), slug(basisLabel), slug(currency),
     selection.metric === 'coverage' ? isShare ? 'percent-and-pp' : 'households' : 'billions',
     reportingView === 'source' ? sourceKind : 'intervention-effects',
-    data.includesDebt ? 'with-debt' : 'without-debt', `${years[0]}-${years[years.length - 1]}`,
+    data.includesDebt ? 'with-indicative-loan-funding' : 'without-loan-funding', `${years[0]}-${years[years.length - 1]}`,
   ].join('-');
 
   const setMetric = (metric: LedgerMetric) => {
@@ -180,6 +181,7 @@ export default function ResultsLedgerPanel({
           />
         </div>
       </div>
+      {data.includesDebt && <p className="results-ledger__scope">{LOAN_FUNDING_QUALIFICATION}</p>}
 
       <div className="results-ledger__controls">
         {(selection.metric === 'requirements' || selection.metric === 'gap') && (

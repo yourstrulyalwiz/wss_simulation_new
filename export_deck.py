@@ -402,9 +402,10 @@ def _fill_detail(slide, b, row, inputs, sk, source_cur, display_cur, money_facto
 
 
 def _append_utility_debt_slides(prs, blocks, display_currency, money_factor):
-    """Add a summary and paginated annual schedule for each scope/sector with utility borrowing."""
+    """Export indicative sizing and actual proceeds use, never repayment claims."""
     from pptx.util import Inches, Pt
     from pptx.dml.color import RGBColor
+    from model.utility_debt import INDICATIVE_QUALIFICATION
 
     for (scope, sector), block in blocks.items():
         debt = block.get('utility_debt') or {}
@@ -412,12 +413,12 @@ def _append_utility_debt_slides(prs, blocks, display_currency, money_factor):
             continue
         sector_name = 'Water Supply' if sector == 'water_supply' else 'Sanitation'
         scope_name = scope.title()
-        schedule = debt.get('schedule') or []
+        schedule = debt.get('annual_injection') or []
         pages = [schedule[i:i + 12] for i in range(0, len(schedule), 12)] or [[]]
         for page_index, page in enumerate(pages):
             slide = prs.slides.add_slide(prs.slide_layouts[6])
             title = slide.shapes.add_textbox(Inches(.55), Inches(.25), Inches(12.2), Inches(.5))
-            title.text_frame.text = f'{scope_name} — {sector_name} utility debt financing'
+            title.text_frame.text = f'{scope_name} — {sector_name} indicative loan funding'
             title.text_frame.paragraphs[0].font.size = Pt(19)
             title.text_frame.paragraphs[0].font.bold = True
             title.text_frame.paragraphs[0].font.color.rgb = RGBColor(0x01, 0x49, 0x72)
@@ -428,17 +429,16 @@ def _append_utility_debt_slides(prs, blocks, display_currency, money_factor):
                     details.append(
                         f"{area_debt.get('area', scope_name)} — allocation "
                         f"{float(area_debt.get('allocation_share') or 0) * 100:.1f}%, real rate "
-                        f"{float(area_debt.get('annual_real_interest_rate') or 0) * 100:.2f}%, "
-                        f"{area_debt.get('repayment_structure') or '—'}, disbursement "
-                        f"{area_debt.get('disbursement_year') or '—'}, grace "
-                        f"{area_debt.get('principal_grace_years') or 0} years, maturity "
-                        f"{area_debt.get('maturity_year') or '—'}. Sources: "
+                        f"{float(area_debt['annual_real_interest_rate']) * 100 if area_debt.get('annual_real_interest_rate') is not None else 'not entered'}%, "
+                        f"term {area_debt.get('loan_term_years') or 'not entered'} years, reference/injection "
+                        f"{area_debt.get('reference_year') or '—'}, annuity factor "
+                        f"{area_debt.get('annuity_factor', '—')}. Sources: "
                         f"{', '.join(area_debt.get('revenue_sources', ['collection', 'tariff', 'nrw'])) or 'none'}."
                     )
                 details.extend([
-                    f"Accepted principal: {bn(float(debt.get('accepted_principal') or 0) * money_factor)} B {display_currency} · total principal repaid: {bn(float(debt.get('total_principal_repaid') or 0) * money_factor)} B · total interest: {bn(float(debt.get('total_interest') or 0) * money_factor)} B",
-                    f"Closing restricted proceeds: {bn(float(debt.get('closing_restricted_cash') or 0) * money_factor)} B {display_currency}. Loan proceeds are not debt-service capacity.",
-                    str(debt.get('tail_capacity_assumption') or 'Annual debt service is checked against verified capacity.'),
+                    f"Indicative loan proceeds: {bn(float(debt.get('indicative_principal') or 0) * money_factor)} B {display_currency}. Feasibility: not assessed.",
+                    f"Closing unspent proceeds: {bn(float(debt.get('closing_restricted_cash') or 0) * money_factor)} B {display_currency}. Opening balances are carried cash, not new borrowing.",
+                    INDICATIVE_QUALIFICATION,
                     str(debt.get('net_revenue_assumption') or 'Incremental revenue net of modeled costs; new connections excluded.'),
                 ])
                 note = slide.shapes.add_textbox(Inches(.65), Inches(.9), Inches(12.0), Inches(1.8))
@@ -452,19 +452,17 @@ def _append_utility_debt_slides(prs, blocks, display_currency, money_factor):
             else:
                 years_text = f"Years {page[0]['year']}–{page[-1]['year']}" if page else 'No annual schedule'
                 subtitle = slide.shapes.add_textbox(Inches(.6), Inches(.85), Inches(12), Inches(.3))
-                subtitle.text_frame.text = f'{years_text} · amounts in billions of {display_currency}'
+                subtitle.text_frame.text = f'{years_text} · billions of {display_currency} · repayment accounting deferred'
                 subtitle.text_frame.paragraphs[0].font.size = Pt(10)
                 top = 1.3
 
             if page:
-                headers = ['Year', 'Opening principal', 'Disbursement', 'Principal paid',
-                           'Interest paid', 'Total service', 'Service capacity',
-                           'Shortfall', 'Loan-funded investment', 'Closing restricted cash']
+                headers = ['Year', 'New injection', 'Opening unspent proceeds',
+                           'Loan-funded investment', 'Closing unspent proceeds']
                 values = [[row.get('year')] + [
                     bn(float(row.get(field) or 0) * money_factor, 2) for field in (
-                        'opening_principal', 'disbursement', 'principal_payment', 'interest_payment',
-                        'total_debt_service', 'annual_service_capacity', 'payment_shortfall',
-                        'investment_from_loan_proceeds', 'closing_restricted_cash')]
+                        'disbursement', 'opening_unspent_proceeds',
+                        'investment_from_loan_proceeds', 'closing_unspent_proceeds')]
                     for row in page]
                 table = slide.shapes.add_table(len(values) + 1, len(headers), Inches(.35), Inches(top),
                                                Inches(12.65), Inches(.29 * (len(values) + 1))).table

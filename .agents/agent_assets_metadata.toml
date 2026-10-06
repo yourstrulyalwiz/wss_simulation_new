@@ -56,3 +56,17 @@ mtime_ms = 1791265342534
 storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/31e5ce66-77e8-43a4-8558-a5a38995a405/7bdd2ba7-c0ee-4ba6-b533-833051b8aee7"
 storage_version_token = "1791265343349095"
 content_type = "text/html"
+
+[[outputs]]
+id = "KcP9cXK5n-vzYguilQMkH"
+uri = "file://screenshots/indicative-loan/verification.html"
+type = "html"
+title = "Loan funding — implementation and verification"
+description = "Changed files, numerical examples, test results, limitations, and desktop/mobile screenshots."
+logical_id = "0a8f1164-5bc1-4355-a3d9-0e25b96200cb"
+content_hash = "sha256:902b6d0a4adf91fb38c942ee260339a26566e16cd74032f4724b8d9276c1393c"
+size = 474434
+mtime_ms = 1791314177776
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/0a8f1164-5bc1-4355-a3d9-0e25b96200cb/5e2c2104-8911-4f03-929f-f16fa911478f"
+storage_version_token = "1791314198678814"
+content_type = "text/html"

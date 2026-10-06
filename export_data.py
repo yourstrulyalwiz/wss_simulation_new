@@ -287,6 +287,11 @@ def _currency_metadata(wb, currency_display, contribution_view):
 
 
 def _utility_debt_tables(sec, currency):
+    from loan_reporting import loan_tables
+    return loan_tables(sec.get('scenario_utility_debt') or {}, currency)
+
+
+def _legacy_utility_debt_tables(sec, currency):
     debt = sec.get('scenario_utility_debt') or {}
     summary_headers = ['Assumption or balance', 'Value', f'Amount ({currency} M)']
     summary_rows = [
@@ -394,8 +399,8 @@ def scenario_csv(inputs, currency_display=None, contribution_view='individual'):
             w.writerow(['Year', *[local_headers[i] for i in money_indexes]])
             w.writerows([[row[0], *[row[i] for i in money_indexes]] for row in local_rows])
         debt_summary, debt_schedule = _utility_debt_tables(result[sk], _cur(inputs))
-        for label, table in [('utility debt assumptions and balances', debt_summary),
-                             ('utility debt annual schedule', debt_schedule)]:
+        for label, table in [('indicative loan assumptions and balances', debt_summary),
+                             ('indicative loan proceeds use', debt_schedule)]:
             dh, dr = table
             source_h, source_r = dh, dr
             dh, dr, debt_money_indexes = _currency_table(dh, dr, display)
@@ -502,7 +507,7 @@ def scenario_xlsx(inputs, contribution_view='individual', currency_display=None)
             _write_sheet(wb, f'{name} — local detail', local_h, local_r)
         debt_summary, debt_schedule = _utility_debt_tables(result[sk], _cur(inputs))
         debt_suffix = ' (USD)' if converted_usd else ''
-        for label, table in [('debt assumptions', debt_summary), ('debt schedule', debt_schedule)]:
+        for label, table in [('loan assumptions', debt_summary), ('loan proceeds use', debt_schedule)]:
             dh, dr = table
             source_h, source_r = dh, dr
             dh, dr, debt_money_indexes = _currency_table(dh, dr, display)

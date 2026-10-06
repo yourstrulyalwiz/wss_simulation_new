@@ -225,6 +225,14 @@
   cursor: pointer;
 }
 
+.debt-source-value {
+  display: block;
+  margin-top: 2px;
+  color: #89724f;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
 .debt-source-option input {
   width: 13px;
   height: 13px;
@@ -440,6 +448,41 @@
   padding: 0;
 }
 
+.debt-loan-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 16px;
+  border: 1px solid #b9d1c5;
+  border-left: 4px solid var(--debt-accent);
+  border-radius: 7px;
+  background: #edf4eb;
+}
+
+.debt-loan-summary h3 {
+  margin: 3px 0 0;
+  color: #23473d;
+  font-size: 16px;
+  letter-spacing: -.025em;
+}
+
+.debt-loan-summary p {
+  max-width: 690px;
+  margin: 6px 0 0;
+  color: #61736a;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.debt-loan-summary > strong {
+  color: #1e5d50;
+  font-size: clamp(16px, 2vw, 23px);
+  letter-spacing: -.04em;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .debt-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -490,6 +533,20 @@
   padding: 3px 0;
   color: #6b7b73;
   font-size: 9px;
+}
+
+.debt-diagnostics-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  color: #6b7b73;
+  font-size: 9px;
+}
+
+.debt-diagnostics-row b {
+  color: #314d45;
+  text-align: right;
 }
 
 .debt-diagnostics b {
@@ -834,6 +891,14 @@
   .debt-gap-heading p {
     max-width: none;
     text-align: left;
+  }
+  .debt-loan-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .debt-loan-summary > strong {
+    text-align: left;
+    white-space: normal;
   }
   .debt-metrics,
   .debt-gap-grid {

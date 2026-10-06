@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { ContributionView } from '../contributionView';
 import type { CurrencyDisplaySettings } from '../currencyDisplay';
+import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
 
 // Download the current scenario (`inputs`) as Excel / PowerPoint / CSV (PowerPoint only where `pptx`
 // is left on — the Results Dashboard). All three endpoints run the
@@ -30,7 +31,7 @@ export default function ExportButtons({ inputs, label = 'Export', pptxCharts, ar
     setBusy(fmt.ext);
     try {
       const sourceCurrency = currencyDisplay?.sourceCurrency || inputs?.country_config?.currency || 'LCU';
-      const options = { contribution_view: contributionView, currency_display: currencyDisplay || {
+      const options = { contribution_view: contributionView, loan_funding_qualification: LOAN_FUNDING_QUALIFICATION, currency_display: currencyDisplay || {
         mode: 'local', sourceCurrency, localPerUsd: null, rateReferenceYear: null, sourceNote: '',
       } };
       const entered = Object.entries(areas || {}).filter(([, v]) => v);
@@ -45,7 +46,7 @@ export default function ExportButtons({ inputs, label = 'Export', pptxCharts, ar
       if (fmt.ext === 'pptx') {
         if (entered.length) {
           endpoint = '/api/export/deck';
-          body = { areas: Object.fromEntries(entered), contribution_view: contributionView, currency_display: options.currency_display };
+          body = { areas: Object.fromEntries(entered), contribution_view: contributionView, currency_display: options.currency_display, loan_funding_qualification: LOAN_FUNDING_QUALIFICATION };
         } else if (pptxCharts) {
           try { body = { ...body, _charts: await pptxCharts() }; } catch { /* chart-less deck */ }
         }

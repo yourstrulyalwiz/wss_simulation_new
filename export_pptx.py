@@ -264,36 +264,35 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
         if not debt.get('enabled'):
             continue
         summary_slide = prs.slides.add_slide(blank)
-        slide_title(summary_slide, f'{name} — utility debt assumptions and balances',
-                    'Borrowing is by the utility; loan proceeds are restricted to infrastructure and are not debt-service capacity.')
+        from model.utility_debt import INDICATIVE_QUALIFICATION
+        slide_title(summary_slide, f'{name} — indicative loan funding',
+                    'Gross financing scenario; affordability not assessed. Repayment accounting deferred.')
         assumption_rows = [
             ['Status', debt.get('status', '—')],
+            ['Qualification', INDICATIVE_QUALIFICATION],
             ['Allocation of eligible additional revenue', f"{float(debt.get('allocation_share') or 0) * 100:.1f}%"],
-            ['Annual real rate / repayment', f"{float(debt.get('annual_real_interest_rate') or 0) * 100:.2f}% / {debt.get('repayment_structure') or '—'}"],
-            ['Disbursement / grace / maturity', f"{debt.get('disbursement_year') or '—'} / {debt.get('principal_grace_years') or 0} years / {debt.get('maturity_year') or '—'}"],
-            ['Accepted principal', f"{_b(float(debt.get('accepted_principal') or 0) * money_factor)} B {cur}"],
-            ['Total interest / principal repaid', f"{_b(float(debt.get('total_interest') or 0) * money_factor)} / {_b(float(debt.get('total_principal_repaid') or 0) * money_factor)} B {cur}"],
-            ['Closing restricted proceeds', f"{_b(float(debt.get('closing_restricted_cash') or 0) * money_factor)} B {cur}"],
-            ['Sizing assumption', debt.get('tail_capacity_assumption') or 'Annual capacity verified against the scenario.'],
+            ['Annual real rate / term', f"{float(debt['annual_real_interest_rate']) * 100 if debt.get('annual_real_interest_rate') is not None else 'not entered'}% / {debt.get('loan_term_years') or 'not entered'} years"],
+            ['Reference / injection year', debt.get('reference_year') or '—'],
+            ['Indicative loan proceeds', f"{_b(float(debt.get('indicative_principal') or 0) * money_factor)} B {cur}"],
+            ['Repayments / financing costs', 'Deferred — not modeled; not a zero-cost loan'],
+            ['Closing unspent proceeds', f"{_b(float(debt.get('closing_restricted_cash') or 0) * money_factor)} B {cur}"],
+            ['Annuity factor', debt.get('annuity_factor')],
         ]
         add_table(summary_slide, .6, 1.35, 12, ['Assumption or balance', 'Value'], assumption_rows, fontsize=10)
 
-        schedule = debt.get('schedule') or []
-        headers = ['Year', f'Opening principal ({cur} B)', f'Disbursement ({cur} B)',
-                   f'Principal paid ({cur} B)', f'Interest ({cur} B)', f'Debt service ({cur} B)',
-                   f'Capacity ({cur} B)', f'Shortfall ({cur} B)',
-                   f'Loan investment ({cur} B)', f'Closing restricted cash ({cur} B)']
+        schedule = debt.get('annual_injection') or []
+        headers = ['Year', f'New injection ({cur} B)', f'Opening unspent proceeds ({cur} B)',
+                   f'Loan investment ({cur} B)', f'Closing unspent proceeds ({cur} B)']
         for start in range(0, len(schedule), 10):
             page = schedule[start:start + 10]
             slide = prs.slides.add_slide(blank)
-            slide_title(slide, f'{name} — utility debt annual schedule',
-                        f"Years {page[0]['year']}–{page[-1]['year']} · amounts in billions of {cur}")
+            slide_title(slide, f'{name} — indicative loan proceeds use',
+                        f"Years {page[0]['year']}–{page[-1]['year']} · billions of {cur} · repayment accounting deferred")
             rows = [[
                 row.get('year'),
                 *[f"{_b(float(row.get(field) or 0) * money_factor)}" for field in (
-                    'opening_principal', 'disbursement', 'principal_payment', 'interest_payment',
-                    'total_debt_service', 'annual_service_capacity', 'payment_shortfall',
-                    'investment_from_loan_proceeds', 'closing_restricted_cash')],
+                    'disbursement', 'opening_unspent_proceeds',
+                    'investment_from_loan_proceeds', 'closing_unspent_proceeds')],
             ] for row in page]
             add_table(slide, .45, 1.45, 12.4, headers, rows, fontsize=7.5)
 

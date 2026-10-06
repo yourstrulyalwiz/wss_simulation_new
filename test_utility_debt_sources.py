@@ -115,43 +115,40 @@ class UtilityDebtSourcesTests(unittest.TestCase):
         for sector in ['water_supply', 'sanitation']:
             debt = empty[sector]['scenario_utility_debt']
             self.assertEqual(debt['accepted_principal'], 0)
-            self.assertTrue(debt['annual_revenue'])
-            self.assertTrue(all(r['eligible_additional_revenue'] == 0 for r in debt['annual_revenue']))
+            self.assertTrue(debt['annual_injection'])
+            self.assertEqual(debt['selected_signed_pool'], 0)
             self.assertEqual(empty[sector]['scenario_hh'],
                              empty[sector]['scenario_without_utility_debt_hh'])
             debt_zero = zero[sector]['scenario_utility_debt']
             self.assertEqual(debt_zero['accepted_principal'], 0)
-            self.assertGreater(max(r['eligible_additional_revenue'] for r in debt_zero['annual_revenue']), 0)
-            self.assertTrue(all(r['annual_service_capacity'] == 0 for r in debt_zero['annual_revenue']))
+            self.assertGreater(debt_zero['selected_signed_pool'], 0)
+            self.assertEqual(debt_zero['annual_allocation'], 0)
         for structure, rate in [('annuity', .05), ('equal_principal', 0)]:
             result = self.scenario(['collection', 'tariff'], structure=structure, rate=rate)
             for sector in ['water_supply', 'sanitation']:
                 debt = result[sector]['scenario_utility_debt']
                 self.assertGreater(debt['accepted_principal'], 0)
-                self.assertTrue(debt['verified_feasible'])
-                self.assertEqual(debt['schedule'][-1]['year'], debt['maturity_year'])
-                self.assertAlmostEqual(debt['schedule'][-1]['closing_principal'], 0)
-                self.assertAlmostEqual(debt['total_principal_repaid'], debt['accepted_principal'])
-                self.assertTrue(all(r['payment_shortfall'] < 1e-6 for r in debt['schedule']))
-                for row in debt['annual_revenue']:
-                    self.assertAlmostEqual(row['eligible_additional_revenue'],
-                                           row['collection_net_cash'] + row['tariff_net_cash'])
-                    self.assertAlmostEqual(row['repayment_headroom'],
-                                           row['annual_service_capacity'] - row['total_debt_service'])
+                self.assertFalse(debt['verified_feasible'])
+                self.assertNotIn('schedule', debt)
+                self.assertNotIn('total_principal_repaid', debt)
+                self.assertEqual(debt['repayment_accounting'], 'deferred')
+                self.assertAlmostEqual(debt['selected_signed_pool'],
+                                       debt['reference_source_cash']['collection'] + debt['reference_source_cash']['tariff'])
+                self.assertTrue(all(v == 0 for v in result[sector]['scenario_utility_debt_service']))
 
     def test_exports_and_area_aggregation(self):
         sec = self.scenario(['tariff'])['water_supply']
         debt = sec['scenario_utility_debt']
         summary, annual = _utility_debt_tables(sec, 'CDF')
-        self.assertIn(['Selected revenue sources', 'tariff', ''], summary[1])
-        self.assertEqual(len(annual[1]), len(debt['annual_revenue']))
-        self.assertTrue(any('Protected eligible' in h for h in annual[0]))
+        self.assertIn(['Selected intervention sources', 'tariff', None], summary[1])
+        self.assertEqual(len(annual[1]), len(debt['annual_injection']))
+        self.assertTrue(any('Opening unspent' in h for h in annual[0]))
         total = _aggregate_utility_debt([debt, debt])
         self.assertAlmostEqual(total['accepted_principal'], 2*debt['accepted_principal'])
-        self.assertEqual(total['revenue_sources'], ['tariff'])
-        for row, area in zip(total['annual_revenue'], debt['annual_revenue']):
-            self.assertAlmostEqual(row['annual_service_capacity'], 2*area['annual_service_capacity'])
-            self.assertEqual(row['post_target'], area['post_target'])
+        self.assertEqual(total['areas'][0]['revenue_sources'], ['tariff'])
+        for row, area in zip(total['annual_injection'], debt['annual_injection']):
+            self.assertAlmostEqual(row['disbursement'], 2*area['disbursement'])
+            self.assertAlmostEqual(row['closing_unspent_proceeds'], 2*area['closing_unspent_proceeds'])
 
 
 if __name__ == '__main__':

@@ -451,7 +451,7 @@ export default function App() {
 
   // Exports now live throughout the tool (per-table, per-chart, and the whole-scenario Export buttons on
   // the Intervention Design and Results tabs), so there is no separate Export tab.
-  const tabs = ['Data Inputs', 'BAU Scenario', 'Intervention Design', 'Debt servicing', 'Results Dashboard'];
+  const tabs = ['Data Inputs', 'BAU Scenario', 'Intervention Design', 'Loan funding', 'Results Dashboard'];
   const isDataPreview = inputs?.profile_metadata?.status === 'data_preview';
   const isMockSimulation = inputs?.profile_metadata?.status === 'mock_simulation';
 
@@ -808,7 +808,7 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
               <strong>Intervention Design</strong> — Pick Water Supply or Sanitation, switch each intervention on or off with its toggle, and set its parameters, which include collection efficiency, NRW reduction, budget execution improvement, capex efficiency (a unit-cost discount), optimised technology selection, tariff reform, and microfinance (with a self-finance carve-out and a means-based grant inside it). Add your own under <em>Custom Interventions</em> at the bottom. The impact graph updates live.
             </li>
             <li style={{ marginBottom: 6 }}>
-              <strong>Debt servicing</strong> — Carry the selected area’s intervention scenario into a single utility loan. Choose eligible reform revenue, a forecast disbursement year, an allocation share and repayment terms. Compare the no-debt borrowing base with the financed scenario, inspect the annual ledger and track signed access-gap changes. New connection net cash is not a debt source.
+              <strong>Loan funding</strong> — Carry the selected area’s intervention scenario into one indicative loan proceeds injection. Choose an eligible source, reference year, pooled allocation, real interest rate and term. Repayment accounting is deferred; compare coverage with and without indicative loan funding.
             </li>
             <li style={{ marginBottom: 0 }}>
               <strong>Results Dashboard</strong> — Compare BAU and intervention scenarios. Toggle interventions and adjust the target years to see the impact on coverage and the financing gap. Export the whole scenario as PowerPoint, Excel, or CSV — or download any individual chart (PNG / JPG / Excel) or table (CSV / Excel) from its own button.
@@ -1194,11 +1194,12 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     ),
   },
   utility_debt: {
-    title: 'Debt servicing — utility borrowing',
+    title: 'Loan funding — indicative borrowing',
     content: (
       <div>
-        <p style={{ margin: '0 0 6px' }}>Debt servicing carries the intervention scenario forward without changing intervention settings. Select among collection, tariff and NRW net cash as independent repayment sources; choices do not switch on interventions.</p>
-        <p style={{ margin: '0 0 6px' }}>The model anchors an initial principal bound to the selected forecast-year protected revenue capacity, then verifies every payment through maturity. It may reduce the final loan for a later shortfall. Loan proceeds are restricted investment cash, not revenue.</p>
+        <p style={{ margin: '0 0 6px' }}>Loan funding carries the intervention scenario forward without changing intervention settings. Select collection efficiency, tariff reform and/or NRW-related net cash for one selected reference year; selections do not switch on reforms.</p>
+        <p style={{ margin: '0 0 6px' }}>The allocation and annual real rate over an explicit positive whole-year term size one indicative proceeds amount using the selected year’s signed cash pool. Loan proceeds enter restricted investment cash once, with unused proceeds carried forward.</p>
+        <p style={{ margin: '0 0 6px' }}>Indicative loan proceeds — repayment accounting deferred. Loan sizing uses the selected year’s additional net cash and assumes equal annual repayments. Principal and interest payments are not deducted from model funding in this version.</p>
         <p style={{ margin: 0 }}>Active connection-based billing can affect customer-driven collection and tariff reform growth. The separate connection net-cash stream is not debt eligible. The annual table distinguishes reference/no-debt borrowing-base values from financed-scenario cash and replacement obligations.</p>
       </div>
     ),

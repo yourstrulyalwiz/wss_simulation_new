@@ -201,6 +201,41 @@ with their children or closing balances across years. A subperiod summary uses
 
 ## Controlled comparison
 
+### Indicative loan funding
+
+Loan funding is optional and Results opens with it excluded, even when saved
+settings enable it. Explicit inclusion changes the calculated tables, charts
+and live exports without deleting those settings. The fourth workflow stage
+shows the configured indicative scenario directly.
+
+Indicative loan proceeds — repayment accounting deferred. Loan sizing uses the
+selected year's additional net cash and assumes equal annual repayments.
+Principal and interest payments are not deducted from model funding in this version.
+
+Each area and sector sizes separately from a frozen intervention-only reference
+with all utility loans disabled. The selected annual collection, tariff and NRW
+cash (including the existing eligible sanitation link, counted once) is summed
+signed, floored at zero, multiplied by allocation and the real-rate annuity
+present-value factor. At zero interest, the factor equals the explicit term.
+New-connection cash is excluded; collection/tariff interaction attribution is
+preserved. Interest and term are sizing assumptions only; the term may extend
+beyond the forecast without extending the model or generating repayments.
+
+There is one injection in the selected reference year. Existing restricted
+capital allocation and delivery limits govern its use. For each model year,
+opening unspent proceeds + new injection = loan-funded investment + closing
+unspent proceeds. Opening cash is not another disbursement and loan availability
+is not a second credit to ordinary capital. National roll-ups add actual
+area/sector injections and balances, preserving their timing and assumptions
+without pooling eligibility or averaging rates/terms.
+
+This is gross financing, not affordability verification or a net benefit after
+financing costs. Legacy grace, repayment structure and ceiling settings remain
+inactive migration metadata; a valid old maturity-minus-disbursement span
+supplies the migrated indicative term. New blank rates and terms are not zero
+or invented defaults. Existing replacement and transition-pricing qualifications
+remain unchanged.
+
 With $20m scheduled and $12m financed annually, closing expansion is $8m, $16m,
 $24m. The endline balance is $24m, not the $48m sum of yearly snapshots.
 With $100m existing stock, 10% replacement and $50m available, $10m maintains

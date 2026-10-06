@@ -7,7 +7,7 @@
 - [Default profile rollout](default-profile-rollout.md) — new DRC default should open once for existing and new users, backing up prior sessions; omitted settings must be supplied.
 - [Minimum service targets](minimum-service-targets.md) — SM satisfies the basic minimum; preserve exclusive categories and assess deficits locally before aggregation.
 - [Graph viewing period](graph-window-policy.md) — open around simulation years with three preceding years; keep longer history selectable without changing model data.
-- [Utility debt scope](utility-debt-policy.md) — use incremental net cash; user deliberately excludes new-connection revenue from debt eligibility.
+- [Utility debt scope](utility-debt-policy.md) — indicative one-year loan sizing; repayments deferred; connection cash excluded; Results defaults loan-excluded.
 - [Results attribution](results-attribution.md) — retain reconciled marginal effects; category display order is not calculation order or a standalone simulation.
 - [Funding-balance materiality](financial-reporting-materiality.md) — US$10,000 is a user-approved display tolerance, not permission to erase obligations.
 - [Transition pricing boundary](transition-pricing-boundary.md) — SM incremental-versus-full upgrade pricing remains deferred; do not resolve it through transition-count fixes.

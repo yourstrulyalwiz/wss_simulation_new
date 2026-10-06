@@ -22,6 +22,7 @@ import ScenarioGapTables, { type FinanceYear } from './ScenarioGapTables';
 import { aggregateContributionRows, ContributionViewToggle, type ContributionView } from '../contributionView';
 import { CurrencyDisplayControl, type CurrencyDisplaySettings, validRate } from '../currencyDisplay';
 import { aggregateWeightedRevenueRate, connectionRevenueAreaModes, summarizeConnectionRevenueModes } from '../connectionRevenueMode';
+import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
 
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
 function round3(v: number): number { return (!isFinite(v) || v === 0) ? 0 : Number(v.toPrecision(3)); }
@@ -106,8 +107,9 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
 }) {
   const chartRef = useRef<HTMLDivElement>(null);
   // Data series behind the chart, for the "⤓ Excel" export: Year, [base], each band, then the reference lines.
-  const exHeaders = ['Year', ...(base ? [base.label] : []), ...bands.map(b => b.label), ...lines.map(l => l.name)];
-  const exRows = data.map((r: any) => [r.year, ...(base ? [r[base.key] ?? 0] : []), ...bands.map(b => r[b.key] ?? 0), ...lines.map(l => r[l.key] ?? '')]);
+  const loanFundingShown = bands.some(b => b.key === 'Utility debt financing' || b.key === 'Indicative loan funding' || b.key === 'utility_debt_financing');
+  const exHeaders = ['Year', ...(base ? [base.label] : []), ...bands.map(b => b.label), ...lines.map(l => l.name), ...(loanFundingShown ? ['Loan funding qualification'] : [])];
+  const exRows = data.map((r: any) => [r.year, ...(base ? [r[base.key] ?? 0] : []), ...bands.map(b => r[b.key] ?? 0), ...lines.map(l => r[l.key] ?? ''), ...(loanFundingShown ? [LOAN_FUNDING_QUALIFICATION] : [])]);
   // Native Excel chart: optional base area at the bottom, then the intervention bands stacked up, plus the lines.
   const chartSpec = {
     category: 'Year', stacked: true,
@@ -175,39 +177,31 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
   const amount = (value: number) => `${sigB(value * moneyFactor)} B`;
   const money = (value: number) => amount(Number(value || 0));
   const summary = debt.summary || {};
-  const sourceLabels: Record<string, string> = { collection: 'Collection efficiency', tariff: 'Tariff reforms', nrw: 'NRW reductions' };
+  const sourceLabels: Record<string, string> = { collection: 'Collection efficiency', tariff: 'Tariff reform', nrw: 'NRW-related net cash' };
+  const tableHeaders = ['Year', 'New indicative injection', 'Opening unspent proceeds', 'Investment from proceeds', 'Closing unspent proceeds', 'Qualification'];
+  const tableRows = debt.rows.map((r: any) => [r.year, money(r.disbursement), money(r.opening_unspent_proceeds),
+    money(r.investment_from_loan_proceeds), money(r.closing_unspent_proceeds), LOAN_FUNDING_QUALIFICATION]);
   return (
     <section style={{ marginTop: 12, border: '1px solid #cbd5e1', borderRadius: 7, background: '#fff', padding: '10px 12px' }}>
-      <h4 style={{ margin: '0 0 5px', color: '#1e3a5f', fontSize: 12.5 }}>Utility debt financing — {currency}</h4>
+      <h4 style={{ margin: '0 0 5px', color: '#1e3a5f', fontSize: 12.5 }}>Indicative loan funding — {currency}</h4>
       <div style={{ fontSize: 11, lineHeight: 1.5, color: '#475569', marginBottom: 8 }}>
-        Status: <b>{summary.status || 'not enabled'}</b> · accepted principal: <b>{money(summary.accepted_principal)}</b> · scheduled interest: <b>{money(summary.total_interest)}</b> · closing restricted proceeds: <b>{money(summary.closing_restricted_cash)}</b>
+        Status: <b>{summary.status || 'unavailable'}</b> · indicative loan proceeds: <b>{money(summary.indicative_principal)}</b> · repayment accounting: <b>deferred</b> · feasibility: <b>not assessed</b>
       </div>
       <div style={{ fontSize: 10.5, color: '#64748b', marginBottom: 8, lineHeight: 1.45 }}>
         Per-area assumptions: {debt.areas.filter(a => a.enabled).map((a, i) => {
           const selected: string[] = Array.isArray(a.revenue_sources) ? a.revenue_sources.filter((key: string) => key in sourceLabels) : Object.keys(sourceLabels);
-          return <span key={i}>{i ? ' · ' : ''}{a.area}: {((Number(a.allocation_share) || 0) * 100).toFixed(1)}% allocation, {((Number(a.annual_real_interest_rate) || 0) * 100).toFixed(2)}% real rate, {a.repayment_structure || 'annuity'}, disbursed {a.disbursement_year || '—'}, maturity {a.maturity_year || '—'}, sources {selected.length ? selected.map(key => sourceLabels[key]).join(', ') : 'none'}, {a.verified_feasible ? 'verified' : (a.status || 'not sized')}{a.net_revenue_assumption ? `; ${a.net_revenue_assumption}` : ''}</span>;
+          return <span key={i}>{i ? ' · ' : ''}{a.area}: {((Number(a.allocation_share) || 0) * 100).toFixed(1)}% pooled allocation, {a.annual_real_interest_rate == null ? 'rate incomplete' : `${(Number(a.annual_real_interest_rate) * 100).toFixed(2)}% real rate`}, term {a.loan_term_years ?? 'incomplete'} years, reference/injection year {a.reference_year ?? a.disbursement_year ?? '—'}, sources {selected.length ? selected.map(key => sourceLabels[key]).join(', ') : 'none'}, status {a.status || 'unavailable'}</span>;
         })}
       </div>
-      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 6 }}>{summary.tail_capacity_assumption || 'Loan proceeds and eligible operating cash are reported separately.'}</div>
+      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 6 }}>{LOAN_FUNDING_QUALIFICATION}</div>
       {debt.rows.length > 0 && <div style={{ overflowX: 'auto', maxHeight: 320 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5, whiteSpace: 'nowrap' }}>
-          <thead><tr>{[
-            'Year', 'Opening principal', 'Disbursement', 'Principal paid', 'Interest paid',
-            'Debt service', 'Service capacity', 'Shortfall', 'Collection net cash', 'Tariff net cash', 'NRW net cash',
-            'Selected net revenue', 'Protected eligible revenue', 'Repayment headroom', 'Opening restricted cash',
-            'Loan-funded investment', 'Closing restricted cash',
-          ].map(h => <th key={h} style={{ position: 'sticky', top: 0, background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', padding: '5px 7px', textAlign: h === 'Year' ? 'left' : 'right' }}>{h}</th>)}</tr></thead>
+          <thead><tr>{tableHeaders.map(h => <th key={h} style={{ position: 'sticky', top: 0, background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', padding: '5px 7px', textAlign: h === 'Year' ? 'left' : 'right' }}>{h}</th>)}</tr></thead>
           <tbody>{debt.rows.map((r: any) => <tr key={r.year}>
-            <td style={{ borderBottom: '1px solid #eef2f7', padding: '4px 7px' }}>{r.year}</td>
-            {[
-              r.opening_principal, r.disbursement, r.principal_payment, r.interest_payment,
-              r.total_debt_service, r.annual_service_capacity, r.payment_shortfall,
-              r.collection_net_cash, r.tariff_net_cash, r.nrw_net_cash,
-              r.eligible_additional_revenue, r.protected_eligible_revenue, r.repayment_headroom,
-              r.opening_restricted_cash, r.investment_from_loan_proceeds, r.closing_restricted_cash,
-            ].map((v: number, i: number) => <td key={i} style={{ borderBottom: '1px solid #eef2f7', padding: '4px 7px', textAlign: 'right' }}>{money(v)}</td>)}
+            {tableRows.find(row => row[0] === r.year)?.map((v: any, i: number) => <td key={i} style={{ borderBottom: '1px solid #eef2f7', padding: '4px 7px', textAlign: i ? 'right' : 'left', maxWidth: i === 5 ? 360 : undefined, whiteSpace: i === 5 ? 'normal' : undefined }}>{v}</td>)}
           </tr>)}</tbody>
         </table>
+        <TableExport filename="results_indicative_loan_proceeds" sheetName="Loan proceeds" headers={tableHeaders} rows={tableRows} compact />
       </div>}
     </section>
   );
@@ -439,52 +433,26 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             ...(secOf(r).scenario_utility_debt || {}),
             area: (datasets[areaIndex]?.country_config?.area || datasets[areaIndex]?.country_config?.country || `Area ${areaIndex + 1}`),
           }));
-          const debtRowMap = new Map<number, any>();
-          const debtFields = [
-            'opening_principal', 'disbursement', 'principal_payment', 'interest_payment',
-            'total_debt_service', 'closing_principal', 'eligible_additional_revenue',
-            'collection_net_cash', 'tariff_net_cash', 'nrw_net_cash', 'protected_eligible_revenue',
-            'repayment_headroom', 'pre_debt_available_capital', 'replacement_requirement', 'annual_service_capacity',
-            'payment_shortfall', 'opening_restricted_cash', 'investment_from_loan_proceeds',
-            'closing_restricted_cash',
-          ];
-          debtAreas.forEach(area => (area.schedule || []).forEach((row: any) => {
-            const total = debtRowMap.get(Number(row.year)) || { year: Number(row.year), ...Object.fromEntries(debtFields.map(k => [k, 0])) };
-            debtFields.forEach(k => { total[k] += Number(row[k] || 0); });
-            debtRowMap.set(Number(row.year), total);
-          }));
-          const annualRevenueMap = new Map<number, any>();
-          debtAreas.forEach(area => (Array.isArray(area.annual_revenue) ? area.annual_revenue : []).forEach((row: any) => {
+          const injectionMap = new Map<number, any>();
+          debtAreas.forEach(area => (area.annual_injection || []).forEach((row: any) => {
             const year = Number(row.year);
             if (!Number.isFinite(year)) return;
-            const total = annualRevenueMap.get(year) || { year, collection_net_cash: 0, tariff_net_cash: 0, nrw_net_cash: 0,
-              eligible_additional_revenue: 0, protected_eligible_revenue: 0, pre_debt_available_capital: 0,
-              replacement_requirement: 0, annual_service_capacity: 0, repayment_headroom: 0 };
-            ['collection_net_cash', 'tariff_net_cash', 'nrw_net_cash', 'eligible_additional_revenue',
-              'protected_eligible_revenue', 'pre_debt_available_capital', 'replacement_requirement',
-              'annual_service_capacity', 'repayment_headroom'].forEach(key => { total[key] += Number(row[key] || 0); });
-            annualRevenueMap.set(year, total);
+            const total = injectionMap.get(year) || { year, disbursement: 0, opening_unspent_proceeds: 0,
+              investment_from_loan_proceeds: 0, closing_unspent_proceeds: 0 };
+            ['disbursement', 'opening_unspent_proceeds', 'investment_from_loan_proceeds', 'closing_unspent_proceeds']
+              .forEach(key => { total[key] += Number(row[key] || 0); });
+            injectionMap.set(year, total);
           }));
-          annualRevenueMap.forEach((annual, year) => {
-            const total = debtRowMap.get(year) || { year, ...Object.fromEntries(debtFields.map(key => [key, 0])) };
-            debtFields.forEach(key => {
-              if (annual[key] != null) total[key] = annual[key];
-            });
-            debtRowMap.set(year, total);
-          });
           const sumDebt = (key: string) => debtAreas.reduce((sum, a) => sum + Number(a[key] || 0), 0);
           const debt: DebtData = {
             areas: debtAreas,
-            rows: [...debtRowMap.values()].sort((a, b) => a.year - b.year),
-            annualRows: [...annualRevenueMap.values()].sort((a, b) => a.year - b.year),
+            rows: [...injectionMap.values()].sort((a, b) => a.year - b.year),
+            annualRows: [...injectionMap.values()].sort((a, b) => a.year - b.year),
             summary: {
               enabled: debtAreas.some(a => a.enabled),
               status: [...new Set(debtAreas.filter(a => a.enabled).map(a => a.status))].join(' · ') || 'disabled',
-              accepted_principal: sumDebt('accepted_principal'),
-              total_interest: sumDebt('total_interest'),
-              total_principal_repaid: sumDebt('total_principal_repaid'),
-              closing_restricted_cash: sumDebt('closing_restricted_cash'),
-              tail_capacity_assumption: debtAreas.find(a => a.enabled)?.tail_capacity_assumption,
+              indicative_principal: sumDebt('indicative_principal'),
+              accepted_principal: sumDebt('indicative_principal'),
             },
           };
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
@@ -596,9 +564,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
               sumRed += redC;
             }
             if (debtPass) {
-              covRow['Utility debt financing'] = smY(debtPass, sk, i) - smY(passes[fullNoDebtIdx], sk, i);
+              covRow['Indicative loan funding'] = smY(debtPass, sk, i) - smY(passes[fullNoDebtIdx], sk, i);
               const redDebt = gapY(passes[fullNoDebtIdx], sk, i) - gapY(debtPass, sk, i);
-              gapRow['Utility debt financing'] = redDebt / 1000;
+              gapRow['Indicative loan funding'] = redDebt / 1000;
               sumRed += redDebt;
             }
             gapRow.__remain = (bauGap - sumRed) / 1000;
@@ -607,7 +575,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           });
           const all: ContribBand[] = en.map(d => ({ key: bandLabel(d), label: bandLabel(d), color: d.color, interventionKey: d.key }));
           if (hasCustoms) all.push({ key: 'Custom interventions', label: 'Custom interventions', color: P.custom, custom: true });
-          if (debtPass) all.push({ key: 'Utility debt financing', label: 'Utility debt financing', color: P.utilityDebt, interventionKey: 'utility_debt_financing' });
+          if (debtPass) all.push({ key: 'Indicative loan funding', label: 'Indicative loan funding', color: P.utilityDebt, interventionKey: 'utility_debt_financing' });
           // keep only bands that actually move either chart (an enabled-but-unparameterised lever adds 0)
           const bands = all.filter(b => covRows.some(r => Math.abs(r[b.key] || 0) > 1e-12) || gapRows.some(r => Math.abs(r[b.key] || 0) > 1e-12));
           const snapshots = passes.map(pass => ledgerSnapshots(pass, sk as 'water_supply' | 'sanitation', baseYr));
@@ -622,7 +590,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             before: snapshots[nBuiltin], after: snapshots[nBuiltin + 1],
           });
           if (debtPass) ledgerContributions.push({
-            key: 'utility_debt_financing', label: 'Utility debt financing (conditional on reforms)',
+            key: 'utility_debt_financing', label: 'Indicative loan funding (conditional on reforms)',
             order: fullNoDebtIdx + 1,
             category: ledgerCategory('utility_debt_financing'), before: snapshots[fullNoDebtIdx],
             after: ledgerSnapshots(debtPass, sk as 'water_supply' | 'sanitation', baseYr),
@@ -649,7 +617,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
               sum + Number(r[sk].scenario_utility_debt?.accepted_principal || 0), 0) / 1000;
             const addHH = (smEnd(debtPass, sk) - smEnd(passes[fullNoDebtIdx], sk)) * 1000;
             if (Math.abs(principal) > 1e-12 || Math.abs(addHH) > 1e-12)
-              rows.push({ key: 'utility_debt_financing', label: 'Utility debt financing', addHH, resources: principal });
+              rows.push({ key: 'utility_debt_financing', label: 'Indicative loan funding', addHH, resources: principal });
           }
           return rows;
         };
@@ -1184,18 +1152,19 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       </div>
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-        <label style={{ fontSize: 12, color: '#334155' }}>Debt servicing
+        <label style={{ fontSize: 12, color: '#334155' }}>Loan funding
           <select aria-label="Results debt mode" value={hasConfiguredDebt && includeDebt ? 'with_debt' : 'without_debt'}
             onChange={event => setIncludeDebt(event.target.value === 'with_debt')} style={{ marginLeft: 8, padding: '5px 8px', fontSize: 12 }}>
-            <option value="without_debt">Without debt — standard results</option>
-            <option value="with_debt" disabled={!hasConfiguredDebt}>Include configured borrowing</option>
+            <option value="without_debt">Without loan funding — standard results</option>
+            <option value="with_debt" disabled={!hasConfiguredDebt}>With indicative loan funding</option>
           </select>
         </label>
-        <span style={{ fontSize: 11, color: '#64748b' }}>Optional: configure borrowing in step 4 only if needed.</span>
+        <span style={{ fontSize: 11, color: '#64748b' }}>Results exclude loan funding by default. Include it here without changing saved terms.</span>
         {(['water', 'sanitation'] as const).map(sector => <button key={sector} type="button"
           onClick={() => dashboardRef.current?.querySelector(`[data-results-sector="${sector}"]`)?.scrollIntoView({ block: 'start' })}
           style={{ padding: '5px 8px', fontSize: 11 }}>{sector === 'water' ? 'Water supply graphs' : 'Sanitation graphs'}</button>)}
       </div>
+      <p style={{ fontSize: 11, lineHeight: 1.5, color: '#64748b', margin: '-4px 0 12px' }}>{LOAN_FUNDING_QUALIFICATION}</p>
       {/* Optional edits stay available without pushing the standard graphs off-screen. */}
       <details style={{ border: '1px solid #c7d2fe', background: '#f5f7ff', borderRadius: 8, padding: '10px 14px', marginBottom: 18 }}>
         <summary style={{ cursor: 'pointer', fontSize: 12, color: '#312e81' }}>Adjust intervention switches</summary>

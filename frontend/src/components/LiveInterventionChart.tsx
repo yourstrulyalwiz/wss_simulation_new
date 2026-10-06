@@ -23,6 +23,7 @@ import { linesFirstLegend } from './chartLegend';
 import { aggregateContributionRows, type ContributionView, type ViewBand } from '../contributionView';
 import { convertMoney, currencyRateNote, type CurrencyDisplaySettings } from '../currencyDisplay';
 import { connectionRevenueAreaModes, connectionRevenueModeText } from '../connectionRevenueMode';
+import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
 
 type Intv = [key: string, label: string, color: string];   // toggle key, legend label, band colour
 // Band palette excludes blue (BAU) and green (target) so those meanings stay reserved (see chartColors).
@@ -134,11 +135,11 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
           bandDefs.forEach(([, label], p) => { row[label] = sm[p + 1][i] - sm[p][i]; });
           if (debtResult) {
             const noDebtFinal = sm[sm.length - 1][i];
-            row['Utility debt financing'] = secOf(debtResult).scenario_hh[rung][i] - noDebtFinal;
+            row['Indicative loan funding'] = secOf(debtResult).scenario_hh[rung][i] - noDebtFinal;
           }
           return row;
         });
-        if (debtResult) bandDefs.push(['utility_debt_financing', 'Utility debt financing', P.utilityDebt]);
+        if (debtResult) bandDefs.push(['utility_debt_financing', 'Indicative loan funding', P.utilityDebt]);
         // Only stack levers that actually move the needle (an enabled-but-unparameterised one adds 0).
         const contributing = bandDefs.filter(([, label]) => rows.some((r: any) => Math.abs(r[label]) > 1e-12));
         setData(rows);
@@ -166,6 +167,8 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   }, [depKey, rung]);
 
   const sectorLabel = sector === 'water' ? 'Water Supply' : 'Sanitation';
+  const showLoanFunding = ['water', 'sanitation'].some((key: string) =>
+    !!inputs?.utility_debt?.[key]?.enabled && Number(inputs?.utility_debt?.[key]?.allocation_share || 0) > 0);
   const chartRef = useRef<HTMLDivElement>(null);
   const isShare = unitMode === 'share';
   const sourceBands: ViewBand[] = useMemo(() => bands.map(([key, label, color]) => ({
@@ -202,8 +205,8 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const fmtAxis = (v: number) => (isShare ? Math.round(v * 100) + '%' : sig(v));
   const fmtVal = (v: number) => (isShare ? (v * 100).toFixed(1) + '%' : sig(v) + ' M');
   // Data series behind the chart, for the "⤓ Excel" export: Year, BAU base, each band, and the ceiling.
-  const exportHeaders = ['Year', baseKey, ...displayBands.map(([, label]) => label), 'Total households'];
-  const exportRows = visibleData.map((r: any) => [r.year, r[baseKey], ...displayBands.map(([key]) => r[key] ?? 0), r['Total households']]);
+  const exportHeaders = ['Year', baseKey, ...displayBands.map(([, label]) => label), 'Total households', ...(showLoanFunding ? ['Loan funding qualification'] : [])];
+  const exportRows = visibleData.map((r: any) => [r.year, r[baseKey], ...displayBands.map(([key]) => r[key] ?? 0), r['Total households'], ...(showLoanFunding ? [LOAN_FUNDING_QUALIFICATION] : [])]);
   // Native Excel chart: grey BAU base + each contributing intervention band as stacked areas, ceiling as a line.
   const chartSpec = {
     category: 'Year', stacked: true,
@@ -218,6 +221,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       <div style={{ fontSize: 10.5, color: '#334155', background: '#f0fdfa', borderLeft: '3px solid #0f766e', padding: '5px 8px', marginBottom: 6 }}>
         {revenueModeLabel}. Connection-based revenue is a baseline model, not an intervention band.
       </div>
+      {showLoanFunding && <div style={{ fontSize: 10, color: '#65736c', background: '#f4f3e9', padding: '5px 8px', marginBottom: 6 }}>{LOAN_FUNDING_QUALIFICATION}</div>}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
         <h3 style={{ fontSize: 14, margin: 0, fontWeight: 600, color: '#1e3a5f' }}>
           {scopeLabel ? scopeLabel + ' ' : ''}{sectorLabel} — {rungName} impact (live)

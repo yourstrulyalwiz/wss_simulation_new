@@ -313,4 +313,37 @@ const missingSource = ledgerSnapshots([invalid],'water_supply',fixture.baseline)
 const firstForecast = missingSource.find(row=>row.year>fixture.baseline);
 assert.equal(firstForecast.values.plannedExpansion[0],null,'Missing financial sources remain unavailable');
 assert.equal(firstForecast.values.requirementsAnnual[0],null,'Unknown requirement totals are not replaced with zero');
+const makeRevenueArea = (connection, nrw, link, additional) => {
+  const report = structuredClone(fixture.results.at(-1));
+  const years = report.years.length;
+  report.sanitation = {
+    ...report.sanitation,
+    scenario_connection_net_cash: Array(years).fill(connection),
+    scenario_nrw_net: Array(years).fill(nrw),
+    scenario_eligible_nrw_link_cash: Array(years).fill(link),
+    scenario_additional_net_cash: Array(years).fill(additional),
+    scenario_collection_cash: Array(years).fill(0),
+    scenario_tariff_cash: Array(years).fill(0),
+  };
+  return report;
+};
+const cashAreas = [makeRevenueArea(10, -1, 2, 11), makeRevenueArea(20, -3, 4, 21)];
+const cashSnapshots = ledgerSnapshots(cashAreas, 'sanitation', fixture.baseline, true);
+const finalCashSnapshot = cashSnapshots.at(-1);
+close(finalCashSnapshot.values.connectionNetCash[2], 30);
+close(finalCashSnapshot.values.nrwNetCash[2], -4);
+close(finalCashSnapshot.values.eligibleNrwLinkCash[2], 6);
+close(finalCashSnapshot.values.additionalNetCash[2], 32);
+const cashLedger = ledgerRows({
+  years: fixture.results.at(-1).years, baselineYear: fixture.baseline,
+  base: cashSnapshots, scenario: cashSnapshots, contributions: [], attributionComplete: false, includesDebt: false,
+}, { metric: 'funding', service: 'total', basis: 'annual', years: [finalCashSnapshot.year], isShare: false, moneyFactor: 2, currency: 'USD' });
+const cashSection = cashLedger.find(row => row.key === 'revenue-source-cash-section');
+assert.ok(cashSection, 'funding source ledger exposes the reconciliation cash identity');
+close(cashSection.children.find(row => row.key === 'eligibleNrwLinkCash').values[0], .012);
+close(cashSection.children.find(row => row.key === 'nrwNetCash').values[0], -.008);
+close(cashSection.children.find(row => row.key === 'additionalNetCash').values[0], .064);
+delete cashAreas[0].sanitation.scenario_eligible_nrw_link_cash;
+assert.equal(ledgerSnapshots([cashAreas[0], cashAreas[1]], 'sanitation', fixture.baseline, true)
+  .at(-1).values.eligibleNrwLinkCash[2], null, 'missing area link cash does not become zero in national total');
 console.log(`Results ledger tests passed: ${comparisons} unrounded scenario bridges; signed/local SM gaps, National aggregation, financial component identities, service splits, shares, currency, year filters, explicit missing data and breakdown fallback.`);

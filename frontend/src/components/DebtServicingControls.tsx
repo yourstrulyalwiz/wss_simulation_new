@@ -4,7 +4,7 @@ import { migrateLoanFundingConfig, validateLoanFundingConfig } from '../loanFund
 const SOURCES = [
   ['collection', 'Collection efficiency'],
   ['tariff', 'Tariff reforms'],
-  ['nrw', 'NRW reductions'],
+  ['nrw', 'Water NRW / eligible sanitation link'],
 ] as const;
 
 type Props = {
@@ -117,7 +117,7 @@ export default function DebtServicingControls({ inputs, sector, scopeLabel, onCh
               <span>{label}{referenceSourceCash?.[key] == null ? '' : <small className="debt-source-value">{Number(referenceSourceCash[key]).toLocaleString('en-US', { maximumFractionDigits: 2 })} {currency} mn</small>}</span>
             </label>
           ))}
-          <p>Selection does not enable a reform. Only selected collection, tariff and NRW net cash is eligible.</p>
+          <p>Selection does not enable a reform. Water NRW and eligible sanitation-linked NRW cash are separate signed sources; water nrw_net never includes the sanitation link.</p>
         </div>
 
         <div className={`debt-terms${debt.enabled ? '' : ' debt-terms-disabled'}`}>

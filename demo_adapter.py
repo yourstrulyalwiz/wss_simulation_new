@@ -571,6 +571,8 @@ def to_engine(fe: dict) -> ModelInputs:
         nrw_lag_years=int(wi.get('nrw_lag_years', 1) or 0),
         # NRW reduction lever (simplified): recovered physical water → basic→SM upgrades + a money ledger.
         nrw_system_input_vol=float(wi.get('nrw_system_input_vol', 0.0) or 0.0),
+        revenue_integration_version=wi.get('revenue_integration_version', 2),
+        nrw_sales_assumption=wi.get('nrw_sales_assumption') or 'all_recovered_sold',
         # Blank/absent → None (scale with population); a number → fixed compound growth.
         nrw_vol_growth=(float(wi['nrw_vol_growth']) if wi.get('nrw_vol_growth') not in (None, '') else None),
         nrw_water_per_upgrade=float(wi.get('nrw_water_per_upgrade', 0.0) or 0.0),
@@ -641,6 +643,8 @@ def to_engine(fe: dict) -> ModelInputs:
         nrw_link_return_ratio=float(si.get('nrw_link_return_ratio', 0.0) or 0.0),
         nrw_link_sewer_charge=float(si.get('nrw_link_sewer_charge', 0.0) or 0.0),
         nrw_link_collection_rate=float(si.get('nrw_link_collection_rate', 0.0) or 0.0),
+        nrw_link_eligible_share=si.get('nrw_link_eligible_share', 1.0),
+        nrw_link_overlap_m3_series=si.get('nrw_link_overlap_m3_series') or {},
         # Tariff reform (sanitation, simplified): start/target year, sewer volume, current & target tariff.
         tariff_start_year=int(si.get('tariff_start_year', 0) or 0),
         tariff_target_year=int(si.get('tariff_target_year', 0) or 0),

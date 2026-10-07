@@ -17,6 +17,36 @@ FIELDS = (
     ('Collection-efficiency cash', 'collection_cash', '{currency} M'),
     ('Tariff-reform cash', 'tariff_cash', '{currency} M'),
     ('Total additional net cash', 'additional_net_cash', '{currency} M'),
+    ('Raw connection/exogenous billed volume', 'raw_billed_volume_million_m3', 'M m³'),
+    ('Non-NRW reconciled volume', 'non_nrw_billed_volume_million_m3', 'M m³'),
+    ('NRW sales volume', 'nrw_sales_volume', 'M m³'),
+    ('Tagged household overlap', 'nrw_overlap_volume', 'M m³'),
+    ('Physical recovery', 'nrw_physical_recovery', 'M m³'),
+    ('Commercial recovery', 'nrw_commercial_recovery', 'M m³'),
+    ('Unsold residual recovery', 'nrw_residual_recovery', 'M m³'),
+    ('NRW gross sales cash', 'nrw_sales_cash', '{currency} M'),
+    ('NRW attributed operating cost', 'nrw_operating_cost', '{currency} M'),
+    ('NRW implementation cost', 'nrw_implementation_cost', '{currency} M'),
+    ('NRW avoided-production-cost savings', 'nrw_avoided_cost_cash', '{currency} M'),
+    ('NRW signed net cash', 'nrw_net', '{currency} M'),
+    ('Eligible linked sanitation net cash', 'eligible_nrw_link_cash', '{currency} M'),
+    ('Potential NRW service capacity', 'nrw_potential_upgrade_hh', 'M HH'),
+    ('Delivered NRW upgrades', 'nrw_delivered_upgrade_hh', 'M HH'),
+    ('Funded SM upgrades', 'funded_sm_upgrade_hh', 'M HH'),
+    ('Funded Basic entries', 'funded_basic_entry_hh', 'M HH'),
+    ('Microfinance delivery', 'mf_flow_hh', 'M HH'),
+    ('Grant-assisted delivery', 'grant_flow_hh', 'M HH'),
+    ('New cohort offers', 'microfinance_cohort_offers', 'M HH'),
+    ('Offered cohort unserved', 'microfinance_cohort_unserved', 'M HH'),
+    ('Self-finance cohort excluded', 'microfinance_cohort_self_excluded', 'M HH'),
+    ('Closing cohort unoffered', 'microfinance_cohort_unoffered', 'M HH'),
+    ('Remaining opening Basic eligibility', 'eligible_basic_remaining_hh', 'M HH'),
+    ('Remaining opening lower-service eligibility', 'eligible_lower_remaining_hh', 'M HH'),
+    ('NRW capacity committed', 'nrw_capacity_committed', 'M m³'),
+    ('NRW capacity uncommitted', 'nrw_capacity_uncommitted', 'M m³'),
+    ('Unallocated positive capital', 'unallocated_positive_capital', '{currency} M'),
+    ('SM target overachievement', 'target_sm_overachievement_hh', 'M HH'),
+    ('Basic-or-better target overachievement', 'target_basic_or_better_overachievement_hh', 'M HH'),
 )
 
 
@@ -47,15 +77,19 @@ def append_revenue_slides(prs, results, currency, money_factor=1.0, display_curr
               f'Collected\n({display_currency} M)', f'Connection gross\n({display_currency} M)',
               f'Variable cost\n({display_currency} M)', f'Connection net\n({display_currency} M)',
               f'Collection cash\n({display_currency} M)', f'Tariff cash\n({display_currency} M)',
+              f'NRW net\n({display_currency} M)', f'Linked net\n({display_currency} M)',
               f'Total net\n({display_currency} M)']
     keys = ('billed_volume_million_m3', 'reference_collected_revenue', 'collected_revenue',
             'connection_revenue_delta', 'incremental_variable_operating_cost',
-            'connection_net_cash', 'collection_cash', 'tariff_cash', 'additional_net_cash')
+            'connection_net_cash', 'collection_cash', 'tariff_cash', 'nrw_net',
+            'eligible_nrw_link_cash', 'additional_net_cash')
     for scope, result in results.items():
         for sector, title in (('water_supply', 'Water'), ('sanitation', 'Sanitation')):
             sec = result[sector]
             status = sec.get('connection_revenue') or {}
-            if not (status.get('requested') or status.get('mixed')):
+            if not (status.get('requested') or status.get('mixed') or
+                    any(sec.get('scenario_nrw_sales_volume') or []) or
+                    any(sec.get('scenario_nrw_implementation_cost') or [])):
                 continue
             forecast = [i for i, y in enumerate(result['years']) if y > result['end_asis_year']]
             for prefix, name in (('', 'BAU'), ('scenario_', 'Scenario')):
@@ -74,7 +108,7 @@ def append_revenue_slides(prs, results, currency, money_factor=1.0, display_curr
                     p.font.size, p.font.bold = Pt(21), True
                     p.font.color.rgb = RGBColor(1, 73, 114)
                     mode = 'Mixed; see area results' if status.get('mixed') else (
-                        'Connection-based' if status.get('effective') else 'Exogenous — configuration incomplete')
+                        'Connection-based' if status.get('effective') else 'Exogenous')
                     note = slide.shapes.add_textbox(Inches(.45), Inches(.92), Inches(12.4), Inches(.65))
                     note.text = f'{mode}. Annual signed cash flows, not financing-gap reductions. One-year billing lag; reference funding is not credited again.'
                     note.text_frame.paragraphs[0].font.size = Pt(11)
@@ -105,6 +139,7 @@ def append_revenue_slides(prs, results, currency, money_factor=1.0, display_curr
                             PP_PLACEHOLDER.BODY, 'horz', 'full', 1)
                     notes.notes_text_frame.text = json.dumps({
                         'configuration': sec.get(prefix + 'connection_revenue'),
+                        'revenue_reconciliation': sec.get(prefix + 'revenue_reconciliation'),
                         'headers_native_currency': headers,
                         'annual_rows': [r for r in raw if r[1] == name and r[0] in [result['years'][i] for i in indexes]],
                         'limitations': status.get('warnings', []),

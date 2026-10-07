@@ -11,3 +11,4 @@
 - [Results attribution](results-attribution.md) — retain reconciled marginal effects; category display order is not calculation order or a standalone simulation.
 - [Funding-balance materiality](financial-reporting-materiality.md) — US$10,000 is a user-approved display tolerance, not permission to erase obligations.
 - [Transition pricing boundary](transition-pricing-boundary.md) — SM incremental-versus-full upgrade pricing remains deferred; do not resolve it through transition-count fixes.
+- [Consolidated revenue policy](consolidated-revenue-policy.md) — after-cost NRW sizing, targets without delivery ceilings, one-off cohorts and explicit sales/sewer assumptions.

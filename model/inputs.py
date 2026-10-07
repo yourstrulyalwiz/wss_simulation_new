@@ -367,6 +367,8 @@ class WaterInterventionInputs(BaseModel):
     nrw_value_basis: str = 'tariff'              # value the recovered water at 'tariff' or 'production' cost
     nrw_tariff: float = 32.0                      # water tariff, local currency per m³ (value if basis='tariff')
     nrw_production_cost: float = 20.0             # avoided production cost, local currency per m³ (if basis='production')
+    revenue_integration_version: Literal[1, 2] = 2
+    nrw_sales_assumption: Literal['all_recovered_sold', 'household_only'] = 'all_recovered_sold'
 
     # Increased capital-expenditure efficiency (#127-#128).
     # test2 redefinition: capex efficiency = capital that becomes new service ÷ allocated capital budget
@@ -507,6 +509,8 @@ class SanitationInterventionInputs(BaseModel):
     nrw_link_return_ratio: float = 0.80     # fraction of recovered water returning to the sewer as wastewater
     nrw_link_sewer_charge: float = 16.0     # sanitation charge per m³ of wastewater (LC/m³) → revenue
     nrw_link_collection_rate: float = 0.80  # fraction of that billed sanitation revenue actually collected
+    nrw_link_eligible_share: float = 1.0  # disclosed legacy assumption: all returned volume sewer-billable
+    nrw_link_overlap_m3_series: dict[int, float] = {}
 
     # Tariff reform (#149-#151) — simplified: raise the sewer tariff linearly from current→target over
     # start→target year; the extra revenue (volume × tariff rise) is recycled into capex for new service.

@@ -100,7 +100,7 @@ try {
            assert.deepEqual(sheet.headers,['Scenario','Sector','Geography','Service','Component','Timing','Additive','Status / limitation','Hierarchy depth','Row','Unit',...expectedYears]);
            assert.equal(sheet.freeze_columns,9);
           assert.equal(sheet.rows.length,rowsAtExport);
-          assert.ok(exported.body.filename.includes('without-debt'));
+          assert.ok(exported.body.filename.includes('without-loan-funding'));
            const rowLabel = row=>row[9].trim();
            const base = sheet.rows.find(row=>rowLabel(row)==='BAU');
            const full = sheet.rows.find(row=>rowLabel(row)==='Combined scenario');

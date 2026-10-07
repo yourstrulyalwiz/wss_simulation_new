@@ -25,4 +25,5 @@ funding is not a full utility revenue account either.
 
 **How to apply:** Require explicit funding-reference assumptions and provenance;
 do not infer costs or baseline utility revenue from GDP, funding or replacement.
-Preserve the unchanged NRW scope and disclose possible overlapping valuation.
+Use the consolidated NRW reconciliation policy for tagged overlap; do not
+restore a separate gross NRW credit or invent a recovered-water production cost.

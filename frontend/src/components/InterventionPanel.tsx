@@ -6,6 +6,8 @@ import ExportButtons from './ExportButtons';
 import { RevenueBaseEditor, REVENUE_ATTRIBUTION } from './RevenueBase';
 import { ContributionViewToggle, type ContributionView } from '../contributionView';
 import { CurrencyDisplayControl, type CurrencyDisplaySettings } from '../currencyDisplay';
+import NRWDiagnostics from './NRWDiagnostics';
+import { nrwLinkBillableVolume, nrwRevenueMetadata, nrwRevenueVersion, setNrwLinkOverlapYear } from '../nrwRevenue';
 
 function Section({ title, children, defaultOpen = false, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; sectionKey?: string; onFocus?: (key: string) => void }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -28,8 +30,8 @@ function SubHead({ text }: { text: string }) {
   return <div style={{ fontSize: 13, fontWeight: 700, color: '#1e3a5f', margin: '10px 0 6px', borderBottom: '1px solid #e5e7eb', paddingBottom: 3 }}>{text}</div>;
 }
 
-function F({ label, value, onChange, unit, step, isPercent, tip, fieldType, placeholder }: {
-  label: string; value?: number; onChange: (v: number) => void; unit?: string; step?: number; isPercent?: boolean; tip?: string; fieldType?: 'input' | 'linked' | 'computed'; placeholder?: string;
+function F({ label, value, onChange, unit, step, isPercent, tip, fieldType, placeholder, min, max }: {
+  label: string; value?: number; onChange: (v: number) => void; unit?: string; step?: number; isPercent?: boolean; tip?: string; fieldType?: 'input' | 'linked' | 'computed'; placeholder?: string; min?: number; max?: number;
 }) {
   const hasVal = typeof value === 'number' && !Number.isNaN(value);
   const rawPct = hasVal ? Math.round((value as number) * 1e4) / 1e2 : NaN;
@@ -64,7 +66,7 @@ function F({ label, value, onChange, unit, step, isPercent, tip, fieldType, plac
       ) : (
         <NumInput
           value={Number.isNaN(displayVal) ? undefined : displayVal} commas={useCommas}
-          placeholder={placeholder}
+          placeholder={placeholder} min={min} max={max}
           // Empty cell → NaN in the model (JSON-serialises to null → engine reads 0 / uses the placeholder).
           onValue={v => onChange(v === undefined ? (NaN as number) : (isPercent ? v / 100 : v))}
           style={{
@@ -190,6 +192,7 @@ function TechMixEditor({ inputs, onChange, section, CUR }: {
 interface Props { inputs: any; onChange: (i: any) => void; results?: any; calculationError?: string; sectorTab?: 'water' | 'sanitation'; onSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (key: string) => void; geoScope?: string; chartScope?: string; contributionView: ContributionView; onContributionViewChange: (v: ContributionView) => void; currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void; onEditCurrencyRate: () => void; }
 
 export default function InterventionPanel({ inputs, onChange, results, calculationError = '', sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
+  const [invalidNrwOverlapYear, setInvalidNrwOverlapYear] = useState<number | null>(null);
   // Budget execution (executed budget ÷ allocated budget) is COMPUTED by the live engine from the
   // historical budget rows — it is shown read-only as the current value in the Budget-execution
   // intervention (no user override). NB: internally still keyed capeff_*/ws_capital_efficiency_enabled
@@ -238,7 +241,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
     const svc = section === 'water_interventions' ? 'water' : 'sanitation';
     return (<>
       <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b', marginBottom: 2 }}>
-        A loan lets <b>gap households</b> — those without safely-managed {svc} service — finance the cost of gaining service and repay it over time.
+        A loan offer is made to each eligible {svc} household cohort during the configured intervention window. Cohort eligibility is separate from the service target; target coverage is not an annual enrollment cap.
       </div>
       <F label="Connection fee" value={iv.mf_connection_fee || undefined} onChange={v => u(section, 'mf_connection_fee', v)} step={1000} unit={CUR}
          placeholder="per-household service cost"
@@ -247,16 +250,16 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
       <F label="End year" value={iv.mf_end_year} onChange={v => u(section, 'mf_end_year', v)} tip="Last year new microfinance-financed service is added." />
       {/* Self-finance carve-out — isolates the BAU-anyway service so microfinance isn't credited for it */}
       <div style={{ gridColumn: '1 / -1' }}><SubHead text="Self-finance carve-out" /></div>
-      <F label="Can pay upfront (share of gap)" value={iv.mf_selffinance_share} onChange={v => u(section, 'mf_selffinance_share', v)} isPercent unit="%" tip="Share of the service gap that can pay for service upfront from savings. Taken richest-bracket-first, they're treated as gaining service anyway (BAU) — ISOLATED out and excluded from the microfinance impact, so it isn't credited for service that would happen without it." />
+      <F label="Can pay upfront (share of eligible pool)" value={iv.mf_selffinance_share} onChange={v => u(section, 'mf_selffinance_share', v)} isPercent unit="%" tip="Share of eligible households able to pay upfront from savings. Applied richest-bracket-first and excluded from the microfinance offer; it is not calculated from target gap or re-enrolled each forecast year." />
       <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
-        These households don't need a loan, so they're carved out of the microfinance gap and don't count toward its impact — isolating the business-as-usual service and leaving the BAU baseline unchanged.
+        The self-finance cohort is excluded from loan offers. Cohort enrollment is one-time, not repeated against a shrinking service gap each year.
       </div>
       <div style={{ gridColumn: '1 / -1' }}><SubHead text="Loan terms" /></div>
       <F label={`Willingness to pay (${svc})`} value={iv.mf_pct_income} onChange={v => u(section, 'mf_pct_income', v)} isPercent unit="%" tip={`Maximum share of monthly household income a household will devote to its ${svc} service-loan repayment. Income × this = how much loan it can service.`} />
       <F label="Loan interest rate (real)" value={iv.mf_interest_rate} onChange={v => u(section, 'mf_interest_rate', v)} isPercent unit="%" tip="Real annual interest rate on the service loan." />
       <F label="Loan tenor" value={iv.mf_tenor} onChange={v => u(section, 'mf_tenor', v)} unit="yrs" tip="Loan repayment period, in years." />
-      <F label="Take-up rate" value={iv.mf_takeup_rate} onChange={v => u(section, 'mf_takeup_rate', v)} isPercent unit="%" tip="Share of eligible (loan-needing) gap households who take up the loan." />
-      <F label="Partial upfront payers" value={iv.mf_partial_share} onChange={v => u(section, 'mf_partial_share', v)} isPercent unit="%" tip="Share of gap households who can pay part of the upfront service cost themselves, reducing their loan principal. The rest finance the whole service cost." />
+      <F label="Take-up rate" value={iv.mf_takeup_rate} onChange={v => u(section, 'mf_takeup_rate', v)} isPercent unit="%" tip="Share of the newly offered, eligible loan-needing cohort that accepts an offer." />
+      <F label="Partial upfront payers" value={iv.mf_partial_share} onChange={v => u(section, 'mf_partial_share', v)} isPercent unit="%" tip="Share of offered households able to pay part of the upfront service cost themselves, reducing their loan principal." />
       <F label="Upfront fee they cover" value={iv.mf_upfront_payable_ratio} onChange={v => u(section, 'mf_upfront_payable_ratio', v)} isPercent unit="%" tip="For those partial payers, the fraction of the upfront fee they pay themselves; the remainder is financed by the loan." />
       <div style={{ gridColumn: '1 / -1' }}>
         <SubHead text={`Income distribution — ${brackets.length} brackets (shared by both sectors)`} />
@@ -277,21 +280,21 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         </div>
       </div>
       <div style={{ gridColumn: '1 / -1' }}>
-        <SubHead text="Service gap by income bracket (typically skewed to the poor)" />
+        <SubHead text="Eligible pool by income bracket (typically skewed to the poor)" />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
           {gaps.map((g: number, i: number) => (
-            <F key={i} label={bracketLabel(i, gaps.length)} value={g} onChange={v => uArr(section, 'mf_gap_shares', i, v)} isPercent unit="%" tip={`Share of the ${svc} safely-managed service gap that sits in this income bracket.`} />
+            <F key={i} label={bracketLabel(i, gaps.length)} value={g} onChange={v => uArr(section, 'mf_gap_shares', i, v)} isPercent unit="%" tip={`Share of the eligible ${svc} household pool assigned to this income bracket; this pool is not sized by a service-target gap.`} />
           ))}
         </div>
         <div style={{ fontSize: 10, color: Math.abs(gapSum - 1) > 0.005 ? '#dc2626' : '#16a34a', marginTop: 4 }}>
-          Gap shares total {Math.round(gapSum * 1000) / 10}%{Math.abs(gapSum - 1) > 0.005 ? ' — should be 100%' : ' ✓'}
+          Eligible-pool shares total {Math.round(gapSum * 1000) / 10}%{Math.abs(gapSum - 1) > 0.005 ? ' — should be 100%' : ' ✓'}
         </div>
       </div>
       <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
-        Of the residual gap, households whose income can service the loan gain safely-managed service; those who can't are resized by the <b>means-based grant</b> below.
+        Offered households whose income can service the loan receive safely-managed service; the <b>means-based grant</b> below can resize unaffordable principals. Target overachievement does not create another offer cohort.
       </div>
       <div style={{ gridColumn: '1 / -1' }}><SubHead text="Means-based grant" /></div>
-      <F label="Grant budget (one-time pool)" value={iv.grant_total} onChange={v => u(section, 'grant_total', v)} step={1000} unit={`${CUR} mn`} tip="Total means-based grant pool, in local-currency millions. It buys down loan principals for gap households who can't service a full loan; the cheapest buy-downs are funded first, so the pool maximises new service. Leave 0 for no grant." />
+      <F label="Grant budget (one-time pool)" value={iv.grant_total} onChange={v => u(section, 'grant_total', v)} step={1000} unit={`${CUR} mn`} tip="Total means-based grant pool, in local-currency millions. It buys down principals for offered eligible households who cannot service a full loan; the cheapest buy-downs are funded first. Leave 0 for no grant." />
       <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
         For a household that can service only a smaller loan, the grant covers the shortfall (in present value) so its resized repayment matches what it can afford — providing it with safely-managed service.
       </div>
@@ -453,6 +456,23 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           </InterventionToggle>
 
           <InterventionToggle label="NRW reduction" checked={inputs.toggles?.ws_nrw_enabled ?? false} onChange={v => toggleIntv('ws_nrw_enabled', v)} onFocus={() => onSectionFocus?.('ws_nrw')}>
+            {(() => {
+              const metadata = nrwRevenueMetadata(results);
+              const reconciled = nrwRevenueVersion(results) === 2;
+              const iv = inputs.water_interventions || {};
+              const sharedTariff = inputs.revenue_bases?.water?.tariff;
+              const legacyTariff = iv.nrw_tariff;
+              const localRateConflict = Number.isFinite(Number(legacyTariff)) && Number.isFinite(Number(sharedTariff)) &&
+                Math.abs(Number(legacyTariff) - Number(sharedTariff)) > 1e-9;
+              const conflict = !!metadata?.legacy_rate_conflict || localRateConflict;
+              return <div style={{ gridColumn: '1 / -1', fontSize: 11, lineHeight: 1.5, padding: '8px 10px', borderRadius: 5,
+                background: conflict ? '#fff7ed' : '#f1f7fa', border: `1px solid ${conflict ? '#fed7aa' : '#dbe5ea'}`, color: conflict ? '#9a3412' : '#475569' }}>
+                {reconciled
+                  ? <>Backend v2 reconciles connection/NRW billed-volume overlap. Sales use the shared water revenue-base tariff and collection rate; reference-rate connection growth is kept separate, and NRW receives the joint reform effect. {conflict && <>Legacy NRW tariff {legacyTariff ?? metadata?.legacy_nrw_tariff ?? '—'} conflicts with shared tariff {sharedTariff ?? metadata?.shared_tariff ?? '—'}; the legacy input is retained unchanged.</>}</>
+                  : <>Overlap reconciliation is not confirmed until backend revenue metadata reports version 2. Treat NRW and connection revenue as potentially overlapping; missing diagnostics are not inferred.</>}
+                {!reconciled && conflict && <> Legacy NRW tariff {legacyTariff} differs from shared base tariff {sharedTariff}; it is retained, not used as the v2 sales rate.</>}
+              </div>;
+            })()}
             <F label="Start year" value={inputs.water_interventions.nrw_start_year} onChange={v => u('water_interventions','nrw_start_year',v)} tip="Year the NRW-reduction works begin and spending starts. Unlike the other levers — where the start year is when the improvement shows up — the recovered-water benefit here only appears after the lag below." />
             <F label="Target year" value={inputs.water_interventions.nrw_target_year} onChange={v => u('water_interventions','nrw_target_year',v)} tip="Year the target NRW level is reached by the works (spending schedule); the benefit reaches it the lag below afterwards." />
             <F label="Benefit lag" value={inputs.water_interventions.nrw_lag_years} onChange={v => u('water_interventions','nrw_lag_years',v)} step={1} unit="yrs" tip="Years between spending on the fixes and the recovered water (and its value) materialising. Other levers bake this delay into their start year; NRW needs it because there is a real gap between the works and the water coming back. Set 0 for no delay." />
@@ -473,18 +493,33 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             <F label="System input volume (at start year)" value={inputs.water_interventions.nrw_system_input_vol || 0} onChange={v => u('water_interventions','nrw_system_input_vol',v)} step={1} unit="MLD" tip="Total water produced / put into the system at the start year, in million litres per day. It grows each forecast year — with population by default, or at the growth rate below if you set one." />
             <F label="Volume growth rate" value={inputs.water_interventions.nrw_vol_growth} onChange={v => u('water_interventions','nrw_vol_growth',v)} isPercent unit="%" placeholder="population" tip="Annual real growth of the system input volume from the start year. Leave blank to scale with population; enter a rate to override (e.g. 3%)." />
             <F label="Water per basic→SM upgrade" value={inputs.water_interventions.nrw_water_per_upgrade || 0} onChange={v => u('water_interventions','nrw_water_per_upgrade',v)} step={5} unit="m³/HH/yr" tip="Extra water a basic household needs each year to become safely managed. Recovered physical water ÷ this = households upgraded." />
-            <F label="Cost of fixing" value={inputs.water_interventions.nrw_capex_unit_cost_local || 0} onChange={v => u('water_interventions','nrw_capex_unit_cost_local',v)} step={1000} unit={`${CUR}/m³/day`} tip="Capital cost to recover one cubic metre per day of lost water — leak detection, pipe and meter replacement. Charged as the losses are cut." />
+            <F label="Cost of fixing" value={inputs.water_interventions.nrw_capex_unit_cost_local || 0} onChange={v => u('water_interventions','nrw_capex_unit_cost_local',v)} step={1000} unit={`${CUR}/m³/day`} tip="Existing implementation-cost input and timing are retained. This cost stays inside signed NRW net cash and is not added again as a separate financing requirement." />
             <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
               <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }} title="How to value the recovered water: as tariff revenue from sales, or as the production cost you no longer have to spend.">Value recovered water at</label>
               <select value={inputs.water_interventions.nrw_value_basis || 'tariff'} onChange={e => u('water_interventions','nrw_value_basis', e.target.value)}
                 style={{ width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, border: '1px solid #F0D070', background: '#FFF9E6', color: '#3A4452', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }}>
                 <option value="tariff">Water tariff — revenue from sales</option>
-                <option value="production">Cost of production — cost avoided</option>
+                <option value="production">Cost of production — cost avoided (separate from sales)</option>
               </select>
             </div>
+            <label style={{ gridColumn: '1 / -1', display: 'grid', gap: 4, fontSize: 12, color: '#3A4452' }}>
+              Recovered-water sales assumption
+              <select value={inputs.water_interventions.nrw_sales_assumption || 'all_recovered_sold'}
+                onChange={e => u('water_interventions', 'nrw_sales_assumption', e.target.value)}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, border: '1px solid #F0D070', background: '#FFF9E6', color: '#3A4452' }}>
+                <option value="all_recovered_sold">All recovered eligible volume sold / billed</option>
+                <option value="household_only">Household-attributed volume only</option>
+              </select>
+              <span style={{ fontSize: 10.5, color: '#64748b' }}>This explicit assumption is retained on migration from legacy full-recovery tariff valuation. Avoided production cost is shown separately; it does not add tariff receipts.</span>
+            </label>
             {(inputs.water_interventions.nrw_value_basis || 'tariff') === 'production'
               ? <F label="Production cost" value={inputs.water_interventions.nrw_production_cost || 0} onChange={v => u('water_interventions','nrw_production_cost',v)} step={0.5} unit={`${CUR}/m³`} tip="Recovering water avoids producing this much fresh water, per cubic metre." />
-              : <F label="Water tariff" value={inputs.water_interventions.nrw_tariff || 0} onChange={v => u('water_interventions','nrw_tariff',v)} step={0.5} unit={`${CUR}/m³`} tip="The recovered water is sold at this price, per cubic metre." />}
+              : <div style={{ gridColumn: '1 / -1' }}>
+                <F label="Legacy NRW-only tariff (retained)" value={inputs.water_interventions.nrw_tariff || 0} onChange={v => u('water_interventions','nrw_tariff',v)} step={0.5} unit={`${CUR}/m³`}
+                  tip="Retained for saved-input compatibility and audit. Backend v2 uses the shared Water Supply revenue-base tariff for NRW sales; this legacy value is not overwritten." />
+                <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 4 }}>Shared water tariff: {inputs.revenue_bases?.water?.tariff ?? 'not set'} {CUR}/m³. Legacy value is preserved, including when it conflicts.</div>
+              </div>}
+            <NRWDiagnostics results={results} currency={CUR} currencyDisplay={currencyDisplay} />
           </InterventionToggle>
 
           <InterventionToggle label="Budget execution improvement" checked={inputs.toggles?.ws_capital_efficiency_enabled ?? false} onChange={v => toggleIntv('ws_capital_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('ws_budget_exec')}>
@@ -568,26 +603,71 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
           <InterventionToggle label="NRW-linked sanitation revenue" checked={inputs.toggles?.san_nrw_link_enabled ?? false} onChange={v => toggleIntv('san_nrw_link_enabled', v)} onFocus={() => onSectionFocus?.('san_nrw_link')}>
             {(() => {
-              const vols: number[] = results?.water_supply?.scenario_nrw_recovered_phys_vol || [];
+              const water = results?.water_supply || {};
+              const recovery: number[] = water.scenario_nrw_physical_recovery || water.scenario_nrw_recovered_phys_vol || [];
               const yrs: number[] = results?.years || [];
               const nrwOn = !!inputs.toggles?.ws_nrw_enabled;
-              const endVol = vols.length ? +vols[vols.length - 1] : 0;
-              const endYr = yrs.length ? yrs[yrs.length - 1] : 'the end year';
+              const endYr = yrs.length ? yrs[yrs.length - 1] : Number(inputs.period?.forecast_end_year);
+              const endIndex = yrs.indexOf(endYr);
+              const physical = endIndex >= 0 && Number.isFinite(recovery[endIndex]) ? recovery[endIndex] : null;
               const iv = inputs.sanitation_interventions || {};
-              const ret = +iv.nrw_link_return_ratio || 0, charge = +iv.nrw_link_sewer_charge || 0, coll = +iv.nrw_link_collection_rate || 0;
-              const endRev = endVol * ret * charge * coll;   // LC millions/yr at the end year
+              const ret = Number(iv.nrw_link_return_ratio) || 0;
+              const eligibleShare = Number(iv.nrw_link_eligible_share ?? 1);
+              const overlapSeries = iv.nrw_link_overlap_m3_series && typeof iv.nrw_link_overlap_m3_series === 'object'
+                ? iv.nrw_link_overlap_m3_series : {};
+              const overlapRaw = overlapSeries[String(endYr)];
+              const explicitOverlapM3 = overlapRaw == null ? null : Number(overlapRaw);
+              const { overlapMillionM3: overlapMillion, grossMillionM3: grossBillable, netMillionM3: netBillable } =
+                nrwLinkBillableVolume(physical, ret, eligibleShare, explicitOverlapM3);
+              const sanitation = results?.sanitation || {};
+              const scenarioTariff = endIndex >= 0 && Number.isFinite(sanitation.scenario_applicable_tariff?.[endIndex])
+                ? sanitation.scenario_applicable_tariff[endIndex] : null;
+              const scenarioCollection = endIndex >= 0 && Number.isFinite(sanitation.scenario_applicable_collection_ratio?.[endIndex])
+                ? sanitation.scenario_applicable_collection_ratio[endIndex] : null;
+              const forecastYears = yrs.length ? yrs : Array.from(
+                { length: Math.max(0, Number(inputs.period?.forecast_end_year) - Number(inputs.period?.baseline_year)) },
+                (_, index) => Number(inputs.period?.baseline_year) + index + 1);
+              const editYears = [...new Set([...forecastYears, ...Object.keys(overlapSeries).map(Number).filter(Number.isFinite)])]
+                .sort((a, b) => a - b);
+              const invalidOverlap = Object.values(overlapSeries).some(value => value != null && (!Number.isFinite(Number(value)) || Number(value) < 0));
+              const updateOverlap = (year: number, value: number | undefined) => {
+                if (value != null && value < 0) { setInvalidNrwOverlapYear(year); return; }
+                setInvalidNrwOverlapYear(null);
+                u('sanitation_interventions', 'nrw_link_overlap_m3_series', setNrwLinkOverlapYear(overlapSeries, year, value));
+              };
               return (<>
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, lineHeight: 1.5, borderRadius: 6, padding: '7px 10px',
                   background: nrwOn ? '#ecfeff' : '#fef3c7', border: `1px solid ${nrwOn ? '#a5f3fc' : '#fde68a'}`, color: nrwOn ? '#155e75' : '#92400e' }}>
                   {nrwOn
-                    ? <>Linked to <b>Water Supply → NRW reduction</b>. That lever recovers <b>{endVol.toFixed(2)} M m³/yr</b> of physical water by {endYr}; the share returning to the sewer is charged for and the revenue funds new safely-managed sanitation service.</>
+                    ? <>Linked to <b>Water Supply → NRW reduction</b>. Eligible sewer-billable recovered volume is physical recovery × wastewater return ratio × explicit eligible share. Shared scenario sanitation tariff and collection rates value it; only overlap explicitly entered below is reconciled against raw sanitation connection billing.</>
                     : <>Warning: This lever needs <b>NRW reduction</b> switched on under the <b>Water Supply</b> interventions — that is what recovers the water. While it is off there is no recovered volume, so this lever has no effect.</>}
                 </div>
                 <F label="Wastewater return ratio" value={iv.nrw_link_return_ratio} onChange={v => u('sanitation_interventions','nrw_link_return_ratio',v)} isPercent unit="%" tip="Share of the recovered water that returns to the sewer as wastewater the utility can charge for (the rest is consumptive use or not sewer-connected)." />
-                <F label="Sewer charge" value={iv.nrw_link_sewer_charge} onChange={v => u('sanitation_interventions','nrw_link_sewer_charge',v)} step={0.5} unit={`${CUR}/m³`} tip="Sanitation charge per cubic metre of returned wastewater — the revenue earned on it. (Separate from the water tariff the water utility earns.)" />
-                <F label="Collection rate" value={iv.nrw_link_collection_rate} onChange={v => u('sanitation_interventions','nrw_link_collection_rate',v)} isPercent unit="%" tip="Share of that billed sanitation revenue actually collected." />
+                <F label="Explicit sewer-billable share" value={iv.nrw_link_eligible_share ?? 1}
+                  onChange={v => u('sanitation_interventions','nrw_link_eligible_share',Math.max(0, Math.min(1, v)))}
+                  isPercent min={0} max={100} unit="%" tip="Share of returned recovered water eligible for sewer billing. The legacy default of 100% is retained as an explicit assumption, not a measured connection share." />
+                <F label="Legacy sewer charge (review against shared rate)" value={iv.nrw_link_sewer_charge} onChange={v => u('sanitation_interventions','nrw_link_sewer_charge',v)} step={0.5} unit={`${CUR}/m³`} tip="Retained for saved-input compatibility and review. V2 linked sanitation revenue uses the shared sanitation scenario tariff, not this legacy sewer charge." />
+                <F label="Legacy collection rate (review against shared rate)" value={iv.nrw_link_collection_rate} onChange={v => u('sanitation_interventions','nrw_link_collection_rate',v)} isPercent unit="%" tip="Retained for saved-input compatibility and review. V2 linked sanitation revenue uses the shared sanitation scenario collection ratio, not this legacy rate." />
+                <div style={{ gridColumn: '1 / -1', border: '1px solid #dbe5ea', background: '#f8fbfc', borderRadius: 5, padding: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#164e63', marginBottom: 4 }}>Explicit overlap with sanitation connection billing — m³/year</div>
+                  <div style={{ fontSize: 10.5, color: '#64748b', marginBottom: 7 }}>Leave a year blank when no linked overlap has been identified. Do not estimate this from total/new sanitation connections; only supplied year-specific amounts are subtracted.</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '6px 10px' }}>
+                    {editYears.map(year => <label key={year} style={{ display: 'grid', gridTemplateColumns: '48px minmax(100px, 1fr)', gap: 6, alignItems: 'center', fontSize: 10.5, color: '#475569' }}>
+                      <span>{year}</span>
+                      <NumInput aria-label={`Explicit NRW-linked sanitation billing overlap ${year} in cubic metres per year`}
+                        min={0} commas value={overlapSeries[String(year)] == null ? undefined : Number(overlapSeries[String(year)])}
+                        onValue={value => updateOverlap(year, value)} style={{ ...miniInput, padding: '5px 7px' }} />
+                    </label>)}
+                  </div>
+                  {(invalidOverlap || invalidNrwOverlapYear != null) && <div role="alert" style={{ color: '#b91c1c', fontSize: 10.5, marginTop: 5 }}>
+                    {invalidNrwOverlapYear == null ? 'Overlap values must be finite and nonnegative.' : `${invalidNrwOverlapYear}: overlap must be nonnegative.`}
+                  </div>}
+                </div>
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4, padding: '5px 9px' }}>
-                  Collected sanitation revenue at {endYr}: <b>{endVol.toFixed(2)}</b> M m³ × {Math.round(ret * 100)}% × {charge.toLocaleString()} {CUR} × {Math.round(coll * 100)}% ≈ <b>{Math.round(endRev).toLocaleString()} {CUR} mn/yr</b>, spent on new safely-managed sanitation service.
+                  {`Year ${endYr} physical recovery × return ratio × eligible share:`} <b>{physical == null ? '—' : physical.toFixed(4)}</b> × {Math.round(ret * 100)}% × {Math.round(eligibleShare * 100)}% = <b>{grossBillable == null ? '—' : grossBillable.toFixed(4)} M m³/yr</b> gross sewer-billable recovered volume; identified overlap {overlapMillion == null ? '—' : overlapMillion.toFixed(4)} M m³/yr; remaining linked volume <b>{netBillable == null ? '—' : netBillable.toFixed(4)} M m³/yr</b>. Shared sanitation scenario rate: tariff {scenarioTariff == null ? '—' : `${scenarioTariff.toLocaleString()} ${CUR}/m³`} · collection {scenarioCollection == null ? '—' : `${(scenarioCollection * 100).toFixed(2)}%`}.
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <NRWDiagnostics results={results} sector="sanitation" currency={CUR} currencyDisplay={currencyDisplay} title="Sanitation revenue and linked NRW cash audit" />
                 </div>
               </>);
             })()}

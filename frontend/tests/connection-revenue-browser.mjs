@@ -108,7 +108,8 @@ try {
     assert.ok(detail.text.includes('Connection net cash'),'Signed connection cash column missing');
     assert.ok(detail.text.includes('operating'),'Operating cost disclosure missing');
   }
-  assert.ok(await evaluate(`document.querySelector('[data-results-chart="water_gap"]')?.textContent.includes('safely managed + basic')`));
+  const financingScope = await evaluate(`document.querySelector('[data-results-chart="water_gap"]')?.textContent || ''`);
+  assert.match(financingScope, /safely managed.*basic/i, 'Financing chart must disclose its combined service scope');
   assert.equal(errors.length,0,JSON.stringify(errors));
   await send('Emulation.setDeviceMetricsOverride',{width:402,height:874,deviceScaleFactor:1,mobile:true},sessionId);
   await sleep(300);

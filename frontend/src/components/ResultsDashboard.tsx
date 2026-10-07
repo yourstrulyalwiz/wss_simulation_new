@@ -14,6 +14,7 @@ import { linesFirstLegend } from './chartLegend';
 import ExportButtons from './ExportButtons';
 import ChartExport from './ChartExport';
 import TableExport from './TableExport';
+import NRWDiagnostics from './NRWDiagnostics';
 import ServiceAccessGaps from './ServiceAccessGaps';
 import { serviceAccessRows, type AccessRow } from '../serviceAccess';
 import { captureImage } from './exportUtils';
@@ -84,7 +85,7 @@ interface Props {
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
 type DebtData = { summary: any; rows: any[]; areas: any[]; annualRows: any[] };
-type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; ledgerBase: LedgerSnapshot[]; ledgerScenario: LedgerSnapshot[]; ledgerAreas: LedgerData['areas']; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any };
+type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; ledgerBase: LedgerSnapshot[]; ledgerScenario: LedgerSnapshot[]; ledgerAreas: LedgerData['areas']; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any; nrwResults: any[] };
 type Both = { water: Series; sanitation: Series } | null;
 type Row = { key: string; label: string; addHH: number; resources: number | null };
 
@@ -177,7 +178,10 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
   const amount = (value: number) => `${sigB(value * moneyFactor)} B`;
   const money = (value: number) => amount(Number(value || 0));
   const summary = debt.summary || {};
-  const sourceLabels: Record<string, string> = { collection: 'Collection efficiency', tariff: 'Tariff reform', nrw: 'NRW-related net cash' };
+  const sourceLabels: Record<string, string> = {
+    collection: 'Collection efficiency', tariff: 'Tariff reform',
+    nrw: 'Water NRW net / eligible sanitation-link net cash',
+  };
   const tableHeaders = ['Year', 'New indicative injection', 'Opening unspent proceeds', 'Investment from proceeds', 'Closing unspent proceeds', 'Qualification'];
   const tableRows = debt.rows.map((r: any) => [r.year, money(r.disbursement), money(r.opening_unspent_proceeds),
     money(r.investment_from_loan_proceeds), money(r.closing_unspent_proceeds), LOAN_FUNDING_QUALIFICATION]);
@@ -298,14 +302,16 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const secOf = (res: any) => res[secKey];
           const revenueFields = [
             'connection_billed_households', 'household_billed_volume_million_m3',
-            'nonhousehold_billed_volume_million_m3', 'reference_billed_volume_million_m3',
+            'nonhousehold_billed_volume_million_m3', 'raw_billed_volume_million_m3',
+            'non_nrw_billed_volume_million_m3', 'reference_billed_volume_million_m3',
             'reference_collected_revenue', 'connection_revenue_delta', 'incremental_variable_operating_cost',
             'connection_net_cash', 'additional_net_cash', 'applicable_tariff', 'applicable_collection_ratio',
             'billed_volume_million_m3', 'collected_revenue', 'collection_cash', 'tariff_cash',
+            'nrw_net', 'eligible_nrw_link_cash',
           ];
           const annualField = (sec: any, key: string, index: number) => {
             const value = sec?.[key];
-            if (Array.isArray(value)) return Number.isFinite(Number(value[index])) ? Number(value[index]) : null;
+            if (Array.isArray(value)) return typeof value[index] === 'number' && Number.isFinite(value[index]) ? value[index] : null;
             if (typeof value === 'number') return value;
             return null;
           };
@@ -331,8 +337,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
                 if (key === 'applicable_tariff' || key === 'applicable_collection_ratio') {
                   row[`${kind}_${key}`] = weightedRevenueRate(kind, key, i);
                 } else {
-                  row[`${kind}_${key}`] = available.some(v => v != null)
-                    ? available.reduce<number>((total, v) => total + (v ?? 0), 0) : null;
+                  row[`${kind}_${key}`] = available.length && available.every(v => v != null)
+                    ? available.reduce<number>((total, v) => total + (v as number), 0) : null;
                 }
               });
             });
@@ -469,7 +475,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             financingRows: years.map((year, i) => ({ year,
               __bau_gap: resList.reduce((total, r) => total + secOf(r).endline_financing_requirement[i], 0) / 1000,
               __scenario_gap: resList.reduce((total, r) => total + secOf(r).scenario_endline_financing_requirement[i], 0) / 1000 })),
-            basicRows, financeRows, debt, revenueRows, revenueModes, connectionMetadata, accessRows: serviceAccessRows(resList, secKey, baseYr), sum: {
+            basicRows, financeRows, debt, revenueRows, revenueModes, connectionMetadata, nrwResults: resList, accessRows: serviceAccessRows(resList, secKey, baseYr), sum: {
             endline: years[endIdx], curCov, bauCov: covPct(bau), scnCov: covPct(scn), tgtCov: covPct(tgt),
             addHH: Math.min(tEnd, scn[endIdx]) - Math.min(tEnd, bau[endIdx]),
             gapBauCum: endRequirement('endline_financing_requirement'), gapScnCum: endRequirement('scenario_endline_financing_requirement'),
@@ -817,6 +823,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       { key: 'connection_billed_households', label: 'Connection billed households', unit: 'households', currency: false },
       { key: 'household_billed_volume_million_m3', label: 'Household billed volume', unit: 'million m³', currency: false },
       { key: 'nonhousehold_billed_volume_million_m3', label: 'Non-household billed volume', unit: 'million m³', currency: false },
+      { key: 'raw_billed_volume_million_m3', label: 'Raw billed volume', unit: 'million m³', currency: false },
+      { key: 'non_nrw_billed_volume_million_m3', label: 'Reconciled non-NRW billed volume', unit: 'million m³', currency: false },
       { key: 'reference_billed_volume_million_m3', label: 'Funding reference billed volume', unit: 'million m³', currency: false },
       { key: 'billed_volume_million_m3', label: 'Total billed volume', unit: 'million m³', currency: false },
       { key: 'applicable_tariff', label: 'Applicable tariff', unit: `${displayCur}/m³`, currency: true },
@@ -828,6 +836,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       { key: 'connection_net_cash', label: 'Connection net cash', unit: `million ${displayCur}`, currency: true },
       { key: 'collection_cash', label: 'Collection-efficiency cash', unit: `million ${displayCur}`, currency: true },
       { key: 'tariff_cash', label: 'Tariff-reform cash', unit: `million ${displayCur}`, currency: true },
+      { key: 'nrw_net', label: 'Water NRW signed net cash after implementation cost', unit: `million ${displayCur}`, currency: true },
+      { key: 'eligible_nrw_link_cash', label: 'Eligible NRW-linked sanitation signed net cash', unit: `million ${displayCur}`, currency: true },
       { key: 'additional_net_cash', label: 'Additional net cash', unit: `million ${displayCur}`, currency: true },
     ];
     const hasAny = series.revenueRows.some(row => fields.some(f => row[`bau_${f.key}`] != null || row[`scenario_${f.key}`] != null));
@@ -979,7 +989,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <BasicCoverageChart title={`${label} — basic coverage`} rows={basicData} isShare={isShare} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_basic_coverage`}
             captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
-          <StackChart title={`${label} — advanced intervention-effects bridge (reported endline requirement)`} subtitle={!cs ? 'Advanced marginal effects on the existing endline-financing measure; attribution is pending or unavailable.' : 'Advanced view of the existing reported endline measure. Bands are signed reductions from BAU: positive reduces need, negative increases it. This is not the remaining-need balance; use the companion line below.'}
+          <StackChart title={`${label} — advanced intervention-effects bridge (reported endline requirement)`} subtitle={!cs ? 'Combined safely managed + exclusive Basic financing. Advanced marginal effects on the existing endline-financing measure; attribution is pending or unavailable.' : 'Combined safely managed + exclusive Basic financing. Advanced view of the existing reported endline measure. Bands are signed reductions from BAU: positive reduces need, negative increases it. This is not the remaining-need balance; use the companion line below.'}
             data={gapData} yLabel={`Year-end requirement (B ${displayCur})`}
             bands={gapBands} lines={gapLines} fmt={gapFmt}
             filename={`${scopeName}_${secKey}_financing_gap_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} currencyDisplay={detailExportCurrency} />
@@ -1041,6 +1051,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency} />
         </details>
         <RevenueDetails series={s} sector={secKey} />
+        <NRWDiagnostics results={s.nrwResults} sector={secKey === 'water' ? 'water_supply' : 'sanitation'}
+          currency={cur} currencyDisplay={detailExportCurrency}
+          title={secKey === 'water' ? 'Water NRW source audit' : 'Sanitation revenue and NRW-link source audit'} />
         <UtilityDebtSchedule debt={s.debt} currency={displayCur} moneyFactor={moneyFactor} />
         {rows && rows.length > 0 && (
           <div style={{ marginTop: 8 }}>

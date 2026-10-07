@@ -49,14 +49,15 @@ class UtilityRevenueTests(unittest.TestCase):
             _, _, ce, tr = collected_revenue([q], 1, c, [.2], [0])
             self.assertAlmostEqual(tr[0], expected)
             self.assertEqual(ce[0], 0)
-        for args in [([1], 1, .8, [-.1], [0]), ([1], 1, .8, [0], [.3]),
+        for args in [([1], 1, .8, [-1.1], [0]), ([1], 1, .8, [0], [.3]),
                      ([float('nan')], 1, .8, [0], [0]), ([1], -1, .8, [0], [0])]:
             with self.assertRaises(RevenueInputError):
                 collected_revenue(*args)
         data = example()
         data['water_interventions']['tariff_target'] = .5
-        with self.assertRaises(RevenueInputError):
-            calculate(coerce_to_engine(data))
+        data['toggles']['ws_tariff_enabled'] = True
+        result = calculate(coerce_to_engine(data))
+        self.assertLess(min(result['water_supply']['scenario_tariff_cash']), 0)
 
     def test_independent_schedules_growth_and_counterfactual(self):
         data = example()

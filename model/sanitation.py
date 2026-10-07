@@ -68,17 +68,22 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None, utility_debt_execu
         _rv = np.concatenate([_rv, np.zeros(_n - _rv.shape[0])])
     _rv = _rv[:_n]
     nrw_link_cash = np.zeros(_n)
+    linked_volume = np.zeros(_n)
+    linked_overlap = np.zeros(_n)
     if san_nrw_link_on:
-        _ret = float(getattr(si, 'nrw_link_return_ratio', 0.0) or 0.0)
-        _charge = float(getattr(si, 'nrw_link_sewer_charge', 0.0) or 0.0)
-        _coll = float(getattr(si, 'nrw_link_collection_rate', 0.0) or 0.0)
-        nrw_link_cash = _rv * _ret * _charge * _coll
+        from model.utility_revenue import number
+        _ret = number(si.nrw_link_return_ratio, 'NRW wastewater return ratio', 1)
+        _eligible = number(si.nrw_link_eligible_share, 'NRW sewer-billable share', 1)
+        linked_volume = _rv * _ret * _eligible
+        linked_overlap = np.asarray([
+            number(si.nrw_link_overlap_m3_series.get(int(y), 0), f'Tagged NRW sewer overlap {y}') / 1e6
+            for y in ctx['years']])
     # Custom interventions (sanitation + 'both'): new-revenue net cash adds to the sanitation capex on top
     # of the NRW-linked revenue; cost-reduction customs compose into the SM cost factor.
     cust_cash, cust_cf = custom_streams(ctx, inputs.period, cost_sm,
                                         getattr(inputs, 'custom_interventions', None) or [], 'sanitation')
     cost_factor = cost_factor * cust_cf
-    extra_cash = nrw_link_cash + cust_cash
+    extra_cash = cust_cash
     bracket_income = [br.income_monthly for br in inputs.income_distribution.brackets]
     _mld_to_m3 = inputs.constants.days_in_year / inputs.constants.cubic_meter_liters
     # 4d adder (sheet r178 = gap*cost + G166*(treat%*NRW%*phys%)). Unlike water — which multiplies the
@@ -178,7 +183,7 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None, utility_debt_execu
         afford_partial_share=float(getattr(si, 'mf_partial_share', 0.0) or 0.0),
         afford_upfront_payable_ratio=float(getattr(si, 'mf_upfront_payable_ratio', 0.0) or 0.0),
         afford_takeup=float(getattr(si, 'mf_takeup_rate', 0.0) or 0.0),
-        afford_gap_shares=list(getattr(si, 'mf_gap_shares', []) or []),
+        afford_gap_shares=list(getattr(si, 'mf_gap_shares', []) or [br.hh_share for br in inputs.income_distribution.brackets]),
         afford_bracket_income=bracket_income,
         afford_grant_total=float(getattr(si, 'grant_total', 0.0) or 0.0),
         selffinance_enabled=san_mf_on,
@@ -187,6 +192,18 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None, utility_debt_execu
         # Water-NRW-linked sewer revenue + custom new-revenue net cash → sanitation capex (0 when off).
         extra_cash=extra_cash,
         eligible_nrw_cash=nrw_link_cash,
+        linked_nrw_volume=linked_volume,
+        linked_overlap_volume=linked_overlap,
+        revenue_reconciliation_meta={
+            'legacy_nrw_tariff': si.nrw_link_sewer_charge,
+            'shared_tariff': inputs.revenue_bases['sanitation']['tariff'],
+            'legacy_rate_conflict': not np.isclose(si.nrw_link_sewer_charge, inputs.revenue_bases['sanitation']['tariff']),
+            'nrw_sales_assumption': 'returned_water_times_explicit_sewer_billable_share',
+            'migration_notice': (
+                'Shared sanitation rates apply. Legacy return assumption retained; '
+                'legacy sewer-billable share is 100%. Enter identified overlapping sewer volume '
+                'where already billed by connections; unrelated connection growth is not subtracted.'),
+        },
         custom_cash=cust_cash,
         utility_debt_execution=utility_debt_execution,
     )

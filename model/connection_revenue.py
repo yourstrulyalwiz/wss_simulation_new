@@ -24,8 +24,7 @@ def prepare_connection(config, base, ctx, history, days=365, liters=1000):
     status = {'requested': bool(cfg.get('enabled')), 'effective': False,
               'errors': [], 'configuration': cfg, 'calibration': None,
               'warnings': ['Only SM/basic billing is modeled; billed shares are average propensities, not customer cohorts.',
-                           'Baseline funding must already represent the selected reference net contribution.',
-                           'NRW cash/physical effects are unchanged; overlap with billed volume is not fully reconciled.']}
+                            'Baseline funding must already represent the selected reference net contribution.']}
     if not status['requested']:
         return status, None
     errors = status['errors']
@@ -36,8 +35,8 @@ def prepare_connection(config, base, ctx, history, days=365, liters=1000):
             values[key] = number(cfg.get(key), key, 1 if key != 'marginal_cost' else None)
         except RevenueInputError as exc:
             errors.append(str(exc))
-    if cfg.get('version') != 1:
-        errors.append('Connection revenue configuration must have version 1.')
+    if cfg.get('version') not in (1, 2):
+        errors.append('Connection revenue configuration must have version 1 or 2.')
     if base is None:
         errors.append('A valid shared revenue base is required.')
     if cfg.get('reference_confirmed') is not True:

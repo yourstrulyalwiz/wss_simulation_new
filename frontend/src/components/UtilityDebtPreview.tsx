@@ -2,6 +2,7 @@ import React from 'react';
 import { convertMoney, displayCurrency, type CurrencyDisplaySettings } from '../currencyDisplay';
 import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
 import TableExport from './TableExport';
+import NRWDiagnostics from './NRWDiagnostics';
 
 type Props = {
   debt: any;
@@ -11,6 +12,7 @@ type Props = {
   calculationError?: string;
   fresh?: boolean;
   onRetry?: () => void;
+  scenarioResult?: any;
 };
 
 const sources = [
@@ -29,7 +31,7 @@ function formatNumber(value: any, digits = 6) {
     ? '—' : Number(value).toLocaleString('en-US', { maximumFractionDigits: digits });
 }
 
-export default function UtilityDebtPreview({ debt, result, currency, currencyDisplay, calculationError = '', fresh = true, onRetry }: Props) {
+export default function UtilityDebtPreview({ debt, result, scenarioResult, currency, currencyDisplay, calculationError = '', fresh = true, onRetry }: Props) {
   const enabled = !!debt?.enabled;
   const ready = !!result && fresh && !calculationError;
   const metadata = ready ? result : null;
@@ -74,7 +76,9 @@ export default function UtilityDebtPreview({ debt, result, currency, currencyDis
       <div className="debt-diagnostics-row"><span>Annual real rate · term</span><b>{metadata.annual_real_interest_rate == null ? '—' : `${formatNumber(Number(metadata.annual_real_interest_rate) * 100, 3)}%`} · {metadata.loan_term_years ?? '—'} years</b></div>
       <div className="debt-diagnostics-row"><span>Annuity factor</span><b>{formatNumber(metadata.annuity_factor)}</b></div>
       <div className="debt-diagnostics-row"><span>Repayment accounting · feasibility</span><b>Deferred · not assessed</b></div>
+      <div className="debt-diagnostics-row"><span>Source cash treatment</span><b>Selected signed sources are summed before a single zero floor</b></div>
     </div>}
+    {ready && scenarioResult && <NRWDiagnostics results={scenarioResult} currency={currency} currencyDisplay={currencyDisplay} title="NRW source cash audit" />}
 
     {!enabled && <div className="debt-preview-state">Indicative borrowing is off. Saved assumptions are retained; ordinary results remain available.</div>}
     {calculationError && <div role="alert" className="debt-preview-error">Estimate unavailable — {calculationError}
@@ -103,7 +107,7 @@ export default function UtilityDebtPreview({ debt, result, currency, currencyDis
           </tr>)}</tbody>
         </table>
       </div> : <div className="debt-preview-state">The proceeds-use ledger appears when calculation output is available.</div>}
-      <p className="debt-reference-note">Opening unspent proceeds are carried balances, not new borrowing. A new injection is counted once in its selected year; repayments and financing costs are not modeled here.</p>
+      <p className="debt-reference-note">Opening unspent proceeds are carried balances, not new borrowing. A new injection is counted once in its selected year; repayments and financing costs are not modeled here. NRW enters this selected-source pool as signed net cash after implementation cost; gross sales and implementation cost are diagnostics, not additional source cash. Marginal household and financial chart bands show scenario effects, not selectable source cash.</p>
     </div>
     <div className="debt-caveat">{LOAN_FUNDING_QUALIFICATION}</div>
   </section>;

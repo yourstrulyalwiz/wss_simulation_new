@@ -291,7 +291,11 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
     for key in ('billed_volume_million_m3', 'baseline_collected_revenue', 'collected_revenue', 'additional_collected_revenue'):
         bau['scenario_' + key] = scn[key]
     from model.connection_revenue import DIAGNOSTIC_FIELDS
-    for key in ('connection_revenue', *DIAGNOSTIC_FIELDS):
+    from model.revenue_reconciliation import RECONCILIATION_FIELDS
+    for key in ('connection_revenue', 'revenue_reconciliation', *DIAGNOSTIC_FIELDS,
+                *RECONCILIATION_FIELDS, 'nrw_origin_households', 'microfinance_cohort_offers',
+                'microfinance_cohort_unserved', 'microfinance_cohort_self_excluded',
+                'unallocated_positive_capital'):
         bau['scenario_' + key] = scn[key]
     bau['scenario_financial_commitment_cash'] = scn.get('financial_commitment_cash', [])
     bau['scenario_exogenous_injection_cash'] = scn.get('exogenous_injection_cash', [])

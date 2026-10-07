@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useState } from 'react';
 import ConnectionRevenue from './ConnectionRevenue';
 
-export const REVENUE_ATTRIBUTION = 'Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.';
+export const REVENUE_ATTRIBUTION = 'Connection sales are attributed at reference rates. Collection applies before tariff on non-NRW volumes; the full joint tariff/collection effect on NRW sales is assigned to NRW. These source contributions reconcile to scenario revenue, but standalone intervention reruns need not sum to the joint scenario.';
 
 export function restoreBlankRevenueBases(inputs: any, sectors = ['water', 'sanitation']) {
   const revenue_bases = { ...inputs.revenue_bases };
@@ -85,7 +85,7 @@ export function RevenueBaseEditor({ inputs, onChange, sector }: { inputs: any; o
   const set = (field: string, value: any) => onChange(updateRevenueBaseField(inputs, sector, field, value));
   return <fieldset data-revenue-sector={sector} style={{ gridColumn: '1 / -1', border: '1px solid #ccd5df', borderRadius: 6, padding: 12, minWidth: 0 }}>
     <legend>Shared billed-revenue base — {sector === 'water' ? 'Water supply' : 'Sanitation'}</legend>
-    <p style={{ fontSize: 12 }}>These same values are used by collection and tariff reform. Billed volume excludes NRW already; it grows independently of new connections.</p>
+    <p style={{ fontSize: 12 }}>These shared rates are authoritative for NRW sales and are also used by collection and tariff reform. When calculation metadata reports version 2, identified NRW overlap is reconciled with connection billing before collected revenue is calculated.</p>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
       {[
         ['volume_mld', 'Billed volume (million litres/day)'],

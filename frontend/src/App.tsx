@@ -10,6 +10,7 @@ import { fetchDefaults, runCalculation, runEconomicProjections } from './api';
 import { type ContributionView } from './contributionView';
 import { CurrencyDisplayControl, defaultCurrencyDisplay, type CurrencyDisplaySettings, validRate } from './currencyDisplay';
 import { chooseDevelopmentPreview } from './developmentPreview';
+import { migrateNrwRevenueInputs } from './nrwRevenue';
 
 // The BAU view stacks two charts with identical elements: Safely managed (rung 0) then Basic (rung 1).
 function BAUChartPair(props: { inputsList: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; currencyDisplay: CurrencyDisplaySettings }) {
@@ -38,7 +39,7 @@ function migrateInjectionToggle(area: any) {
       toggles[key] = !!(toggles[`${prefix}_financial_commitment_enabled`] && area[section]?.fin_injection_enabled);
     }
   }
-  return { ...area, toggles };
+  return migrateNrwRevenueInputs({ ...area, toggles });
 }
 
 export default function App() {
@@ -1123,10 +1124,10 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     title: 'Water · Microfinance',
     content: (
       <div>
-        <p style={{ margin: '0 0 6px' }}>Finances a loan for <em>gap households</em> — those without safely-managed water service — so they can pay for service over time. Enter the <em>loan amount</em> (the per-household service cost; starts blank), the income distribution (5 brackets), the gap share per bracket, the willingness-to-pay % of income, and the real loan rate/tenor — a household gains service if its income can service the loan. It also contains:</p>
+        <p style={{ margin: '0 0 6px' }}>Offers service loans once to eligible water-household cohorts during the configured intervention window. Eligibility is an income/service financing pool, not an annual target-gap enrollment calculation; crossing the service target does not cap or create another offer cohort. Enter the per-household service cost, income distribution (5 brackets), eligible-pool share by bracket, willingness-to-pay, and real loan rate/tenor.</p>
         <ul style={{ margin: '2px 0 0', paddingLeft: 16 }}>
-          <li><strong>Self-finance carve-out:</strong> the share of the gap that pays upfront from savings (richest-bracket-first). They'd gain service anyway, so they're isolated out and excluded from the microfinance impact, leaving BAU unchanged.</li>
-          <li><strong>Means-based grant:</strong> a one-time pool that buys down the loan for those who can't service a full one, resizing repayment to what they can afford (cheapest buy-downs funded first).</li>
+          <li><strong>Self-finance exclusion:</strong> the richest-first share able to pay upfront; excluded from loan offers and reported separately, rather than used to shrink an annual target gap.</li>
+          <li><strong>Means-based grant:</strong> a one-time pool that buys down unaffordable principals for offered households (cheapest buy-downs funded first).</li>
         </ul>
       </div>
     ),
@@ -1161,7 +1162,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
   },
   san_nrw_link: {
     title: 'Sanitation · NRW-linked revenue',
-    content: 'Links to the Water Supply → NRW reduction lever. The physical water that lever recovers returns to the sewer as wastewater the utility can charge for; set the return-to-sewer ratio, the sewer charge (per m³) and the collection rate, and the collected revenue funds new safely-managed sanitation service. It has no effect unless NRW reduction is switched on in the water supply interventions.',
+    content: 'Links sanitation revenue to physical water-loss recovery. Eligible linked volume = physical recovery × wastewater return ratio × explicit sewer-billable share. Enter overlap by year only when it is identified in raw sanitation connection billing; blank years remain unassigned—never infer overlap from all new connections. V2 uses the shared sanitation tariff and collection scenario rates. Legacy sewer charge/collection inputs remain saved for review, but do not replace those shared rates. Linked sanitation cash is signed and separate from water NRW net.',
   },
   san_tariff: {
     title: 'Sanitation · Tariff reform',
@@ -1171,10 +1172,10 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     title: 'Sanitation · Microfinance',
     content: (
       <div>
-        <p style={{ margin: '0 0 6px' }}>Finances a loan for <em>gap households</em> — those without safely-managed sanitation service — same mechanic as the water side, with sanitation's own willingness-to-pay %, loan terms, gap split and grant pool. A household gains service if its income can service the loan. It also contains:</p>
+        <p style={{ margin: '0 0 6px' }}>Offers service loans once to eligible sanitation-household cohorts during the configured intervention window. Eligibility is an income/service financing pool, not an annual target-gap enrollment calculation; target coverage is not an enrollment cap. Sanitation keeps its own willingness-to-pay, loan terms, eligible-pool split, and grant pool.</p>
         <ul style={{ margin: '2px 0 0', paddingLeft: 16 }}>
-          <li><strong>Self-finance carve-out:</strong> the richest-first share of the gap that pays upfront from savings — isolated out as BAU-anyway, so it isn't credited for service that would happen without it.</li>
-          <li><strong>Means-based grant:</strong> a one-time pool that buys down the loan for those who can't service a full one (cheapest buy-downs funded first).</li>
+          <li><strong>Self-finance exclusion:</strong> the richest-first share able to pay upfront, excluded from loan offers and reported separately.</li>
+          <li><strong>Means-based grant:</strong> a one-time pool that buys down unaffordable principals for offered households (cheapest buy-downs funded first).</li>
         </ul>
       </div>
     ),
@@ -1197,7 +1198,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     title: 'Loan funding — indicative borrowing',
     content: (
       <div>
-        <p style={{ margin: '0 0 6px' }}>Loan funding carries the intervention scenario forward without changing intervention settings. Select collection efficiency, tariff reform and/or NRW-related net cash for one selected reference year; selections do not switch on reforms.</p>
+        <p style={{ margin: '0 0 6px' }}>Loan funding carries the intervention scenario forward without changing intervention settings. Select collection efficiency, tariff reform and/or NRW source cash for one selected reference year; selections do not switch on reforms. Water NRW net remains separate from eligible linked sanitation net cash, which is signed independently.</p>
         <p style={{ margin: '0 0 6px' }}>The allocation and annual real rate over an explicit positive whole-year term size one indicative proceeds amount using the selected year’s signed cash pool. Loan proceeds enter restricted investment cash once, with unused proceeds carried forward.</p>
         <p style={{ margin: '0 0 6px' }}>Indicative loan proceeds — repayment accounting deferred. Loan sizing uses the selected year’s additional net cash and assumes equal annual repayments. Principal and interest payments are not deducted from model funding in this version.</p>
         <p style={{ margin: 0 }}>Active connection-based billing can affect customer-driven collection and tariff reform growth. The separate connection net-cash stream is not debt eligible. The annual table distinguishes reference/no-debt borrowing-base values from financed-scenario cash and replacement obligations.</p>

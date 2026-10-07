@@ -17,7 +17,8 @@ export type LedgerMeasure =
   | 'noncashDeliveryCredit' | 'cancelledExpansionCost' | 'outstandingRepricing' | 'ancillaryPaid'
   | 'sectorExpansionPaid' | 'externalExpansionPaid' | 'openingExpansionCost'
   | 'advanceDeliveryCredit' | 'newAncillaryCommitment' | 'sectorHouseholdPaid'
-  | 'loanInjection' | 'loanOpeningUnspent' | 'loanInvestment' | 'loanClosingUnspent';
+  | 'loanInjection' | 'loanOpeningUnspent' | 'loanInvestment' | 'loanClosingUnspent'
+  | 'nrwNetCash' | 'eligibleNrwLinkCash' | 'connectionNetCash' | 'collectionCash' | 'tariffCash' | 'additionalNetCash';
 export type LedgerVector = [number | null, number | null, number | null];
 export type LedgerSnapshot = { year: number; population: number; values: Record<LedgerMeasure, LedgerVector> };
 export type LedgerContribution = {
@@ -47,6 +48,7 @@ const measures: LedgerMeasure[] = [
   'noncashDeliveryCredit','cancelledExpansionCost','outstandingRepricing','ancillaryPaid','sectorExpansionPaid','externalExpansionPaid',
   'openingExpansionCost','advanceDeliveryCredit','newAncillaryCommitment','sectorHouseholdPaid',
   'loanInjection','loanOpeningUnspent','loanInvestment','loanClosingUnspent',
+  'nrwNetCash','eligibleNrwLinkCash','connectionNetCash','collectionCash','tariffCash','additionalNetCash',
 ];
 const sourceFields: Partial<Record<LedgerMeasure, string>> = {
   scheduledExpansion: 'scheduled_household_expansion_by_service',
@@ -189,6 +191,20 @@ export function ledgerSnapshots(results: any[], sector: 'water_supply' | 'sanita
           }
         }
       }
+    }
+    const revenueCashSources: [LedgerMeasure, string][] = [
+      ['nrwNetCash', 'nrw_net'],
+      ['eligibleNrwLinkCash', 'eligible_nrw_link_cash'],
+      ['connectionNetCash', 'connection_net_cash'],
+      ['collectionCash', 'collection_cash'],
+      ['tariffCash', 'tariff_cash'],
+      ['additionalNetCash', 'additional_net_cash'],
+    ];
+    for (const [measure, field] of revenueCashSources) {
+      const amounts = results.map(result => optionalAt(result?.[sector], `${prefix}${field}`, index));
+      const total = amounts.length && amounts.every(value => value != null)
+        ? amounts.reduce<number>((sum, value) => sum + (value as number), 0) : null;
+      values[measure] = [null, null, total];
     }
     return { year, population, values };
   });
@@ -592,6 +608,30 @@ export function ledgerRows(data: LedgerData, options: {
         detail('fundingRestricted', 'Restricted loan cash available, including carry');
         detail('repayments', 'Repayment deductions (not modeled)');
       }
+      const cashFields: { key: LedgerMeasure; label: string }[] = [
+        { key: 'connectionNetCash', label: 'Connection net cash' },
+        { key: 'collectionCash', label: 'Collection attribution cash' },
+        { key: 'tariffCash', label: 'Tariff attribution cash' },
+        { key: 'nrwNetCash', label: 'Water NRW signed net cash after implementation cost' },
+        { key: 'eligibleNrwLinkCash', label: 'Eligible NRW-linked sanitation signed net cash' },
+        { key: 'additionalNetCash', label: 'Total additional net cash (identity check)' },
+      ];
+      const cashRows: LedgerRow[] = cashFields.map(item => ({
+        key: item.key, label: item.label, kind: 'component' as const, unit,
+        timing: 'Source cash diagnostic — included in ordinary available cash; not an additional funding amount',
+        values: years.map(year => {
+          const snap = data.scenario.find(entry => entry.year === year);
+          const amount = snap?.values[item.key]?.[2] ?? null;
+          return amount == null ? null : amount * moneyFactor / 1000;
+        }),
+        component: item.key,
+      }));
+      if (cashRows.some(row => row.values.some(value => value != null))) rows.push({
+        key: 'revenue-source-cash-section', label: 'Reconciled revenue source cash — diagnostics, not additive to funding',
+        kind: 'section', unit: '', values: years.map(() => null),
+        status: 'Water NRW net cash remains signed after implementation costs. Eligible linked sanitation cash is a separate sanitation source; total additional net cash includes it. Marginal service-effect bands are not source cash.',
+        children: cashRows,
+      });
       rows.push({ key: 'fundingOperating', label: data.includesDebt ? 'Ordinary net cash (signed; repayment deductions not modeled)' : 'Ordinary net cash (signed)',
         kind: data.includesDebt ? 'summary' : 'detail', unit, values: series(data.scenario, 'fundingOperating') });
     }

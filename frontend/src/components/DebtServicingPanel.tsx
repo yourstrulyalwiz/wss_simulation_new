@@ -70,6 +70,7 @@ export default function DebtServicingPanel({
           <p>Intervention impact remains separate; loan proceeds are shown as a distinct funding comparison.</p>
         </div>
         <UtilityDebtPreview debt={debt} result={detail} currency={currency} currencyDisplay={currencyDisplay}
+          scenarioResult={results?.[sectorKey]}
           calculationError={calculationError} fresh={!!results && !calculationError} onRetry={onRetry} />
         <div className="debt-chart-stack">
           <LiveInterventionChart key={`${chartRunKey}:sm`} inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} rung={0} contributionView={contributionView} currencyDisplay={currencyDisplay} />

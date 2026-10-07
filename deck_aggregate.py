@@ -177,6 +177,16 @@ def aggregate(results: List[dict]) -> dict:
                 agg[key] = sum((s.get(key) or 0) for s in secs)
             else:
                 agg[key] = val
+        for prefix in ('', 'scenario_'):
+            metas = [s.get(prefix + 'revenue_reconciliation') or {} for s in secs]
+            if any(metas):
+                agg[prefix + 'revenue_reconciliation'] = {
+                    'version': 2, 'attribution': metas[0].get('attribution'),
+                    'nrw_sales_assumption': 'Area-specific; see area configurations',
+                    'legacy_rate_conflict': any(m.get('legacy_rate_conflict') for m in metas),
+                    'migration_notice': 'Area calculations remain separate; volumes and money sum, rates are volume/revenue-weighted.',
+                    'areas': metas,
+                }
 
         agg['rungs'] = secs[0].get('rungs')
         agg['sector'] = secs[0].get('sector')

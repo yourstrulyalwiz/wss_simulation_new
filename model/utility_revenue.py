@@ -110,6 +110,22 @@ def resolve_bases(inputs, ctx):
             except (RevenueInputError, TypeError, ValueError) as exc:
                 errors.append(str(exc))
         selected = None
+        if not alternatives and sector == 'water':
+            # Sole valid legacy NRW tariff: retain its rate and explicitly derive
+            # the existing billed-water anchor from system input less baseline NRW.
+            try:
+                selected = validate_base(dict(
+                    version=1,
+                    volume_mld=number(w.get('nrw_system_input_vol'), 'Legacy NRW system input') *
+                        (1 - number(w.get('nrw_current_pct'), 'Legacy NRW proportion', 1)),
+                    tariff=w.get('nrw_tariff'), collection_ratio=w.get('ce_current_ratio'),
+                    reference_year=w.get('nrw_start_year'),
+                    growth_rate=w.get('nrw_vol_growth'), origin='sole legacy NRW tariff',
+                    legacy=copy.deepcopy(raw)))
+                volume_path(selected, ctx, inputs.constants.days_in_year, inputs.constants.cubic_meter_liters)
+            except (RevenueInputError, TypeError, ValueError) as exc:
+                errors.append(str(exc))
+                selected = None
         if len(alternatives) == 1:
             selected = alternatives[0]['base']
         elif len(alternatives) == 2:
@@ -138,8 +154,8 @@ def collected_revenue(q, tariff, collection, tariff_delta, collection_delta):
     c = number(collection, 'Baseline collection ratio', 1)
     dp = np.asarray(tariff_delta, dtype=float)
     dc = np.asarray(collection_delta, dtype=float)
-    if not all(np.all(np.isfinite(x)) for x in (q, dp, dc)) or np.any(q < 0) or np.any(dp < 0) or np.any(dc < 0) or np.any(c + dc > 1 + 1e-12):
-        raise RevenueInputError('Utility reforms require nonnegative volume, nondecreasing tariffs and collection ratios within 0–100%.')
+    if not all(np.all(np.isfinite(x)) for x in (q, dp, dc)) or np.any(q < 0) or np.any(p + dp < 0) or np.any(c + dc < 0) or np.any(c + dc > 1 + 1e-12):
+        raise RevenueInputError('Utility reforms require nonnegative volume/tariffs and collection ratios within 0–100%.')
     baseline = q * p * c
     scenario = q * (p + dp) * (c + dc)
     ce = q * p * dc

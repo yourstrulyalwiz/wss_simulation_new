@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
 
 type Config = {
-  version: 1;
+  version: 1 | 2;
   enabled: boolean;
   billed_share_sm: number | null;
   billed_share_basic: number | null;
@@ -22,7 +22,7 @@ type Config = {
 };
 
 const EMPTY: Config = {
-  version: 1, enabled: false, billed_share_sm: null, billed_share_basic: null,
+  version: 2, enabled: false, billed_share_sm: null, billed_share_basic: null,
   household_volume_share: null, marginal_cost: null, zero_cost_confirmed: false,
   alignment: null, baseline_volume_mld: null, funding_reference: null,
   reference_confirmed: false, funding_includes_reforms: false, reference_series: {},
@@ -141,7 +141,7 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
   const id = useId();
   const [validation, setValidation] = useState<{ key: string; errors: string[]; remote: string; remoteStatus: any } | null>(null);
   const stored = inputs.connection_revenue?.[sector] as Config | undefined;
-  const config = useMemo(() => ({ ...EMPTY, ...(stored || {}), version: 1 as const,
+  const config = useMemo(() => ({ ...EMPTY, ...(stored || {}), version: stored?.version === 1 ? 1 as const : 2 as const,
     reference_series: { ...(stored?.reference_series || {}) }, provenance: { ...(stored?.provenance || {}) } }), [stored]);
   const errors = config.enabled ? errorsFor(config, inputs, sector) : [];
   const key = JSON.stringify({ inputs, sector });
@@ -167,7 +167,7 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
   }, [key]);
   const current = validation?.key === key ? validation : null;
   const update = (next: Config) => onChange({
-    ...inputs, connection_revenue: { ...(inputs.connection_revenue || {}), [sector]: { ...next, version: 1 } },
+    ...inputs, connection_revenue: { ...(inputs.connection_revenue || {}), [sector]: { ...next, version: next.version === 1 ? 1 : 2 } },
   });
   const setField = (field: keyof Config, value: any) => update({ ...config, [field]: value });
   const field = (name: keyof Config, label: string, unit?: string, step = 'any') => (

@@ -254,10 +254,11 @@ def _currency_table(headers, rows, currency_display, *, selected_currency=None):
     output_headers = []
     for index, header in enumerate(headers):
         text = str(header)
-        is_money = bool(re.search(rf'\({re.escape(source)} [MB]\)', text, re.IGNORECASE))
+        is_money = bool(re.search(rf'\({re.escape(source)}(?: [MB]\)|/(?:HH/year|m³), real\))', text, re.IGNORECASE))
         if is_money:
             indexes.append(index)
             text = re.sub(rf'\({re.escape(source)} ([MB])\)', r'(US$ \1)', text, flags=re.IGNORECASE)
+            text = re.sub(rf'\({re.escape(source)}/', '(US$/', text, flags=re.IGNORECASE)
         output_headers.append(text)
     output_rows = []
     for row in rows:

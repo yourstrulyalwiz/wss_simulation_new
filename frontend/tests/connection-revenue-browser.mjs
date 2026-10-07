@@ -52,6 +52,16 @@ try {
     }
     throw new Error(message);
   }
+  async function enterInput(selector, value) {
+    await evaluate(`(()=>{
+      const el=${selector};
+      const prototype=el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype,'value').set.call(el,${JSON.stringify(value)});
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+      el.dispatchEvent(new Event('change',{bubbles:true}));
+    })()`);
+    await sleep(40);
+  }
   await send('Page.navigate',{url},sessionId);
   await waitFor(`!!document.querySelector('.wb-app')`,'Application did not load');
   await sleep(700);
@@ -67,6 +77,36 @@ try {
   await waitFor(`${section}.querySelector('[role="status"]').textContent.includes('Effective: connection-based')`,
     'Backend did not confirm valid configuration');
   assert.ok(await evaluate(`${section}.textContent.includes('Baseline billed households:')`));
+  assert.ok(await evaluate(`${section}.querySelector('[aria-label="New Basic connections billed (%)"]')?.max === '100'`),
+    'New Basic billing must display a 0–100 percentage');
+  assert.ok(await evaluate(`${section}.querySelector('[aria-label="New Safely Managed connections billed (%)"]')?.max === '100'`),
+    'New SM billing must display a 0–100 percentage');
+  assert.ok(await evaluate(`${section}.querySelector('[aria-label="Cost source"]')?.value === 'per_m3'`),
+    'Migrated legacy cost must remain on the per-m³ basis');
+  assert.ok(await evaluate(`${section}.textContent.includes('Advanced / baseline calibration')`),
+    'Baseline calibration controls must remain available under Advanced');
+  const billedBasicPercent = await evaluate(`${section}.querySelector('[aria-label="New Basic connections billed (%)"]').value`);
+  await enterInput(`${section}.querySelector('[aria-label="New Basic connections billed (%)"]')`, '0');
+  await enterInput(`${section}.querySelector('[aria-label="Source / assumption note"]')`, 'Browser regression: explicitly selected zero future Basic billing');
+  await waitFor(`(()=>{
+    const b=JSON.parse(localStorage.getItem('wss_working_bundle')||'{}');
+    return [b.inputs,...Object.values(b.altInputs||{})].some(i=>i?.connection_revenue?.water?.version===3&&i.connection_revenue.water.new_billed_share_basic===0);
+  })()`,'Percentage input did not persist as a v3 fractional zero');
+  await enterInput(`${section}.querySelector('[aria-label="New Basic connections billed (%)"]')`, billedBasicPercent);
+  assert.ok(await evaluate(`${section}.querySelector('[aria-label="Source / assumption note"]') != null`),
+    'Shared source / assumption note must be visible');
+  const billedSmPercent = await evaluate(`${section}.querySelector('[aria-label="New Safely Managed connections billed (%)"]').value`);
+  await enterInput(`${section}.querySelector('[aria-label="New Safely Managed connections billed (%)"]')`, '');
+  await waitFor(`${section}.querySelector('[role="alert"]')?.textContent.includes('New Safely Managed connections billed is required')`,
+    'Missing new-connection calibration must be disclosed');
+  await enterInput(`${section}.querySelector('[aria-label="New Safely Managed connections billed (%)"]')`, billedSmPercent);
+  await evaluate(`${section}.querySelector('[aria-label="Cost source"]').value='annual_household';${section}.querySelector('[aria-label="Cost source"]').dispatchEvent(new Event('change',{bubbles:true}))`);
+  await waitFor(`${section}.querySelector('[aria-label="Annual operating cost per billed household"]')?.type==='number'`,
+    'Manual annual household cost control did not appear');
+  await enterInput(`${section}.querySelector('[aria-label="Annual operating cost per billed household"]')`, '0');
+  await waitFor(`${section}.textContent.includes('confirm zero cost')`,
+    'Zero-cost confirmation must appear for an explicitly selected zero cost');
+  await evaluate(`${section}.querySelector('[aria-label="Cost source"]').value='per_m3';${section}.querySelector('[aria-label="Cost source"]').dispatchEvent(new Event('change',{bubbles:true}))`);
   // Disabling restores exogenous mode but must not erase empirical inputs.
   const shares=await evaluate(`[...${section}.querySelectorAll('input[type="number"]')].slice(0,4).map(e=>e.value)`);
   await evaluate(`${section}.querySelector('input[type="checkbox"]').click()`);
@@ -78,7 +118,12 @@ try {
     'Re-enabling discarded configuration');
   await waitFor(`(()=>{
     const b=JSON.parse(localStorage.getItem('wss_working_bundle')||'{}');
-    return [b.inputs,...Object.values(b.altInputs||{})].some(i=>i?.connection_revenue?.water?.enabled===true);
+    return [b.inputs,...Object.values(b.altInputs||{})].some(i=>{
+      const c=i?.connection_revenue?.water;
+      return c?.enabled===true && c.cost_basis==='per_m3' &&
+        c.new_billed_share_basic===${Number(billedBasicPercent)/100} &&
+        c.new_billed_share_sm===${Number(billedSmPercent)/100};
+    });
   })()`,'Debounced autosave did not persist the enabled configuration');
   await send('Page.reload',{},sessionId);
   await waitFor(`!!document.querySelector('[data-section-key="revenue_inputs"] .wb-section-trigger')`,

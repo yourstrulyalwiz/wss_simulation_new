@@ -3,6 +3,16 @@
 
 FIELDS = (
     ('Billed-household equivalents', 'connection_billed_households', 'HH'),
+    ('Lagged billed Basic households', 'connection_billed_basic_households', 'HH'),
+    ('Lagged billed SM households', 'connection_billed_sm_households', 'HH'),
+    ('Billed Basic entry flow (delivery in prior year)', 'connection_billed_basic_entry_households', 'HH'),
+    ('Billed Basic transferred out (prior delivery)', 'connection_billed_basic_transfer_households', 'HH'),
+    ('Billed SM transferred in (prior delivery)', 'connection_billed_sm_transfer_households', 'HH'),
+    ('Reference billed-household equivalents', 'connection_reference_billed_households', 'HH'),
+    ('Lagged incremental NRW-tagged billed equivalents', 'nrw_tagged_billed_households', 'HH'),
+    ('Physical NRW-origin households', 'nrw_origin_households', 'M HH'),
+    ('Annual operating cost per billed household', 'connection_annual_cost_per_household', '{currency}/HH/year, real'),
+    ('Equivalent operating cost per volume', 'connection_equivalent_marginal_cost', '{currency}/m³, real'),
     ('Household billed volume', 'household_billed_volume_million_m3', 'M m³'),
     ('Non-household billed volume', 'nonhousehold_billed_volume_million_m3', 'M m³'),
     ('Total billed volume', 'billed_volume_million_m3', 'M m³'),

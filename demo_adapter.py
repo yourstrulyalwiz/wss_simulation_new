@@ -21,6 +21,32 @@ from model.inputs import (
 )
 
 # Default 5-bracket income distribution shared with the microfinance + grant lever (quintiles; monthly
+def _connection_sources(fe):
+    """Attach the current selected area's source, never a future-customer recalibration."""
+    import copy
+    configs = copy.deepcopy(fe.get('connection_revenue', {}))
+    if not isinstance(configs, dict):
+        return configs
+    country = fe.get('country_config') or {}
+    for sector in ('water', 'sanitation'):
+        cfg = configs.get(sector)
+        if not isinstance(cfg, dict):
+            continue
+        original = fe.get(sector + '_interventions') or {}
+        cfg['operating_expenditure_source'] = {
+            'expenditure': original.get('tariff_op_expenditure'),
+            'baseline_year': (original.get('tariff_op_expenditure_reference_year')
+                              if original.get('tariff_op_expenditure_reference_year') is not None
+                              else (fe.get('period') or {}).get('baseline_year')),
+            'currency': str(country.get('currency') or '').strip().upper(),
+            'currency_basis': original.get('tariff_op_expenditure_currency_basis') or 'real_raw',
+            'sector': sector,
+            'area': str(country.get('area') or '').strip().lower(),
+        }
+    return configs
+
+
+# Default 5-bracket income distribution shared with the microfinance + grant lever (quintiles; monthly
 # income in local currency, HH share fraction). Used both as the frontend default and the parse fallback.
 _INCOME_BRACKETS_DEFAULT = [
     {'income_monthly': 6_000.0,  'hh_share': 0.20},
@@ -670,7 +696,7 @@ def to_engine(fe: dict) -> ModelInputs:
 
     return ModelInputs(
         revenue_bases=fe.get('revenue_bases', {}),
-        connection_revenue=fe.get('connection_revenue', {}),
+        connection_revenue=_connection_sources(fe),
         revenue_legacy=fe.get('revenue_legacy') or {key: fe.get(key, {}) for key in ('water_interventions', 'sanitation_interventions')},
         country_config=CountryConfig(**{k: v for k, v in fe.get('country_config', {}).items()
                                         if k in CountryConfig.model_fields}),

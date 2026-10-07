@@ -99,6 +99,16 @@ export const NRW_DIAGNOSTIC_FIELDS = [
   { key: 'incremental_variable_operating_cost', label: 'Incremental variable operating cost', unit: 'currency millions', kind: 'money' },
   { key: 'connection_net_cash', label: 'Connection net cash', unit: 'currency millions', kind: 'money' },
   { key: 'additional_net_cash', label: 'Additional net cash', unit: 'currency millions', kind: 'money' },
+  { key: 'connection_billed_basic_households', label: 'Billed Basic household stock', unit: 'households', kind: 'households' },
+  { key: 'connection_billed_sm_households', label: 'Billed Safely Managed household stock', unit: 'households', kind: 'households' },
+  { key: 'connection_billed_basic_entry_households', label: 'New billed Basic entries', unit: 'households', kind: 'households' },
+  { key: 'connection_billed_basic_transfer_households', label: 'Billed Basic households transferred to SM', unit: 'households', kind: 'households' },
+  { key: 'connection_billed_sm_transfer_households', label: 'Billed SM households transferred from Basic', unit: 'households', kind: 'households' },
+  { key: 'connection_reference_billed_households', label: 'Funding-reference billed households', unit: 'households', kind: 'households' },
+  { key: 'nrw_tagged_billed_households', label: 'NRW-tagged incremental billed households', unit: 'households', kind: 'households' },
+  { key: 'nrw_origin_households', label: 'Physical NRW-origin households', unit: 'million households', kind: 'households' },
+  { key: 'connection_annual_cost_per_household', label: 'Annual connection cost per household', unit: 'currency/household/year', kind: 'rate' },
+  { key: 'connection_equivalent_marginal_cost', label: 'Connection equivalent marginal cost', unit: 'currency/m³', kind: 'rate' },
   { key: 'collection_cash', label: 'Collection attribution', unit: 'currency millions', kind: 'money' },
   { key: 'tariff_cash', label: 'Tariff attribution', unit: 'currency millions', kind: 'money' },
   { key: 'eligible_nrw_link_cash', label: 'Eligible NRW-linked sanitation net cash', unit: 'currency millions', kind: 'money' },
@@ -124,6 +134,16 @@ export function aggregateNrwDiagnosticField(results: any[], field: NRWDiagnostic
   const values = results.map(result => valueAt(result, field.key));
   if (!values.length || values.some(value => value == null)) return null;
   if (field.kind !== 'rate') return values.reduce<number>((sum, value) => sum + (value as number), 0);
+  if (field.key === 'connection_annual_cost_per_household' || field.key === 'connection_equivalent_marginal_cost') {
+    const weightKey = field.key === 'connection_annual_cost_per_household'
+      ? 'connection_billed_households' : 'household_billed_volume_million_m3';
+    const weights = results.map(result => valueAt(result, weightKey));
+    if (weights.some(weight => weight == null)) return null;
+    const denominator = weights.reduce<number>((sum, weight) => sum + Math.max(0, weight as number), 0);
+    return denominator > 0
+      ? values.reduce<number>((sum, value, i) => sum + (value as number) * Math.max(0, weights[i] as number), 0) / denominator
+      : null;
+  }
   // Weight tariff by billed volume and collection ratio by tariff-weighted billed volume; never add rates.
   const weights = results.map(result => {
     const volume = valueAt(result, 'billed_volume_million_m3');

@@ -56,12 +56,12 @@ export default function NRWDiagnostics({ results, currency = 'LCU', currencyDisp
     year,
     ...present.map(field => {
       const value = combined(field, index);
-      return value == null ? '' : field.kind === 'money' ? factorMoney(value) : value;
+      return value == null ? '' : field.kind === 'money' || field.unit.includes('currency') ? factorMoney(value) : value;
     }),
   ]);
   const fmt = (field: NRWDiagnosticField, value: number | null) => {
     if (value == null) return '—';
-    const shown = field.kind === 'money' ? factorMoney(value) : value;
+    const shown = field.kind === 'money' || field.unit.includes('currency') ? factorMoney(value) : value;
     return shown.toLocaleString('en-US', { maximumFractionDigits: field.kind === 'households' ? 4 : 5 });
   };
   const th: React.CSSProperties = { position: 'sticky', top: 0, zIndex: 1, padding: '6px 8px', textAlign: 'right', background: '#e8f0f4', borderBottom: '1px solid #cbd5e1', fontSize: 10, whiteSpace: 'nowrap' };

@@ -22,6 +22,7 @@ from model.service_gaps import assess_service_gaps, reconcile_expansion_gaps
 from model.utility_revenue import collected_revenue, volume_path, number, RevenueInputError
 from model.service_history import historical_households, historical_transition_counts
 from model.connection_revenue import prepare_connection, annual_connection_cash, DIAGNOSTIC_FIELDS
+from model.billing_cohorts import BillingCohorts
 from model.revenue_reconciliation import reconcile_revenue, RECONCILIATION_FIELDS, ATTRIBUTION
 from model.service_cohorts import EligibleCohorts
 
@@ -562,13 +563,19 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             row = annual_connection_cash(connection_runtime, bau[0, t], bau[1, t], t,
                                          tariff_current, ce_current_ratio)
             for key in ('connection_billed_households', 'household_billed_volume_million_m3',
-                        'nonhousehold_billed_volume_million_m3'):
+                        'nonhousehold_billed_volume_million_m3', 'connection_billed_basic_households',
+                        'connection_billed_sm_households', 'connection_reference_billed_households',
+                        'connection_annual_cost_per_household', 'connection_equivalent_marginal_cost'):
                 revenue_diagnostics[key][t] = row[key]
             if t == bi:
                 billed_volume[t] = row['billed_volume_million_m3']
                 baseline_revenue[t] = scenario_revenue[t] = row['collected_revenue']
                 revenue_diagnostics['reference_billed_volume_million_m3'][t] = billed_volume[t]
                 revenue_diagnostics['reference_collected_revenue'][t] = baseline_revenue[t]
+    billing = (BillingCohorts(bau[0, bi], bau[1, bi], connection_runtime['fsm'],
+                             connection_runtime['fb'], connection_runtime['new_sm'],
+                             connection_runtime['new_basic']) if connection_runtime else None)
+    previous_billing_flows = {}
 
     # ── NRW reduction (test2) ───────────────────────────────────────────────────────────────────────
     # Reduce non-revenue water from nrw_current → nrw_target over start→target year. The recovered
@@ -771,7 +778,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         if connection_runtime:
             row = annual_connection_cash(
                 connection_runtime, bau[0, t - 1], bau[1, t - 1], t,
-                tariff_current + tariff_add[t], ce_current_ratio + ce_add_ratio[t])
+                tariff_current + tariff_add[t], ce_current_ratio + ce_add_ratio[t], billing)
+            row.update(previous_billing_flows)
             for key in DIAGNOSTIC_FIELDS:
                 revenue_diagnostics[key][t] = row[key]
             billed_volume[t] = row['billed_volume_million_m3']
@@ -783,8 +791,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         reference = float(revenue_diagnostics['reference_billed_volume_million_m3'][t])
         tagged_overlap = 0.0
         if connection_runtime:
-            tagged_overlap = (nrw_origin_hh * connection_runtime['q'] *
-                              max(0.0, connection_runtime['fsm'] - connection_runtime['fb']))
+            tagged_overlap = billing.nrw_billed * connection_runtime['q']
         recovered = float(recovered_volume[t])
         own_sales = recovered if nrw_value_basis == 'tariff' else 0.0
         if nrw_sales_assumption == 'household_only':
@@ -953,6 +960,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                 bau[r, t] = max(0.0, bau[r, t] + resid * share)
             for r in range(5):
                 unadj[r] = bau[r, t]                                   # keep the unadjusted vector in step
+        if billing is not None:
+            previous_billing_flows = billing.close(
+                new_basic, nrw_upg, new_sm + mf_flow[t] + grant_flow[t], bau[0, t], bau[1, t])
         # Gross funded asset roll-forward, deliberately replacing the workbook's
         # depreciating-stock convention. Replacement does not duplicate assets.
         external_cost = (mf_flow[t] + grant_flow[t]) * cost_sm_t[t]

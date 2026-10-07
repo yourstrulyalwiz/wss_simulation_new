@@ -2,7 +2,7 @@
 - [Residual financing gap](service-level-gap-attribution.md) — expansion capital gets no second credit; replacement credit follows asset obligations and cash deficits are allocated once.
 - [Funded assets](funded-assets.md) — unfunded work never creates assets; endline need uses closing expansion plus accumulated shortfalls.
 - [Utility revenue](utility-revenue.md) — preserve separate collection/tariff contributions and legacy-volume compatibility; avoid incidental NRW or reinvestment changes.
-- [Connection revenue](connection-revenue-policy.md) — optional baseline feedback, not an intervention; operating-cost deductions require explicit marginal-cost evidence/assumptions.
+- [Connection revenue](connection-revenue-policy.md) — separate baseline/future billing; lagged customer cohorts; explicit household-cost and average-proxy options, not full accounts.
 - [Stale preview state](stale-preview-state.md) — a preview can retain an older interface even when its exact endpoint serves the current build; preserve saved browser data.
 - [Default profile rollout](default-profile-rollout.md) — new DRC default should open once for existing and new users, backing up prior sessions; omitted settings must be supplied.
 - [Minimum service targets](minimum-service-targets.md) — SM satisfies the basic minimum; preserve exclusive categories and assess deficits locally before aggregation.

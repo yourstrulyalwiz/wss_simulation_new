@@ -212,6 +212,21 @@ def aggregate(results: List[dict]) -> dict:
                 'effective': all(modes), 'mixed': len(set(modes)) > 1,
                 'area_configurations': metadata,
             }
+            # Costs per customer/volume are intensive. Sum stocks/cash first, then weight.
+            for field, weight_field in (
+                ('connection_annual_cost_per_household', 'connection_billed_households'),
+                ('connection_equivalent_marginal_cost', 'household_billed_volume_million_m3'),
+            ):
+                combined = []
+                for i in range(len(years)):
+                    numerator = denominator = 0.0
+                    for sec in secs:
+                        value, weight = sec.get(prefix + field) or [], sec.get(prefix + weight_field) or []
+                        if i < len(value) and i < len(weight):
+                            numerator += value[i] * weight[i]
+                            denominator += weight[i]
+                    combined.append(numerator / denominator if denominator else 0.0)
+                agg[prefix + field] = combined
             # Intensive rates are revenue/billed-volume weighted, never summed.
             volumes = [s.get(prefix + 'billed_volume_million_m3') or [] for s in secs]
             rates = [s.get(prefix + 'applicable_tariff') or [] for s in secs]

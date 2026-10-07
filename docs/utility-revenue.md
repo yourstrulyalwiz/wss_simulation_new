@@ -73,6 +73,73 @@ separate schedules, growth, migration conflicts, equivalent anchors, reloads,
 BAU stability, sector separation, and cumulative outcome/export reconciliation.
 Existing financing-ledger and funded-asset regressions remain in the test suite.
 
-NRW benefits and separate NRW-linked sanitation cash are unchanged. No demand
-elasticity, operating-cost model, reinvestment fraction or connection-driven
-revenue feedback was introduced. No publishing is part of this change.
+The initial tariff/collection implementation did not add demand elasticity,
+general operating accounts or a new reinvestment assumption. Subsequent optional
+connection feedback and NRW reconciliation are described below.
+
+## Optional connection revenue: baseline and new customers
+
+Connection revenue is a baseline modeling choice for BAU and scenarios, not an
+intervention. Each calculation pass uses its own delivered household flows.
+Water/sanitation and urban/rural configurations remain independent.
+
+Version 3 separates the baseline SM/Basic billed shares from the percentages
+of **new** Basic connections and SM upgrades that receive a bill. Baseline shares
+and household share of billed volume calibrate annual consumption; changing
+future percentages cannot recalibrate consumption or rewrite historical results.
+Legacy version 1/2 settings inherit their baseline billing shares and retain
+their per-m³ cost basis without numerical changes.
+
+Billed-household equivalents are tracked as accumulated stocks. Basic entries
+join the billed Basic stock; SM upgrades remove their proportionate prior Basic
+billing status and add the selected SM billing status. An upgrade is not an
+entirely new customer. Newly delivered Basic households cannot upgrade in the
+same year. Closing stocks bill in the following year and incur recurring cost
+with the same lag. Signed reductions in billing and reference-related cost
+savings remain signed.
+
+### Operating cost choices
+
+Only one cost basis is authoritative:
+
+- **Existing unit cost:** annual household cost = calibrated annual consumption
+  × the existing real-currency cost per m³. This is a unit conversion.
+- **Manual annual household cost:** divide by positive calibrated consumption
+  to obtain the compatible effective cost per m³ for reconciliation.
+- **Average operating cost used as a proxy:** deliberately select compatible
+  baseline-year annual expenditure in raw real local currency, explicitly
+  allocate it to households, and divide by baseline billed households in raw HH.
+  A billed-volume share is only an accepted allocation assumption, not known cost
+  allocation. The saved snapshot preserves scope, year, currency and allocation;
+  changes to its source invalidate it until deliberately refreshed.
+
+The average proxy includes fixed costs and is not necessarily marginal. Unbilled
+households may also incur costs. These options do **not** constitute a complete
+utility operating account. Missing expenditure or zero placeholders do not imply
+zero operating cost. Positive annual cost with zero household consumption
+requires compatible calibration; valid legacy non-household-only cases remain
+supported.
+
+### Reference, reforms and NRW
+
+Additional recurring cost uses billed households minus the household equivalents
+already included in the funding reference, not total volume with non-household
+sales. Funding-reference confirmation remains required. Fixed, existing
+volume-growth and explicit annual household-volume reference options remain
+available; public-only funding needs explicit reconciliation.
+
+Collected cash uses the revenue year's baseline rates when reforms are off and
+their scheduled rates when on. Billing participation is distinct from collection
+efficiency, and cost is not discounted by collection efficiency. Connection,
+collection, tariff and NRW contributions reconcile once to additional collected
+cash less recurring costs and implementation cost.
+
+NRW physical-origin households remain distinct from the positive incremental
+billed equivalents attributable to each actual NRW upgrade. Tagged overlap uses
+that source pool's prior billing mix and follows the same lag; unrelated delivery
+does not become NRW overlap. Overlap costs move between source labels once.
+NRW implementation costs remain in signed NRW net cash, including in the selected
+loan-source pool. Only the combined selected pool is floored. Connection cash
+itself is not a loan-selectable source, and no loan-created revenue increases its
+own frozen no-loan sizing reference. No repayment or target-ceiling change is
+introduced here.

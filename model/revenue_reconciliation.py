@@ -22,7 +22,7 @@ ATTRIBUTION = ('Connections and NRW sales at baseline rates; collection then tar
 def reconcile_revenue(raw, reference, sales, overlap, p0, c0, p, c,
                       marginal_cost=0.0, implementation_cost=0.0,
                       avoided_cost=0.0):
-    """Version 3: direct sources at baseline rates; reforms on the full volume.
+    """Version 4: addition-only direct connections; reforms on the full volume.
 
     marginal_cost is an inactive legacy parameter. Avoided-cost mode can exclude
     tagged connection sales without creating NRW tariff receipts.
@@ -31,9 +31,9 @@ def reconcile_revenue(raw, reference, sales, overlap, p0, c0, p, c,
               marginal_cost, implementation_cost, avoided_cost)
     if not all(math.isfinite(float(v)) and v >= 0 for v in values):
         raise RevenueInputError('Reconciled billing volumes, rates and costs must be finite and nonnegative.')
-    if c0 > 1 or c > 1 or overlap > raw + 1e-10:
+    if c0 > 1 or c > 1 or raw < reference - 1e-10 or overlap > max(0.0, raw-reference) + 1e-10:
         raise RevenueInputError('Invalid collection rate or tagged billing overlap.')
-    pre = max(0.0, raw - overlap)
+    pre = max(reference, raw - overlap)
     total = pre + sales
     connection_gross = (pre - reference) * p0 * c0
     connection_cost = 0.0  # inactive compatibility argument: no connection operating account

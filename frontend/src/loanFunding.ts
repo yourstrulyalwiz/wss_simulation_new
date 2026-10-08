@@ -1,5 +1,13 @@
 export const LOAN_FUNDING_QUALIFICATION =
-  'Indicative loan proceeds — repayment accounting deferred. Loan sizing uses the selected year’s additional net cash and assumes equal annual repayments. Principal and interest payments are not deducted from model funding in this version.';
+  'Loan size uses selected additional revenue in the reference year. Fixed annual principal-and-interest obligations are deducted from ordinary available funds from the following year through maturity. Full affordability is not assessed; fees are excluded.';
+export const LOAN_REPAYMENT_ACCOUNTING = 'fixed_annuity_modeled';
+export const LOAN_SUMMARY_VERSION = 3;
+export const FUNDING_RECALCULATION_NOTICE =
+  'Funding and coverage results may change: fixed loan repayments are deducted from ordinary funds, and new-connection revenue is addition-only. Recalculate to update this scenario.';
+export function isModeledLoanSummary(summary: any) {
+  return Number(summary?.summary_version ?? summary?.schema_version) >= LOAN_SUMMARY_VERSION &&
+    summary?.repayment_accounting === LOAN_REPAYMENT_ACCOUNTING;
+}
 
 const LEGACY_SOURCES = ['collection', 'tariff', 'nrw'];
 const SOURCES = [...LEGACY_SOURCES, 'connections'];
@@ -36,13 +44,17 @@ export function migrateLoanFundingConfig(config: any = {}) {
     }
   }
   const existingNotice = config.migration_notice ?? config.migration_note;
+  const needsCurrentBehaviorNotice = config.schema_version == null || Number(config.schema_version) < 3;
   const notice = existingNotice ?? (migrated
-    ? 'Legacy grace, repayment structure and ceiling are retained as inactive metadata. The indicative term was derived from maturity year minus disbursement year; repayment accounting is deferred.'
+    ? 'Legacy grace, repayment structure and ceiling are retained as inactive metadata. The indicative term was derived from maturity year minus disbursement year; fixed annual repayment accounting now applies on recalculation.'
     : undefined);
   return {
     ...config,
-    schema_version: 2,
+    schema_version: 3,
     mode: 'indicative_lump_sum',
+    repayment_accounting: LOAN_REPAYMENT_ACCOUNTING,
+    ...(config.current_behavior_notice || needsCurrentBehaviorNotice
+      ? { current_behavior_notice: config.current_behavior_notice || FUNDING_RECALCULATION_NOTICE } : {}),
     revenue_sources: sources,
     loan_term_years: term ?? null,
     legacy_parameters: inactiveParameters,

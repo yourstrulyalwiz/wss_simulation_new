@@ -146,7 +146,8 @@ class ConsolidatedRevenueTests(unittest.TestCase):
                       ce_enabled=True, ce_start=2026, ce_target_year=2026, ce_target_ratio=.6)
         self.assertAlmostEqual(sec['nrw_sales_cash'][1], 10)
         self.assertAlmostEqual(sec['eligible_nrw_link_cash'][1], 10)
-        self.assertAlmostEqual(sec['nrw_overlap_volume'][1], 3)
+        self.assertAlmostEqual(sec['nrw_overlap_volume'][1], 0)
+        self.assertAlmostEqual(sec['connection_unapplied_overlap_volume_million_m3'][1], 3)
         self.assertEqual(sec['nrw_net'][1], 0)
         self.assertAlmostEqual(sec['additional_net_cash'][1],
             sec['connection_net_cash'][1]+sec['collection_cash'][1]+sec['tariff_cash'][1]+

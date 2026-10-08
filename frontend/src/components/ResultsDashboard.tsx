@@ -23,7 +23,7 @@ import ScenarioGapTables, { type FinanceYear } from './ScenarioGapTables';
 import { aggregateContributionRows, ContributionViewToggle, type ContributionView } from '../contributionView';
 import { CurrencyDisplayControl, type CurrencyDisplaySettings, validRate } from '../currencyDisplay';
 import { aggregateWeightedRevenueRate, connectionRevenueAreaModes, summarizeConnectionRevenueModes } from '../connectionRevenueMode';
-import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
+import { isModeledLoanSummary, LOAN_FUNDING_QUALIFICATION, LOAN_REPAYMENT_ACCOUNTING, LOAN_SUMMARY_VERSION } from '../loanFunding';
 import RevenueSourceChart from './RevenueSourceChart';
 import { WATER_INTERVENTIONS as WATER_INTV, SANITATION_INTERVENTIONS as SAN_INTV, GLOBAL_INTERVENTION_ORDER, comparisonInputs, interventionEnabled, type InterventionDefinition as IntvDef } from '../interventionRegistry';
 
@@ -154,22 +154,31 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
 
 function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; currency: string; moneyFactor: number }) {
   if (!debt?.areas?.some(a => a.enabled)) return null;
-  const amount = (value: number) => `${sigB(value * moneyFactor)} B`;
-  const money = (value: number) => amount(Number(value || 0));
+  const amount = (value: number | null | undefined) => value == null || !Number.isFinite(Number(value)) ? '—' : `${sigB(Number(value) * moneyFactor)} B`;
+  const money = (value: number | null | undefined) => amount(value);
   const summary = debt.summary || {};
+  const modeled = isModeledLoanSummary(summary);
   const sourceLabels: Record<string, string> = {
     collection: 'Collection efficiency', tariff: 'Tariff reform',
     nrw: 'Water NRW net / eligible sanitation-link net cash',
     connections: 'Revenue from new connections',
   };
-  const tableHeaders = ['Year', 'New indicative injection', 'Opening unspent proceeds', 'Investment from proceeds', 'Closing unspent proceeds', 'Qualification'];
-  const tableRows = debt.rows.map((r: any) => [r.year, money(r.disbursement), money(r.opening_unspent_proceeds),
+  const tableHeaders = ['Year', 'Ordinary funds before service', 'Scheduled debt service', 'Ordinary funds after service',
+    'New loan injection', 'Opening unspent proceeds', 'Investment from proceeds', 'Closing unspent proceeds', 'Qualification'];
+  const tableRows = debt.rows.map((r: any) => [r.year, money(r.ordinary_before_debt_service), money(r.debt_service),
+    money(r.ordinary_after_debt_service), money(r.disbursement), money(r.opening_unspent_proceeds),
     money(r.investment_from_loan_proceeds), money(r.closing_unspent_proceeds), LOAN_FUNDING_QUALIFICATION]);
+  const repaymentHeaders = ['Year', 'Opening principal', 'Disbursement', 'Scheduled principal', 'Scheduled interest', 'Debt service', 'Closing principal'];
+  const repaymentRows = (debt.summary?.repayment_schedule || []).map((row: any) => [
+    row.year, money(row.opening_principal), money(row.disbursement), money(row.principal_payment),
+    money(row.interest_payment), money(row.debt_service), money(row.closing_principal),
+  ]);
   return (
     <section style={{ marginTop: 12, border: '1px solid #cbd5e1', borderRadius: 7, background: '#fff', padding: '10px 12px' }}>
       <h4 style={{ margin: '0 0 5px', color: '#1e3a5f', fontSize: 12.5 }}>Indicative loan funding — {currency}</h4>
       <div style={{ fontSize: 11, lineHeight: 1.5, color: '#475569', marginBottom: 8 }}>
-        Status: <b>{summary.status || 'unavailable'}</b> · indicative loan proceeds: <b>{money(summary.indicative_principal)}</b> · repayment accounting: <b>deferred</b> · feasibility: <b>not assessed</b>
+        Status: <b>{summary.status || 'unavailable'}</b> · loan proceeds: <b>{money(summary.indicative_principal)}</b> · repayment accounting: <b>{modeled ? 'fixed annuity modeled' : 'legacy / not verified'}</b> · feasibility: <b>not assessed</b>
+        {modeled && <> · fixed annual debt service: <b>{money(summary.fixed_annual_debt_service)}</b> · first payment: <b>{summary.first_repayment_year ?? '—'}</b> · maturity: <b>{summary.maturity_year ?? '—'}</b> · horizon principal: <b>{money(summary.horizon_closing_principal)}</b> · remaining payments: <b>{summary.remaining_contractual_payments ?? '—'} ({money(summary.remaining_contractual_debt_service)})</b></>}
       </div>
       <div style={{ fontSize: 10.5, color: '#64748b', marginBottom: 8, lineHeight: 1.45 }}>
         Per-area assumptions: {debt.areas.filter(a => a.enabled).map((a, i) => {
@@ -186,6 +195,20 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
           </tr>)}</tbody>
         </table>
         <TableExport filename="results_indicative_loan_proceeds" sheetName="Loan proceeds" headers={tableHeaders} rows={tableRows} compact />
+      </div>}
+      {modeled && <div style={{ overflowX: 'auto', maxHeight: 320, marginTop: 10 }} data-testid="results-repayment-schedule">
+        <strong style={{ fontSize: 11 }}>Full contractual repayment schedule · obligations, not proof of payment</strong>
+        {repaymentRows.length ? <>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5, whiteSpace: 'nowrap', marginTop: 4 }}>
+            <thead><tr>{repaymentHeaders.map(h => <th key={h} style={{ position: 'sticky', top: 0, background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', padding: '5px 7px', textAlign: h === 'Year' ? 'left' : 'right' }}>{h}</th>)}</tr></thead>
+            <tbody>{repaymentRows.map((row: any[], i: number) => <tr key={`${row[0]}-${i}`}>
+              {row.map((value, j) => <td key={j} style={{ borderBottom: '1px solid #eef2f7', padding: '4px 7px', textAlign: j ? 'right' : 'left' }}>{value}</td>)}
+            </tr>)}</tbody>
+          </table>
+          <TableExport filename="results_utility_loan_repayment_schedule" sheetName="Repayment schedule" headers={[...repaymentHeaders, 'Qualification']}
+            rows={repaymentRows.map((row: any[]) => [...row, LOAN_FUNDING_QUALIFICATION])} compact />
+        </> : <p style={{ fontSize: 10.5, color: '#64748b' }}>The full contractual schedule is unavailable.</p>}
+        <p style={{ fontSize: 10, color: '#64748b' }}>Unspent proceeds are a restricted funding balance; horizon closing principal is outstanding debt. Cash outside the simulation horizon is unavailable.</p>
       </div>}
     </section>
   );
@@ -426,13 +449,29 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           debtAreas.forEach(area => (area.annual_injection || []).forEach((row: any) => {
             const year = Number(row.year);
             if (!Number.isFinite(year)) return;
-            const total = injectionMap.get(year) || { year, disbursement: 0, opening_unspent_proceeds: 0,
-              investment_from_loan_proceeds: 0, closing_unspent_proceeds: 0 };
-            ['disbursement', 'opening_unspent_proceeds', 'investment_from_loan_proceeds', 'closing_unspent_proceeds']
-              .forEach(key => { total[key] += Number(row[key] || 0); });
+            const fields = ['ordinary_before_debt_service', 'debt_service', 'ordinary_after_debt_service',
+              'disbursement', 'opening_unspent_proceeds', 'investment_from_loan_proceeds', 'closing_unspent_proceeds'];
+            const total = injectionMap.get(year) || { year, ...Object.fromEntries(fields.map(key => [key, 0])) };
+            fields.forEach(key => {
+              if (row[key] == null || !Number.isFinite(Number(row[key]))) total[key] = null;
+              else if (total[key] != null) total[key] += Number(row[key]);
+            });
             injectionMap.set(year, total);
           }));
+          const repaymentMap = new Map<number, any>();
+          debtAreas.forEach(area => (area.repayment_schedule || []).forEach((row: any) => {
+            const year = Number(row.year);
+            if (!Number.isFinite(year)) return;
+            const fields = ['opening_principal', 'disbursement', 'principal_payment', 'interest_payment', 'debt_service', 'closing_principal'];
+            const total = repaymentMap.get(year) || { year, ...Object.fromEntries(fields.map(key => [key, 0])) };
+            fields.forEach(key => { total[key] += Number(row[key] || 0); });
+            repaymentMap.set(year, total);
+          }));
           const sumDebt = (key: string) => debtAreas.reduce((sum, a) => sum + Number(a[key] || 0), 0);
+          const activeDebtAreas = debtAreas.filter(area => area.enabled);
+          const firstRepayments = activeDebtAreas.map(area => Number(area.first_repayment_year)).filter(Number.isFinite);
+          const maturities = activeDebtAreas.map(area => Number(area.maturity_year)).filter(Number.isFinite);
+          const scheduleMetadataPresent = activeDebtAreas.length > 0 && activeDebtAreas.every(area => isModeledLoanSummary(area));
           const debt: DebtData = {
             areas: debtAreas,
             rows: [...injectionMap.values()].sort((a, b) => a.year - b.year),
@@ -442,6 +481,16 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
               status: [...new Set(debtAreas.filter(a => a.enabled).map(a => a.status))].join(' · ') || 'disabled',
               indicative_principal: sumDebt('indicative_principal'),
               accepted_principal: sumDebt('indicative_principal'),
+              summary_version: scheduleMetadataPresent ? LOAN_SUMMARY_VERSION
+                : activeDebtAreas.length ? Math.min(...activeDebtAreas.map(area => Number(area.summary_version ?? area.schema_version) || 0)) : null,
+              repayment_accounting: scheduleMetadataPresent ? LOAN_REPAYMENT_ACCOUNTING : 'legacy_or_mixed',
+              fixed_annual_debt_service: sumDebt('fixed_annual_debt_service'),
+              first_repayment_year: firstRepayments.length ? Math.min(...firstRepayments) : null,
+              maturity_year: maturities.length ? Math.max(...maturities) : null,
+              horizon_closing_principal: sumDebt('horizon_closing_principal'),
+              remaining_contractual_payments: activeDebtAreas.reduce((sum, area) => sum + Number(area.remaining_contractual_payments || 0), 0),
+              remaining_contractual_debt_service: sumDebt('remaining_contractual_debt_service'),
+              repayment_schedule: [...repaymentMap.values()].sort((a, b) => a.year - b.year),
             },
           };
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };

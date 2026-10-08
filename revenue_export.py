@@ -70,6 +70,9 @@ _OBSOLETE = {
     'incremental_variable_operating_cost', 'nrw_operating_cost', 'connection_revenue_delta',
 }
 FIELDS = (
+    ('Signed connection candidate', 'connection_signed_candidate_volume_million_m3', 'million m³/year'),
+    ('Addition-only volume adjustment', 'connection_addition_only_adjustment_million_m3', 'million m³/year'),
+    ('Unapplied eligible overlap', 'connection_unapplied_overlap_volume_million_m3', 'million m³/year'),
     ('Baseline aggregate billed volume', 'baseline_billed_volume_million_m3', 'M m³'),
     ('Connection volume before overlap', 'connection_raw_volume_million_m3', 'M m³'),
     ('Connection overlap exclusion', 'connection_overlap_volume_million_m3', 'M m³'),

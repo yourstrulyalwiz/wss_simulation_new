@@ -217,6 +217,7 @@ def aggregate(results: List[dict]) -> dict:
                 ('connection_annual_cost_per_household', 'connection_billed_households'),
                 ('connection_equivalent_marginal_cost', 'household_billed_volume_million_m3'),
                 ('connection_scale', 'baseline_billed_volume_million_m3'),
+                ('connection_signed_scale', 'baseline_billed_volume_million_m3'),
                 ('connection_aggregate_volume_proxy', 'baseline_billed_volume_million_m3'),
             ):
                 combined = []
@@ -260,18 +261,32 @@ def _aggregate_utility_debt(summaries: List[dict]) -> dict:
         for row in area.get('annual_injection') or []:
             target = by_year.setdefault(row['year'], {'year': row['year']})
             for key in ('disbursement', 'opening_unspent_proceeds',
-                        'investment_from_loan_proceeds', 'closing_unspent_proceeds'):
+                        'investment_from_loan_proceeds', 'closing_unspent_proceeds',
+                        'debt_service', 'ordinary_before_debt_service', 'ordinary_after_debt_service'):
+                value = row.get(key)
+                target[key] = (None if value is None or (key in target and target[key] is None)
+                               else target.get(key, 0) + value)
+    repayment_years = {}
+    for area in areas:
+        for row in area.get('repayment_schedule') or []:
+            target = repayment_years.setdefault(row['year'], {'year': row['year']})
+            for key in ('opening_principal', 'disbursement', 'principal_payment',
+                        'interest_payment', 'debt_service', 'closing_principal'):
                 target[key] = target.get(key, 0) + row.get(key, 0)
     result = {
-        'schema_version': 2, 'mode': 'indicative_lump_sum',
+        'schema_version': min(a.get('schema_version', 2) for a in areas), 'mode': 'indicative_lump_sum',
         'status': ' · '.join(dict.fromkeys(a.get('status', 'disabled') for a in areas)),
         'enabled': any(a.get('enabled') for a in areas), 'areas': areas,
-        'repayment_accounting': 'deferred', 'feasibility_status': 'not_assessed',
+        'repayment_accounting': ('fixed_annuity_modeled' if all(a.get('repayment_accounting') == 'fixed_annuity_modeled' for a in areas) else 'legacy_or_mixed'),
+        'feasibility_status': 'not_assessed',
         'verified_feasible': False, 'qualification': INDICATIVE_QUALIFICATION,
         'annual_injection': [by_year[y] for y in sorted(by_year)],
+        'repayment_schedule': [repayment_years[y] for y in sorted(repayment_years)],
     }
     for key in ('indicative_principal', 'annual_allocation', 'selected_signed_pool',
-                'eligible_pool', 'closing_restricted_cash'):
+                'eligible_pool', 'closing_restricted_cash', 'fixed_annual_debt_service',
+                'horizon_closing_principal', 'remaining_contractual_debt_service',
+                'remaining_contractual_payments', 'total_interest', 'total_principal_repaid'):
         result[key] = sum(a.get(key) or 0 for a in areas)
     result['accepted_principal'] = result['indicative_principal']
     result['reference_source_cash'] = {

@@ -24,7 +24,7 @@ function effectiveMode(value: any, requested: boolean, version?: number, state?:
   if (state === 'off' || mode === 'off') return 'exogenous';
   if (state === 'incomplete') return 'incomplete';
   if (value === true || mode.includes('connection') || mode === 'dynamic' || mode.includes('aggregate'))
-    return version === 4 ? 'aggregate coverage expansion' : 'connection-based (legacy)';
+    return version === 5 ? 'aggregate coverage expansion' : 'connection-based (legacy)';
   if (value === false || mode.includes('exogenous')) return 'exogenous';
   return requested ? 'unknown' : 'exogenous';
 }

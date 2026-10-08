@@ -1,8 +1,19 @@
 ---
 name: Financial commitment semantics
-description: Product rules for interpreting the built-in increase in financial commitments intervention.
+description: Product rules for financial commitments, recurring funding and one-time injections.
 ---
 
+## One-time injection exception
+
+The full one-time ordinary injection enters available funds in its selected
+year, without spending-share/execution adjustments. Recurring injections and
+financial commitments retain the rules below. Do not compensate saved amounts.
+
+**Why:** The user's 2026-10-08 funding/repayment follow-on explicitly narrows this
+exception to one-time injections, not financial commitments in general.
+
+**How to apply:** Separate mode-specific calculations and UI helper descriptions;
+the downstream ordinary priorities still include debt service and replacement.
 The GDP target and annual growth are additive commitment options; exogenous injection is a separate intervention, independently switched and separately attributed. The GDP entry is a target total sector-spending share, not an uplift; add only the positive difference above BAU. Annual growth compounds over its inclusive range, and absolute injections may be one-time or recurring.
 
 All added commitments are full-spending amounts and become capital available for service through the sector's existing capex-share and budget-execution treatment. In cost-derived budget mode, compare GDP targets and growth with the preserved total-spending BAU series, not the derived capital budget.

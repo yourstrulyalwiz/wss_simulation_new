@@ -10,6 +10,7 @@ import NRWDiagnostics from './NRWDiagnostics';
 import { nrwLinkBillableVolume, nrwRevenueMetadata, nrwRevenueVersion, setNrwLinkOverlapYear } from '../nrwRevenue';
 import ConnectionRevenue from './ConnectionRevenue';
 import RevenueSourceChart from './RevenueSourceChart';
+import { collectionBelowBaselineWarning } from '../collectionWarning';
 
 function Section({ title, children, defaultOpen = false, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; sectionKey?: string; onFocus?: (key: string) => void }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -366,9 +367,12 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
   const injectionFields = (section: 'water_interventions' | 'sanitation_interventions') => {
     const iv = inputs[section] || {};
+    const recurring = iv.fin_injection_mode === 'recurring';
     return (<>
         <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b' }}>
-          Add a one-time or recurring amount independently of the GDP target and annual growth.
+          {recurring
+            ? 'Recurring funding is adjusted by the capital spending share and execution rate in each selected year.'
+            : `One-time available funding (${CUR} millions). The full amount enters available funds in the selected year; capital spending share and execution rate are not applied.`}
         </div>
         <F label="Funding amount" value={iv.fin_injection_amount} onChange={v => u(section, 'fin_injection_amount', Math.max(0, v))}
           unit={`${CUR} mn`} tip="Absolute additional funding in local-currency millions." />
@@ -380,10 +384,14 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             <option value="recurring">Recurring annually</option>
           </select>
         </div>
-        <F label={iv.fin_injection_mode === 'recurring' ? 'Start year' : 'Injection year'} value={scheduleYear(iv, 'fin_injection_start_year')}
+        <F label={recurring ? 'Start year' : 'Injection year'} value={scheduleYear(iv, 'fin_injection_start_year')}
           onChange={v => u(section, 'fin_injection_start_year', v)} />
-        {iv.fin_injection_mode === 'recurring' &&
+        {recurring &&
           <F label="End year" value={scheduleYear(iv, 'fin_injection_end_year', true)} onChange={v => u(section, 'fin_injection_end_year', v)} />}
+        {!recurring && inputs.toggles?.[sectorTab === 'water' ? 'ws_exogenous_injection_enabled' : 'san_exogenous_injection_enabled'] &&
+          <div role="status" style={{ gridColumn: '1 / -1', padding: '7px 9px', border: '1px solid #d7c58b', background: '#fff9e8', borderRadius: 5, fontSize: 10.5, color: '#685a2b' }}>
+            Recalculation notice: this scenario’s full entered one-time amount now enters available funds in its selected year. Saved values are unchanged.
+          </div>}
     </>);
   };
 
@@ -454,7 +462,12 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             <F label="Improvement start year" value={inputs.water_interventions.ce_start_year} onChange={v => u('water_interventions','ce_start_year',v)} tip="Year the collection efficiency improvement begins" />
             <F label="Target year" value={inputs.water_interventions.ce_target_year} onChange={v => u('water_interventions','ce_target_year',v)} tip="Year the target collection ratio is achieved" />
             <RevenueBaseEditor inputs={inputs} onChange={onChange} sector="water" />
-            <F label="Target collection ratio" value={inputs.water_interventions.ce_target_ratio} onChange={v => u('water_interventions','ce_target_ratio',v)} isPercent unit="%" tip="Target collection ratio for the model end year" />
+            <F label="Target collection ratio" value={inputs.water_interventions.ce_target_ratio} onChange={v => u('water_interventions','ce_target_ratio',v)} isPercent min={0} max={100} unit="%" tip="Enter a percentage from 0 to 100; the saved model value is the corresponding fraction." />
+            <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b', marginTop: -7 }}>Enter 90 for 90%.</div>
+            {inputs.toggles?.ws_collection_efficiency_enabled && collectionBelowBaselineWarning(scopeLabel, 'water', inputs.revenue_bases?.water?.collection_ratio,
+              inputs.water_interventions?.ce_target_ratio) && <div role="status" data-testid="collection-below-baseline-warning" style={{ gridColumn: '1 / -1', padding: '8px 10px', border: '1px solid #e3bd73', background: '#fff7e5', borderRadius: 5, color: '#76551b', fontSize: 11, lineHeight: 1.45 }}>
+              {collectionBelowBaselineWarning(scopeLabel, 'water', inputs.revenue_bases?.water?.collection_ratio, inputs.water_interventions?.ce_target_ratio)}
+            </div>}
             <p title={REVENUE_ATTRIBUTION}>{REVENUE_ATTRIBUTION}</p>
           </InterventionToggle>
 
@@ -462,7 +475,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             {(() => {
               const metadata = nrwRevenueMetadata(results);
               const version = nrwRevenueVersion(results);
-              const reconciled = version === 2 || version === 3;
+              const reconciled = version === 2 || version === 3 || version === 4;
               const iv = inputs.water_interventions || {};
               const sharedTariff = inputs.revenue_bases?.water?.tariff;
               const legacyTariff = iv.nrw_tariff;
@@ -471,7 +484,9 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
               const conflict = !!metadata?.legacy_rate_conflict || localRateConflict;
               return <div style={{ gridColumn: '1 / -1', fontSize: 11, lineHeight: 1.5, padding: '8px 10px', borderRadius: 5,
                 background: conflict ? '#fff7ed' : '#f1f7fa', border: `1px solid ${conflict ? '#fed7aa' : '#dbe5ea'}`, color: conflict ? '#9a3412' : '#475569' }}>
-                {version === 3
+                {version === 4
+                  ? <>Version 4: connection revenue adds only positive marginal coverage growth; below-baseline coverage never reduces baseline revenue. Connection overlap is removed only from the positive increment. NRW sales use shared baseline rates and implementation costs remain inside signed NRW cash.</>
+                  : version === 3
                   ? <>Version 3: NRW sales are valued at shared baseline tariff and collection rates. Reform uplifts on these sales appear separately in collection and tariff cash. Implementation costs are deducted once inside signed NRW cash.</>
                   : reconciled
                   ? <>Backend v2 reconciles connection/NRW billed-volume overlap. Sales use the shared water revenue-base tariff and collection rate; reference-rate connection growth is kept separate, and NRW receives the joint reform effect. {conflict && <>Legacy NRW tariff {legacyTariff ?? metadata?.legacy_nrw_tariff ?? '—'} conflicts with shared tariff {sharedTariff ?? metadata?.shared_tariff ?? '—'}; the legacy input is retained unchanged.</>}</>
@@ -586,7 +601,14 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             <F label="Improvement start year" value={inputs.sanitation_interventions.ce_start_year} onChange={v => u('sanitation_interventions','ce_start_year',v)} tip="Year the collection efficiency improvement begins" />
             <F label="Target year" value={inputs.sanitation_interventions.ce_target_year} onChange={v => u('sanitation_interventions','ce_target_year',v)} tip="Year the target is achieved" />
             <RevenueBaseEditor inputs={inputs} onChange={onChange} sector="sanitation" />
-            <F label="Target collection ratio" value={inputs.sanitation_interventions.ce_target_ratio ?? inputs.water_interventions.ce_target_ratio} onChange={v => u('sanitation_interventions','ce_target_ratio',v)} isPercent unit="%" tip="Sanitation's own collection target. Its legacy water-linked value is materialized when the revenue base is resolved." />
+            <F label="Target collection ratio" value={inputs.sanitation_interventions.ce_target_ratio ?? inputs.water_interventions.ce_target_ratio} onChange={v => u('sanitation_interventions','ce_target_ratio',v)} isPercent min={0} max={100} unit="%" tip="Sanitation's own collection target. Its legacy water-linked value is materialized when the revenue base is resolved." />
+            <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b', marginTop: -7 }}>Enter 90 for 90%.</div>
+            {inputs.toggles?.san_collection_efficiency_enabled && collectionBelowBaselineWarning(scopeLabel, 'sanitation', inputs.revenue_bases?.sanitation?.collection_ratio,
+              inputs.sanitation_interventions?.ce_target_ratio ?? inputs.water_interventions?.ce_target_ratio) &&
+              <div role="status" data-testid="collection-below-baseline-warning" style={{ gridColumn: '1 / -1', padding: '8px 10px', border: '1px solid #e3bd73', background: '#fff7e5', borderRadius: 5, color: '#76551b', fontSize: 11, lineHeight: 1.45 }}>
+                {collectionBelowBaselineWarning(scopeLabel, 'sanitation', inputs.revenue_bases?.sanitation?.collection_ratio,
+                  inputs.sanitation_interventions?.ce_target_ratio ?? inputs.water_interventions?.ce_target_ratio)}
+              </div>}
           </InterventionToggle>
 
           <InterventionToggle label="Budget execution improvement" checked={inputs.toggles?.san_capital_efficiency_enabled ?? false} onChange={v => toggleIntv('san_capital_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('san_budget_exec')}>

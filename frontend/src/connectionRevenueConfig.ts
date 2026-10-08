@@ -1,5 +1,5 @@
-export const CONNECTION_REVENUE_VERSION = 4;
-export const CONNECTION_REVENUE_MIGRATION_NOTICE = 'New-connection revenue now uses aggregate coverage expansion at baseline rates. Historical calibration and connection operating costs no longer apply; recalculated results may change.';
+export const CONNECTION_REVENUE_VERSION = 5;
+export const CONNECTION_REVENUE_MIGRATION_NOTICE = 'New-connection revenue is addition-only: below-baseline weighted coverage adds zero and never deducts baseline revenue. Historical calibration and connection operating costs do not apply; recalculate to refresh funding and coverage results.';
 
 export type ConnectionRevenueConfig = {
   version: number;
@@ -10,6 +10,7 @@ export type ConnectionRevenueConfig = {
   shared_assumption_note: string;
   legacy_metadata?: Record<string, unknown>;
   migration_notice?: string;
+  current_behavior_notice?: string;
 };
 const finiteOrNull = (value: unknown): number | null => {
   if (value === '' || value == null) return null;
@@ -17,12 +18,12 @@ const finiteOrNull = (value: unknown): number | null => {
   return Number.isFinite(number) ? number : null;
 };
 
-/** Only pre-v3 records inherit historical shares. Explicit zeros and cleared v3 drafts survive. */
+/** Existing v1–v4 values migrate addition-only without restoring retired gates or altering user entries. */
 export function migrateConnectionRevenueConfig(value: any): ConnectionRevenueConfig {
   const old = value && typeof value === 'object' ? value : {};
   const version = Number(old.version) || 1;
   const active = ['version', 'method', 'enabled', 'new_billed_share_basic', 'new_billed_share_sm',
-    'shared_assumption_note', 'legacy_metadata', 'migration_notice'];
+    'shared_assumption_note', 'legacy_metadata', 'migration_notice', 'current_behavior_notice'];
   const removed = Object.fromEntries(Object.entries(old).filter(([key]) => !active.includes(key)));
   const legacy = { ...(old.legacy_metadata || {}), ...removed };
   const share = (key: 'basic' | 'sm') => finiteOrNull(
@@ -36,8 +37,9 @@ export function migrateConnectionRevenueConfig(value: any): ConnectionRevenueCon
     new_billed_share_sm: share('sm'),
     shared_assumption_note: typeof old.shared_assumption_note === 'string' ? old.shared_assumption_note : '',
     ...(Object.keys(legacy).length ? { legacy_metadata: legacy } : {}),
-    ...(old.migration_notice || (value && version < 4)
-      ? { migration_notice: old.migration_notice || CONNECTION_REVENUE_MIGRATION_NOTICE } : {}),
+    ...(old.migration_notice ? { migration_notice: old.migration_notice } : {}),
+    ...(old.current_behavior_notice || (value && version < 5)
+      ? { current_behavior_notice: old.current_behavior_notice || CONNECTION_REVENUE_MIGRATION_NOTICE } : {}),
   };
 }
 

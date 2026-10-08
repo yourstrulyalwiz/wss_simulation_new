@@ -6,6 +6,7 @@ export type LedgerBasis = 'annual' | 'closing';
 export type LedgerView = 'source' | 'effects';
 export type LedgerMeasure =
   | 'coverage' | 'target' | 'accessGap' | 'funding' | 'fundingApplied' | 'fundingShared'
+  | 'fundingBeforeDebt'
   | 'fundingOperating' | 'fundingRestricted' | 'fundingExternal' | 'requirementsAnnual'
   | 'requirementsCatchUp' | 'requirementsResidual' | 'gapAnnual' | 'gapClosing'
   | 'plannedExpansion' | 'replacement' | 'replacementCredit' | 'cashDeficit'
@@ -17,7 +18,7 @@ export type LedgerMeasure =
   | 'noncashDeliveryCredit' | 'cancelledExpansionCost' | 'outstandingRepricing' | 'ancillaryPaid'
   | 'sectorExpansionPaid' | 'externalExpansionPaid' | 'openingExpansionCost'
   | 'advanceDeliveryCredit' | 'newAncillaryCommitment' | 'sectorHouseholdPaid'
-  | 'loanInjection' | 'loanOpeningUnspent' | 'loanInvestment' | 'loanClosingUnspent'
+  | 'loanInjection' | 'loanOpeningUnspent' | 'loanInvestment' | 'loanClosingUnspent' | 'ordinaryInjection'
   | 'nrwNetCash' | 'eligibleNrwLinkCash' | 'connectionNetCash' | 'collectionCash' | 'tariffCash' | 'additionalNetCash';
 export type LedgerVector = [number | null, number | null, number | null];
 export type LedgerSnapshot = { year: number; population: number; values: Record<LedgerMeasure, LedgerVector> };
@@ -39,7 +40,7 @@ export type LedgerRow = {
 };
 
 const measures: LedgerMeasure[] = [
-  'coverage','target','accessGap','funding','fundingApplied','fundingShared','fundingOperating','fundingRestricted',
+  'coverage','target','accessGap','funding','fundingApplied','fundingShared','fundingBeforeDebt','fundingOperating','fundingRestricted',
   'fundingExternal','requirementsAnnual','requirementsCatchUp','requirementsResidual','gapAnnual','gapClosing',
   'plannedExpansion','replacement','replacementCredit','cashDeficit','outstanding','accumulatedShortfalls','repayments',
   'replacementPaid','expansionPaid','scheduledExpansion','prefundingHousehold','closingHousehold','prefundingAncillary',
@@ -47,7 +48,7 @@ const measures: LedgerMeasure[] = [
   'currentCashShortfall','priorCashShortfall','accumulatedCashShortfall','householdExpansionPaid','noncashDeliveryHH',
   'noncashDeliveryCredit','cancelledExpansionCost','outstandingRepricing','ancillaryPaid','sectorExpansionPaid','externalExpansionPaid',
   'openingExpansionCost','advanceDeliveryCredit','newAncillaryCommitment','sectorHouseholdPaid',
-  'loanInjection','loanOpeningUnspent','loanInvestment','loanClosingUnspent',
+  'loanInjection','loanOpeningUnspent','loanInvestment','loanClosingUnspent','ordinaryInjection',
   'nrwNetCash','eligibleNrwLinkCash','connectionNetCash','collectionCash','tariffCash','additionalNetCash',
 ];
 const sourceFields: Partial<Record<LedgerMeasure, string>> = {
@@ -139,9 +140,14 @@ export function ledgerSnapshots(results: any[], sector: 'water_supply' | 'sanita
         const replacementPaid = optionalPair(sec, prefix + 'replacement_funding_applied_by_service', index);
         const replacement = source('replacement');
         const applied = [0, 1].map(i => addKnown(replacementPaid[i], sectorPaid[i], external[i])) as [number | null, number | null];
-        const operatingCash = optionalAt(sec, prefix + 'available_total', index);
+          const operatingCash = optionalAt(sec, prefix + 'available_total', index);
         const debtService = scenario ? optionalAt(sec, prefix + 'utility_debt_service', index) : 0;
-        const operating = operatingCash == null || debtService == null ? null : operatingCash - debtService;
+        const reportedAfterService = scenario ? optionalAt(sec, prefix + 'available_after_debt_service', index) : null;
+        // Prefer the explicit net alias from current results. Older engines only report pre-service cash;
+        // derive the net once in that case, never subtract again from the alias.
+        const operating = reportedAfterService != null
+          ? reportedAfterService
+          : operatingCash == null || debtService == null ? null : operatingCash - debtService;
         const restricted = scenario ? optionalAt(sec, prefix + 'utility_debt_cash_available', index) : 0;
         const injectionRow = scenario
           ? (sec?.scenario_utility_debt?.annual_injection || sec?.utility_debt?.annual_injection || [])
@@ -157,7 +163,7 @@ export function ledgerSnapshots(results: any[], sector: 'water_supply' | 'sanita
         Object.assign(local, {
           funding: [null, null, available], fundingApplied: vector(applied),
           fundingShared: [null, null, unapplied],
-          fundingOperating: [null, null, operating], fundingRestricted: [null, null, restricted],
+          fundingBeforeDebt: [null, null, operatingCash], fundingOperating: [null, null, operating], fundingRestricted: [null, null, restricted],
           fundingExternal: vector(external), replacementPaid: vector(replacementPaid),
           expansionPaid: vector([addKnown(sectorPaid[0], external[0]), addKnown(sectorPaid[1], external[1])]),
           requirementsAnnual: vector([0, 1].map(i => addKnown(planned[i], replacement[i], deficit[i])) as [number | null, number | null]),
@@ -175,6 +181,7 @@ export function ledgerSnapshots(results: any[], sector: 'water_supply' | 'sanita
           loanOpeningUnspent: [null, null, scenario ? injectionValue('opening_unspent_proceeds') : 0],
           loanInvestment: [null, null, scenario ? injectionValue('investment_from_loan_proceeds') : 0],
           loanClosingUnspent: [null, null, scenario ? injectionValue('closing_unspent_proceeds') : 0],
+          ordinaryInjection: [null, null, scenario ? optionalAt(sec, prefix + 'exogenous_injection_cash', index) : 0],
         });
       }
       for (const key of measures) {
@@ -600,13 +607,26 @@ export function ledgerRows(data: LedgerData, options: {
     detail('fundingExternal', 'Scenario — external household finance applied');
     if (service === 'total') {
       if (data.includesDebt) {
-        rows.push({ key: 'debtFundingSection', label: 'Indicative loan funding · repayment accounting deferred', kind: 'section', unit: '', values: years.map(() => null), status: 'Principal and interest payments are not deducted from model funding in this version.' });
+        rows.push({ key: 'debtFundingSection', label: 'Utility loan funding and scheduled obligations', kind: 'section', unit: '', values: years.map(() => null), status: 'Proceeds are restricted to expansion; scheduled debt service is deducted once from ordinary funding.' });
         detail('loanInjection', 'New indicative loan proceeds injected');
         detail('loanOpeningUnspent', 'Opening unspent loan proceeds carried forward');
         detail('loanInvestment', 'Investment funded from loan proceeds');
         detail('loanClosingUnspent', 'Closing unspent loan proceeds');
         detail('fundingRestricted', 'Restricted loan cash available, including carry');
-        detail('repayments', 'Repayment deductions (not modeled)');
+        detail('repayments', 'Scheduled debt-service obligations deducted from ordinary funds');
+      }
+      if (data.scenario.some(snap => snap.values.ordinaryInjection[2] != null)) {
+        rows.push({
+          key: 'ordinary-injection-section', label: 'Intervention funding injections — included in ordinary funds',
+          kind: 'section', unit: '', values: years.map(() => null),
+          timing: 'Annual flow — one-time injection is full available amount; recurring amount retains spending-share/execution adjustments',
+          status: 'Engine-reported intervention injection series; not an additional amount to add to total funding.',
+          children: [{
+            key: 'ordinary-injection', label: 'Exogenous intervention injection', kind: 'detail', unit,
+            timing: 'Annual flow — already included in ordinary available funds',
+            values: series(data.scenario, 'ordinaryInjection'), component: 'ordinaryInjection',
+          }],
+        });
       }
       const cashFields: { key: LedgerMeasure; label: string }[] = [
         { key: 'connectionNetCash', label: 'Revenue from new connections' },
@@ -632,7 +652,8 @@ export function ledgerRows(data: LedgerData, options: {
         status: 'Water NRW net cash remains signed after implementation costs. Eligible linked sanitation cash is a separate sanitation source; total additional net cash includes it. Marginal service-effect bands are not source cash.',
         children: cashRows,
       });
-      rows.push({ key: 'fundingOperating', label: data.includesDebt ? 'Ordinary net cash (signed; repayment deductions not modeled)' : 'Ordinary net cash (signed)',
+      if (data.includesDebt) detail('fundingBeforeDebt', 'Ordinary funds before scheduled debt service');
+      rows.push({ key: 'fundingOperating', label: data.includesDebt ? 'Ordinary funds after debt service (signed)' : 'Ordinary net cash (signed)',
         kind: data.includesDebt ? 'summary' : 'detail', unit, values: series(data.scenario, 'fundingOperating') });
     }
   } else if (metric === 'requirements') {

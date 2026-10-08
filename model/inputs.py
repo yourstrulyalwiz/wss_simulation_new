@@ -652,7 +652,7 @@ class UtilityDebtSectorInputs(BaseModel):
 
 
 class UtilityDebtInputs(BaseModel):
-    schema_version: int = 2
+    schema_version: int = 3
     water: UtilityDebtSectorInputs = UtilityDebtSectorInputs()
     sanitation: UtilityDebtSectorInputs = UtilityDebtSectorInputs()
 

@@ -208,18 +208,23 @@ settings enable it. Explicit inclusion changes the calculated tables, charts
 and live exports without deleting those settings. The fourth workflow stage
 shows the configured indicative scenario directly.
 
-Indicative loan proceeds — repayment accounting deferred. Loan sizing uses the
-selected year's additional net cash and assumes equal annual repayments.
-Principal and interest payments are not deducted from model funding in this version.
+Loan sizing uses the selected year's additional net cash in a frozen no-loan
+reference. Fixed annual principal-and-interest obligations deduct ordinary cash
+from the following year through maturity, before replacement and expansion.
+Do not deduct financing use from source receipts or a second time in the ledger.
 
 Each area and sector sizes separately from a frozen intervention-only reference
 with all utility loans disabled. The selected annual collection, tariff and NRW
 cash (including the existing eligible sanitation link, counted once) is summed
 signed, floored at zero, multiplied by allocation and the real-rate annuity
 present-value factor. At zero interest, the factor equals the explicit term.
-New-connection cash is excluded; collection/tariff interaction attribution is
-preserved. Interest and term are sizing assumptions only; the term may extend
-beyond the forecast without extending the model or generating repayments.
+New-connection cash is optional; existing loan source selections are preserved.
+Collection/tariff interaction attribution is preserved. Keep the full contractual
+repayment schedule beyond the forecast, showing horizon outstanding principal
+and remaining obligations without extrapolating future ordinary cash or coverage.
+Restricted loan proceeds remain expansion-only; unspent proceeds are not the
+same quantity as outstanding debt. Scheduled obligations are not a certification
+that payments were made. Affordability is not assessed and fees are excluded.
 
 There is one injection in the selected reference year. Existing restricted
 capital allocation and delivery limits govern its use. For each model year,

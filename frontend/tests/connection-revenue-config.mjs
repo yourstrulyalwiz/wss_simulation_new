@@ -6,7 +6,7 @@ const source = readFileSync(new URL('../src/connectionRevenueConfig.ts', import.
 const js = ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 });
 const { migrateConnectionRevenueConfig: migrate, validateConnectionRevenueConfig: validate,
   migrateConnectionRevenueInputs } = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
-assert.deepEqual(migrate(), { version: 4, method: 'aggregate_coverage_expansion', enabled: false,
+assert.deepEqual(migrate(), { version: 5, method: 'aggregate_coverage_expansion', enabled: false,
   new_billed_share_basic: null, new_billed_share_sm: null, shared_assumption_note: '' });
 for (const version of [1, 2]) {
   const old = { version, enabled: true, billed_share_basic: 0, billed_share_sm: .63, marginal_cost: .8 };
@@ -19,6 +19,17 @@ for (const version of [1, 2]) {
   assert.deepEqual(old, { version, enabled: true, billed_share_basic: 0, billed_share_sm: .63, marginal_cost: .8 });
   assert.deepEqual(migrate(result), result, 'Migration is idempotent');
 }
+for (const version of [3, 4]) {
+  const old = { version, enabled: true, new_billed_share_basic: 0, new_billed_share_sm: .63, shared_assumption_note: 'retain' };
+  const result = migrate(old);
+  assert.equal(result.new_billed_share_basic, 0);
+  assert.equal(result.new_billed_share_sm, .63);
+  assert.match(result.current_behavior_notice, /addition-only/);
+  assert.deepEqual(migrate(result), result);
+}
+const priorNotice = migrate({ version: 4, enabled: false, migration_notice: 'Historical note retained.' });
+assert.equal(priorNotice.migration_notice, 'Historical note retained.');
+assert.match(priorNotice.current_behavior_notice, /addition-only/);
 const draft = migrate({ version: 3, enabled: true, billed_share_basic: .8,
   new_billed_share_basic: null, new_billed_share_sm: 0, shared_assumption_note: 'Keep me' });
 assert.equal(draft.new_billed_share_basic, null);
@@ -39,4 +50,4 @@ assert.equal(migrated.connection_revenue.sanitation.enabled, false);
 assert.deepEqual(JSON.parse(JSON.stringify(migrated)), migrated);
 assert.equal(migrateConnectionRevenueInputs({ ...sectorInputs, toggles: { ws_connections_enabled: false } })
   .connection_revenue.water.enabled, false, 'An explicit false pseudo toggle must not be ignored');
-console.log('Connection v4 migration: explicit zeros, v3 blanks, idempotence, sector isolation, inactive legacy costs and no obsolete gates passed.');
+console.log('Connection v5 migration: explicit zeros, legacy values/provenance, idempotence, sector isolation and no obsolete gates passed.');

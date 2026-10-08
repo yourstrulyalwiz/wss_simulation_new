@@ -1,4 +1,4 @@
-"""Indicative, one-time utility loan funding with deferred repayments.
+"""Frozen one-time utility loan funding with fixed annual repayment obligations.
 
 Amounts use the model's local-currency millions. The schedule is real and
 annual; restricted proceeds remain separate from ordinary cash. Legacy
@@ -445,9 +445,9 @@ def _solve_affordability_legacy(calc_fn, inputs, ctx, config, calc_kwargs=None, 
 # Preserved schedule/affordability helpers above are inactive. The only active
 # product mode is indicative funding; contractual repayments are not modeled.
 INDICATIVE_QUALIFICATION = (
-    "Indicative loan proceeds — repayment accounting deferred. Loan sizing uses "
-    "the selected year's additional net cash and assumes equal annual repayments. "
-    "Principal and interest payments are not deducted from model funding in this version."
+    "Loan size uses selected additional revenue in the reference year. Fixed annual "
+    "principal-and-interest obligations are deducted from ordinary available funds from "
+    "the following year through maturity. Full affordability is not assessed; fees are excluded."
 )
 
 
@@ -483,7 +483,12 @@ def normalize_indicative_config(config):
     for key in ('annual_real_interest_rate', 'loan_term_years', 'disbursement_year'):
         if cfg.get(key) == '':
             cfg[key] = None
-    cfg.update(mode='indicative_lump_sum', legacy_parameters=legacy)
+    if cfg.get('schema_version', 2) < 3:
+        legacy.setdefault('prior_migration_notice', cfg.get('migration_notice'))
+        cfg['migration_notice'] = (
+            'Fixed loan repayments and addition-only connection revenue now apply on recalculation; '
+            'saved rates, dates, sources and allocation shares are unchanged.')
+    cfg.update(mode='indicative_lump_sum', schema_version=3, legacy_parameters=legacy)
     return cfg
 
 
@@ -553,8 +558,8 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
                    reference_result=None, force_financed_run=False):
     """Freeze one intervention-only reference, size once and inject once.
 
-    No repayment schedule, future capacity checks, investment protection,
-    ceiling or iterative resizing runs in this active workflow.
+    Deduct fixed scheduled repayments starting the following year. No capacity
+    optimizer, investment protection, ceiling or iterative resizing is activated.
     """
     cfg = validate_config(config, ctx['years'], inputs.period.baseline_year)
     kwargs = dict(calc_kwargs or {})
@@ -596,12 +601,9 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
         principal, factor = indicative_principal(annual, cfg['annual_real_interest_rate'], cfg['loan_term_years'])
         if pool == 0:
             status = 'no_positive_pool'
-    plan = {
-        'loan_amount': principal, 'schedule': [],
-        'disbursement': [principal if y == year else 0.0 for y in years],
-        'principal_payment': [0.0] * len(years),
-        'interest_payment': [0.0] * len(years), 'debt_service': [0.0] * len(years),
-    }
+    from .fixed_loan import fixed_schedule
+    plan = fixed_schedule(principal, annual, cfg.get('annual_real_interest_rate'),
+                          cfg.get('loan_term_years'), year, years)
     financed = (calc_fn(inputs, ctx, **{**kwargs, 'utility_debt_execution': plan})
                 if principal > 0 or force_financed_run else reference)
     injection = []
@@ -618,9 +620,16 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
             'opening_unspent_proceeds': cash('utility_debt_cash_opening'),
             'investment_from_loan_proceeds': cash('utility_debt_investment_used'),
             'closing_unspent_proceeds': cash('utility_debt_cash_closing'),
+            'debt_service': plan['debt_service'][i],
+            'ordinary_before_debt_service': (financed.get('available_total') or [None]*len(years))[i],
+            'ordinary_after_debt_service': (financed.get('available_after_debt_service') or [None]*len(years))[i],
         })
+    schedule = plan['schedule']
+    horizon = years[-1]
+    at_horizon = [row for row in schedule if row['year'] <= horizon]
+    remaining = [row for row in schedule if row['year'] > horizon and row['debt_service'] > 0]
     summary = {
-        **cfg, 'schema_version': 2, 'status': status, 'repayment_accounting': 'deferred',
+        **cfg, 'schema_version': 3, 'status': status, 'repayment_accounting': 'fixed_annuity_modeled',
         'feasibility_status': 'not_assessed', 'verified_feasible': False,
         'reference_year': year, 'reference_source_cash': source_cash,
         'selected_signed_pool': signed, 'eligible_pool': pool,
@@ -628,6 +637,14 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
         'loan_term_years': cfg.get('loan_term_years'), 'annuity_factor': factor,
         'indicative_principal': principal, 'accepted_principal': principal,
         'annual_injection': injection, 'closing_restricted_cash': injection[-1]['closing_unspent_proceeds'],
+        'repayment_schedule': schedule, 'fixed_annual_debt_service': annual if principal > 0 else 0.0,
+        'first_repayment_year': year+1 if principal > 0 else None,
+        'maturity_year': year+cfg['loan_term_years'] if principal > 0 else None,
+        'horizon_closing_principal': at_horizon[-1]['closing_principal'] if at_horizon else 0.0,
+        'remaining_contractual_payments': len(remaining),
+        'remaining_contractual_debt_service': sum(row['debt_service'] for row in remaining),
+        'total_principal_repaid': sum(row['principal_payment'] for row in schedule),
+        'total_interest': sum(row['interest_payment'] for row in schedule),
         'net_revenue_assumption': NET_REVENUE_ASSUMPTION,
         'qualification': INDICATIVE_QUALIFICATION,
     }

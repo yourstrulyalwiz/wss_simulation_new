@@ -146,7 +146,7 @@ assert.match(connectionMarkup, /aggregate customer-mix proxy/);
 assert.doesNotMatch(connectionMarkup, /Advanced|Authorize estimate|zero-cost|funding-reference|expenditure proxy/);
 assert.doesNotMatch(connectionMarkup, /Observed baseline-year billed volume/);
 const { connectionRevenueStatus } = require('../src/components/ConnectionRevenue.tsx');
-const statusFixture = { requested: true, effective: true, state: 'effective', configuration: { version: 4 } };
+const statusFixture = { requested: true, effective: true, state: 'effective', configuration: { version: 5 } };
 assert.equal(connectionRevenueStatus({ water: { connection: statusFixture } }, 'water'), statusFixture);
 assert.equal(connectionRevenueStatus({ connection_revenue: { sanitation: statusFixture } }, 'sanitation'), statusFixture);
 assert.equal(aggregateWeightedRevenueRate([

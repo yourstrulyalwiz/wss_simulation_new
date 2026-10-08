@@ -265,7 +265,7 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
     # obligations and allocation, not BAU need minus an intervention cash total.
     for key in ('new_capex_by_service', 'replacement_by_service',
                 'funded_by_service', 'replacement_funding_applied_by_service', 'financing_gap_by_service',
-                'new_capex_total', 'replacement_capex', 'available_total',
+                'new_capex_total', 'replacement_capex', 'available_total', 'available_after_debt_service',
                 'bau_replacement_capex', 'replacement_reserved', 'replacement_credit',
                 'replacement_credit_by_service', 'unfunded_replacement',
                 'cash_deficit', 'cash_deficit_by_service', 'expansion_capital_available',
@@ -281,6 +281,8 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
         bau['scenario_' + key] = scn.get(key, [])
     bau['scenario_utility_debt'] = debt_summary
     bau['scenario_without_utility_debt_hh'] = scn_without_debt['bau_hh']
+    for key in ('available_total', 'available_after_debt_service'):
+        bau['scenario_without_utility_debt_' + key] = scn_without_debt[key]
     bau['scenario_without_utility_debt_nrw_recovered_phys_vol'] = scn_without_debt.get('nrw_recovered_phys_vol', [])
     for key in SERVICE_GAP_FIELDS:
         bau['scenario_without_utility_debt_' + key] = scn_without_debt[key]

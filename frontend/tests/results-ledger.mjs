@@ -37,6 +37,8 @@ for (const sector of ['water_supply', 'sanitation']) {
   const length = direct.years.length;
   sec.available_total = Array(length).fill(11);
   sec.scenario_available_total = Array(length).fill(37);
+   sec.scenario_available_after_debt_service = Array(length).fill(34);
+   sec.scenario_exogenous_injection_cash = Array(length).fill(5);
   sec.utility_debt_service = Array(length).fill(2);
   sec.scenario_utility_debt_service = Array(length).fill(3);
   sec.utility_debt_cash_available = Array(length).fill(5);
@@ -48,6 +50,9 @@ for (const sector of ['water_supply', 'sanitation']) {
   const actualScenario = ledgerSnapshots([direct], sector, fixture.baseline, true)[testIndex].values;
   const actualBau = ledgerSnapshots([direct], sector, fixture.baseline, false)[testIndex].values;
   close(actualScenario.fundingOperating[2], 34);
+  close(actualScenario.fundingBeforeDebt[2], 37);
+  close(actualScenario.repayments[2], 3);
+  close(actualScenario.ordinaryInjection[2], 5);
   close(actualScenario.fundingRestricted[2], 19);
   close(actualScenario.loanInjection[2], 13);
   close(actualScenario.loanOpeningUnspent[2], 4);
@@ -202,7 +207,7 @@ for (const sector of ['water_supply', 'sanitation']) {
   assert.ok(!ordinary.some(r=>['debtFundingSection','fundingRestricted','repayments'].includes(r.key)));
   assert.equal(ordinary.find(r=>r.key==='fundingOperating').label,'Ordinary net cash (signed)');
   const debtFunding=ledgerRows({...data,includesDebt:true},fundingOptions);
-  assert.equal(debtFunding.find(r=>r.key==='debtFundingSection').label,'Indicative loan funding · repayment accounting deferred');
+  assert.equal(debtFunding.find(r=>r.key==='debtFundingSection').label,'Utility loan funding and scheduled obligations');
   for (const key of ['loanInjection','loanOpeningUnspent','loanInvestment','loanClosingUnspent'])
     assert.ok(debtFunding.some(row => row.key === key));
   assert.equal(debtFunding.at(-1).key,'fundingOperating');

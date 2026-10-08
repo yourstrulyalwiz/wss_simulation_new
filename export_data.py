@@ -84,6 +84,7 @@ def per_year_table(result, inputs, sector_key):
         ('Unfunded replacement', 'unfunded_replacement'),
         ('Cash deficit', 'cash_deficit'),
         ('Total available capital', 'available_total'),
+        ('Ordinary funds after scheduled debt service', 'available_after_debt_service'),
         ('Expansion capital available', 'expansion_capital_available'),
         ('Actual funded connection purchases', 'connection_purchase_capital'),
         ('Unallocated positive expansion capital', 'unallocated_positive_capital'),

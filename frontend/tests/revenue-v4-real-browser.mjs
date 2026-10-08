@@ -16,9 +16,9 @@ const shares = [[.5, .9, .4, .8], [.2, .7, 0, .6]];
 for (let index = 0; index < areaInputs.length; index++) {
   const input = areaInputs[index];
   input.connection_revenue = { ...(input.connection_revenue || {}),
-    water: { ...(input.connection_revenue?.water || {}), version: 4, method: 'aggregate_coverage_expansion',
+    water: { ...(input.connection_revenue?.water || {}), version: 5, method: 'aggregate_coverage_expansion',
       enabled: true, new_billed_share_basic: shares[index][0], new_billed_share_sm: shares[index][1] },
-    sanitation: { version: 4, method: 'aggregate_coverage_expansion', enabled: true,
+    sanitation: { version: 5, method: 'aggregate_coverage_expansion', enabled: true,
       new_billed_share_basic: shares[index][2], new_billed_share_sm: shares[index][3], shared_assumption_note: '' },
   };
   input.toggles = { ...input.toggles, ws_connections_enabled: true, san_connections_enabled: true,
@@ -47,24 +47,24 @@ const close = (actual, expected, label) => {
 const withoutDebt = input => ({ ...input, utility_debt: { ...input.utility_debt,
   water: { ...input.utility_debt.water, enabled: false }, sanitation: { ...input.utility_debt.sanitation, enabled: false } } });
 
-// Main owns restart. Wait for its real v4 endpoint rather than starting anything here.
+// Main owns restart. Wait for its real v5 endpoint rather than starting anything here.
 let resolution;
 let readinessError = '';
 for (let attempt = 0; attempt < Number(process.env.BACKEND_WAIT_ATTEMPTS || 80); attempt++) {
   try {
     resolution = await post('revenue-bases', areaInputs[0]);
     const status = connectionStatus(resolution, 'water');
-    if (status?.configuration?.version === 4 && status?.calibration?.baseline_coverage != null && status?.effective === true) break;
+    if (status?.configuration?.version === 5 && status?.calibration?.baseline_coverage != null && status?.effective === true) break;
   } catch (error) { readinessError = error.message; }
   await sleep(1500);
 }
 assert.equal(connectionStatus(resolution, 'water')?.effective, true,
-  `Real backend v4 is not ready or DRC assumptions are incomplete: ${readinessError || JSON.stringify(resolution)}`);
+  `Real backend v5 is not ready or DRC assumptions are incomplete: ${readinessError || JSON.stringify(resolution)}`);
 assert.ok(connectionStatus(resolution, 'water')?.calibration?.baseline_coverage > 0);
 
 function reconcile(result, input, sector, label) {
   const sec = result[sectorKey(sector)];
-  assert.equal(sec.scenario_revenue_reconciliation.version, 3, `${label}: reconciliation version`);
+  assert.equal(sec.scenario_revenue_reconciliation.version, 4, `${label}: reconciliation version`);
   for (let i = 0; i < result.years.length; i++) {
     const connections = sec.scenario_connection_net_cash[i];
     const nrw = sector === 'water' ? sec.scenario_nrw_net[i] : sec.scenario_eligible_nrw_link_cash[i];
@@ -220,7 +220,7 @@ try {
   await w(`document.querySelector('[data-testid="indicative-principal"]')?.textContent !== '—' &&
     !!document.querySelector('[aria-label="Eligible source: Revenue from new connections"]')`, 'Real loan preview unavailable');
   assert.equal(await e(`document.querySelector('[aria-label="Eligible source: Revenue from new connections"]').checked`), true);
-  assert.equal(await e(`document.body.textContent.includes('repayment accounting deferred')`), true);
+  assert.equal(await e(`document.body.textContent.includes('fixed annual obligations modeled')`), true);
   // Turning off the connection feature in its shared form leaves the loan source selected but inactive.
   await tab(2);
   await e(`${form}.querySelector('input[type=checkbox]').click()`);

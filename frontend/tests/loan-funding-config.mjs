@@ -6,14 +6,17 @@ const source = readFileSync(new URL('../src/loanFunding.ts', import.meta.url), '
 const js = ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 });
 const { migrateLoanFundingConfig, validateLoanFundingConfig } =
   await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+const { isModeledLoanSummary, LOAN_REPAYMENT_ACCOUNTING, LOAN_SUMMARY_VERSION } =
+  await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
 
 const migrated = migrateLoanFundingConfig({
   enabled: true, disbursement_year: 2030, maturity_year: 2040,
   principal_grace_years: 2, repayment_structure: 'equal_principal', loan_ceiling: 12,
   annual_real_interest_rate: 0.05, allocation_share: 0.5, revenue_sources: ['collection'],
 });
-assert.equal(migrated.schema_version, 2);
+assert.equal(migrated.schema_version, 3);
 assert.equal(migrated.mode, 'indicative_lump_sum');
+assert.equal(migrated.repayment_accounting, 'fixed_annuity_modeled');
 assert.equal(migrated.loan_term_years, 10);
 assert.equal(migrated.legacy_parameters.principal_grace_years, 2);
 assert.equal(migrated.legacy_parameters.repayment_structure, 'equal_principal');
@@ -38,6 +41,12 @@ const aliasMigration = migrateLoanFundingConfig({
 });
 assert.equal(aliasMigration.legacy_parameters.grace, 3);
 assert.equal(aliasMigration.migration_notice, 'Keep this note.');
+assert.match(aliasMigration.current_behavior_notice, /Funding and coverage results may change/);
+assert.equal(isModeledLoanSummary({ schema_version: 3, repayment_accounting: 'fixed_annuity_modeled' }), true);
+assert.equal(isModeledLoanSummary({ schema_version: 2, repayment_accounting: 'fixed_annuity_modeled' }), false);
+assert.equal(isModeledLoanSummary({ schema_version: 3, repayment_accounting: 'deferred' }), false);
+assert.equal(LOAN_SUMMARY_VERSION, 3);
+assert.equal(LOAN_REPAYMENT_ACCOUNTING, 'fixed_annuity_modeled');
 
 const fresh = migrateLoanFundingConfig({ enabled: false, schema_version: 2, mode: 'indicative_lump_sum' });
 assert.equal(fresh.annual_real_interest_rate, undefined);
@@ -68,8 +77,18 @@ assert.ok(validateLoanFundingConfig({ ...positivePool, disbursement_year: 2041 }
 assert.ok(validateLoanFundingConfig({ ...positivePool, disbursement_year: -3 }, period).disbursement_year);
 
 const controls = readFileSync(new URL('../src/components/DebtServicingControls.tsx', import.meta.url), 'utf8');
+const preview = readFileSync(new URL('../src/components/UtilityDebtPreview.tsx', import.meta.url), 'utf8');
+const results = readFileSync(new URL('../src/components/ResultsDashboard.tsx', import.meta.url), 'utf8');
+const interventions = readFileSync(new URL('../src/components/InterventionPanel.tsx', import.meta.url), 'utf8');
 for (const forbidden of ['Principal grace', 'Final payment year', 'Repayment structure', 'Optional principal ceiling'])
   assert.equal(controls.includes(forbidden), false);
 for (const required of ['Reference / injection year', 'Pooled allocation', 'Annual real interest rate', 'Loan term'])
   assert.ok(controls.includes(required));
-console.log('Loan funding settings: legacy term migration, inactive metadata, blank terms, enabled validation and simplified labels passed.');
+for (const required of ['repayment_schedule', 'ordinary_before_debt_service', 'ordinary_after_debt_service', 'horizon_closing_principal'])
+  assert.ok(preview.includes(required), `Loan preview must report ${required}`);
+assert.ok(results.includes('results-repayment-schedule'));
+assert.ok(results.includes('Scheduled interest'));
+assert.ok(interventions.includes('The full amount enters available funds in the selected year'));
+assert.ok(interventions.includes('capital spending share and execution rate are not applied'));
+assert.ok(interventions.includes('Recurring funding is adjusted by the capital spending share and execution rate'));
+console.log('Loan funding settings/UI: v3 fixed-annuity contract, legacy metadata, funding ledger, schedule and injection modes passed.');

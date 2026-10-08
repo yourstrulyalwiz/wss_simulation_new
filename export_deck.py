@@ -401,8 +401,17 @@ def _fill_detail(slide, b, row, inputs, sk, source_cur, display_cur, money_facto
     })
 
 
+def _new_export_slide(prs):
+    # Pruned templates can retain slide relationships; len(slides)+1 may collide
+    # with a surviving part name. Reserve against the full reachable package.
+    partname = prs.part.package.next_partname('/ppt/slides/slide%d.xml')
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    slide.part.partname = partname
+    return slide
+
+
 def _append_utility_debt_slides(prs, blocks, display_currency, money_factor):
-    """Export indicative sizing and actual proceeds use, never repayment claims."""
+    """Export frozen sizing, actual proceeds use and scheduled debt obligations."""
     from pptx.util import Inches, Pt
     from pptx.dml.color import RGBColor
     from model.utility_debt import INDICATIVE_QUALIFICATION
@@ -416,7 +425,7 @@ def _append_utility_debt_slides(prs, blocks, display_currency, money_factor):
         schedule = debt.get('annual_injection') or []
         pages = [schedule[i:i + 12] for i in range(0, len(schedule), 12)] or [[]]
         for page_index, page in enumerate(pages):
-            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            slide = _new_export_slide(prs)
             title = slide.shapes.add_textbox(Inches(.55), Inches(.25), Inches(12.2), Inches(.5))
             title.text_frame.text = f'{scope_name} — {sector_name} indicative loan funding'
             title.text_frame.paragraphs[0].font.size = Pt(19)
@@ -438,6 +447,9 @@ def _append_utility_debt_slides(prs, blocks, display_currency, money_factor):
                 details.extend([
                     f"Indicative loan proceeds: {bn(float(debt.get('indicative_principal') or 0) * money_factor)} B {display_currency}. Feasibility: not assessed.",
                     f"Closing unspent proceeds: {bn(float(debt.get('closing_restricted_cash') or 0) * money_factor)} B {display_currency}. Opening balances are carried cash, not new borrowing.",
+                    f"Fixed annual debt service: {bn(float(debt.get('fixed_annual_debt_service') or 0)*money_factor)} B {display_currency}; "
+                    f"horizon outstanding principal: {bn(float(debt.get('horizon_closing_principal') or 0)*money_factor)} B {display_currency}; "
+                    f"remaining obligations: {bn(float(debt.get('remaining_contractual_debt_service') or 0)*money_factor)} B {display_currency}.",
                     INDICATIVE_QUALIFICATION,
                     str(debt.get('net_revenue_assumption') or 'Incremental revenue net of modeled costs; new connections excluded.'),
                 ])
@@ -452,7 +464,7 @@ def _append_utility_debt_slides(prs, blocks, display_currency, money_factor):
             else:
                 years_text = f"Years {page[0]['year']}–{page[-1]['year']}" if page else 'No annual schedule'
                 subtitle = slide.shapes.add_textbox(Inches(.6), Inches(.85), Inches(12), Inches(.3))
-                subtitle.text_frame.text = f'{years_text} · billions of {display_currency} · repayment accounting deferred'
+                subtitle.text_frame.text = f'{years_text} · billions of {display_currency} · scheduled obligations, affordability not assessed'
                 subtitle.text_frame.paragraphs[0].font.size = Pt(10)
                 top = 1.3
 
@@ -480,6 +492,44 @@ def _append_utility_debt_slides(prs, blocks, display_currency, money_factor):
                         elif row_index % 2:
                             cell.fill.solid()
                             cell.fill.fore_color.rgb = RGBColor(0xED, 0xF1, 0xF3)
+        _append_fixed_repayment_slides(prs, debt, scope_name, sector_name, display_currency, money_factor)
+
+
+def _append_fixed_repayment_slides(prs, debt, scope, sector, currency, factor):
+    """Full contractual schedule; no extrapolation of future ordinary cash."""
+    from loan_reporting import loan_tables
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+    if debt.get('repayment_accounting') != 'fixed_annuity_modeled':
+        return
+    headers, rows = loan_tables(debt, currency, factor)[1]
+    fields = ['Year', f'Ordinary funds before debt service ({currency} M)',
+              f'Scheduled debt service ({currency} M)', f'Ordinary funds after debt service ({currency} M)',
+              f'Opening outstanding principal ({currency} M)', f'Scheduled principal ({currency} M)',
+              f'Scheduled interest ({currency} M)', f'Closing outstanding principal ({currency} M)']
+    indexes = [headers.index(field) for field in fields]
+    for start in range(0, len(rows), 14):
+        slide = _new_export_slide(prs)
+        box = slide.shapes.add_textbox(Inches(.55), Inches(.25), Inches(12.2), Inches(.8))
+        box.text_frame.text = f'{scope} — {sector} scheduled repayments · {currency} millions'
+        box.text_frame.paragraphs[0].font.size = Pt(17)
+        p = box.text_frame.add_paragraph()
+        p.text = 'Scheduled obligations, not verified paid amounts. — = cash outside modeled horizon or unavailable. Affordability not assessed.'
+        p.font.size = Pt(9)
+        page = [fields] + [[row[i] for i in indexes] for row in rows[start:start+14]]
+        table = slide.shapes.add_table(len(page), len(fields), Inches(.35), Inches(1.3),
+                                      Inches(12.65), Inches(.33*len(page))).table
+        for ri,row in enumerate(page):
+            for ci,value in enumerate(row):
+                cell = table.cell(ri,ci)
+                cell.text = '—' if value is None else (f'{value:,.4f}' if isinstance(value,float) else str(value))
+                for para in cell.text_frame.paragraphs:
+                    para.font.size = Pt(8)
+                    para.font.bold = ri == 0
+                    para.font.color.rgb = RGBColor(255,255,255) if ri == 0 else RGBColor(41,52,59)
+                if ri == 0:
+                    cell.fill.solid()
+                    cell.fill.fore_color.rgb = RGBColor(1,73,114)
 
 
 def _fill_exec(slide, d, cur, lt, money_factor=1.0):

@@ -58,15 +58,22 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
       </label>
       <span role="status" style={{ fontSize: 11 }}>{state}</span>
     </div>
-    {config.migration_notice && !dismissed.includes(noticeKey) && <div role="status" style={{ fontSize: 11, padding: '8px 0' }}>
-      {config.migration_notice} <button type="button" onClick={() => {
+    {config.current_behavior_notice && !dismissed.includes(noticeKey) && <div role="status" style={{ fontSize: 11, padding: '8px 0' }}>
+      {config.current_behavior_notice} <button type="button" onClick={() => {
         setDismissed([...dismissed, noticeKey]);
-        update({ migration_notice: undefined });
+        update({ current_behavior_notice: undefined });
       }}>Dismiss notice</button>
     </div>}
+    {config.migration_notice && <div role="note" style={{ fontSize: 10.5, padding: '4px 0', color: '#657780' }}>
+      Preserved saved migration note: {config.migration_notice}
+    </div>}
     <p style={{ fontSize: 11.5, lineHeight: 1.55 }}>
-      Keeps the existing population/volume-growth revenue baseline. Additional coverage scales total billed volume using the existing customer mix.
-      New-connection revenue uses baseline tariff and collection rates; selected reforms add their effects separately. Connection operating costs are excluded.
+      Adds revenue from positive marginal coverage expansion at baseline tariff and collection rates. If weighted coverage falls below baseline,
+      this feature adds zero; it does not deduct baseline revenue. Receipts begin one year after delivery.
+    </p>
+    <p style={{ fontSize: 10.5, lineHeight: 1.5, color: '#526a75' }}>
+      Keeps the existing population/volume-growth baseline. Basic-to-Safely-Managed transfers use the difference between Basic and SM billing percentages;
+      the combined transfer calculation is not floored by service band. Selected reforms apply separately to reconciled volume. Connection operating costs are excluded.
     </p>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 10 }}>
       {([['basic', 'Basic expansion billed (%)'], ['sm', 'Safely Managed expansion billed (%)']] as const).map(([rung, label]) => {

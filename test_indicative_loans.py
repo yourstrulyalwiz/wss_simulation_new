@@ -61,9 +61,10 @@ class IndicativeLoanTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertAlmostEqual(sum(plan['disbursement']), debt['indicative_principal'])
         self.assertEqual(sum(v > 0 for v in plan['disbursement']), 1)
-        self.assertEqual(plan['schedule'], [])
+        self.assertEqual(len(plan['schedule']), 11)
         for key in ('principal_payment', 'interest_payment', 'debt_service'):
-            self.assertEqual(plan[key], [0, 0, 0])
+            self.assertEqual(plan[key][:2], [0, 0])
+            self.assertGreater(plan[key][2], 0)
         for row in debt['annual_injection']:
             self.assertAlmostEqual(row['opening_unspent_proceeds'] + row['disbursement'],
                                    row['investment_from_loan_proceeds'] + row['closing_unspent_proceeds'])
@@ -151,11 +152,13 @@ class IndicativeLoanTests(unittest.TestCase):
                 else:
                     self.assertEqual(actual[:first], expected[:first])
             for key in ('principal_payment', 'interest_payment', 'service'):
-                self.assertEqual(sec['scenario_utility_debt_' + key], [0]*len(on['years']))
+                values = sec['scenario_utility_debt_' + key]
+                self.assertEqual(values[:first+1], [0]*(first+1))
+                self.assertGreater(sum(values[first+1:]), 0)
             for row in debt['annual_injection']:
                 self.assertAlmostEqual(row['opening_unspent_proceeds'] + row['disbursement'],
                                        row['investment_from_loan_proceeds'] + row['closing_unspent_proceeds'])
-            self.assertEqual(debt['repayment_accounting'], 'deferred')
+            self.assertEqual(debt['repayment_accounting'], 'fixed_annuity_modeled')
 
     def test_independent_geography_timing_and_currency_conversion(self):
         early = self.solve()[0]
@@ -171,7 +174,7 @@ class IndicativeLoanTests(unittest.TestCase):
         summary, annual = loan_tables(early, 'USD', money_factor=.001)
         self.assertIn(['Indicative loan proceeds', None, early['indicative_principal']*.001], summary[1])
         self.assertIn(['Loan term (years)', 10, None], summary[1])
-        self.assertTrue(all('Deferred' in row[-1] for row in annual[1]))
+        self.assertTrue(all('scheduled obligations' in row[-1] for row in annual[1]))
 
     def test_sanitation_reference_uses_water_without_any_loan(self):
         fixture = debt_fixture.DebtServicingTests()

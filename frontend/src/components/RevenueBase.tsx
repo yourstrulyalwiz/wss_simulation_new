@@ -2,7 +2,7 @@ import React, { useEffect, useId, useState } from 'react';
 import ConnectionRevenue from './ConnectionRevenue';
 import { resolveRevenueBases } from '../api';
 
-export const REVENUE_ATTRIBUTION = 'Version 3 revenue attribution: new connections and NRW sales use baseline tariff and collection rates. Collection improvement and tariff reform apply to the full reconciled volume, including these sales. Signed NRW cash includes implementation costs once. Revenue-source cash comes from the final scenario ledger; cumulative household bands follow the fixed comparison order, not cash attribution.';
+export const REVENUE_ATTRIBUTION = 'Version 4 revenue attribution: new connections and NRW sales use baseline tariff and collection rates. Connection revenue adds only positive marginal coverage expansion and does not deduct baseline revenue. Collection improvement and tariff reform apply to the full reconciled volume. Identified overlap is removed once from the positive increment; signed NRW cash includes implementation costs once.';
 
 export function restoreBlankRevenueBases(inputs: any, sectors = ['water', 'sanitation']) {
   const revenue_bases = { ...inputs.revenue_bases };
@@ -100,6 +100,7 @@ export function RevenueBaseEditor({ inputs, onChange, sector }: { inputs: any; o
           required={field !== 'growth_rate'} aria-invalid={!!errors[field]}
           value={base[field] ?? ''} onChange={e => set(field, e.target.value === '' ? null : Number(e.target.value))}
           style={{ padding: 7, border: errors[field] ? '1px solid #c53030' : '1px solid #d9c884', background: '#fff9e6', borderRadius: 4, width: '100%', boxSizing: 'border-box' }} />
+        {field === 'collection_ratio' && <small>0.70 means 70%.</small>}
       </label>)}
     </div>
     <small>Origin: {base.origin}. Legacy values are retained with this base for traceability.</small>

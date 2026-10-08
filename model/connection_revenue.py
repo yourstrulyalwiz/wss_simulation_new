@@ -4,14 +4,16 @@ import math
 import numpy as np
 from .utility_revenue import number, volume_path, RevenueInputError
 
-MIGRATION_NOTICE = ('New-connection revenue now uses aggregate coverage expansion at baseline rates. '
-                    'Historical calibration and connection operating costs no longer apply; recalculated results may change.')
+MIGRATION_NOTICE = ('Connection revenue is addition-only and fixed loan repayments now reduce future funding. '
+                    'Recalculate saved scenarios; historical inputs are preserved.')
 ACTIVE = {'version', 'enabled', 'method', 'new_billed_share_basic', 'new_billed_share_sm',
           'shared_assumption_note', 'legacy_parameters', 'migration_notice'}
 DIAGNOSTIC_FIELDS = (
     'baseline_billed_volume_million_m3', 'connection_raw_volume_million_m3',
     'connection_overlap_volume_million_m3', 'connection_volume_million_m3',
     'connection_scale', 'connection_aggregate_volume_proxy', 'connection_revenue_cash',
+    'connection_signed_scale', 'connection_signed_candidate_volume_million_m3',
+    'connection_addition_only_adjustment_million_m3', 'connection_unapplied_overlap_volume_million_m3',
     'connections_cash', 'nrw_avoided_sales_adjustment',
     'reference_billed_volume_million_m3', 'reference_collected_revenue',
     'connection_revenue_delta', 'connection_net_cash', 'additional_net_cash',
@@ -29,7 +31,7 @@ DIAGNOSTIC_FIELDS = (
 
 def migrate_connection(config):
     old = copy.deepcopy(config or {})
-    version = old.get('version', 4)
+    version = old.get('version', 5)
     cfg = {k: v for k, v in old.items() if k in ACTIVE}
     legacy = copy.deepcopy(old.get('legacy_parameters') or {})
     legacy.update({k: v for k, v in old.items() if k not in ACTIVE})
@@ -40,9 +42,12 @@ def migrate_connection(config):
                 cfg[key] = old.get('billed_share_' + service)
     if legacy:
         cfg['legacy_parameters'] = legacy
-    if version in (1, 2, 3):
+    if version in (1, 2, 3, 4):
+        if cfg.get('migration_notice'):
+            legacy.setdefault('prior_migration_notice', cfg['migration_notice'])
+            cfg['legacy_parameters'] = legacy
         cfg['migration_notice'] = MIGRATION_NOTICE
-    cfg.update(version=4 if version in (1, 2, 3, 4) else version,
+    cfg.update(version=5 if version in (1, 2, 3, 4, 5) else version,
                method='aggregate_coverage_expansion', enabled=bool(old.get('enabled', False)))
     return cfg
 
@@ -81,7 +86,7 @@ def prepare_connection(config, base, ctx, history, days=365, liters=1000):
             growth_rate=base.get('growth_rate'))
         if not cfg['enabled']:
             return status, None
-        if cfg['version'] != 4:
+        if cfg['version'] != 5:
             raise RevenueInputError('Unsupported connection configuration version.')
         fb = number(cfg.get('new_billed_share_basic'), 'new_billed_share_basic', 1)
         fs = number(cfg.get('new_billed_share_sm'), 'new_billed_share_sm', 1)
@@ -110,12 +115,16 @@ def annual_connection_cash(runtime, previous_sm, previous_basic, t, tariff, coll
         scale = (r['new_basic'] * (basic / hh - r['basic0']) +
                  r['new_sm'] * (sm / hh - r['sm0'])) / r['s0']
         proxy = b / (hh * r['s0'])
-    added = b * scale
-    if not math.isfinite(added) or b + added < -1e-9:
-        raise RevenueInputError('Aggregate coverage expansion produces negative total billed volume.')
+    signed = b * scale
+    if not math.isfinite(signed):
+        raise RevenueInputError('Aggregate coverage expansion must be finite.')
+    added = max(0.0, signed)
     from .revenue_reconciliation import reconcile_revenue
     row = reconcile_revenue(b + added, b, 0, 0, r['p0'], r['c0'], tariff, collection)
-    row.update(connection_scale=scale, connection_aggregate_volume_proxy=proxy)
+    row.update(connection_scale=max(0.0, scale), connection_signed_scale=scale,
+               connection_signed_candidate_volume_million_m3=signed,
+               connection_addition_only_adjustment_million_m3=added-signed,
+               connection_aggregate_volume_proxy=proxy)
     return row
 
 

@@ -28,7 +28,7 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
   const current = loaded?.key === key ? loaded : null;
   const resultList = results ? (Array.isArray(results) ? results : [results]) : current?.results || [];
   const sectorKey = sector === 'water' ? 'water_supply' : 'sanitation';
-  const currentVersion = resultList.length > 0 && resultList.every(result => reconciliationVersion(result, sectorKey) === 3);
+  const currentVersion = resultList.length > 0 && resultList.every(result => reconciliationVersion(result, sectorKey) === 4);
   const currency = datasets[0]?.country_config?.currency || 'LCU';
   const rows = revenueSourceRows(resultList, sectorKey);
   const displayRows = rows.map(row => Object.fromEntries(Object.entries(row).map(([field, value]) =>
@@ -46,7 +46,7 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
     </div>
     <p style={{ fontSize: 11, color: '#526a75', lineHeight: 1.5 }}>
       {currentVersion ? 'Final-scenario ledger · baseline-rate connection and NRW sales; collection and tariff uplifts on full reconciled volume.' :
-        resultList.length ? 'Legacy or unversioned results · source cash retains its original attribution. Recalculate for version 3.' : 'Calculating final-scenario source cash…'}
+        resultList.length ? 'Legacy or unversioned results · source cash retains its original attribution. Recalculate for version 4.' : 'Calculating final-scenario source cash…'}
       {' '}Signed cash in {unit}. Funding injections and capital efficiencies are not revenue. Model estimates; uncertainty bounds are unavailable.
     </p>
     {current?.error && <div role="alert">{current.error} <button onClick={() => setAttempt(n => n + 1)}>Retry calculation</button></div>}

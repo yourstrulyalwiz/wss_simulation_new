@@ -1,6 +1,6 @@
 ---
 name: Utility debt eligibility scope
-description: User-confirmed net-revenue interpretation and exclusion of connection revenue.
+description: Frozen sizing with optional connections and fixed repayment obligations.
 ---
 
 Use incremental net revenues, not the entire utility revenue account, for
@@ -10,7 +10,8 @@ automatically adding the newly supported connections source.
 
 **Why:** The 2026-10-08 instruction explicitly supersedes the earlier exclusion:
 baseline-rate reconciled connection receipts are an optional source, without
-connection operating costs. It does not authorize repayment or resizing changes.
+connection operating costs. The later funding/repayment specification activates
+fixed annual deductions without authorizing iterative resizing or affordability optimization.
 
 **How to apply:** Keep the separate optional connection-based baseline model
 unchanged. Explain modeled net-cash assumptions rather than claiming a complete
@@ -22,15 +23,18 @@ a lender credit assessment.
 Size one indicative loan injection from the selected year's signed, selected
 intervention cash pool in a frozen no-loan reference. Floor the sum at zero,
 then apply allocation and the ordinary annuity present-value factor. The same
-year receives the injection. Repayment accounting, fees and affordability
-verification are deferred: neither annual allocation nor interest/principal
-payments deduct cash in this version. Do not restore start-year capital
-protection, future-year checks, ceilings or iterative resizing.
+year receives the injection. Fixed annual principal/interest obligations deduct
+ordinary cash from the following year through maturity, before replacement and
+expansion. Keep full contractual schedules beyond the modeled cash horizon.
+Fees and affordability verification remain excluded. Restricted proceeds cannot
+pay service or replacement. Do not restore start-year capital protection,
+future-year checks, ceilings or iterative resizing.
 
 **Why:** On 2026-10-06 the user's simplified-loan specification explicitly
 superseded the earlier affordability constraints and full-maturity repayment
-verification. This is an indicative gross financing scenario, not free finance
-or verified affordable borrowing.
+verification. The 2026-10-08 follow-on expressly supersedes deferred repayment:
+scheduled debt service remains fixed even when future ordinary cash is insufficient.
+This is not verified affordable borrowing; expose deficits rather than inventing cash.
 
 **How to apply:** Keep Intervention Design as the intervention-only stage and
  Loan funding as the separate fourth workflow stage, with Results fifth.

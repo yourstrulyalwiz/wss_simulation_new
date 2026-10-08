@@ -1,8 +1,10 @@
 # Utility revenue — aggregate coverage expansion (October 8, 2026)
 
 This specification supersedes the historical billed-household and operating-cost
-calibration method. Active connection config is version 4; revenue attribution
-metadata is version 3. Old assumptions are inactive migration metadata.
+calibration method. Active connection config is version 5; revenue attribution
+metadata is version 4; loan summaries use schema 3. Old assumptions are inactive
+migration metadata. The funding/repayment follow-on supersedes signed connection
+adjustments and deferred utility repayment accounting.
 
 ## Baseline and connections
 
@@ -16,12 +18,13 @@ households, not the revenue year's population.
 
     scale = [fBasic × (sBasic[t−1] − sBasic[baseline])
              + fSM × (sSM[t−1] − sSM[baseline])] / S0
-    Nraw = B[t] × scale
+    signed_candidate = B[t] × scale
+    Nraw = max(0, signed_candidate)
 
 Pure BAU disables connections. An enabled connection-only scenario still runs.
 Unchanged coverage creates no additional connection revenue even if population
 grows. Equal-weight Basic→SM transfers create no addition. Negative changes stay
-signed. Zero starting coverage makes this feature incomplete; it does not cause
+combined before flooring the overall candidate at zero. Zero starting coverage makes this feature incomplete; it does not cause
 the model to invent consumption.
 
 This is an aggregate customer-mix scaling assumption, not measured household
@@ -35,6 +38,7 @@ W is eligible NRW sales. O is proven overlap from prior delivered NRW origins,
 bounded by represented tagged volume and eligible sales. Negative upgrade
 weights never become negative overlap.
 
+    O = min(Nraw, eligible_overlap)
     N = Nraw − O
     V = B + N + W
     connections = N × T0 × C0
@@ -44,7 +48,9 @@ weights never become negative overlap.
     NRW net = NRW sales + avoided-cost savings − implementation cost
 
 Their sum equals V×T×C − B×T0×C0 + savings − implementation cost.
-Connection cash aliases are not additional sources. Old operating-cost arrays
+An overlap deduction cannot consume the baseline volume; signed candidate and
+floor/overlap adjustments remain diagnostics, not cash sources. Connection cash
+aliases are not additional sources. Old operating-cost arrays
 remain zero for compatibility and are not presented as active costs.
 
 Physical/commercial recovery, works schedules, benefit lag, capacity commitments
@@ -65,9 +71,27 @@ enables its underlying intervention.
 
 The chosen year's **frozen no-loan** source amounts are summed with their signs.
 Only the total is floored at zero, then multiplied by the allocation and existing
-annuity factor. One proceeds injection and carryover remain unchanged. Payments
-are deferred and allocation is hypothetical—not another cash inflow or an
-affordability certification.
+annuity factor. Principal and fixed annual service are frozen for this loan.
+One proceeds injection and carryover remain unchanged. Payments start in the
+following year and continue through maturity, deducted once from ordinary funds
+before replacement and expansion. Source receipts remain gross of financing use.
+Insufficient ordinary funds produce a modeled deficit, not an automatically
+reduced payment. Restricted loan proceeds cannot pay repayments or replacement.
+Full affordability remains unassessed and fees are excluded.
+
+Full contractual principal/interest schedules include years past the cash/coverage
+horizon; future cash is unavailable, never extrapolated. Outstanding principal
+is distinct from unspent proceeds. Disabling the Results loan view excludes
+both loan proceeds and their repayment effects, without clearing saved settings.
+
+One-time ordinary injection amounts enter the selected year's available funds
+in full. Recurring injections and financial commitments retain their previous
+spending-share/execution treatment. Saved numerical amounts are not compensated.
+
+Below-baseline collection targets get a nonblocking, area/service-specific
+warning. Target entry 90 stores 0.9, whereas 0.9 stores 0.009; the shared baseline
+fraction input 0.70 means 70%. Saved rates and Basic investment shares are never
+silently corrected.
 
 Annual revenue displays use the final scenario ledger, never differences between
 cumulative reruns. Household comparison bands follow the documented fixed order:

@@ -53,7 +53,10 @@ class AggregateRevenueTests(unittest.TestCase):
         r['new_sm'] = r['new_basic'] = .8
         self.assertAlmostEqual(annual_connection_cash(r, .011*.22, .011*.38, 2, 2, .8)['connection_net_cash'], 0)
         r['new_sm'] = .2
-        self.assertLess(annual_connection_cash(r, .011*.22, .011*.38, 2, 2, .8)['connection_net_cash'], 0)
+        row = annual_connection_cash(r, .011*.22, .011*.38, 2, 2, .8)
+        self.assertEqual(row['connection_net_cash'], 0)
+        self.assertLess(row['connection_signed_candidate_volume_million_m3'], 0)
+        self.assertGreater(row['connection_addition_only_adjustment_million_m3'], 0)
 
     def test_exact_attribution_examples(self):
         for overlap, expected in [(0, [320,110,260,1170,1860]), (20,[288,110,256,1152,1806])]:
@@ -104,7 +107,8 @@ class AggregateRevenueTests(unittest.TestCase):
             for prefix, sector in [('ws','water'),('san','sanitation')]:
                 d['connection_revenue'][sector]['enabled'] = bits[0]
                 for name, enabled in zip(('nrw','collection_efficiency','tariff'), bits[1:]):
-                    d['toggles'][prefix+'_'+name+'_enabled'] = enabled
+                    key = 'san_nrw_link_enabled' if prefix == 'san' and name == 'nrw' else prefix+'_'+name+'_enabled'
+                    d['toggles'][key] = enabled
             a = calculate(coerce_to_engine(d))
             d['toggles'] = dict(reversed(list(d['toggles'].items())))
             self.assertEqual(a, calculate(coerce_to_engine(d)))
@@ -115,7 +119,11 @@ class AggregateRevenueTests(unittest.TestCase):
                 self.assertEqual(sec['bau_hh'], pure[sk]['bau_hh'])
                 self.assertFalse(sec['connection_revenue']['effective'])
                 for i in range(len(a['years'])):
-                    total = sum(sec['scenario_'+k][i] for k in ('connection_net_cash','collection_cash','tariff_cash','nrw_net'))
+                    nrw_key = 'eligible_nrw_link_cash' if sk == 'sanitation' else 'nrw_net'
+                    total = sum(sec['scenario_'+k][i] for k in ('connection_net_cash','collection_cash','tariff_cash',nrw_key))
+                    self.assertGreaterEqual(sec['scenario_connection_net_cash'][i],0)
+                    self.assertGreaterEqual(sec['scenario_billed_volume_million_m3'][i],
+                                            sec['scenario_reference_billed_volume_million_m3'][i])
                     self.assertAlmostEqual(total, sec['scenario_additional_net_cash'][i])
                     self.assertAlmostEqual(total,
                         sec['scenario_collected_revenue'][i]-sec['scenario_reference_collected_revenue'][i]

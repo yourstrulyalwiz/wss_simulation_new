@@ -48,7 +48,7 @@ class ConnectionRevenueTests(unittest.TestCase):
         d['connection_revenue'] = {'water': configuration(billed_share_basic=0)}
         status = revenue_bases(d)['water']['connection']
         self.assertTrue(status['effective'], status)
-        self.assertEqual(status['configuration']['version'], 4)
+        self.assertEqual(status['configuration']['version'], 5)
         self.assertEqual(status['configuration']['new_billed_share_basic'], 0)
         self.assertNotIn('consumption_m3', status['calibration'])
         self.assertGreater(status['calibration']['baseline_coverage'], 0)

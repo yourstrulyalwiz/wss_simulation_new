@@ -1,5 +1,5 @@
 // Isolated Chromium frontend contract test. No server profiles or user's browser storage are changed.
-// Model equations are tested separately by the backend suite; responses here exercise the v4/v3 UI contract.
+// Model equations are tested separately by the backend suite; responses here exercise the v5/v4 UI contract.
 import assert from 'node:assert/strict';
 import { openChromium, sleep } from './chromium-client.mjs';
 const url = process.env.APP_URL || 'http://127.0.0.1:5000';
@@ -20,6 +20,9 @@ input.connection_revenue = {
     new_billed_share_basic: .3, new_billed_share_sm: .6, shared_assumption_note: '' },
 };
 input.revenue_bases = { water: bases.water.base, sanitation: bases.sanitation.base };
+input.revenue_bases.water.collection_ratio = .70;
+input.water_interventions.ce_target_ratio = .009;
+input.toggles.ws_collection_efficiency_enabled = true;
 input.utility_debt = { water: { enabled: false, schema_version: 2, mode: 'indicative_lump_sum',
   revenue_sources: ['collection', 'nrw'], allocation_share: .35, annual_real_interest_rate: .04,
   disbursement_year: input.period.baseline_year + 2, loan_term_years: 12 }, sanitation: { enabled: false } };
@@ -46,7 +49,7 @@ try {
         for (const sector of ['water', 'sanitation']) {
           const config = inputs.connection_revenue?.[sector] || {};
           const errors = config.enabled && config.new_billed_share_basic == null ? ['Basic expansion billed is required.'] : [];
-          data[sector].connection = { configuration: config, version: 4,
+          data[sector].connection = { configuration: config, version: 5,
             requested: !!config.enabled, effective: !!config.enabled && !errors.length,
             state: errors.length ? 'incomplete' : config.enabled ? 'effective' : 'off', errors,
             calibration: { baseline_coverage: .6, baseline_basic_share: .4, baseline_sm_share: .2,
@@ -59,8 +62,8 @@ try {
         const inputs = JSON.parse(options.body), data = structuredClone(modelFixture);
         for (const [sector, key, prefix] of [['water', 'water_supply', 'ws'], ['sanitation', 'sanitation', 'san']]) {
           const sec = data[key];
-          sec.scenario_revenue_reconciliation = {version: 3};
-          sec.connection_revenue = {version: 4, requested: !!inputs.connection_revenue?.[sector]?.enabled,
+          sec.scenario_revenue_reconciliation = {version: 4};
+          sec.connection_revenue = {version: 5, requested: !!inputs.connection_revenue?.[sector]?.enabled,
             effective: !!inputs.connection_revenue?.[sector]?.enabled};
           for (const [field, value] of [['connection_net_cash', inputs.connection_revenue?.[sector]?.enabled ? .1184 : 0],
             ['collection_cash', inputs.toggles?.[prefix + '_collection_efficiency_enabled'] ? .026 : 0],
@@ -94,7 +97,7 @@ try {
   await browser.evaluate(`${section}.querySelector('input[type="checkbox"]').click()`);
   await browser.waitFor(`${section}.querySelector('[role="status"]').textContent === 'Active'`, 'Feature was not confirmed active');
   await browser.waitFor(`window.__revenueRequests.at(-1)?.connection_revenue?.water?.new_billed_share_basic === .5`, '50% did not store .50');
-  assert.equal(await browser.evaluate(`window.__revenueRequests.at(-1).connection_revenue.water.version`), 4);
+  assert.equal(await browser.evaluate(`window.__revenueRequests.at(-1).connection_revenue.water.version`), 5);
   assert.equal(await browser.evaluate(`window.__revenueRequests.at(-1).connection_revenue.water.marginal_cost`), undefined);
   await enter('Basic expansion billed (%)', '');
   await browser.waitFor(`${section}.textContent.includes('Incomplete')`, 'Cleared shares should be incomplete');
@@ -107,6 +110,26 @@ try {
   };
   await tab('Intervention Design');
   await browser.waitFor(`!!${section}`, 'Shared form missing in Intervention Design');
+  await browser.evaluate(`(() => {
+    const label = [...document.querySelectorAll('label')].find(el => el.textContent.trim() === 'Collection efficiency');
+    label?.parentElement?.querySelector('button')?.click();
+  })()`);
+  await browser.waitFor(`!!document.querySelector('[data-testid="collection-below-baseline-warning"]')`,
+    'Below-baseline collection warning missing for the active water scope');
+  assert.match(await browser.evaluate(`document.querySelector('[data-testid="collection-below-baseline-warning"]').textContent`),
+    /Urban water: the target collection rate is 0.9%, below the baseline of 70%/);
+  assert.equal(await browser.evaluate(`document.body.textContent.includes('0.70 means 70%')`), true);
+  const targetInput = `([...document.querySelectorAll('label')].find(el => el.textContent.trim().startsWith('Target collection ratio'))?.parentElement?.querySelector('input'))`;
+  for (const [entry, stored] of [[90, .9], [.9, .009]]) {
+    await browser.evaluate(`(() => {
+      const input = ${targetInput};
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(String(entry))});
+      input.dispatchEvent(new Event('input', {bubbles:true}));
+      input.dispatchEvent(new Event('change', {bubbles:true}));
+    })()`);
+    await browser.waitFor(`Math.abs(JSON.parse(localStorage.getItem('wss_working_bundle')).inputs.water_interventions.ce_target_ratio - ${stored}) < 1e-10`,
+      `Target entry ${entry} did not store its percentage fraction`);
+  }
   assert.equal(await browser.evaluate(`${section}.querySelector('[aria-label="Basic expansion billed (%)"]').value`), '0');
   await browser.waitFor(`!!document.querySelector('[data-testid="revenue-source-chart"] table')`, 'Revenue source table missing');
   assert.equal(await browser.evaluate(`document.querySelector('[data-testid="revenue-source-chart"]').textContent.includes('Revenue from new connections')`), true);
@@ -137,7 +160,7 @@ try {
   await browser.evaluate(`document.querySelector('[aria-label="Eligible source: Revenue from new connections"]').click()`);
   await sleep(500);
   assert.equal(await browser.evaluate(`document.querySelector('[aria-label="Eligible source: Revenue from new connections"]').checked`), true);
-  assert.equal(await browser.evaluate(`document.body.textContent.includes('repayment accounting deferred')`), true);
+  assert.equal(await browser.evaluate(`document.body.textContent.includes('Fixed annual principal-and-interest obligations')`), true);
   assert.equal(browser.errors.length, 0, JSON.stringify(browser.errors));
-  console.log('Isolated browser v4/v3 contract: Data Inputs → Intervention Design → Loan Funding, migration, percentage conversion/zeros, incomplete status, shared form, final-source table and preserved loan selection passed.');
+  console.log('Isolated browser v5/v4 contract: Data Inputs → Intervention Design → Loan Funding, migration, percentage conversion/zeros, incomplete status, shared form, final-source table and preserved loan selection passed.');
 } finally { browser.close(); }

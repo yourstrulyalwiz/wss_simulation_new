@@ -811,7 +811,7 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
               <strong>Intervention Design</strong> — Pick Water Supply or Sanitation, switch each intervention on or off with its toggle, and set its parameters, which include collection efficiency, NRW reduction, budget execution improvement, capex efficiency (a unit-cost discount), optimised technology selection, tariff reform, and microfinance (with a self-finance carve-out and a means-based grant inside it). Add your own under <em>Custom Interventions</em> at the bottom. The impact graph updates live.
             </li>
             <li style={{ marginBottom: 6 }}>
-              <strong>Loan funding</strong> — Carry the selected area’s intervention scenario into one indicative loan proceeds injection. Choose an eligible source, reference year, pooled allocation, real interest rate and term. Repayment accounting is deferred; compare coverage with and without indicative loan funding.
+              <strong>Loan funding</strong> — Carry the selected area’s intervention scenario into one indicative proceeds injection. Choose eligible sources, reference year, pooled allocation, real interest rate and term. Fixed annual principal-and-interest obligations are deducted from ordinary funding beginning the year after injection; compare coverage with and without loan funding.
             </li>
             <li style={{ marginBottom: 0 }}>
               <strong>Results Dashboard</strong> — Compare BAU and intervention scenarios. Toggle interventions and adjust the target years to see the impact on coverage and the financing gap. Export the whole scenario as PowerPoint, Excel, or CSV — or download any individual chart (PNG / JPG / Excel) or table (CSV / Excel) from its own button.
@@ -1202,7 +1202,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
       <div>
         <p style={{ margin: '0 0 6px' }}>Loan funding carries the intervention scenario forward without changing intervention settings. Select collection efficiency, tariff reform and/or NRW source cash for one selected reference year; selections do not switch on reforms. Water NRW net remains separate from eligible linked sanitation net cash, which is signed independently.</p>
         <p style={{ margin: '0 0 6px' }}>The allocation and annual real rate over an explicit positive whole-year term size one indicative proceeds amount using the selected year’s signed cash pool. Loan proceeds enter restricted investment cash once, with unused proceeds carried forward.</p>
-        <p style={{ margin: '0 0 6px' }}>Indicative loan proceeds — repayment accounting deferred. Loan sizing uses the selected year’s additional net cash and assumes equal annual repayments. Principal and interest payments are not deducted from model funding in this version.</p>
+        <p style={{ margin: '0 0 6px' }}>Loan size uses selected additional revenue in the reference year. Fixed annual principal-and-interest obligations are deducted from ordinary available funds from the following year through maturity. Full affordability is not assessed; fees are excluded.</p>
         <p style={{ margin: 0 }}>Revenue from new connections is a selectable loan source at baseline rates. The frozen no-loan reference includes enabled coverage expansion, NRW and reform settings; loan-funded future connections do not resize this original loan. The annual table distinguishes reference/no-debt values from financed-scenario cash and replacement obligations.</p>
       </div>
     ),

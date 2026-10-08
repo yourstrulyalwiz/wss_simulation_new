@@ -58,7 +58,7 @@ class DebtServicingTests(unittest.TestCase):
     def test_later_shortfall_does_not_resize_indicative_loan(self):
         debt = self.solve([20, 8, 4, 30])
         self.assertAlmostEqual(debt['accepted_principal'], 30)
-        self.assertEqual(debt['repayment_accounting'], 'deferred')
+        self.assertEqual(debt['repayment_accounting'], 'fixed_annuity_modeled')
         self.assertNotIn('limiting_repayment_year', debt)
 
     def test_zero_start_and_grace_interest_shortfall(self):
@@ -72,7 +72,7 @@ class DebtServicingTests(unittest.TestCase):
                 self.assertGreater(debt['accepted_principal'], 0)
                 self.assertFalse(debt['verified_feasible'])
                 self.assertEqual(debt['feasibility_status'], 'not_assessed')
-                self.assertNotIn('total_principal_repaid', debt)
+                self.assertAlmostEqual(debt['total_principal_repaid'], debt['accepted_principal'])
                 self.assertNotIn('schedule', debt)
 
     def test_candidate_replacement_does_not_resize_frozen_reference(self):
@@ -115,7 +115,7 @@ class DebtServicingTests(unittest.TestCase):
             rows = debt['annual_injection']
             self.assertEqual(sum(r['disbursement'] > 0 for r in rows), 1)
             self.assertAlmostEqual(sum(r['disbursement'] for r in rows), debt['accepted_principal'])
-            self.assertTrue(all(v == 0 for v in sec['scenario_utility_debt_principal_payment']))
+            self.assertGreater(sum(sec['scenario_utility_debt_principal_payment']), 0)
 
     def test_customer_feedback_changes_reforms_but_connection_cash_stays_excluded(self):
         _, result = self.scenario(connection=True)
@@ -124,7 +124,7 @@ class DebtServicingTests(unittest.TestCase):
             self.assertTrue(sec['scenario_connection_revenue']['effective'])
             debt = sec['scenario_utility_debt']
             self.assertTrue(sec['scenario_connection_revenue']['effective'])
-            self.assertTrue(any(abs(v) > 0 for v in sec['scenario_connection_net_cash']))
+            self.assertTrue(all(v >= 0 for v in sec['scenario_connection_net_cash']))
             self.assertAlmostEqual(debt['selected_signed_pool'],
                                    sum(debt['reference_source_cash'][s] for s in debt['revenue_sources']))
             self.assertNotIn('connections', debt['revenue_sources'])

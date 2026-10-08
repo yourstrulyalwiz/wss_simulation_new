@@ -429,7 +429,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                 if fs.get('injection_mode') == 'recurring' and iy <= y <= ie:
                     injection_cash[t] = amt * financial_capex_factor
                 elif fs.get('injection_mode') != 'recurring' and y == iy:
-                    injection_cash[t] = amt * financial_capex_factor
+                    injection_cash[t] = amt
             financial_cash[t] = extra_full * financial_capex_factor
     # "Budget used" = the capital that becomes service each year (the from_cost cost-of-service budget,
     # or the user's per-year override). This is the DRIVER of the baseline BAU. capex_pct_eff/exec_eff
@@ -781,9 +781,12 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             own_sales = min(own_sales, tagged_overlap * hh_share)
         sales = own_sales + float(link_vol[t])
         overlap_limit = recovered if nrw_value_basis != 'tariff' else own_sales
-        overlap = min(raw, tagged_overlap, overlap_limit) + float(link_overlap[t])
-        if overlap > raw + 1e-10 or link_overlap[t] > link_vol[t] + 1e-10:
+        eligible_overlap = min(tagged_overlap, overlap_limit) + float(link_overlap[t])
+        if link_overlap[t] < 0 or link_overlap[t] > link_vol[t] + 1e-10 or not np.isfinite(eligible_overlap):
             raise RevenueInputError('Tagged sanitation/NRW overlap exceeds eligible billed volume.')
+        increment = max(0.0, raw-reference)
+        overlap = min(increment, eligible_overlap) if connection_runtime else 0.0
+        revenue_diagnostics['connection_unapplied_overlap_volume_million_m3'][t] = eligible_overlap-overlap
         row = reconcile_revenue(
             raw, reference, sales, overlap, tariff_current, ce_current_ratio,
             tariff_current + tariff_add[t], ce_current_ratio + ce_add_ratio[t],
@@ -791,7 +794,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             nrw_implementation_cost[t],
             recovered * nrw_value_unit if nrw_value_basis != 'tariff' else 0.0)
         if nrw_value_basis != 'tariff':
-            row['nrw_avoided_sales_adjustment'] = min(raw, tagged_overlap, recovered)
+            row['nrw_avoided_sales_adjustment'] = min(increment, tagged_overlap, recovered)
         for key in DIAGNOSTIC_FIELDS:
             if key in row:
                 revenue_diagnostics[key][t] = row[key]
@@ -1087,7 +1090,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         **{key: values.tolist() for key, values in revenue_diagnostics.items()},
         **{key: values.tolist() for key, values in flow_diagnostics.items()},
         'revenue_reconciliation': {
-            'version': 3, 'attribution': ATTRIBUTION,
+            'version': 4, 'attribution': ATTRIBUTION,
             'nrw_sales_assumption': nrw_sales_assumption,
             **(revenue_reconciliation_meta or {}),
         },
@@ -1106,6 +1109,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'planned_annual': planned_annual.tolist(),
         'bau_available': bau_available.tolist(),
         'available_total': available_total.tolist(),
+        'available_after_debt_service': (available_total-debt_service_arr).tolist(),
         'billed_volume_million_m3': billed_volume.tolist(),
         'baseline_collected_revenue': baseline_revenue.tolist(),
         'collected_revenue': scenario_revenue.tolist(),

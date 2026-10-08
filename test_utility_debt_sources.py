@@ -130,18 +130,21 @@ class UtilityDebtSourcesTests(unittest.TestCase):
                 self.assertGreater(debt['accepted_principal'], 0)
                 self.assertFalse(debt['verified_feasible'])
                 self.assertNotIn('schedule', debt)
-                self.assertNotIn('total_principal_repaid', debt)
-                self.assertEqual(debt['repayment_accounting'], 'deferred')
+                self.assertAlmostEqual(debt['total_principal_repaid'], debt['accepted_principal'])
+                self.assertEqual(debt['repayment_accounting'], 'fixed_annuity_modeled')
                 self.assertAlmostEqual(debt['selected_signed_pool'],
                                        debt['reference_source_cash']['collection'] + debt['reference_source_cash']['tariff'])
-                self.assertTrue(all(v == 0 for v in result[sector]['scenario_utility_debt_service']))
+                values = result[sector]['scenario_utility_debt_service']
+                first = result['years'].index(debt['reference_year'])
+                self.assertTrue(all(v == 0 for v in values[:first+1]))
+                self.assertTrue(all(v == debt['fixed_annual_debt_service'] for v in values[first+1:]))
 
     def test_exports_and_area_aggregation(self):
         sec = self.scenario(['tariff'])['water_supply']
         debt = sec['scenario_utility_debt']
         summary, annual = _utility_debt_tables(sec, 'CDF')
         self.assertIn(['Selected intervention sources', 'tariff', None], summary[1])
-        self.assertEqual(len(annual[1]), len(debt['annual_injection']))
+        self.assertEqual(len(annual[1]), len({r['year'] for r in debt['annual_injection']} | {r['year'] for r in debt['repayment_schedule']}))
         self.assertTrue(any('Opening unspent' in h for h in annual[0]))
         total = _aggregate_utility_debt([debt, debt])
         self.assertAlmostEqual(total['accepted_principal'], 2*debt['accepted_principal'])

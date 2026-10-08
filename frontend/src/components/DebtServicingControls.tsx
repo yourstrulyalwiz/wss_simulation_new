@@ -1,5 +1,5 @@
 import React from 'react';
-import { migrateLoanFundingConfig, validateLoanFundingConfig } from '../loanFunding';
+import { FUNDING_RECALCULATION_NOTICE, migrateLoanFundingConfig, validateLoanFundingConfig } from '../loanFunding';
 
 const SOURCES = [
   ['collection', 'Collection efficiency'],
@@ -23,7 +23,7 @@ export default function DebtServicingControls({ inputs, sector, scopeLabel, onCh
   const end = Number(period.forecast_end_year || start);
   const years = Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
   const debt = migrateLoanFundingConfig(inputs.utility_debt?.[sector] || {
-    schema_version: 2, mode: 'indicative_lump_sum', revenue_sources: [],
+    schema_version: 3, mode: 'indicative_lump_sum', revenue_sources: [],
   });
   const sourceKeys = Array.isArray(debt.revenue_sources)
     ? debt.revenue_sources.filter((key: string) => SOURCES.some(([source]) => source === key))
@@ -32,7 +32,7 @@ export default function DebtServicingControls({ inputs, sector, scopeLabel, onCh
     onSectionFocus?.('utility_debt');
     onChange({
       ...inputs,
-      utility_debt: { ...(inputs.utility_debt || {}), [sector]: { ...debt, [key]: value, schema_version: 2, mode: 'indicative_lump_sum' } },
+      utility_debt: { ...(inputs.utility_debt || {}), [sector]: { ...debt, [key]: value, schema_version: 3, mode: 'indicative_lump_sum' } },
     });
   };
   const selectedStartYear = years.includes(Number(debt.disbursement_year)) ? Number(debt.disbursement_year) : '';
@@ -72,7 +72,7 @@ export default function DebtServicingControls({ inputs, sector, scopeLabel, onCh
       <div className="debt-panel-heading">
         <div>
           <h2>Loan funding</h2>
-          <p>Size one indicative proceeds injection from a selected year’s intervention cash.</p>
+          <p>Size a one-time proceeds injection from selected reference-year cash, then deduct fixed annual repayments from ordinary funds.</p>
         </div>
         <span className="debt-step-mark" aria-hidden="true">04</span>
       </div>
@@ -134,16 +134,16 @@ export default function DebtServicingControls({ inputs, sector, scopeLabel, onCh
         </div>
         {!debt.enabled && <div className="debt-disabled-note">Borrowing is excluded. Blank rate and term do not affect standard results.</div>}
         {Object.entries(errors).map(([key, message]) => <div className="debt-invalid-year" role="status" key={key}>{message}</div>)}
-        {(debt.migration_notice ?? debt.migration_note) && <div className="debt-disabled-note">{debt.migration_notice ?? debt.migration_note}</div>}
+        {(debt.migration_notice ?? debt.migration_note) && <div className="debt-disabled-note">Preserved saved migration note: {debt.migration_notice ?? debt.migration_note}</div>}
         {invalidStoredStartYear && !debt.enabled && <div className="debt-invalid-year" role="status">
           Saved loan start year {String(debt.disbursement_year)} is outside the current forecast window. Choose a listed year to update it.
         </div>}
 
-        <div className="debt-first-payment"><span>Repayment accounting</span><strong>Deferred</strong>
-          <small>Rate and term size indicative proceeds only; no principal or interest deduction is modeled.</small></div>
+        <div className="debt-first-payment"><span>Repayment accounting</span><strong>Fixed annual</strong>
+          <small>First scheduled payment is the year after injection and continues through the selected term. Affordability is not assessed.</small></div>
       </section>
       <div className="debt-control-footnote">
-        The model calculates the selected-year reference pool and indicative principal. The frontend only presents its outputs.
+        {FUNDING_RECALCULATION_NOTICE} The model calculates the frozen reference pool, loan schedule and resulting funding ledger.
       </div>
     </aside>
   );

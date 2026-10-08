@@ -1,4 +1,6 @@
 export const NRW_REVENUE_VERSION = 3;
+// Output reconciliation contract; distinct from the lower-level NRW input integration switches.
+export const REVENUE_RECONCILIATION_VERSION = 4;
 
 /**
  * Version saved NRW revenue assumptions without replacing user-entered values.
@@ -78,6 +80,10 @@ export const NRW_DIAGNOSTIC_FIELDS = [
   { key: 'connection_volume_million_m3', label: 'Reconciled connection volume', unit: 'million m³/year', kind: 'volume' },
   { key: 'nrw_avoided_sales_adjustment', label: 'Avoided-sales volume adjustment', unit: 'million m³/year', kind: 'volume' },
   { key: 'connection_scale', label: 'Aggregate coverage-expansion scale', unit: 'fraction', kind: 'rate' },
+  { key: 'connection_signed_scale', label: 'Signed coverage-expansion scale before floor', unit: 'fraction', kind: 'rate' },
+  { key: 'connection_signed_candidate_volume_million_m3', label: 'Signed connection-volume candidate before floor', unit: 'million m³/year', kind: 'volume' },
+  { key: 'connection_addition_only_adjustment_million_m3', label: 'Addition-only volume adjustment', unit: 'million m³/year', kind: 'volume' },
+  { key: 'connection_positive_candidate_volume_million_m3', label: 'Positive candidate before overlap', unit: 'million m³/year', kind: 'volume' },
   { key: 'connection_aggregate_volume_proxy', label: 'Aggregate volume-scaling proxy', unit: 'm³/reference served-household equivalent', kind: 'rate' },
   { key: 'nrw_sales_volume', label: 'NRW incremental billed sales', unit: 'million m³/year', kind: 'volume' },
   { key: 'nrw_overlap_volume', label: 'Identified connection overlap', unit: 'million m³/year', kind: 'volume' },

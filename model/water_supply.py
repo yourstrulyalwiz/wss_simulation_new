@@ -21,8 +21,7 @@ from model.expansion_ledger import ExpansionLedger
 from model.service_gaps import assess_service_gaps, reconcile_expansion_gaps
 from model.utility_revenue import collected_revenue, volume_path, number, RevenueInputError
 from model.service_history import historical_households, historical_transition_counts
-from model.connection_revenue import prepare_connection, annual_connection_cash, DIAGNOSTIC_FIELDS
-from model.billing_cohorts import BillingCohorts
+from model.connection_revenue import prepare_connection, annual_connection_cash, tagged_nrw_volume, DIAGNOSTIC_FIELDS
 from model.revenue_reconciliation import reconcile_revenue, RECONCILIATION_FIELDS, ATTRIBUTION
 from model.service_cohorts import EligibleCohorts
 
@@ -547,35 +546,19 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                 tr = tariff_target if y >= tariff_start else tariff_current
             tariff_add[t] = tr - tariff_current
     tariff_cash = np.zeros(n)                         # additional tariff revenue → capex, per forecast year
-    billed_volume = np.zeros(n) if revenue_volume is None else np.asarray(revenue_volume)
+    billed_volume = np.zeros(n) if revenue_volume is None else np.asarray(revenue_volume).copy()
     baseline_revenue, scenario_revenue, collection_cash, tariff_cash = collected_revenue(
         billed_volume, tariff_current, ce_current_ratio, tariff_add, ce_add_ratio)
     connection_status, connection_runtime = prepare_connection(
         connection_config, revenue_base, ctx, bau)
     revenue_diagnostics = {key: np.zeros(n) for key in DIAGNOSTIC_FIELDS}
     revenue_diagnostics['reference_billed_volume_million_m3'][:] = billed_volume
+    revenue_diagnostics['baseline_billed_volume_million_m3'][:] = billed_volume
     revenue_diagnostics['reference_collected_revenue'][:] = baseline_revenue
     revenue_diagnostics['additional_net_cash'][:] = collection_cash + tariff_cash
     revenue_diagnostics['applicable_tariff'][:] = tariff_current + tariff_add
     revenue_diagnostics['applicable_collection_ratio'][:] = ce_current_ratio + ce_add_ratio
-    if connection_runtime:
-        for t in range(bi + 1):
-            row = annual_connection_cash(connection_runtime, bau[0, t], bau[1, t], t,
-                                         tariff_current, ce_current_ratio)
-            for key in ('connection_billed_households', 'household_billed_volume_million_m3',
-                        'nonhousehold_billed_volume_million_m3', 'connection_billed_basic_households',
-                        'connection_billed_sm_households', 'connection_reference_billed_households',
-                        'connection_annual_cost_per_household', 'connection_equivalent_marginal_cost'):
-                revenue_diagnostics[key][t] = row[key]
-            if t == bi:
-                billed_volume[t] = row['billed_volume_million_m3']
-                baseline_revenue[t] = scenario_revenue[t] = row['collected_revenue']
-                revenue_diagnostics['reference_billed_volume_million_m3'][t] = billed_volume[t]
-                revenue_diagnostics['reference_collected_revenue'][t] = baseline_revenue[t]
-    billing = (BillingCohorts(bau[0, bi], bau[1, bi], connection_runtime['fsm'],
-                             connection_runtime['fb'], connection_runtime['new_sm'],
-                             connection_runtime['new_basic']) if connection_runtime else None)
-    previous_billing_flows = {}
+    retained_nrw_origin = 0.0  # delivery origin only, not historical billed-customer calibration
 
     # ── NRW reduction (test2) ───────────────────────────────────────────────────────────────────────
     # Reduce non-revenue water from nrw_current → nrw_target over start→target year. The recovered
@@ -778,10 +761,10 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         if connection_runtime:
             row = annual_connection_cash(
                 connection_runtime, bau[0, t - 1], bau[1, t - 1], t,
-                tariff_current + tariff_add[t], ce_current_ratio + ce_add_ratio[t], billing)
-            row.update(previous_billing_flows)
+                tariff_current + tariff_add[t], ce_current_ratio + ce_add_ratio[t])
             for key in DIAGNOSTIC_FIELDS:
-                revenue_diagnostics[key][t] = row[key]
+                if key in row:
+                    revenue_diagnostics[key][t] = row[key]
             billed_volume[t] = row['billed_volume_million_m3']
             baseline_revenue[t] = row['baseline_collected_revenue']
             scenario_revenue[t] = row['collected_revenue']
@@ -791,11 +774,11 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         reference = float(revenue_diagnostics['reference_billed_volume_million_m3'][t])
         tagged_overlap = 0.0
         if connection_runtime:
-            tagged_overlap = billing.nrw_billed * connection_runtime['q']
+            tagged_overlap = tagged_nrw_volume(connection_runtime, retained_nrw_origin, t)
         recovered = float(recovered_volume[t])
         own_sales = recovered if nrw_value_basis == 'tariff' else 0.0
         if nrw_sales_assumption == 'household_only':
-            own_sales = min(own_sales, tagged_overlap)
+            own_sales = min(own_sales, tagged_overlap * hh_share)
         sales = own_sales + float(link_vol[t])
         overlap_limit = recovered if nrw_value_basis != 'tariff' else own_sales
         overlap = min(raw, tagged_overlap, overlap_limit) + float(link_overlap[t])
@@ -804,9 +787,11 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         row = reconcile_revenue(
             raw, reference, sales, overlap, tariff_current, ce_current_ratio,
             tariff_current + tariff_add[t], ce_current_ratio + ce_add_ratio[t],
-            connection_runtime['v'] if connection_runtime else 0.0,
+            0.0,
             nrw_implementation_cost[t],
             recovered * nrw_value_unit if nrw_value_basis != 'tariff' else 0.0)
+        if nrw_value_basis != 'tariff':
+            row['nrw_avoided_sales_adjustment'] = min(raw, tagged_overlap, recovered)
         for key in DIAGNOSTIC_FIELDS:
             if key in row:
                 revenue_diagnostics[key][t] = row[key]
@@ -960,9 +945,12 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                 bau[r, t] = max(0.0, bau[r, t] + resid * share)
             for r in range(5):
                 unadj[r] = bau[r, t]                                   # keep the unadjusted vector in step
-        if billing is not None:
-            previous_billing_flows = billing.close(
-                new_basic, nrw_upg, new_sm + mf_flow[t] + grant_flow[t], bau[0, t], bau[1, t])
+        # Retain actual NRW origins, with proportional attrition if SM stock shrinks.
+        expected_sm = bau[0, t - 1] + nrw_upg + new_sm + mf_flow[t] + grant_flow[t]
+        retained_nrw_origin += nrw_upg
+        if expected_sm > 0 and bau[0, t] < expected_sm:
+            retained_nrw_origin *= max(0.0, bau[0, t]) / expected_sm
+        retained_nrw_origin = min(retained_nrw_origin, max(0.0, bau[0, t]))
         # Gross funded asset roll-forward, deliberately replacing the workbook's
         # depreciating-stock convention. Replacement does not duplicate assets.
         external_cost = (mf_flow[t] + grant_flow[t]) * cost_sm_t[t]
@@ -1099,7 +1087,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         **{key: values.tolist() for key, values in revenue_diagnostics.items()},
         **{key: values.tolist() for key, values in flow_diagnostics.items()},
         'revenue_reconciliation': {
-            'version': 2, 'attribution': ATTRIBUTION,
+            'version': 3, 'attribution': ATTRIBUTION,
             'nrw_sales_assumption': nrw_sales_assumption,
             **(revenue_reconciliation_meta or {}),
         },
@@ -1349,7 +1337,7 @@ def calculate_water_supply(inputs, ctx, utility_debt_execution=None):
         nrw_target_year=int(getattr(nrw, 'nrw_target_year', 0) or 0),
         nrw_current=float(getattr(nrw, 'nrw_current_pct', 0.0) or 0.0),
         nrw_target=float(getattr(nrw, 'nrw_target_pct', 0.0) or 0.0),
-        nrw_physical=float(getattr(nrw, 'nrw_physical_loss_pct', 0.5) or 0.5),
+        nrw_physical=float(nrw.nrw_physical_loss_pct if nrw.nrw_physical_loss_pct is not None else 0.5),
         nrw_vol_m3yr=nrw_vol_m3yr,
         nrw_vol_m3day=nrw_vol_m3day,
         nrw_water_per_upgrade=float(getattr(nrw, 'nrw_water_per_upgrade', 0.0) or 0.0),
@@ -1359,10 +1347,9 @@ def calculate_water_supply(inputs, ctx, utility_debt_execution=None):
         revenue_reconciliation_meta={
             'legacy_nrw_tariff': nrw.nrw_tariff,
             'shared_tariff': inputs.revenue_bases['water']['tariff'],
-            'legacy_rate_conflict': (nrw.nrw_value_basis == 'tariff' and
-                not np.isclose(nrw.nrw_tariff, inputs.revenue_bases['water']['tariff'])),
+            'legacy_rate_conflict': False,
             'migration_notice': (
-                'Shared rates are authoritative; differing legacy NRW tariff retained for review. '
+                'Shared baseline rates are authoritative; legacy NRW tariff is inactive audit metadata. '
                 'Legacy full-recovery valuation is an explicit all-recovered-sold assumption.'),
         },
         nrw_capex_unit_m3day=float(getattr(nrw, 'nrw_capex_unit_cost_local', 0.0) or 0.0),

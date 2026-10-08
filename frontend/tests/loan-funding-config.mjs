@@ -44,6 +44,11 @@ assert.equal(fresh.annual_real_interest_rate, undefined);
 assert.equal(fresh.loan_term_years, null);
 assert.deepEqual(validateLoanFundingConfig(fresh), {});
 const period = { baseline_year: 2025, forecast_end_year: 2040 };
+assert.deepEqual(migrateLoanFundingConfig({ revenue_sources: 'all' }).revenue_sources, ['collection', 'tariff', 'nrw']);
+assert.deepEqual(migrateLoanFundingConfig({ revenue_sources: ['collection', 'nrw'] }).revenue_sources, ['collection', 'nrw']);
+assert.deepEqual(validateLoanFundingConfig({ enabled: true, disbursement_year: 2030, allocation_share: .35,
+  revenue_sources: ['connections', 'nrw'], annual_real_interest_rate: 0, loan_term_years: 12 }, period), {});
+assert.ok(validateLoanFundingConfig({ revenue_sources: ['connections', 'connections'] }).revenue_sources);
 const positivePool = { enabled: true, disbursement_year: 2030, allocation_share: 0.5, revenue_sources: ['collection'] };
 assert.ok(validateLoanFundingConfig(positivePool, period).annual_real_interest_rate);
 assert.ok(validateLoanFundingConfig({ ...positivePool, annual_real_interest_rate: 0, loan_term_years: 2.5 }, period).loan_term_years);

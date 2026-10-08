@@ -1,7 +1,7 @@
 type AreaMode = {
   area: string;
   requested: boolean;
-  effective: 'connection-based' | 'exogenous' | 'unknown';
+  effective: 'aggregate coverage expansion' | 'connection-based (legacy)' | 'exogenous' | 'incomplete' | 'unknown';
   errors: string[];
 };
 
@@ -19,19 +19,22 @@ export function aggregateWeightedRevenueRate(
     : null;
 }
 
-function effectiveMode(value: any, requested: boolean): AreaMode['effective'] {
+function effectiveMode(value: any, requested: boolean, version?: number, state?: string): AreaMode['effective'] {
   const mode = String(value ?? '').toLowerCase().replace(/[_ ]/g, '-');
-  if (value === true || mode.includes('connection') || mode === 'dynamic') return 'connection-based';
+  if (state === 'off' || mode === 'off') return 'exogenous';
+  if (state === 'incomplete') return 'incomplete';
+  if (value === true || mode.includes('connection') || mode === 'dynamic' || mode.includes('aggregate'))
+    return version === 4 ? 'aggregate coverage expansion' : 'connection-based (legacy)';
   if (value === false || mode.includes('exogenous')) return 'exogenous';
   return requested ? 'unknown' : 'exogenous';
 }
 
 export function connectionRevenueAreaModes(results: any[], inputs: any[], resultSector: string, sector: 'water' | 'sanitation'): AreaMode[] {
   return results.map((result, index) => {
-    const metadata = result?.[resultSector]?.connection_revenue;
+    const metadata = result?.[resultSector]?.scenario_connection_revenue ?? result?.[resultSector]?.connection_revenue;
     const config = inputs[index]?.connection_revenue?.[sector];
     const requested = metadata?.requested ?? !!config?.enabled;
-    const effective = effectiveMode(metadata?.effective, requested);
+    const effective = effectiveMode(metadata?.effective, requested, Number(metadata?.version ?? metadata?.configuration?.version ?? metadata?.config?.version), metadata?.state);
     const area = inputs[index]?.country_config?.area ||
       (inputs.length > 1 ? (index === 0 ? 'Urban' : index === 1 ? 'Rural' : `Area ${index + 1}`)
         : inputs[index]?.country_config?.country || 'Selected area');
@@ -61,12 +64,12 @@ export function connectionRevenueModeText(areaConfigurations: AreaMode[]) {
   const perArea = areaConfigurations.map(area => ({
     area: area.area,
     label: area.effective === 'unknown'
-      ? area.requested ? 'connection-based requested; effective not reported' : 'exogenous'
+      ? area.requested ? 'coverage expansion requested; effective not reported' : 'exogenous'
       : area.effective,
   }));
   return {
     ...summary,
-    text: `Effective revenue mode: ${summary.label}${perArea.length > 1 || summary.mixed
+    text: `Pure baseline: exogenous · New-connection revenue: ${summary.label}${perArea.length > 1 || summary.mixed
       ? ` · Per area: ${perArea.map(area => `${area.area}: ${area.label}`).join(' · ')}` : ''}`,
   };
 }

@@ -1,7 +1,8 @@
 import React, { useEffect, useId, useState } from 'react';
 import ConnectionRevenue from './ConnectionRevenue';
+import { resolveRevenueBases } from '../api';
 
-export const REVENUE_ATTRIBUTION = 'Connection sales are attributed at reference rates. Collection applies before tariff on non-NRW volumes; the full joint tariff/collection effect on NRW sales is assigned to NRW. These source contributions reconcile to scenario revenue, but standalone intervention reruns need not sum to the joint scenario.';
+export const REVENUE_ATTRIBUTION = 'Version 3 revenue attribution: new connections and NRW sales use baseline tariff and collection rates. Collection improvement and tariff reform apply to the full reconciled volume, including these sales. Signed NRW cash includes implementation costs once. Revenue-source cash comes from the final scenario ledger; cumulative household bands follow the fixed comparison order, not cash attribution.';
 
 export function restoreBlankRevenueBases(inputs: any, sectors = ['water', 'sanitation']) {
   const revenue_bases = { ...inputs.revenue_bases };
@@ -85,7 +86,7 @@ export function RevenueBaseEditor({ inputs, onChange, sector }: { inputs: any; o
   const set = (field: string, value: any) => onChange(updateRevenueBaseField(inputs, sector, field, value));
   return <fieldset data-revenue-sector={sector} style={{ gridColumn: '1 / -1', border: '1px solid #ccd5df', borderRadius: 6, padding: 12, minWidth: 0 }}>
     <legend>Shared billed-revenue base — {sector === 'water' ? 'Water supply' : 'Sanitation'}</legend>
-    <p style={{ fontSize: 12 }}>These shared rates are authoritative for NRW sales and are also used by collection and tariff reform. When calculation metadata reports version 2, identified NRW overlap is reconciled with connection billing before collected revenue is calculated.</p>
+    <p style={{ fontSize: 12 }}>These baseline rates are authoritative for new-connection and NRW sales. Selected collection and tariff reforms earn separate contributions on the full reconciled volume. Identified overlap is removed once before receipts are calculated.</p>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
       {[
         ['volume_mld', 'Billed volume (million litres/day)'],
@@ -136,11 +137,8 @@ export default function RevenueReconciliation({ inputs, onChange, area, silent =
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch('/api/revenue-bases', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: key, signal: controller.signal });
-        const data = await response.json();
+        const data = await resolveRevenueBases(inputs, controller.signal);
         if (controller.signal.aborted) return;
-        if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Invalid revenue inputs.');
         let next = inputs;
         for (const sector of ['water', 'sanitation']) {
           if (!inputs.revenue_bases?.[sector] && data?.[sector]?.base) next = save(next, sector, data[sector].base);

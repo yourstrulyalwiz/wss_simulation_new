@@ -22,28 +22,12 @@ from model.inputs import (
 
 # Default 5-bracket income distribution shared with the microfinance + grant lever (quintiles; monthly
 def _connection_sources(fe):
-    """Attach the current selected area's source, never a future-customer recalibration."""
-    import copy
-    configs = copy.deepcopy(fe.get('connection_revenue', {}))
+    """Migrate independent configurations without obsolete operating-expenditure gates."""
+    from model.connection_revenue import migrate_connection
+    configs = fe.get('connection_revenue', {})
     if not isinstance(configs, dict):
         return configs
-    country = fe.get('country_config') or {}
-    for sector in ('water', 'sanitation'):
-        cfg = configs.get(sector)
-        if not isinstance(cfg, dict):
-            continue
-        original = fe.get(sector + '_interventions') or {}
-        cfg['operating_expenditure_source'] = {
-            'expenditure': original.get('tariff_op_expenditure'),
-            'baseline_year': (original.get('tariff_op_expenditure_reference_year')
-                              if original.get('tariff_op_expenditure_reference_year') is not None
-                              else (fe.get('period') or {}).get('baseline_year')),
-            'currency': str(country.get('currency') or '').strip().upper(),
-            'currency_basis': original.get('tariff_op_expenditure_currency_basis') or 'real_raw',
-            'sector': sector,
-            'area': str(country.get('area') or '').strip().lower(),
-        }
-    return configs
+    return {s: migrate_connection(configs.get(s)) for s in ('water', 'sanitation')}
 
 
 # Default 5-bracket income distribution shared with the microfinance + grant lever (quintiles; monthly
@@ -399,6 +383,9 @@ def _techmix_cost(iv: dict, costs: dict, mix_key: str = 'techmix_sm_tech_mix') -
 def financial_toggles(inputs: dict) -> dict:
     """Return toggles with pre-split injection settings migrated before attribution or calculation."""
     tg = dict(inputs.get('toggles') or {})
+    for prefix, sector in [('ws', 'water'), ('san', 'sanitation')]:
+        tg.setdefault(prefix + '_connections_enabled',
+                      bool(((inputs.get('connection_revenue') or {}).get(sector) or {}).get('enabled')))
     for prefix, section in [('ws', 'water_interventions'), ('san', 'sanitation_interventions')]:
         key = f'{prefix}_exogenous_injection_enabled'
         if key not in tg:

@@ -8,6 +8,8 @@ import { ContributionViewToggle, type ContributionView } from '../contributionVi
 import { CurrencyDisplayControl, type CurrencyDisplaySettings } from '../currencyDisplay';
 import NRWDiagnostics from './NRWDiagnostics';
 import { nrwLinkBillableVolume, nrwRevenueMetadata, nrwRevenueVersion, setNrwLinkOverlapYear } from '../nrwRevenue';
+import ConnectionRevenue from './ConnectionRevenue';
+import RevenueSourceChart from './RevenueSourceChart';
 
 function Section({ title, children, defaultOpen = false, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; sectionKey?: string; onFocus?: (key: string) => void }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -440,6 +442,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Water Supply Interventions</h3>
 
           <InterventionCategories sector="water">
+          <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="water" area={scopeLabel || 'Selected area'} />
           <InterventionToggle label="Increase in Financial Commitments" checked={inputs.toggles?.ws_financial_commitment_enabled ?? false} onChange={v => toggleIntv('ws_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('ws_financial_commitment')}>
             {financialFields('water_interventions')}
           </InterventionToggle>
@@ -458,7 +461,8 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           <InterventionToggle label="NRW reduction" checked={inputs.toggles?.ws_nrw_enabled ?? false} onChange={v => toggleIntv('ws_nrw_enabled', v)} onFocus={() => onSectionFocus?.('ws_nrw')}>
             {(() => {
               const metadata = nrwRevenueMetadata(results);
-              const reconciled = nrwRevenueVersion(results) === 2;
+              const version = nrwRevenueVersion(results);
+              const reconciled = version === 2 || version === 3;
               const iv = inputs.water_interventions || {};
               const sharedTariff = inputs.revenue_bases?.water?.tariff;
               const legacyTariff = iv.nrw_tariff;
@@ -467,7 +471,9 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
               const conflict = !!metadata?.legacy_rate_conflict || localRateConflict;
               return <div style={{ gridColumn: '1 / -1', fontSize: 11, lineHeight: 1.5, padding: '8px 10px', borderRadius: 5,
                 background: conflict ? '#fff7ed' : '#f1f7fa', border: `1px solid ${conflict ? '#fed7aa' : '#dbe5ea'}`, color: conflict ? '#9a3412' : '#475569' }}>
-                {reconciled
+                {version === 3
+                  ? <>Version 3: NRW sales are valued at shared baseline tariff and collection rates. Reform uplifts on these sales appear separately in collection and tariff cash. Implementation costs are deducted once inside signed NRW cash.</>
+                  : reconciled
                   ? <>Backend v2 reconciles connection/NRW billed-volume overlap. Sales use the shared water revenue-base tariff and collection rate; reference-rate connection growth is kept separate, and NRW receives the joint reform effect. {conflict && <>Legacy NRW tariff {legacyTariff ?? metadata?.legacy_nrw_tariff ?? '—'} conflicts with shared tariff {sharedTariff ?? metadata?.shared_tariff ?? '—'}; the legacy input is retained unchanged.</>}</>
                   : <>Overlap reconciliation is not confirmed until backend revenue metadata reports version 2. Treat NRW and connection revenue as potentially overlapping; missing diagnostics are not inferred.</>}
                 {!reconciled && conflict && <> Legacy NRW tariff {legacyTariff} differs from shared base tariff {sharedTariff}; it is retained, not used as the v2 sales rate.</>}
@@ -502,22 +508,26 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
                 <option value="production">Cost of production — cost avoided (separate from sales)</option>
               </select>
             </div>
-            <label style={{ gridColumn: '1 / -1', display: 'grid', gap: 4, fontSize: 12, color: '#3A4452' }}>
+            {!['production', 'avoided_cost'].includes(inputs.water_interventions.nrw_value_basis) && <label style={{ gridColumn: '1 / -1', display: 'grid', gap: 4, fontSize: 12, color: '#3A4452' }}>
               Recovered-water sales assumption
               <select value={inputs.water_interventions.nrw_sales_assumption || 'all_recovered_sold'}
                 onChange={e => u('water_interventions', 'nrw_sales_assumption', e.target.value)}
                 style={{ width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, border: '1px solid #F0D070', background: '#FFF9E6', color: '#3A4452' }}>
-                <option value="all_recovered_sold">All recovered eligible volume sold / billed</option>
-                <option value="household_only">Household-attributed volume only</option>
+                <option value="all_recovered_sold">All eligible recovered volume sold/billed — households and other customers</option>
+                <option value="household_only">Alternative restriction: genuinely tagged household-equivalent volume only</option>
               </select>
               <span style={{ fontSize: 10.5, color: '#64748b' }}>This explicit assumption is retained on migration from legacy full-recovery tariff valuation. Avoided production cost is shown separately; it does not add tariff receipts.</span>
-            </label>
-            {(inputs.water_interventions.nrw_value_basis || 'tariff') === 'production'
+              {inputs.water_interventions.nrw_sales_assumption === 'household_only' && <span style={{ fontSize: 10.5, color: '#92400e' }}>
+                This alternative requires genuinely tagged household-equivalent volume. The technical household share is used only for this eligibility restriction,
+                never as a blanket haircut to aggregate connection revenue or all-sales NRW. Missing tagged eligible volume must be resolved by the calculation.
+              </span>}
+            </label>}
+            {['production', 'avoided_cost'].includes(inputs.water_interventions.nrw_value_basis)
               ? <F label="Production cost" value={inputs.water_interventions.nrw_production_cost || 0} onChange={v => u('water_interventions','nrw_production_cost',v)} step={0.5} unit={`${CUR}/m³`} tip="Recovering water avoids producing this much fresh water, per cubic metre." />
               : <div style={{ gridColumn: '1 / -1' }}>
-                <F label="Legacy NRW-only tariff (retained)" value={inputs.water_interventions.nrw_tariff || 0} onChange={v => u('water_interventions','nrw_tariff',v)} step={0.5} unit={`${CUR}/m³`}
-                  tip="Retained for saved-input compatibility and audit. Backend v2 uses the shared Water Supply revenue-base tariff for NRW sales; this legacy value is not overwritten." />
-                <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 4 }}>Shared water tariff: {inputs.revenue_bases?.water?.tariff ?? 'not set'} {CUR}/m³. Legacy value is preserved, including when it conflicts.</div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>Shared baseline tariff (read-only): {inputs.revenue_bases?.water?.tariff ?? 'not set'} {CUR}/m³.
+                  {' '}Shared baseline collection (read-only): {inputs.revenue_bases?.water?.collection_ratio == null ? 'not set' : `${inputs.revenue_bases.water.collection_ratio * 100}%`}.
+                  {' '}Edit the shared base in Data Inputs. Legacy NRW rates are inactive migration metadata.</div>
               </div>}
             <NRWDiagnostics results={results} currency={CUR} currencyDisplay={currencyDisplay} />
           </InterventionToggle>
@@ -564,6 +574,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Sanitation Interventions</h3>
 
           <InterventionCategories sector="sanitation">
+          <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="sanitation" area={scopeLabel || 'Selected area'} />
           <InterventionToggle label="Increase in Financial Commitments" checked={inputs.toggles?.san_financial_commitment_enabled ?? false} onChange={v => toggleIntv('san_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('san_financial_commitment')}>
             {financialFields('sanitation_interventions')}
           </InterventionToggle>
@@ -639,15 +650,15 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, lineHeight: 1.5, borderRadius: 6, padding: '7px 10px',
                   background: nrwOn ? '#ecfeff' : '#fef3c7', border: `1px solid ${nrwOn ? '#a5f3fc' : '#fde68a'}`, color: nrwOn ? '#155e75' : '#92400e' }}>
                   {nrwOn
-                    ? <>Linked to <b>Water Supply → NRW reduction</b>. Eligible sewer-billable recovered volume is physical recovery × wastewater return ratio × explicit eligible share. Shared scenario sanitation tariff and collection rates value it; only overlap explicitly entered below is reconciled against raw sanitation connection billing.</>
+                    ? <>Linked to <b>Water Supply → NRW reduction</b>. Eligible sewer-billable recovered volume is physical recovery × wastewater return ratio × explicit eligible share. Shared baseline sanitation tariff and collection rates value direct sales; selected reforms add their effects separately. Only identified overlap is removed.</>
                     : <>Warning: This lever needs <b>NRW reduction</b> switched on under the <b>Water Supply</b> interventions — that is what recovers the water. While it is off there is no recovered volume, so this lever has no effect.</>}
                 </div>
                 <F label="Wastewater return ratio" value={iv.nrw_link_return_ratio} onChange={v => u('sanitation_interventions','nrw_link_return_ratio',v)} isPercent unit="%" tip="Share of the recovered water that returns to the sewer as wastewater the utility can charge for (the rest is consumptive use or not sewer-connected)." />
                 <F label="Explicit sewer-billable share" value={iv.nrw_link_eligible_share ?? 1}
                   onChange={v => u('sanitation_interventions','nrw_link_eligible_share',Math.max(0, Math.min(1, v)))}
                   isPercent min={0} max={100} unit="%" tip="Share of returned recovered water eligible for sewer billing. The legacy default of 100% is retained as an explicit assumption, not a measured connection share." />
-                <F label="Legacy sewer charge (review against shared rate)" value={iv.nrw_link_sewer_charge} onChange={v => u('sanitation_interventions','nrw_link_sewer_charge',v)} step={0.5} unit={`${CUR}/m³`} tip="Retained for saved-input compatibility and review. V2 linked sanitation revenue uses the shared sanitation scenario tariff, not this legacy sewer charge." />
-                <F label="Legacy collection rate (review against shared rate)" value={iv.nrw_link_collection_rate} onChange={v => u('sanitation_interventions','nrw_link_collection_rate',v)} isPercent unit="%" tip="Retained for saved-input compatibility and review. V2 linked sanitation revenue uses the shared sanitation scenario collection ratio, not this legacy rate." />
+                <div style={{ gridColumn: '1 / -1', fontSize: 11 }}>Shared baseline sanitation rates (read-only): {inputs.revenue_bases?.sanitation?.tariff ?? 'not set'} {CUR}/m³ ·
+                  {' '}{inputs.revenue_bases?.sanitation?.collection_ratio == null ? 'not set' : `${inputs.revenue_bases.sanitation.collection_ratio * 100}%`} collection.</div>
                 <div style={{ gridColumn: '1 / -1', border: '1px solid #dbe5ea', background: '#f8fbfc', borderRadius: 5, padding: 8 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#164e63', marginBottom: 4 }}>Explicit overlap with sanitation connection billing — m³/year</div>
                   <div style={{ fontSize: 10.5, color: '#64748b', marginBottom: 7 }}>Leave a year blank when no linked overlap has been identified. Do not estimate this from total/new sanitation connections; only supplied year-specific amounts are subtracted.</div>
@@ -807,6 +818,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         <p data-testid="intervention-no-debt-note" style={{ fontSize: 12, color: '#475569', margin: '0 0 12px' }}>
           Live intervention preview — includes selected interventions and custom interventions, without borrowing or debt servicing. Saved loan settings are applied separately in Debt servicing.
         </p>
+        <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} />
         <LiveInterventionChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel} rung={0} contributionView={contributionView} currencyDisplay={currencyDisplay} />
         <div style={{ height: 18 }} />
         <LiveInterventionChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel} rung={1} contributionView={contributionView} currencyDisplay={currencyDisplay} />

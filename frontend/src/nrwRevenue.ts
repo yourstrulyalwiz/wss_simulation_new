@@ -1,9 +1,9 @@
-export const NRW_REVENUE_VERSION = 2;
+export const NRW_REVENUE_VERSION = 3;
 
 /**
  * Version saved NRW revenue assumptions without replacing user-entered values.
  * Legacy tariff is deliberately retained; shared revenue-base rates are canonical
- * for v2 calculations and any disagreement must remain visible to the planner.
+ * for v3 calculations. Old rates are archived, never active input dependencies.
  */
 export function migrateNrwRevenueInputs(inputs: any) {
   if (!inputs || typeof inputs !== 'object') return inputs;
@@ -21,11 +21,15 @@ export function migrateNrwRevenueInputs(inputs: any) {
     water_interventions: {
       ...water,
       ...(!waterCurrent ? { revenue_integration_version: NRW_REVENUE_VERSION } : {}),
+      legacy_metadata: { ...(water.legacy_metadata || {}), ...(water.nrw_tariff != null ? { nrw_tariff: water.nrw_tariff } : {}) },
       nrw_sales_assumption: assumption,
     },
     sanitation_interventions: {
       ...sanitation,
       ...(!sanitationCurrent ? { revenue_integration_version: NRW_REVENUE_VERSION } : {}),
+      legacy_metadata: { ...(sanitation.legacy_metadata || {}),
+        ...(sanitation.nrw_link_sewer_charge != null ? { nrw_link_sewer_charge: sanitation.nrw_link_sewer_charge } : {}),
+        ...(sanitation.nrw_link_collection_rate != null ? { nrw_link_collection_rate: sanitation.nrw_link_collection_rate } : {}) },
       nrw_link_eligible_share: sanitation.nrw_link_eligible_share ?? 1,
       nrw_link_overlap_m3_series: sanitation.nrw_link_overlap_m3_series ?? {},
     },
@@ -68,6 +72,13 @@ export function hasNrwArray(result: any, field: string, sector: 'water_supply' |
 }
 
 export const NRW_DIAGNOSTIC_FIELDS = [
+  { key: 'baseline_billed_volume_million_m3', label: 'Baseline billed volume', unit: 'million m³/year', kind: 'volume' },
+  { key: 'connection_raw_volume_million_m3', label: 'Coverage-expansion volume before overlap', unit: 'million m³/year', kind: 'volume' },
+  { key: 'connection_overlap_volume_million_m3', label: 'Identified connection/NRW overlap', unit: 'million m³/year', kind: 'volume' },
+  { key: 'connection_volume_million_m3', label: 'Reconciled connection volume', unit: 'million m³/year', kind: 'volume' },
+  { key: 'nrw_avoided_sales_adjustment', label: 'Avoided-sales volume adjustment', unit: 'million m³/year', kind: 'volume' },
+  { key: 'connection_scale', label: 'Aggregate coverage-expansion scale', unit: 'fraction', kind: 'rate' },
+  { key: 'connection_aggregate_volume_proxy', label: 'Aggregate volume-scaling proxy', unit: 'm³/reference served-household equivalent', kind: 'rate' },
   { key: 'nrw_sales_volume', label: 'NRW incremental billed sales', unit: 'million m³/year', kind: 'volume' },
   { key: 'nrw_overlap_volume', label: 'Identified connection overlap', unit: 'million m³/year', kind: 'volume' },
   { key: 'nrw_physical_recovery', label: 'Physical-loss recovery', unit: 'million m³/year', kind: 'volume' },
@@ -75,8 +86,7 @@ export const NRW_DIAGNOSTIC_FIELDS = [
   { key: 'nrw_residual_recovery', label: 'Residual recovered volume', unit: 'million m³/year', kind: 'volume' },
   { key: 'nrw_capacity_committed', label: 'Capacity committed to upgrades', unit: 'million m³/year', kind: 'volume' },
   { key: 'nrw_capacity_uncommitted', label: 'Uncommitted recovered capacity', unit: 'million m³/year', kind: 'volume' },
-  { key: 'nrw_sales_cash', label: 'NRW collected sales cash', unit: 'currency millions', kind: 'money' },
-  { key: 'nrw_operating_cost', label: 'NRW incremental operating cost', unit: 'currency millions', kind: 'money' },
+  { key: 'nrw_sales_cash', label: 'NRW direct sales cash (baseline rates in v3)', unit: 'currency millions', kind: 'money' },
   { key: 'nrw_implementation_cost', label: 'NRW implementation cost', unit: 'currency millions', kind: 'money' },
   { key: 'nrw_avoided_cost_cash', label: 'Avoided production-cost value', unit: 'currency millions', kind: 'money' },
   { key: 'nrw_net', label: 'NRW signed net cash (loan source)', unit: 'currency millions', kind: 'money' },
@@ -93,22 +103,11 @@ export const NRW_DIAGNOSTIC_FIELDS = [
   { key: 'billed_volume_million_m3', label: 'Reconciled scenario billed volume', unit: 'million m³/year', kind: 'volume' },
   { key: 'reference_collected_revenue', label: 'Reference collected revenue', unit: 'currency millions', kind: 'money' },
   { key: 'collected_revenue', label: 'Collected revenue', unit: 'currency millions', kind: 'money' },
-  { key: 'connection_revenue_delta', label: 'Connection revenue contribution', unit: 'currency millions', kind: 'money' },
   { key: 'applicable_tariff', label: 'Applicable shared tariff', unit: 'currency/m³', kind: 'rate' },
   { key: 'applicable_collection_ratio', label: 'Applicable collection ratio', unit: 'fraction', kind: 'rate' },
-  { key: 'incremental_variable_operating_cost', label: 'Incremental variable operating cost', unit: 'currency millions', kind: 'money' },
-  { key: 'connection_net_cash', label: 'Connection net cash', unit: 'currency millions', kind: 'money' },
+  { key: 'connection_net_cash', label: 'Revenue from new connections', unit: 'currency millions', kind: 'money' },
   { key: 'additional_net_cash', label: 'Additional net cash', unit: 'currency millions', kind: 'money' },
-  { key: 'connection_billed_basic_households', label: 'Billed Basic household stock', unit: 'households', kind: 'households' },
-  { key: 'connection_billed_sm_households', label: 'Billed Safely Managed household stock', unit: 'households', kind: 'households' },
-  { key: 'connection_billed_basic_entry_households', label: 'New billed Basic entries', unit: 'households', kind: 'households' },
-  { key: 'connection_billed_basic_transfer_households', label: 'Billed Basic households transferred to SM', unit: 'households', kind: 'households' },
-  { key: 'connection_billed_sm_transfer_households', label: 'Billed SM households transferred from Basic', unit: 'households', kind: 'households' },
-  { key: 'connection_reference_billed_households', label: 'Funding-reference billed households', unit: 'households', kind: 'households' },
-  { key: 'nrw_tagged_billed_households', label: 'NRW-tagged incremental billed households', unit: 'households', kind: 'households' },
   { key: 'nrw_origin_households', label: 'Physical NRW-origin households', unit: 'million households', kind: 'households' },
-  { key: 'connection_annual_cost_per_household', label: 'Annual connection cost per household', unit: 'currency/household/year', kind: 'rate' },
-  { key: 'connection_equivalent_marginal_cost', label: 'Connection equivalent marginal cost', unit: 'currency/m³', kind: 'rate' },
   { key: 'collection_cash', label: 'Collection attribution', unit: 'currency millions', kind: 'money' },
   { key: 'tariff_cash', label: 'Tariff attribution', unit: 'currency millions', kind: 'money' },
   { key: 'eligible_nrw_link_cash', label: 'Eligible NRW-linked sanitation net cash', unit: 'currency millions', kind: 'money' },
@@ -134,16 +133,9 @@ export function aggregateNrwDiagnosticField(results: any[], field: NRWDiagnostic
   const values = results.map(result => valueAt(result, field.key));
   if (!values.length || values.some(value => value == null)) return null;
   if (field.kind !== 'rate') return values.reduce<number>((sum, value) => sum + (value as number), 0);
-  if (field.key === 'connection_annual_cost_per_household' || field.key === 'connection_equivalent_marginal_cost') {
-    const weightKey = field.key === 'connection_annual_cost_per_household'
-      ? 'connection_billed_households' : 'household_billed_volume_million_m3';
-    const weights = results.map(result => valueAt(result, weightKey));
-    if (weights.some(weight => weight == null)) return null;
-    const denominator = weights.reduce<number>((sum, weight) => sum + Math.max(0, weight as number), 0);
-    return denominator > 0
-      ? values.reduce<number>((sum, value, i) => sum + (value as number) * Math.max(0, weights[i] as number), 0) / denominator
-      : null;
-  }
+  // Aggregate coverage scales/proxies have no meaningful national summed/averaged rate.
+  if (field.key === 'connection_scale' || field.key === 'connection_aggregate_volume_proxy')
+    return values.length === 1 ? values[0] : null;
   // Weight tariff by billed volume and collection ratio by tariff-weighted billed volume; never add rates.
   const weights = results.map(result => {
     const volume = valueAt(result, 'billed_volume_million_m3');

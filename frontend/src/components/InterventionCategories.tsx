@@ -4,8 +4,8 @@ import './InterventionCategories.css';
 // Presentation only. These labels must never define model, chart or export execution order.
 const categories = [
   { id: 'funding', title: '1. Funding Mobilization',
-    description: 'Increase sector funding through spending commitments and additional funds.',
-    labels: ['Increase in Financial Commitments', 'Exogenous Injection of Funds'] },
+    description: 'Mobilize funding through coverage-expansion revenue, spending commitments and additional funds.',
+    labels: ['Revenue from new connections', 'Increase in Financial Commitments', 'Exogenous Injection of Funds'] },
   { id: 'operations', title: '2. Operational Efficiency Improvements',
     description: 'Improve revenue collection and reduce operational losses.',
     labels: ['Collection efficiency', 'NRW reduction', 'NRW-linked sanitation revenue'] },

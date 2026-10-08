@@ -16,29 +16,10 @@ import re
 from demo_adapter import coerce_to_engine, financial_toggles
 from model.engine import calculate
 
-# key → (label, resource cash stream or None), in the same cumulative order the dashboard uses.
-WATER_INTV = [
-    ('ws_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash'),
-    ('ws_exogenous_injection_enabled', 'Exogenous Injection of Funds', 'scenario_exogenous_injection_cash'),
-    ('ws_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash'),
-    ('ws_nrw_enabled', 'NRW reduction', 'scenario_nrw_net'),
-    ('ws_capital_efficiency_enabled', 'Budget execution improvement', None),
-    ('ws_costeff_enabled', 'Capex efficiency (unit cost)', None),
-    ('ws_techmix_enabled', 'Optimised technology selection', None),
-    ('ws_tariff_enabled', 'Tariff reform', 'scenario_tariff_cash'),
-    ('ws_microfinance_enabled', 'Microfinance', 'scenario_mf_loan_volume'),
-]
-SAN_INTV = [
-    ('san_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash'),
-    ('san_exogenous_injection_enabled', 'Exogenous Injection of Funds', 'scenario_exogenous_injection_cash'),
-    ('san_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash'),
-    ('san_capital_efficiency_enabled', 'Budget execution improvement', None),
-    ('san_costeff_enabled', 'Capex efficiency (unit cost)', None),
-    ('san_techmix_enabled', 'Optimised technology selection', None),
-    ('san_nrw_link_enabled', 'NRW-linked sanitation revenue', 'scenario_nrw_link_cash'),
-    ('san_tariff_enabled', 'Tariff reform', 'scenario_tariff_cash'),
-    ('san_microfinance_enabled', 'Microfinance', 'scenario_mf_loan_volume'),
-]
+# One backend registry for spreadsheet/deck labels, order and cash-source keys.
+from deck_data import WATER_INTV as _WATER_INTV, SAN_INTV as _SAN_INTV
+WATER_INTV = [definition[:3] for definition in _WATER_INTV]
+SAN_INTV = [definition[:3] for definition in _SAN_INTV]
 
 
 def _cur(inputs):
@@ -81,7 +62,6 @@ def per_year_table(result, inputs, sector_key):
         ('Additional collected revenue — annual flow', 'additional_collected_revenue'),
         ('Reference collected revenue — annual flow', 'reference_collected_revenue'),
         ('Connection gross revenue difference — annual flow', 'connection_revenue_delta'),
-        ('Incremental variable operating cost — annual flow', 'incremental_variable_operating_cost'),
         ('Connection net cash — annual flow', 'connection_net_cash'),
         ('Total additional net cash — annual flow', 'additional_net_cash'),
         ('Collection cash — annual flow', 'collection_cash'),
@@ -175,10 +155,10 @@ def per_year_table(result, inputs, sector_key):
                          for _, key, _ in detailed_revenue_fields]
         status = sec.get('connection_revenue') or {}
         import json
-        mode = 'Mixed' if status.get('mixed') else ('Connection-based' if status.get('effective') else 'Exogenous')
+        mode = 'Mixed' if status.get('mixed') else ('Aggregate coverage expansion' if status.get('effective') else 'Exogenous')
         rows[-1] += [mode, json.dumps(status.get('configuration') or status.get('area_configurations') or {},
                                     ensure_ascii=False) if y == inputs.get('period', {}).get('baseline_year') else None,
-                     '; '.join((status.get('errors') or []) + (status.get('warnings') or []))]
+                     '; '.join((status.get('errors') or []) + (status.get('warnings') or [])) or None]
     return headers, rows
 
 
@@ -222,6 +202,9 @@ def intervention_breakdown(inputs, sector_key, defs):
         before, after = passes[idx], passes[idx + 1]
         add_hh = sm_end(after) - sm_end(before)                 # signed, millions
         res = (cash_cum(after, rkey) - cash_cum(before, rkey)) / 1000.0 if rkey else None  # M → B
+        if rkey in ('scenario_connection_net_cash', 'scenario_collection_cash',
+                    'scenario_tariff_cash', 'scenario_nrw_net', 'scenario_nrw_link_cash'):
+            res = cash_cum(passes[-1], rkey) / 1000.0
         gap_closed = (gap_cum(before) - gap_cum(after)) / 1000.0  # signed change; M → B
         out.append((label, round(add_hh, 5), (round(res, 4) if res is not None else None), round(gap_closed, 4)))
     if debt_active:
@@ -454,7 +437,7 @@ def _category_contributions(inputs, sector_key, defs, factor=1.0):
     raw = intervention_breakdown(inputs, sector_key, defs)
     toggles = financial_toggles(inputs)
     category_keys = {
-        'funding': {'ws_financial_commitment_enabled', 'ws_exogenous_injection_enabled', 'san_financial_commitment_enabled', 'san_exogenous_injection_enabled'},
+        'funding': {'ws_connections_enabled', 'san_connections_enabled', 'ws_financial_commitment_enabled', 'ws_exogenous_injection_enabled', 'san_financial_commitment_enabled', 'san_exogenous_injection_enabled'},
         'operations': {'ws_collection_efficiency_enabled', 'ws_nrw_enabled', 'san_collection_efficiency_enabled', 'san_nrw_link_enabled'},
         'investment': {'ws_capital_efficiency_enabled', 'ws_costeff_enabled', 'ws_techmix_enabled', 'san_capital_efficiency_enabled', 'san_costeff_enabled', 'san_techmix_enabled'},
         'tariff': {'ws_tariff_enabled', 'san_tariff_enabled'},

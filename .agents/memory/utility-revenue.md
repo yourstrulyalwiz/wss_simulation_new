@@ -4,7 +4,7 @@ description: Standing boundaries for collected-revenue changes.
 ---
 For narrow tariff/collection maintenance, keep exogenous volume growth and do
 not introduce additional connection feedback incidentally. The user subsequently
-authorized a separately configurable connection-based baseline feature; see
+authorized a separately configurable aggregate connection-revenue intervention; see
 connection-revenue-policy.md. Preserve separate collection and tariff contributions,
 collection first in the full existing order, with the interaction attributed to
 tariff. Do not change NRW benefits as part of these revenue fixes.
@@ -14,8 +14,8 @@ interaction while preserving financing, funded-asset and service-target fixes.
 
 **How to apply:** Reject proposals to merge the contributions or introduce
 elasticity, general operating accounts or new reinvestment assumptions as incidental
-improvements. The optional connection feature's explicit marginal-cost adjustment
-is separate from a general operating-cost account.
+improvements. The October 8 replacement excludes all connection operating costs
+and applies reform uplifts to the full reconciled volume, including NRW sales.
 
 Automatic revenue-base reconciliation should be silent. Shared revenue input
 entry and its correction controls belong on the first Data Inputs page, directly

@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import math
 
-REVENUE_SOURCES = ('collection', 'tariff', 'nrw')
+REVENUE_SOURCES = ('collection', 'tariff', 'nrw', 'connections')
+LEGACY_REVENUE_SOURCES = ('collection', 'tariff', 'nrw')
 NET_REVENUE_ASSUMPTION = (
     'Incremental cash net of modeled costs, not an audited utility operating surplus. '
     'Baseline available capital is assumed already net of operating obligations and existing debt. '
     'Collection/tariff reforms do not independently model additional administration or operating costs; '
     'NRW deducts modeled implementation costs. Costs already netted are not deducted again. '
-    'New-connection revenue is excluded from eligibility.'
+    'New-connection receipts at baseline rates are an optional source; connection operating costs are excluded.'
 )
 SIZING_ASSUMPTION = (
     'The selected loan-start year supplies the no-debt intervention revenue base. '
@@ -36,7 +37,7 @@ def normalize_config(config):
 
 def _validate_legacy_config(config, years, baseline_year):
     cfg = normalize_config(config)
-    sources = cfg.get('revenue_sources', list(REVENUE_SOURCES))
+    sources = cfg.get('revenue_sources', list(LEGACY_REVENUE_SOURCES))
     if (not isinstance(sources, list)
             or any(s not in REVENUE_SOURCES for s in sources)
             or len(set(sources)) != len(sources)):
@@ -186,7 +187,7 @@ def schedule_unit_capacity(config, capacity_by_year):
 def revenue_capacity_rows(result, years, baseline_year, config, asset_life=30):
     """Selected cash restricts eligibility; it never adds another financing credit."""
     cfg = normalize_config(config)
-    sources = cfg.get('revenue_sources', list(REVENUE_SOURCES))
+    sources = cfg.get('revenue_sources', list(LEGACY_REVENUE_SOURCES))
     share = float(cfg.get('allocation_share', 0.0)) if cfg.get('enabled') else 0.0
     n = len(years)
     def value(key, i):
@@ -258,6 +259,9 @@ def _solve_affordability_legacy(calc_fn, inputs, ctx, config, calc_kwargs=None, 
     cfg = _validate_legacy_config(config, ctx['years'], inputs.period.baseline_year)
     kwargs = dict(calc_kwargs or {})
     reference = reference_result if reference_result is not None else calc_fn(inputs, ctx, **kwargs)
+    connection_status = reference.get('connection_revenue') or {}
+    if cfg['enabled'] and 'connections' in cfg['revenue_sources'] and connection_status.get('requested') and not connection_status.get('effective'):
+        raise UtilityDebtInputError('New-connection revenue is incomplete: ' + '; '.join(connection_status.get('errors') or []))
     years = [int(y) for y in ctx['years']]
     share = cfg['allocation_share']
     zero_plan = {
@@ -449,6 +453,7 @@ INDICATIVE_QUALIFICATION = (
 
 def normalize_indicative_config(config):
     cfg = normalize_config(config)
+    cfg.setdefault('revenue_sources', list(LEGACY_REVENUE_SOURCES))
     if not cfg.get('enabled') and cfg.get('allocation_share') in (None, ''):
         cfg['allocation_share'] = 0.0
     mode = cfg.get('mode')
@@ -496,7 +501,7 @@ def _finite_number(value, label):
 
 def validate_config(config, years, baseline_year):
     cfg = normalize_indicative_config(config)
-    sources = cfg.get('revenue_sources', list(REVENUE_SOURCES))
+    sources = cfg.get('revenue_sources', list(LEGACY_REVENUE_SOURCES))
     if (not isinstance(sources, list) or any(s not in REVENUE_SOURCES for s in sources)
             or len(set(sources)) != len(sources)):
         raise UtilityDebtInputError('Choose distinct collection, tariff or NRW revenue sources only.')
@@ -555,6 +560,9 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
     kwargs = dict(calc_kwargs or {})
     reference = reference_result if reference_result is not None else calc_fn(inputs, ctx, **kwargs)
     years = [int(y) for y in ctx['years']]
+    connection_status = reference.get('connection_revenue') or {}
+    if cfg['enabled'] and 'connections' in cfg['revenue_sources'] and connection_status.get('requested') and not connection_status.get('effective'):
+        raise UtilityDebtInputError('New-connection revenue is incomplete: ' + '; '.join(connection_status.get('errors') or []))
     sources = cfg['revenue_sources']
     status = ('disabled' if not cfg['enabled'] else 'zero_allocation' if cfg['allocation_share'] == 0
               else 'no_selected_sources' if not sources else 'indicative')
@@ -564,6 +572,7 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
     if year in years and year > inputs.period.baseline_year:
         index = years.index(year)
         for source, keys in (
+            ('connections', ('connection_net_cash',)),
             ('collection', ('collection_cash',)), ('tariff', ('tariff_cash',)),
             ('nrw', ('nrw_net', 'eligible_nrw_link_cash')),
         ):

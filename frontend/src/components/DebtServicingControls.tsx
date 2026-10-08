@@ -5,6 +5,7 @@ const SOURCES = [
   ['collection', 'Collection efficiency'],
   ['tariff', 'Tariff reforms'],
   ['nrw', 'Water NRW / eligible sanitation link'],
+  ['connections', 'Revenue from new connections'],
 ] as const;
 
 type Props = {

@@ -12,7 +12,9 @@ const old = {
   revenue_bases: { water: { version: 1, tariff: 12.5, collection_ratio: 0.8 } },
 };
 const migrated = migrateNrwRevenueInputs(old);
-assert.equal(migrated.water_interventions.revenue_integration_version, 2);
+assert.equal(migrated.water_interventions.revenue_integration_version, 3);
+assert.equal(migrated.water_interventions.legacy_metadata.nrw_tariff, 17.25);
+assert.deepEqual(migrateNrwRevenueInputs(migrated), migrated);
 assert.equal(migrated.water_interventions.nrw_sales_assumption, 'all_recovered_sold');
 assert.equal(migrated.water_interventions.nrw_tariff, 17.25, 'legacy NRW tariff is never overwritten');
 assert.equal(migrated.water_interventions.nrw_capex_unit_cost_local, 420);
@@ -31,7 +33,7 @@ const sanitationLegacy = {
   },
 };
 const sanitationMigrated = migrateNrwRevenueInputs(sanitationLegacy);
-assert.equal(sanitationMigrated.sanitation_interventions.revenue_integration_version, 2);
+assert.equal(sanitationMigrated.sanitation_interventions.revenue_integration_version, 3);
 assert.equal(sanitationMigrated.sanitation_interventions.nrw_link_eligible_share, 1, 'missing eligibility uses explicit 100% legacy default');
 assert.deepEqual(sanitationMigrated.sanitation_interventions.nrw_link_overlap_m3_series, { 2028: 125000 }, 'identified overlap is preserved');
 assert.equal(sanitationMigrated.sanitation_interventions.nrw_link_sewer_charge, 4.75, 'legacy sewer charge is retained');
@@ -50,7 +52,8 @@ assert.ok(Math.abs(explicitOverlap.netMillionM3 - 0.5) < 1e-12);
 const panelSource = readFileSync(new URL('../src/components/InterventionPanel.tsx', import.meta.url), 'utf8');
 assert.match(panelSource, /Explicit sewer-billable share/);
 assert.match(panelSource, /Explicit overlap with sanitation connection billing/);
-assert.match(panelSource, /Legacy sewer charge \(review against shared rate\)/);
+assert.match(panelSource, /Shared baseline sanitation rates \(read-only\)/);
+assert.doesNotMatch(panelSource, /<F label="Legacy NRW-only tariff/);
 assert.match(panelSource, /Shared sanitation scenario rate/);
 assert.match(panelSource, /target coverage is not an annual enrollment cap/);
 const inputPanelSource = readFileSync(new URL('../src/components/InputPanel.tsx', import.meta.url), 'utf8');

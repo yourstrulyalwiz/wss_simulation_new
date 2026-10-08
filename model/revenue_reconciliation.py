@@ -15,18 +15,17 @@ RECONCILIATION_FIELDS = (
     'mf_flow_hh', 'grant_flow_hh', 'self_finance_exclusion_flow_hh',
     'microfinance_cohort_unoffered',
 )
-ATTRIBUTION = ('Connection at reference rates; collection before tariff on non-NRW '
-               'volume; joint scenario rates on NRW sales; implementation costs remain in NRW net cash.')
+ATTRIBUTION = ('Connections and NRW sales at baseline rates; collection then tariff on the full '
+               'reconciled volume. Connection operating costs excluded; implementation costs remain in signed NRW net cash.')
 
 
 def reconcile_revenue(raw, reference, sales, overlap, p0, c0, p, c,
                       marginal_cost=0.0, implementation_cost=0.0,
                       avoided_cost=0.0):
-    """Remove only explicitly tagged overlap, including its duplicate cost.
+    """Version 3: direct sources at baseline rates; reforms on the full volume.
 
-    Existing connection marginal cost moves with the overlapped household sales.
-    No new production cost is imposed on water already produced/recovered.
-    Avoided-cost mode may remove tagged household billing without booking sales.
+    marginal_cost is an inactive legacy parameter. Avoided-cost mode can exclude
+    tagged connection sales without creating NRW tariff receipts.
     """
     values = (raw, reference, sales, overlap, p0, c0, p, c,
               marginal_cost, implementation_cost, avoided_cost)
@@ -37,12 +36,12 @@ def reconcile_revenue(raw, reference, sales, overlap, p0, c0, p, c,
     pre = max(0.0, raw - overlap)
     total = pre + sales
     connection_gross = (pre - reference) * p0 * c0
-    connection_cost = (pre - reference) * marginal_cost
-    nrw_cost = overlap * marginal_cost
+    connection_cost = 0.0  # inactive compatibility argument: no connection operating account
+    nrw_cost = 0.0
     connection_net = connection_gross - connection_cost
-    collection = pre * p0 * (c - c0)
-    tariff = pre * (p - p0) * c
-    nrw_gross = sales * p * c
+    collection = total * p0 * (c - c0)
+    tariff = total * (p - p0) * c
+    nrw_gross = sales * p0 * c0
     nrw_net = nrw_gross + avoided_cost - nrw_cost - implementation_cost
     recurring_cost = connection_cost + nrw_cost
     additional = connection_net + collection + tariff + nrw_net
@@ -51,6 +50,11 @@ def reconcile_revenue(raw, reference, sales, overlap, p0, c0, p, c,
     if not math.isclose(additional, expected, rel_tol=1e-10, abs_tol=1e-8):
         raise RevenueInputError('Reconciled source cash does not match collected revenue less costs.')
     return {
+        'baseline_billed_volume_million_m3': reference,
+        'connection_raw_volume_million_m3': raw - reference,
+        'connection_overlap_volume_million_m3': overlap,
+        'connection_volume_million_m3': pre - reference,
+        'connection_revenue_cash': connection_net, 'connections_cash': connection_net,
         'raw_billed_volume_million_m3': raw,
         'non_nrw_billed_volume_million_m3': pre,
         'billed_volume_million_m3': total,

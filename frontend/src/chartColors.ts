@@ -24,6 +24,7 @@ export const C = {
 // near-identical clashes: budget-exec gold ≈ tariff amber (ΔE 1.5) and collection cyan ≈
 // tech teal, which is what made bands hard to tell apart.
 export const INTV_PALETTE = {
+  connections: '#8D6C5B', // aggregate coverage expansion
   collection: '#1a9ed6', // cyan       (the one cool anchor)
   budgetExec: '#c58216', // gold       (pushed far from tariff)
   capex: '#7238f8',      // violet

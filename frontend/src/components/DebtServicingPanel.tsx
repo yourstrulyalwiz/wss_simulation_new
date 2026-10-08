@@ -9,6 +9,7 @@ import TableExport from './TableExport';
 import { runCalculation } from '../api';
 import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
 import './debt-servicing.css';
+import RevenueSourceChart from './RevenueSourceChart';
 
 type Props = {
   inputs: any;
@@ -73,6 +74,7 @@ export default function DebtServicingPanel({
           scenarioResult={results?.[sectorKey]}
           calculationError={calculationError} fresh={!!results && !calculationError} onRetry={onRetry} />
         <div className="debt-chart-stack">
+          <RevenueSourceChart inputs={inputs} results={results} sector={sectorTab} currencyDisplay={currencyDisplay} />
           <LiveInterventionChart key={`${chartRunKey}:sm`} inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} rung={0} contributionView={contributionView} currencyDisplay={currencyDisplay} />
           <LiveInterventionChart key={`${chartRunKey}:basic`} inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} rung={1} contributionView={contributionView} currencyDisplay={currencyDisplay} />
         </div>

@@ -123,10 +123,11 @@ class DebtServicingTests(unittest.TestCase):
             sec = result[sector]
             self.assertTrue(sec['scenario_connection_revenue']['effective'])
             debt = sec['scenario_utility_debt']
-            self.assertGreater(max(sec['scenario_connection_billed_households']), 0)
+            self.assertTrue(sec['scenario_connection_revenue']['effective'])
             self.assertTrue(any(abs(v) > 0 for v in sec['scenario_connection_net_cash']))
-            self.assertAlmostEqual(debt['selected_signed_pool'], sum(debt['reference_source_cash'].values()))
-            self.assertNotIn('connections', debt['reference_source_cash'])
+            self.assertAlmostEqual(debt['selected_signed_pool'],
+                                   sum(debt['reference_source_cash'][s] for s in debt['revenue_sources']))
+            self.assertNotIn('connections', debt['revenue_sources'])
 
     def test_exports_and_area_specific_aggregation(self):
         _, results = self.scenario()

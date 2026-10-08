@@ -24,6 +24,8 @@ import { aggregateContributionRows, ContributionViewToggle, type ContributionVie
 import { CurrencyDisplayControl, type CurrencyDisplaySettings, validRate } from '../currencyDisplay';
 import { aggregateWeightedRevenueRate, connectionRevenueAreaModes, summarizeConnectionRevenueModes } from '../connectionRevenueMode';
 import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
+import RevenueSourceChart from './RevenueSourceChart';
+import { WATER_INTERVENTIONS as WATER_INTV, SANITATION_INTERVENTIONS as SAN_INTV, GLOBAL_INTERVENTION_ORDER, comparisonInputs, interventionEnabled, type InterventionDefinition as IntvDef } from '../interventionRegistry';
 
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
 function round3(v: number): number { return (!isFinite(v) || v === 0) ? 0 : Number(v.toPrecision(3)); }
@@ -46,29 +48,6 @@ const sumRange = (arr: number[], years: number[], lo: number, hi: number) =>
 
 // ── intervention lists (key → label; resourceKey names the scenario cash stream it mobilises, if any;
 //    color = its band colour, shared with the intervention-impact chart via chartColors INTV_PALETTE) ──
-type IntvDef = { key: string; label: string; resourceKey?: string; color: string };
-const WATER_INTV: IntvDef[] = [
-  { key: 'ws_financial_commitment_enabled', label: 'Increase in Financial Commitments', resourceKey: 'scenario_financial_commitment_cash', color: P.financial },
-  { key: 'ws_exogenous_injection_enabled', label: 'Exogenous Injection of Funds', resourceKey: 'scenario_exogenous_injection_cash', color: P.injection },
-  { key: 'ws_collection_efficiency_enabled', label: 'Increased collection efficiency', resourceKey: 'scenario_collection_cash', color: P.collection },
-  { key: 'ws_nrw_enabled', label: 'NRW reduction', resourceKey: 'scenario_nrw_net', color: P.nrw },
-  { key: 'ws_capital_efficiency_enabled', label: 'Budget execution improvement', color: P.budgetExec },
-  { key: 'ws_costeff_enabled', label: 'Capex efficiency (unit cost)', color: P.capex },
-  { key: 'ws_techmix_enabled', label: 'Optimised technology selection', color: P.techmix },
-  { key: 'ws_tariff_enabled', label: 'Tariff reform', resourceKey: 'scenario_tariff_cash', color: P.tariff },
-  { key: 'ws_microfinance_enabled', label: 'Microfinance', resourceKey: 'scenario_mf_loan_volume', color: P.microfinance },
-];
-const SAN_INTV: IntvDef[] = [
-  { key: 'san_financial_commitment_enabled', label: 'Increase in Financial Commitments', resourceKey: 'scenario_financial_commitment_cash', color: P.financial },
-  { key: 'san_exogenous_injection_enabled', label: 'Exogenous Injection of Funds', resourceKey: 'scenario_exogenous_injection_cash', color: P.injection },
-  { key: 'san_collection_efficiency_enabled', label: 'Increased collection efficiency', resourceKey: 'scenario_collection_cash', color: P.collection },
-  { key: 'san_capital_efficiency_enabled', label: 'Budget execution improvement', color: P.budgetExec },
-  { key: 'san_costeff_enabled', label: 'Capex efficiency (unit cost)', color: P.capex },
-  { key: 'san_techmix_enabled', label: 'Optimised technology selection', color: P.techmix },
-  { key: 'san_nrw_link_enabled', label: 'NRW-linked sanitation revenue', resourceKey: 'scenario_nrw_link_cash', color: P.nrw },
-  { key: 'san_tariff_enabled', label: 'Tariff reform', resourceKey: 'scenario_tariff_cash', color: P.tariff },
-  { key: 'san_microfinance_enabled', label: 'Microfinance', resourceKey: 'scenario_mf_loan_volume', color: P.microfinance },
-];
 
 interface Props {
   geoScope: 'urban' | 'rural' | 'urban_rural' | 'national';
@@ -181,6 +160,7 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
   const sourceLabels: Record<string, string> = {
     collection: 'Collection efficiency', tariff: 'Tariff reform',
     nrw: 'Water NRW net / eligible sanitation-link net cash',
+    connections: 'Revenue from new connections',
   };
   const tableHeaders = ['Year', 'New indicative injection', 'Opening unspent proceeds', 'Investment from proceeds', 'Closing unspent proceeds', 'Qualification'];
   const tableRows = debt.rows.map((r: any) => [r.year, money(r.disbursement), money(r.opening_unspent_proceeds),
@@ -193,7 +173,7 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
       </div>
       <div style={{ fontSize: 10.5, color: '#64748b', marginBottom: 8, lineHeight: 1.45 }}>
         Per-area assumptions: {debt.areas.filter(a => a.enabled).map((a, i) => {
-          const selected: string[] = Array.isArray(a.revenue_sources) ? a.revenue_sources.filter((key: string) => key in sourceLabels) : Object.keys(sourceLabels);
+          const selected: string[] = Array.isArray(a.revenue_sources) ? a.revenue_sources.filter((key: string) => key in sourceLabels) : ['collection', 'tariff', 'nrw'];
           return <span key={i}>{i ? ' · ' : ''}{a.area}: {((Number(a.allocation_share) || 0) * 100).toFixed(1)}% pooled allocation, {a.annual_real_interest_rate == null ? 'rate incomplete' : `${(Number(a.annual_real_interest_rate) * 100).toFixed(2)}% real rate`}, term {a.loan_term_years ?? 'incomplete'} years, reference/injection year {a.reference_year ?? a.disbursement_year ?? '—'}, sources {selected.length ? selected.map(key => sourceLabels[key]).join(', ') : 'none'}, status {a.status || 'unavailable'}</span>;
         })}
       </div>
@@ -301,10 +281,11 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         const build = (secKey: 'water_supply' | 'sanitation'): Series => {
           const secOf = (res: any) => res[secKey];
           const revenueFields = [
-            'connection_billed_households', 'household_billed_volume_million_m3',
-            'nonhousehold_billed_volume_million_m3', 'raw_billed_volume_million_m3',
+            'baseline_billed_volume_million_m3', 'connection_raw_volume_million_m3', 'connection_overlap_volume_million_m3',
+            'connection_volume_million_m3', 'nrw_avoided_sales_adjustment', 'connection_scale', 'connection_aggregate_volume_proxy',
+            'raw_billed_volume_million_m3',
             'non_nrw_billed_volume_million_m3', 'reference_billed_volume_million_m3',
-            'reference_collected_revenue', 'connection_revenue_delta', 'incremental_variable_operating_cost',
+            'reference_collected_revenue', 'connection_revenue_delta',
             'connection_net_cash', 'additional_net_cash', 'applicable_tariff', 'applicable_collection_ratio',
             'billed_volume_million_m3', 'collected_revenue', 'collection_cash', 'tariff_cash',
             'nrw_net', 'eligible_nrw_link_cash',
@@ -336,6 +317,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
                 const available = resList.map(r => annualField(secOf(r), resultKey, i));
                 if (key === 'applicable_tariff' || key === 'applicable_collection_ratio') {
                   row[`${kind}_${key}`] = weightedRevenueRate(kind, key, i);
+                } else if ((key === 'connection_scale' || key === 'connection_aggregate_volume_proxy') && resList.length > 1) {
+                  row[`${kind}_${key}`] = null;
                 } else {
                   row[`${kind}_${key}`] = available.length && available.every(v => v != null)
                     ? available.reduce<number>((total, v) => total + (v as number), 0) : null;
@@ -499,14 +482,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     setTable(null);
     setContrib(null);
     setContributionError(null);
-    const enW = WATER_INTV.filter(d => datasets.some(inp => inp.toggles?.[d.key]));
-    const enS = SAN_INTV.filter(d => datasets.some(inp => inp.toggles?.[d.key]));
-    const enabled = [...enW, ...enS];                              // global cumulative order (water then san)
+    const enabled = GLOBAL_INTERVENTION_ORDER.filter(d => datasets.some(inp => interventionEnabled(inp, d.key)));
     const hasCustoms = datasets.some((inp: any) => (inp.custom_interventions || []).some((c: any) => c && c.enabled !== false));
     const hasUtilityDebt = datasets.some((inp: any) =>
       ['water', 'sanitation'].some((sector: string) => inp.utility_debt?.[sector]?.enabled && Number(inp.utility_debt?.[sector]?.allocation_share || 0) > 0));
     const h = setTimeout(() => {
-      const off = Object.fromEntries([...new Set(datasets.flatMap(inp => Object.keys(inp.toggles || {})))].map(k => [k, false]));
+      const off = Object.fromEntries([...new Set([...datasets.flatMap(inp => Object.keys(inp.toggles || {})),
+        ...GLOBAL_INTERVENTION_ORDER.map(d => d.key)])].map(k => [k, false]));
       const sets: any[] = [{ ...off }];                            // pass 0 = BAU (all off)
       let acc: any = { ...off };
       enabled.forEach(d => { acc = { ...acc, [d.key]: true }; sets.push({ ...acc }); });   // +1 pass per lever
@@ -516,8 +498,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         sanitation: { ...(settings?.sanitation || {}), enabled: false },
       });
       const fetchPass = (tg: any, useCustoms: boolean, debtEnabled = false) => Promise.all(datasets.map((inp: any) =>
-        runCalculation({ ...inp,
-          toggles: Object.fromEntries(Object.keys(off).map(key => [key, !!(tg[key] && inp.toggles?.[key])])),
+        runCalculation({ ...comparisonInputs(inp, tg),
           custom_interventions: useCustoms ? (inp.custom_interventions || []) : [],
           utility_debt: debtEnabled ? inp.utility_debt : withoutDebt(inp.utility_debt) })));
       const specs = sets.map(tg => ({ tg, customs: false }));
@@ -609,12 +590,15 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         if (!enabled.length && !debtPass) { setTable({ water: [], sanitation: [] }); return; }
         const smEnd = (rl: any[], sk: string) => smY(rl, sk, endIdx);
         const rowsFor = (defs: IntvDef[], sk: string): Row[] => {
-          const rows = defs.filter(d => toggles[d.key]).map(d => {
+          const rows = defs.filter(d => datasets.some(inp => interventionEnabled(inp, d.key))).map(d => {
           const idx = idxOf(d);
           const after = passes[idx + 1], before = passes[idx];
           const addHH = (smEnd(after, sk) - smEnd(before, sk)) * 1000;
           const resources = d.resourceKey
-            ? (cashCum(after, sk, d.resourceKey) - cashCum(before, sk, d.resourceKey)) / 1000               // M → B
+            ? (['ws_connections_enabled', 'san_connections_enabled', 'ws_collection_efficiency_enabled', 'san_collection_efficiency_enabled',
+              'ws_tariff_enabled', 'san_tariff_enabled', 'ws_nrw_enabled', 'san_nrw_link_enabled'].includes(d.key)
+              ? cashCum(debtPass || passes[fullNoDebtIdx], sk, d.resourceKey)
+              : cashCum(after, sk, d.resourceKey) - cashCum(before, sk, d.resourceKey)) / 1000
             : null;
           return { key: d.key, label: d.label, addHH, resources };
           });
@@ -820,9 +804,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
 
   const RevenueDetails = ({ series, sector }: { series: Series; sector: string }) => {
     const fields: { key: string; label: string; unit: string; currency: boolean }[] = [
-      { key: 'connection_billed_households', label: 'Connection billed households', unit: 'households', currency: false },
-      { key: 'household_billed_volume_million_m3', label: 'Household billed volume', unit: 'million m³', currency: false },
-      { key: 'nonhousehold_billed_volume_million_m3', label: 'Non-household billed volume', unit: 'million m³', currency: false },
+      { key: 'baseline_billed_volume_million_m3', label: 'Baseline billed volume', unit: 'million m³/year', currency: false },
+      { key: 'connection_raw_volume_million_m3', label: 'Coverage-expansion volume before overlap', unit: 'million m³/year', currency: false },
+      { key: 'connection_overlap_volume_million_m3', label: 'Identified connection/NRW overlap', unit: 'million m³/year', currency: false },
+      { key: 'connection_volume_million_m3', label: 'Reconciled connection volume', unit: 'million m³/year', currency: false },
+      { key: 'nrw_avoided_sales_adjustment', label: 'Avoided-sales volume adjustment', unit: 'million m³/year', currency: false },
+      { key: 'connection_scale', label: 'Aggregate coverage scale', unit: 'fraction', currency: false },
+      { key: 'connection_aggregate_volume_proxy', label: 'Aggregate volume-scaling proxy', unit: 'm³/reference served-household equivalent', currency: false },
       { key: 'raw_billed_volume_million_m3', label: 'Raw billed volume', unit: 'million m³', currency: false },
       { key: 'non_nrw_billed_volume_million_m3', label: 'Reconciled non-NRW billed volume', unit: 'million m³', currency: false },
       { key: 'reference_billed_volume_million_m3', label: 'Funding reference billed volume', unit: 'million m³', currency: false },
@@ -831,9 +819,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       { key: 'applicable_collection_ratio', label: 'Applicable collection ratio', unit: 'fraction', currency: false },
       { key: 'reference_collected_revenue', label: 'Reference collected revenue', unit: `million ${displayCur}`, currency: true },
       { key: 'collected_revenue', label: 'Collected revenue', unit: `million ${displayCur}`, currency: true },
-      { key: 'connection_revenue_delta', label: 'Connection gross-revenue difference', unit: `million ${displayCur}`, currency: true },
-      { key: 'incremental_variable_operating_cost', label: 'Incremental variable operating cost', unit: `million ${displayCur}`, currency: true },
-      { key: 'connection_net_cash', label: 'Connection net cash', unit: `million ${displayCur}`, currency: true },
+      { key: 'connection_net_cash', label: 'Revenue from new connections', unit: `million ${displayCur}`, currency: true },
       { key: 'collection_cash', label: 'Collection-efficiency cash', unit: `million ${displayCur}`, currency: true },
       { key: 'tariff_cash', label: 'Tariff-reform cash', unit: `million ${displayCur}`, currency: true },
       { key: 'nrw_net', label: 'Water NRW signed net cash after implementation cost', unit: `million ${displayCur}`, currency: true },
@@ -858,6 +844,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const th: React.CSSProperties = { position: 'sticky', top: 0, zIndex: 1, background: '#e8f0f4', borderBottom: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right', fontSize: 10, whiteSpace: 'nowrap' };
     const td: React.CSSProperties = { borderBottom: '1px solid #edf1f3', padding: '5px 8px', textAlign: 'right', fontSize: 10.5, whiteSpace: 'nowrap' };
     return <section data-revenue-details={sector} aria-label={`${sector} annual revenue details`} style={{ marginTop: 10, border: '1px solid #cbd5e1', borderRadius: 6, background: '#fbfdfe', padding: '9px 10px' }}>
+      <RevenueSourceChart inputs={datasets} results={series.nrwResults} sector={sector === 'water' ? 'water' : 'sanitation'} currencyDisplay={detailExportCurrency} />
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 3 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: '#164e63' }}>Annual Revenue Details — BAU / scenario</div>
         {hasAny && <TableExport filename={`${sector}_annual_revenue_details`} sheetName="Revenue details" headers={exportHeaders} rows={exportRows} compact currencyDisplay={detailExportCurrency} />}
@@ -944,9 +931,11 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       const effective = String(mode.effective ?? '').toLowerCase().replace(/[_ ]/g, '-');
       return {
         ...mode,
-        label: mode.effective === true || effective.includes('connection') || effective === 'dynamic' ? 'Connection-based'
+        label: effective.includes('aggregate') ? 'Aggregate coverage expansion' : effective.includes('legacy') ? 'Connection-based (legacy)'
+          : effective === 'incomplete' ? 'Incomplete'
+          : mode.effective === true || effective.includes('connection') || effective === 'dynamic' ? 'Legacy connection mode'
           : mode.effective === false || effective.includes('exogenous') ? 'Exogenous'
-            : mode.requested ? 'Connection-based requested; effective status not reported' : 'Exogenous',
+            : mode.requested ? 'Coverage expansion requested; effective status not reported' : 'Exogenous',
       };
     });
     const distinctModes = [...new Set(modes.map((mode: any) => mode.label))];
@@ -958,7 +947,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         </div>
         <details style={{ marginBottom: 10 }}><summary style={{ cursor: 'pointer', fontSize: 11, color: '#334155' }}>Coverage summary, service gaps and revenue assumptions</summary>
         <div style={{ marginBottom: 10, borderLeft: '3px solid #0f766e', background: '#f0fdfa', padding: '7px 10px', fontSize: 10.5, color: '#334155' }}>
-          <b>Financing / coverage baseline revenue mode:</b> {s.connectionMetadata?.label || (distinctModes.length > 1 ? 'Mixed across areas' : (distinctModes[0] || 'Exogenous'))}
+          <b>Pure baseline: exogenous · New-connection revenue:</b> {s.connectionMetadata?.label || (distinctModes.length > 1 ? 'Mixed across areas' : (distinctModes[0] || 'Exogenous'))}
           {(modes.length > 1 || s.connectionMetadata?.mixed) ? <span> · Per area: {modes.map((mode: any) => `${mode.area}: ${mode.label}`).join(' · ')}</span> : null}
           {modes.some((mode: any) => mode.errors?.length) && <span> · Validation issues are reported for the affected area.</span>}
           <div style={{ marginTop: 3 }}>Connection cash can fund eligible work after replacement priority and service-pool limits; it is not itself a coverage intervention or a direct gap credit.</div>
@@ -1075,7 +1064,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       <div style={{ fontSize: 11.5, fontWeight: 700, color: '#1e3a5f', marginBottom: 5 }}>{title}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         {defs.map(d => {
-          const on = !!toggles[d.key];
+          const on = datasets.some(inp => interventionEnabled(inp, d.key));
           return (
             <label key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, cursor: 'pointer',
               padding: '4px 8px', background: on ? '#eff6ff' : '#fff', border: `1px solid ${on ? '#bfdbfe' : '#e5e7eb'}`, borderRadius: 5 }}>

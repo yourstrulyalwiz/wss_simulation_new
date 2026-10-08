@@ -11,6 +11,8 @@ import { type ContributionView } from './contributionView';
 import { CurrencyDisplayControl, defaultCurrencyDisplay, type CurrencyDisplaySettings, validRate } from './currencyDisplay';
 import { chooseDevelopmentPreview } from './developmentPreview';
 import { migrateNrwRevenueInputs } from './nrwRevenue';
+import { migrateConnectionRevenueInputs } from './connectionRevenueConfig';
+import { setInterventionEnabled } from './interventionRegistry';
 
 // The BAU view stacks two charts with identical elements: Safely managed (rung 0) then Basic (rung 1).
 function BAUChartPair(props: { inputsList: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; currencyDisplay: CurrencyDisplaySettings }) {
@@ -39,10 +41,10 @@ function migrateInjectionToggle(area: any) {
       toggles[key] = !!(toggles[`${prefix}_financial_commitment_enabled`] && area[section]?.fin_injection_enabled);
     }
   }
-  return migrateNrwRevenueInputs({ ...area, toggles });
+  return migrateConnectionRevenueInputs(migrateNrwRevenueInputs({ ...area, toggles }));
 }
 
-export default function App() {
+function App() {
   const [inputs, setInputs] = useState<any>(null);
   const [mockSetupError, setMockSetupError] = useState('');
   const [activeTab, setActiveTab] = useState(0);
@@ -350,10 +352,10 @@ export default function App() {
   // Flip one intervention toggle on/off across EVERY area (interventions are on/off globally, applied per
   // area). Used by the Results dashboard's on/off toggles — the parameters still live on the Intervention tab.
   const setToggle = useCallback((key: string, value: boolean) => {
-    setInputs((prev: any) => prev ? { ...prev, toggles: { ...prev.toggles, [key]: value } } : prev);
+    setInputs((prev: any) => prev ? setInterventionEnabled(prev, key, value) : prev);
     setAltInputs(prev => {
       const n: Record<string, any> = {};
-      for (const k of Object.keys(prev)) n[k] = { ...prev[k], toggles: { ...prev[k].toggles, [key]: value } };
+      for (const k of Object.keys(prev)) n[k] = setInterventionEnabled(prev[k], key, value);
       return n;
     });
   }, []);
@@ -1201,7 +1203,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
         <p style={{ margin: '0 0 6px' }}>Loan funding carries the intervention scenario forward without changing intervention settings. Select collection efficiency, tariff reform and/or NRW source cash for one selected reference year; selections do not switch on reforms. Water NRW net remains separate from eligible linked sanitation net cash, which is signed independently.</p>
         <p style={{ margin: '0 0 6px' }}>The allocation and annual real rate over an explicit positive whole-year term size one indicative proceeds amount using the selected year’s signed cash pool. Loan proceeds enter restricted investment cash once, with unused proceeds carried forward.</p>
         <p style={{ margin: '0 0 6px' }}>Indicative loan proceeds — repayment accounting deferred. Loan sizing uses the selected year’s additional net cash and assumes equal annual repayments. Principal and interest payments are not deducted from model funding in this version.</p>
-        <p style={{ margin: 0 }}>Active connection-based billing can affect customer-driven collection and tariff reform growth. The separate connection net-cash stream is not debt eligible. The annual table distinguishes reference/no-debt borrowing-base values from financed-scenario cash and replacement obligations.</p>
+        <p style={{ margin: 0 }}>Revenue from new connections is a selectable loan source at baseline rates. The frozen no-loan reference includes enabled coverage expansion, NRW and reform settings; loan-funded future connections do not resize this original loan. The annual table distinguishes reference/no-debt values from financed-scenario cash and replacement obligations.</p>
       </div>
     ),
   },
@@ -1301,3 +1303,4 @@ function DataGuide({ tab, activeSection, onSelectSection, sector }: { tab: numbe
   );
 }
 // Local guide components are kept with the planner so their field references stay aligned.
+export default App;

@@ -19,6 +19,7 @@ const sources = [
   ['collection', 'Collection efficiency'],
   ['tariff', 'Tariff reform'],
   ['nrw', 'NRW-related net cash'],
+  ['connections', 'Revenue from new connections'],
 ] as const;
 
 function formatMoney(value: any, currency: string, settings: CurrencyDisplaySettings) {

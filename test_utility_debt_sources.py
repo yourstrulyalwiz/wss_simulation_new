@@ -70,7 +70,7 @@ class UtilityDebtSourcesTests(unittest.TestCase):
         self.assertEqual(self.rows(['nrw'], ledger)[-1]['nrw_net_cash'], 5)
 
     def test_validation_rejects_connections_duplicates_and_unknowns(self):
-        for sources in [['connections'], ['collection', 'collection'], 'tariff', None]:
+        for sources in [['unsupported'], ['collection', 'collection'], 'tariff', None]:
             cfg = self.config([])
             cfg['revenue_sources'] = sources
             with self.assertRaises(UtilityDebtInputError):

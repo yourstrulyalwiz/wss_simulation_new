@@ -1,5 +1,13 @@
 const BASE_URL = '/api';
 
+export async function resolveRevenueBases(inputs: any, signal?: AbortSignal) {
+  const response = await fetch(`${BASE_URL}/revenue-bases`, { method: 'POST', credentials: 'include',
+    cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inputs), signal });
+  const data = await response.json();
+  if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Revenue inputs could not be verified.');
+  return data;
+}
+
 export async function fetchDefaults() {
   const res = await fetch(`${BASE_URL}/defaults`);
   return res.json();
@@ -12,8 +20,12 @@ export async function fetchCostMixTemplates() {
 }
 
 export async function runCalculation(inputs: any) {
+  // A recalculation must never reuse cached pre-v4/v3 attribution. Migrated configurations
+  // also change every input-keyed chart/result request; saved legacy results retain their metadata.
   const res = await fetch(`${BASE_URL}/calculate`, {
     method: 'POST',
+    credentials: 'include',
+    cache: 'no-store',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(inputs),
   });

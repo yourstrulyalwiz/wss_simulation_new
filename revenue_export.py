@@ -1,7 +1,7 @@
 """Annual revenue diagnostics shared by spreadsheet and PowerPoint exports."""
 
 
-FIELDS = (
+LEGACY_FIELDS = (
     ('Billed-household equivalents', 'connection_billed_households', 'HH'),
     ('Lagged billed Basic households', 'connection_billed_basic_households', 'HH'),
     ('Lagged billed SM households', 'connection_billed_sm_households', 'HH'),
@@ -23,7 +23,7 @@ FIELDS = (
     ('Collected revenue', 'collected_revenue', '{currency} M'),
     ('Connection gross revenue difference', 'connection_revenue_delta', '{currency} M'),
     ('Incremental variable operating cost', 'incremental_variable_operating_cost', '{currency} M'),
-    ('Connection net cash', 'connection_net_cash', '{currency} M'),
+    ('Revenue from new connections', 'connection_net_cash', '{currency} M'),
     ('Collection-efficiency cash', 'collection_cash', '{currency} M'),
     ('Tariff-reform cash', 'tariff_cash', '{currency} M'),
     ('Total additional net cash', 'additional_net_cash', '{currency} M'),
@@ -60,6 +60,25 @@ FIELDS = (
 )
 
 
+_OBSOLETE = {
+    'connection_billed_households', 'connection_billed_basic_households',
+    'connection_billed_sm_households', 'connection_billed_basic_entry_households',
+    'connection_billed_basic_transfer_households', 'connection_billed_sm_transfer_households',
+    'connection_reference_billed_households', 'nrw_tagged_billed_households',
+    'connection_annual_cost_per_household', 'connection_equivalent_marginal_cost',
+    'household_billed_volume_million_m3', 'nonhousehold_billed_volume_million_m3',
+    'incremental_variable_operating_cost', 'nrw_operating_cost', 'connection_revenue_delta',
+}
+FIELDS = (
+    ('Baseline aggregate billed volume', 'baseline_billed_volume_million_m3', 'M m³'),
+    ('Connection volume before overlap', 'connection_raw_volume_million_m3', 'M m³'),
+    ('Connection overlap exclusion', 'connection_overlap_volume_million_m3', 'M m³'),
+    ('Connection volume after overlap', 'connection_volume_million_m3', 'M m³'),
+    ('Avoided-sales exclusion', 'nrw_avoided_sales_adjustment', 'M m³'),
+    ('Aggregate volume scaling proxy', 'connection_aggregate_volume_proxy', 'm³/reference served HH'),
+) + tuple(field for field in LEGACY_FIELDS if field[1] not in _OBSOLETE)
+
+
 def revenue_table(result, sector, currency):
     headers = ['Year', 'Pass', 'Revenue mode']
     headers += [f'{label} ({unit.format(currency=currency)})' for label, _, unit in FIELDS]
@@ -68,7 +87,7 @@ def revenue_table(result, sector, currency):
     for prefix, label in (('', 'BAU'), ('scenario_', 'Scenario')):
         status = sec.get(prefix + 'connection_revenue') or {}
         mode = 'Mixed (see area configurations)' if status.get('mixed') else (
-            'Connection-based' if status.get('effective') else 'Exogenous')
+            'Aggregate coverage expansion' if status.get('effective') else 'Exogenous')
         for i, year in enumerate(result['years']):
             values = [(sec.get(prefix + field) or [0] * len(result['years']))[i]
                       for _, field, _ in FIELDS]
@@ -84,13 +103,11 @@ def append_revenue_slides(prs, results, currency, money_factor=1.0, display_curr
     from pptx.opc.packuri import PackURI
     display_currency = display_currency or currency
     labels = ['Year', 'Volume\n(M m³)', f'Reference\n({display_currency} M)',
-              f'Collected\n({display_currency} M)', f'Connection gross\n({display_currency} M)',
-              f'Variable cost\n({display_currency} M)', f'Connection net\n({display_currency} M)',
+              f'Collected\n({display_currency} M)', f'New connections\n({display_currency} M)',
               f'Collection cash\n({display_currency} M)', f'Tariff cash\n({display_currency} M)',
               f'NRW net\n({display_currency} M)', f'Linked net\n({display_currency} M)',
               f'Total net\n({display_currency} M)']
     keys = ('billed_volume_million_m3', 'reference_collected_revenue', 'collected_revenue',
-            'connection_revenue_delta', 'incremental_variable_operating_cost',
             'connection_net_cash', 'collection_cash', 'tariff_cash', 'nrw_net',
             'eligible_nrw_link_cash', 'additional_net_cash')
     for scope, result in results.items():

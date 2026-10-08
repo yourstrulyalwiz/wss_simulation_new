@@ -98,7 +98,7 @@ class IndicativeLoanTests(unittest.TestCase):
             'allocation_share': [-.1, 1.1, float('nan'), float('inf')],
             'annual_real_interest_rate': [-1, float('nan'), None],
             'loan_term_years': [0, -1, 2.5, None],
-            'revenue_sources': [['connections'], ['collection', 'collection'], 'tariff'],
+            'revenue_sources': [['unsupported'], ['collection', 'collection'], 'tariff'],
             'disbursement_year': [2025, 2028, 2026.5, None],
         }.items():
             for value in values:

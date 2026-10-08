@@ -93,3 +93,18 @@ assert.equal(aggregateNrwDiagnosticField([
   { sanitation: { scenario_applicable_tariff: [4] } },
 ], tariff, 0, 'sanitation'), null, 'missing rate weights do not count as zero-volume areas');
 console.log('NRW diagnostics rendering checks passed');
+const v3Results = { years: [2026], water_supply: {
+  scenario_revenue_reconciliation: { version: 3 }, scenario_connection_net_cash: [0],
+  scenario_connection_raw_volume_million_m3: [.074], scenario_connection_scale: [.0616666667],
+  scenario_nrw_net: [-30], scenario_nrw_operating_cost: [0], scenario_incremental_variable_operating_cost: [0],
+  scenario_connection_annual_cost_per_household: [0], scenario_connection_billed_basic_households: [5000],
+} };
+const v3Html = renderToStaticMarkup(React.createElement(NRWDiagnostics, { results: v3Results }));
+assert.match(v3Html, /Version 3 reconciliation/);
+assert.doesNotMatch(v3Html, /joint tariff\/collection effect|Version 2 reconciliation/);
+assert.match(v3Html, /Coverage-expansion volume before overlap/);
+assert.doesNotMatch(v3Html, /operating cost|Annual connection cost|Billed Basic household stock/);
+assert.match(v3Html, /-30/);
+const legacyHtml = renderToStaticMarkup(React.createElement(NRWDiagnostics, { results }));
+assert.match(legacyHtml, /Version 2 reconciliation/);
+assert.doesNotMatch(legacyHtml, /Version 3 reconciliation/);

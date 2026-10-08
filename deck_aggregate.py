@@ -177,11 +177,11 @@ def aggregate(results: List[dict]) -> dict:
                 agg[key] = sum((s.get(key) or 0) for s in secs)
             else:
                 agg[key] = val
-        for prefix in ('', 'scenario_'):
+        for prefix in ('', 'scenario_', 'scenario_without_utility_debt_'):
             metas = [s.get(prefix + 'revenue_reconciliation') or {} for s in secs]
             if any(metas):
                 agg[prefix + 'revenue_reconciliation'] = {
-                    'version': 2, 'attribution': metas[0].get('attribution'),
+                    'version': min(m.get('version', 1) for m in metas), 'attribution': metas[0].get('attribution'),
                     'nrw_sales_assumption': 'Area-specific; see area configurations',
                     'legacy_rate_conflict': any(m.get('legacy_rate_conflict') for m in metas),
                     'migration_notice': 'Area calculations remain separate; volumes and money sum, rates are volume/revenue-weighted.',
@@ -204,7 +204,7 @@ def aggregate(results: List[dict]) -> dict:
             agg.get('budget_used') or [], agg.get('budget_allocated') or [], years, end_asis)
         agg['execution_rate'] = _wavg([s.get('execution_rate') or 0.0 for s in secs], w)
         agg['hist_cagr'] = _agg_hist_cagr(secs, years, end_asis)
-        for prefix in ('', 'scenario_'):
+        for prefix in ('', 'scenario_', 'scenario_without_utility_debt_'):
             metadata = [s.get(prefix + 'connection_revenue') or {} for s in secs]
             modes = [bool(m.get('effective')) for m in metadata]
             agg[prefix + 'connection_revenue'] = {
@@ -212,10 +212,12 @@ def aggregate(results: List[dict]) -> dict:
                 'effective': all(modes), 'mixed': len(set(modes)) > 1,
                 'area_configurations': metadata,
             }
-            # Costs per customer/volume are intensive. Sum stocks/cash first, then weight.
+            # Intensive diagnostics are weighted, never summed across independent areas.
             for field, weight_field in (
                 ('connection_annual_cost_per_household', 'connection_billed_households'),
                 ('connection_equivalent_marginal_cost', 'household_billed_volume_million_m3'),
+                ('connection_scale', 'baseline_billed_volume_million_m3'),
+                ('connection_aggregate_volume_proxy', 'baseline_billed_volume_million_m3'),
             ):
                 combined = []
                 for i in range(len(years)):
@@ -272,6 +274,10 @@ def _aggregate_utility_debt(summaries: List[dict]) -> dict:
                 'eligible_pool', 'closing_restricted_cash'):
         result[key] = sum(a.get(key) or 0 for a in areas)
     result['accepted_principal'] = result['indicative_principal']
+    result['reference_source_cash'] = {
+        key: sum((area.get('reference_source_cash') or {}).get(key) or 0 for area in areas)
+        for key in ('connections', 'collection', 'tariff', 'nrw')
+    }
     return result
 
 

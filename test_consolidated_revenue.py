@@ -43,9 +43,9 @@ def project(n=4, initial=(.6, .3, .1, 0, 0), **overrides):
 class ConsolidatedRevenueTests(unittest.TestCase):
     def test_exact_document_examples_and_partial_overlap(self):
         for overlap, revenue, expected in (
-                (0, 1755, [160, 120, 540, 135]),
-                (100, 1620, [80, 110, 495, 135]),
-                (40, 1701, [128, 116, 522, 135])):
+                (0, 1755, [160, 130, 585, 80]),
+                (100, 1620, [80, 120, 540, 80]),
+                (40, 1701, [128, 126, 567, 80])):
             row = reconcile_revenue(1200, 1000, 100, overlap, 1, .8, 1.5, .9)
             self.assertAlmostEqual(row['collected_revenue'], revenue)
             actual = [row[k] for k in ('connection_revenue_delta', 'collection_cash',
@@ -55,14 +55,14 @@ class ConsolidatedRevenueTests(unittest.TestCase):
 
     def test_overlap_operating_cost_moves_once_and_signed_reductions(self):
         row = reconcile_revenue(1200, 1000, 100, 100, 1, .8, 1.5, .9, marginal_cost=.2)
-        self.assertAlmostEqual(row['incremental_variable_operating_cost'], 40)
-        self.assertAlmostEqual(row['nrw_operating_cost'], 20)
-        self.assertAlmostEqual(row['connection_net_cash'], 60)
-        self.assertAlmostEqual(row['additional_net_cash'], 780)
+        self.assertAlmostEqual(row['incremental_variable_operating_cost'], 0)
+        self.assertAlmostEqual(row['nrw_operating_cost'], 0)
+        self.assertAlmostEqual(row['connection_net_cash'], 80)
+        self.assertAlmostEqual(row['additional_net_cash'], 820)
         row = reconcile_revenue(100, 100, 20, 0, 1, .8, .5, .6)
         self.assertLess(row['collection_cash'], 0)
         self.assertLess(row['tariff_cash'], 0)
-        self.assertAlmostEqual(row['nrw_sales_cash'], 6)
+        self.assertAlmostEqual(row['nrw_sales_cash'], 16)
 
     def test_850k_sm_target_is_not_a_ceiling(self):
         sec = project(nrw_enabled=True)
@@ -107,7 +107,7 @@ class ConsolidatedRevenueTests(unittest.TestCase):
                       nrw_capex_unit_m3day=0,
                       connection_config=configuration(billed_share_basic=.5, marginal_cost=0,
                                                         zero_cost_confirmed=True))
-        q = sec['connection_revenue']['calibration']['consumption_m3']
+        q = sec['connection_revenue']['calibration']['aggregate_volume_proxy_m3']
         self.assertEqual(sec['nrw_overlap_volume'][1], 0)
         self.assertEqual(sec['nrw_overlap_volume'][2], 0)
         expected = sec['nrw_origin_households'][2] * q * .5
@@ -144,8 +144,8 @@ class ConsolidatedRevenueTests(unittest.TestCase):
                       linked_overlap_volume=[0, 3, 3, 3], connection_config=configuration(),
                       tariff_enabled=True, tariff_start=2026, tariff_target_year=2026, tariff_target=3,
                       ce_enabled=True, ce_start=2026, ce_target_year=2026, ce_target_ratio=.6)
-        self.assertAlmostEqual(sec['nrw_sales_cash'][1], 18)
-        self.assertAlmostEqual(sec['eligible_nrw_link_cash'][1], 17.4)
+        self.assertAlmostEqual(sec['nrw_sales_cash'][1], 10)
+        self.assertAlmostEqual(sec['eligible_nrw_link_cash'][1], 10)
         self.assertAlmostEqual(sec['nrw_overlap_volume'][1], 3)
         self.assertEqual(sec['nrw_net'][1], 0)
         self.assertAlmostEqual(sec['additional_net_cash'][1],
@@ -165,7 +165,7 @@ class ConsolidatedRevenueTests(unittest.TestCase):
         data = example()
         data['water_interventions']['nrw_tariff'] = 7
         metadata = calculate(coerce_to_engine(data))['water_supply']['scenario_revenue_reconciliation']
-        self.assertTrue(metadata['legacy_rate_conflict'])
+        self.assertFalse(metadata['legacy_rate_conflict'])
         self.assertEqual(data['water_interventions']['nrw_tariff'], 7)
         self.assertEqual(metadata['shared_tariff'], 1)
 

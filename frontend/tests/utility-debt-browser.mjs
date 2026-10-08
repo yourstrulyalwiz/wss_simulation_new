@@ -90,7 +90,7 @@ try {
   assert.equal(await e(`document.querySelectorAll(${JSON.stringify(selector)}).length`), 0);
   assert.ok(!await e(`document.querySelector('input[aria-label="Enable utility borrowing"]')`));
   await interventionTab();
-  await w(`document.querySelectorAll(${JSON.stringify(selector)}).length===3`, 'Expected exactly three debt sources');
+  await w(`document.querySelectorAll(${JSON.stringify(selector)}).length===4`, 'Expected four supported debt sources, including connections');
   assert.deepEqual(await e(`[...document.querySelectorAll(${JSON.stringify(selector)})].map(x=>x.checked)`), [true, true, true]);
   let debt = await verify();
   assert.ok(debt.accepted_principal > 0);

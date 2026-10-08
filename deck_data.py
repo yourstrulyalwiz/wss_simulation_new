@@ -21,17 +21,19 @@ from model.engine import calculate
 #   execution — it raises the share of the allocated budget that reaches service
 #   cost      — it cuts the unit cost of a connection, so the same budget buys more
 WATER_INTV = [
+    ('ws_connections_enabled', 'Revenue from new connections', 'scenario_connection_net_cash', '0891b2', 'revenue'),
     ('ws_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash', '0f766e', 'revenue'),
     ('ws_exogenous_injection_enabled', 'Exogenous Injection of Funds', 'scenario_exogenous_injection_cash', 'b45309', 'revenue'),
     ('ws_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash', '1a9ed6', 'revenue'),
-    ('ws_nrw_enabled', 'NRW reduction', 'scenario_nrw_net', 'fb464b', 'revenue'),
     ('ws_capital_efficiency_enabled', 'Budget execution improvement', None, 'c58216', 'execution'),
     ('ws_costeff_enabled', 'Capex efficiency (unit cost)', None, '7238f8', 'cost'),
     ('ws_techmix_enabled', 'Optimised technology selection', None, 'b814a0', 'cost'),
+    ('ws_nrw_enabled', 'NRW reduction', 'scenario_nrw_net', 'fb464b', 'revenue'),
     ('ws_tariff_enabled', 'Tariff reform', 'scenario_tariff_cash', 'c355fb', 'revenue'),
     ('ws_microfinance_enabled', 'Microfinance', 'scenario_mf_loan_volume', 'c5146a', 'revenue'),
 ]
 SAN_INTV = [
+    ('san_connections_enabled', 'Revenue from new connections', 'scenario_connection_net_cash', '0891b2', 'revenue'),
     ('san_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash', '0f766e', 'revenue'),
     ('san_exogenous_injection_enabled', 'Exogenous Injection of Funds', 'scenario_exogenous_injection_cash', 'b45309', 'revenue'),
     ('san_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash', '1a9ed6', 'revenue'),
@@ -132,7 +134,7 @@ def cumulative_passes(area_fes: List[dict]) -> Tuple[List[dict], List[tuple], bo
 
     Each pass is run for every area in `area_fes` and the results summed, so a National block is the
     roll-up of the same cumulative sequence rather than a separate attribution."""
-    defs = WATER_INTV + SAN_INTV
+    defs = [WATER_INTV[0], SAN_INTV[0], *WATER_INTV[1:], *SAN_INTV[1:]]
     original = [financial_toggles(fe) for fe in area_fes]
     enabled = [d for d in defs if any(tg.get(d[0]) for tg in original)]
     has_custom = any(any((c or {}).get('enabled') for c in (fe.get('custom_interventions') or []))
@@ -189,8 +191,12 @@ def intervention_rows(passes, enabled, has_custom, sk: str, years, by, final_res
         before, after = passes[idx], passes[idx + 1]
         add_hh = _at(after[sk].get('scenario_hh'), e, 0) - _at(before[sk].get('scenario_hh'), e, 0)
         if rkey:
-            money = (_rng(after[sk].get(rkey), years, by + 1, years[-1])
-                     - _rng(before[sk].get(rkey), years, by + 1, years[-1]))
+            if rkey in ('scenario_connection_net_cash', 'scenario_collection_cash',
+                        'scenario_tariff_cash', 'scenario_nrw_net', 'scenario_nrw_link_cash'):
+                money = _rng((final_result or passes[-1])[sk].get(rkey), years, by + 1, years[-1])
+            else:
+                money = (_rng(after[sk].get(rkey), years, by + 1, years[-1])
+                         - _rng(before[sk].get(rkey), years, by + 1, years[-1]))
         else:
             money = _released(before, after, sk, kind, years, by)
         band = [(_at(after[sk].get('scenario_hh'), i, 0) - _at(before[sk].get('scenario_hh'), i, 0))

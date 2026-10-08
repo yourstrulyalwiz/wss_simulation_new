@@ -127,9 +127,8 @@ assert.deepEqual(JSON.parse(revenueBasesRequestBody(connectionInputs)), connecti
 assert.deepEqual(connectionRevenueErrors(connectionConfig, connectionInputs, 'water'), [],
   'An explicitly authorized estimate uses the canonical path; it must not require another baseline-volume estimate or provenance.');
 const observedWithoutValue = { ...connectionConfig, alignment: 'observation' };
-assert.ok(connectionRevenueErrors(observedWithoutValue, connectionInputs, 'water')
-  .some(message => /baseline-year observed billed volume is required/.test(message)),
-'Observation alignment requires an explicit baseline-year volume.');
+assert.deepEqual(connectionRevenueErrors(observedWithoutValue, connectionInputs, 'water'), [],
+  'Obsolete observation alignment no longer blocks the aggregate method.');
 const observedWithValue = {
   ...observedWithoutValue, baseline_volume_mld: 0,
   provenance: { ...provenance, baseline_volume_mld: { source_type: 'observed', reference_year: 2025, note: 'Measured at baseline' } },
@@ -140,8 +139,16 @@ const connectionMarkup = renderToStaticMarkup(React.createElement(ConnectionReve
   inputs: { ...connectionInputs, revenue_bases: { water: { reference_year: 2020 } }, connection_revenue: { water: connectionConfig } },
   onChange() {}, sector: 'water', area: 'urban',
 }));
-assert.match(connectionMarkup, /Authorize estimate from the canonical volume path/);
+assert.match(connectionMarkup, /Basic expansion billed/);
+assert.match(connectionMarkup, /Safely Managed expansion billed/);
+assert.match(connectionMarkup, /one year later/);
+assert.match(connectionMarkup, /aggregate customer-mix proxy/);
+assert.doesNotMatch(connectionMarkup, /Advanced|Authorize estimate|zero-cost|funding-reference|expenditure proxy/);
 assert.doesNotMatch(connectionMarkup, /Observed baseline-year billed volume/);
+const { connectionRevenueStatus } = require('../src/components/ConnectionRevenue.tsx');
+const statusFixture = { requested: true, effective: true, state: 'effective', configuration: { version: 4 } };
+assert.equal(connectionRevenueStatus({ water: { connection: statusFixture } }, 'water'), statusFixture);
+assert.equal(connectionRevenueStatus({ connection_revenue: { sanitation: statusFixture } }, 'sanitation'), statusFixture);
 assert.equal(aggregateWeightedRevenueRate([
   { rate: 2, volume: 10, tariff: 2 },
   { rate: 4, volume: 30, tariff: 4 },

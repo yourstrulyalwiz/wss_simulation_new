@@ -24,32 +24,10 @@ import { aggregateContributionRows, type ContributionView, type ViewBand } from 
 import { convertMoney, currencyRateNote, type CurrencyDisplaySettings } from '../currencyDisplay';
 import { connectionRevenueAreaModes, connectionRevenueModeText } from '../connectionRevenueMode';
 import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
+import { GLOBAL_INTERVENTION_ORDER, interventionEnabled, comparisonInputs, COMPARISON_ORDER_TEXT } from '../interventionRegistry';
 
 type Intv = [key: string, label: string, color: string];   // toggle key, legend label, band colour
 // Band palette excludes blue (BAU) and green (target) so those meanings stay reserved (see chartColors).
-const WATER_INTV: Intv[] = [
-  ['ws_financial_commitment_enabled', 'Financial commitments', P.financial],
-  ['ws_exogenous_injection_enabled', 'Exogenous injection of funds', P.injection],
-  ['ws_collection_efficiency_enabled', 'Collection efficiency', P.collection],
-  ['ws_capital_efficiency_enabled', 'Budget execution', P.budgetExec],
-  ['ws_costeff_enabled', 'Capex efficiency', P.capex],
-  ['ws_techmix_enabled', 'Optimised technology', P.techmix],
-  ['ws_nrw_enabled', 'NRW reduction', P.nrw],
-  ['ws_tariff_enabled', 'Tariff reform', P.tariff],
-  ['ws_microfinance_enabled', 'Microfinance', P.microfinance],
-];
-const SAN_INTV: Intv[] = [
-  ['san_financial_commitment_enabled', 'Financial commitments', P.financial],
-  ['san_exogenous_injection_enabled', 'Exogenous injection of funds', P.injection],
-  ['san_collection_efficiency_enabled', 'Collection efficiency', P.collection],
-  ['san_capital_efficiency_enabled', 'Budget execution', P.budgetExec],
-  ['san_costeff_enabled', 'Capex efficiency', P.capex],
-  ['san_techmix_enabled', 'Optimised technology', P.techmix],
-  ['san_nrw_link_enabled', 'NRW-linked revenue', P.nrw],
-  ['san_tariff_enabled', 'Tariff reform', P.tariff],
-  ['san_microfinance_enabled', 'Microfinance', P.microfinance],
-];
-
 const zeroToggles = (t: any) => Object.fromEntries(Object.keys(t || {}).map(k => [k, false]));
 const sig = (v: number) => (!isFinite(v) || v === 0) ? '0' : Number(v.toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
@@ -76,11 +54,11 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const depKey = JSON.stringify(inputs) + '|' + sector;
   useEffect(() => {
     if (!inputs) return;
-    const list = sector === 'water' ? WATER_INTV : SAN_INTV;
-    const enabled = list.filter(([k]) => inputs?.toggles?.[k]);
+    let cancelled = false;
+    const enabled: Intv[] = GLOBAL_INTERVENTION_ORDER.filter(d => interventionEnabled(inputs, d.key))
+      .map(d => [d.key, `${d.key.startsWith(sector === 'water' ? 'ws_' : 'san_') ? '' : d.key.startsWith('ws_') ? 'Water: ' : 'Sanitation: '}${d.label}`, d.color]);
     // Enabled CUSTOM interventions that apply to this sector become trailing bands after the built-in ones.
-    const enabledCustoms: any[] = (inputs?.custom_interventions || [])
-      .filter((c: any) => c && c.enabled !== false && (c.sector === sector || c.sector === 'both'));
+    const enabledCustoms: any[] = (inputs?.custom_interventions || []).filter((c: any) => c && c.enabled !== false);
     const h = setTimeout(() => {
       const post = runCalculation;
       const secOf = (res: any) => sector === 'water' ? res.water_supply : res.sanitation;
@@ -96,15 +74,14 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       // charge for when the WATER NRW lever is on, so keep ws_nrw_enabled at the user's setting in every
       // sanitation pass (it doesn't affect any of the other sanitation levers). Without this the linked
       // band would always read 0 on the sanitation chart even with water NRW switched on.
-      if (sector === 'sanitation') off.ws_nrw_enabled = !!inputs?.toggles?.ws_nrw_enabled;
       // Cumulative payloads: [BAU] → +each toggle → +each custom. The baseline and toggle passes carry NO
       // customs (custom_interventions:[]) so the grey base is the pure BAU and customs show as their own
       // bands on top; customs are then added one-by-one over all toggles.
-      const payloads: any[] = [{ ...inputs, toggles: off, custom_interventions: [], utility_debt: withoutDebt(inputs?.utility_debt) }];
+      const payloads: any[] = [{ ...comparisonInputs(inputs, off), custom_interventions: [], utility_debt: withoutDebt(inputs?.utility_debt) }];
       let acc: any = { ...off };
-      enabled.forEach(([k]) => { acc = { ...acc, [k]: true }; payloads.push({ ...inputs, toggles: { ...acc }, custom_interventions: [], utility_debt: withoutDebt(inputs?.utility_debt) }); });
+      enabled.forEach(([k]) => { acc = { ...acc, [k]: true }; payloads.push({ ...comparisonInputs(inputs, acc), custom_interventions: [], utility_debt: withoutDebt(inputs?.utility_debt) }); });
       let accCustoms: any[] = [];
-      enabledCustoms.forEach((c: any) => { accCustoms = [...accCustoms, c]; payloads.push({ ...inputs, toggles: { ...acc }, custom_interventions: accCustoms, utility_debt: withoutDebt(inputs?.utility_debt) }); });
+      enabledCustoms.forEach((c: any) => { accCustoms = [...accCustoms, c]; payloads.push({ ...comparisonInputs(inputs, acc), custom_interventions: accCustoms, utility_debt: withoutDebt(inputs?.utility_debt) }); });
       // Combined stack order (toggles then customs) with UNIQUE labels for the chart dataKeys.
       const bandDefs: Intv[] = [...enabled];
       const seen = new Set<string>(enabled.map(([, label]) => label));
@@ -115,14 +92,15 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         bandDefs.push([`custom_${i}`, label, c.color || P.custom]);
       });
       const debtPayload = includeDebt ? {
-        ...inputs, toggles: { ...acc }, custom_interventions: enabledCustoms,
+        ...comparisonInputs(inputs, acc), custom_interventions: enabledCustoms,
         utility_debt: inputs.utility_debt,
       } : null;
       Promise.all(payloads.map(post).concat(debtPayload ? [post(debtPayload)] : [])).then(allResults => {
+        if (cancelled) return;
         const results = includeDebt ? allResults.slice(0, -1) : allResults;
         const debtResult = includeDebt ? allResults[allResults.length - 1] : null;
         setRevenueModeLabel(connectionRevenueModeText(connectionRevenueAreaModes(
-          [results[0]], [inputs], sector === 'water' ? 'water_supply' : 'sanitation', sector,
+          [debtResult || results[results.length - 1]], [inputs], sector === 'water' ? 'water_supply' : 'sanitation', sector,
         )).text);
         const years: number[] = results[0].years;
         // The engine returns a PURE BAU (`bau_hh`, invariant) plus the SCENARIO safely-managed path under
@@ -158,11 +136,12 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         });
         setError(null);
       }).catch((err: any) => {
+        if (cancelled) return;
         setError(String(err)); setAccessRows([]); setSummary(null);
         setRevenueModeLabel('Effective revenue mode could not be confirmed because calculation failed.');
       });
     }, 350);
-    return () => clearTimeout(h);
+    return () => { cancelled = true; clearTimeout(h); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [depKey, rung]);
 
@@ -219,7 +198,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
     <div>
       <p title={REVENUE_ATTRIBUTION} style={{ fontSize: 11 }}>{contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : REVENUE_ATTRIBUTION}</p>
       <div style={{ fontSize: 10.5, color: '#334155', background: '#f0fdfa', borderLeft: '3px solid #0f766e', padding: '5px 8px', marginBottom: 6 }}>
-        {revenueModeLabel}. Connection-based revenue is a baseline model, not an intervention band.
+        {revenueModeLabel}. The pure baseline is always exogenous. {COMPARISON_ORDER_TEXT}
       </div>
       {showLoanFunding && <div style={{ fontSize: 10, color: '#65736c', background: '#f4f3e9', padding: '5px 8px', marginBottom: 6 }}>{LOAN_FUNDING_QUALIFICATION}</div>}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>

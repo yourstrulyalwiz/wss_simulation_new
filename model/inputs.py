@@ -367,7 +367,7 @@ class WaterInterventionInputs(BaseModel):
     nrw_value_basis: str = 'tariff'              # value the recovered water at 'tariff' or 'production' cost
     nrw_tariff: float = 32.0                      # water tariff, local currency per m³ (value if basis='tariff')
     nrw_production_cost: float = 20.0             # avoided production cost, local currency per m³ (if basis='production')
-    revenue_integration_version: Literal[1, 2] = 2
+    revenue_integration_version: Literal[1, 2, 3] = 3
     nrw_sales_assumption: Literal['all_recovered_sold', 'household_only'] = 'all_recovered_sold'
 
     # Increased capital-expenditure efficiency (#127-#128).
@@ -601,6 +601,8 @@ class CustomIntervention(BaseModel):
 # Run configuration (not part of the 168 — scenario switches for the tool)
 # ──────────────────────────────────────────────────────────────────────────
 class InterventionToggles(BaseModel):
+    ws_connections_enabled: Optional[bool] = None
+    san_connections_enabled: Optional[bool] = None
     # Water supply
     ws_collection_efficiency_enabled: bool = True
     ws_nrw_enabled: bool = True
@@ -639,7 +641,7 @@ class UtilityDebtSectorInputs(BaseModel):
     loan_term_years: Optional[int] = None
     legacy_parameters: dict = {}
     migration_notice: Optional[str] = None
-    revenue_sources: List[Literal['collection', 'tariff', 'nrw']] = ['collection', 'tariff', 'nrw']
+    revenue_sources: List[Literal['collection', 'tariff', 'nrw', 'connections']] = ['collection', 'tariff', 'nrw']
     allocation_share: float = 0.0
     annual_real_interest_rate: Optional[float] = None
     disbursement_year: Optional[int] = None

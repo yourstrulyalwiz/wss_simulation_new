@@ -15,8 +15,16 @@ const module = new Module(filename);
 module.paths = Module._nodeModulePaths(path.dirname(filename));
 module._compile(compiled, filename);
 const { runCalculation, runEconomicProjections } = module.exports;
+const { resolveRevenueBases } = module.exports;
 const originalFetch = globalThis.fetch;
 try {
+  globalThis.fetch = async (_url, options) => {
+    assert.equal(options.cache, 'no-store', 'Do not reuse old reconciliation requests');
+    assert.equal(options.credentials, 'include');
+    return { ok: true, json: async () => ({ version: 3 }) };
+  };
+  await runCalculation({});
+  await resolveRevenueBases({});
   globalThis.fetch = async () => ({ ok: false, json: async () => ({
     detail: 'Invalid model inputs: as_is_forecast_length must be a valid integer.',
   }) });

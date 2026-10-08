@@ -609,7 +609,7 @@ export function ledgerRows(data: LedgerData, options: {
         detail('repayments', 'Repayment deductions (not modeled)');
       }
       const cashFields: { key: LedgerMeasure; label: string }[] = [
-        { key: 'connectionNetCash', label: 'Connection net cash' },
+        { key: 'connectionNetCash', label: 'Revenue from new connections' },
         { key: 'collectionCash', label: 'Collection attribution cash' },
         { key: 'tariffCash', label: 'Tariff attribution cash' },
         { key: 'nrwNetCash', label: 'Water NRW signed net cash after implementation cost' },

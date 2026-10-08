@@ -1,145 +1,82 @@
-# Tariff and collection revenue correction
+# Utility revenue — aggregate coverage expansion (October 8, 2026)
 
-## Shared inputs and migration
+This specification supersedes the historical billed-household and operating-cost
+calibration method. Active connection config is version 4; revenue attribution
+metadata is version 3. Old assumptions are inactive migration metadata.
 
-Each area's `revenue_bases.water` and `revenue_bases.sanitation` record contains:
-`version: 1`, `volume_mld`, `reference_year`, `tariff` (real local currency/m³),
-`collection_ratio` (0–1), `growth_rate` (fraction, null means population),
-`origin`, and original `legacy` inputs. Both intervention panels edit this same
-record. Targets and reform schedules remain in their existing intervention sections.
+## Baseline and connections
 
-Legacy water collection uses `ce_water_sold_mld`, `ce_current_tariff`,
-`ce_current_ratio`, `ce_start_year`, and `ce_vol_growth`. Legacy tariff uses
-`tariff_volume_mld`, `tariff_current`, and `tariff_start_year`, with population
-growth. Sanitation's collection base materializes the original water-volume ×
-wastewater-share and water-tariff × sewer-share derivation. It inherits the
-legacy water collection ratio only if its own ratio is absent; zero is valid.
-The UI materializes sanitation's inherited collection target during migration.
+The existing total billed-volume path B is unchanged: population growth relative
+to its anchor, or the explicit compound volume-growth override. Each service and
+area retains its own baseline tariff T0 and collection ratio C0.
 
-Migration compares annual volume paths after unit/anchor normalization, plus
-baseline tariffs and collection ratios. Equivalent bases or a sole complete
-base migrate automatically. Missing or conflicting bases block calculations and
-exports with HTTP 422 until explicitly resolved. No toggle chooses the base.
-Resolved inputs persist inside the existing per-area profile/scenario/session
-payloads, including names and unrelated settings. Defaults retain the unresolved
-sanitation choice: collection-derived 70.08 MLD versus tariff-entered 43.8 MLD,
-both anchored in 2026 with tariff 16 and collection 90%.
+Freeze baseline Basic/SM coverage shares and their sum S0. In revenue year t,
+use actual delivered shares from year t−1, dividing stocks by that year's total
+households, not the revenue year's population.
 
-## Calculation and accounting
+    scale = [fBasic × (sBasic[t−1] − sBasic[baseline])
+             + fSM × (sSM[t−1] − sSM[baseline])] / S0
+    Nraw = B[t] × scale
 
-Convert MLD to million m³/year once (`MLD × days/year ÷ 1000`), then apply
-exogenous population or fixed growth. New connections never change that path.
-Baseline revenue is Q × p0 × c0. Scenario revenue is Q × p × c.
-Collection cash is Q × p0 × (c − c0); tariff cash is Q × (p − p0) × c.
-Their sum must equal scenario minus baseline revenue within `rtol=1e-10`,
-`atol=1e-9` in local-currency millions. Legacy equivalence uses `rtol=1e-8`,
-`atol=1e-10` for annual volumes. Reference years for population growth must be
-inside the model horizon rather than silently clamped to an endpoint.
+Pure BAU disables connections. An enabled connection-only scenario still runs.
+Unchanged coverage creates no additional connection revenue even if population
+grows. Equal-weight Basic→SM transfers create no addition. Negative changes stay
+signed. Zero starting coverage makes this feature incomplete; it does not cause
+the model to invent consumption.
 
-Tariff and collection retain forecast gating, separate ramps and target-year
-holds. Finite, nonnegative volume/tariffs, collection within [0,1], and
-improvement-only targets are validated. The two cash streams enter capital once,
-without the public-budget execution multiplier. Baseline revenue is not capital.
-Funded-asset replacement, expansion priority and financing-gap definitions are unchanged.
+This is an aggregate customer-mix scaling assumption, not measured household
+consumption. Technical non-household shares remain capital-cost inputs only.
+There are no connection operating costs, household allocations, historical
+billing-share inputs or funding-reference confirmations in the active method.
 
-For annual volume 1 million m³, tariff 1→1.2, and collection 80→90%:
+## Reconciliation and attribution
 
-| Enabled | Collected revenue | Additional cash | Collection cash | Tariff cash |
-|---|---:|---:|---:|---:|
-| Neither | 800,000 | 0 | 0 | 0 |
-| Tariff only | 960,000 | 160,000 | 0 | 160,000 |
-| Collection only | 900,000 | 100,000 | 100,000 | 0 |
-| Both | 1,080,000 | 280,000 | 100,000 | 180,000 |
+W is eligible NRW sales. O is proven overlap from prior delivered NRW origins,
+bounded by represented tagged volume and eligible sales. Negative upgrade
+weights never become negative overlap.
 
-Previously, combined additional cash was 300,000: a 20,000 overstatement.
+    N = Nraw − O
+    V = B + N + W
+    connections = N × T0 × C0
+    NRW sales = W × T0 × C0
+    collection = V × T0 × (C − C0)
+    tariff = V × (T − T0) × C
+    NRW net = NRW sales + avoided-cost savings − implementation cost
 
-## Presentation, exports and verification
+Their sum equals V×T×C − B×T0×C0 + savings − implementation cost.
+Connection cash aliases are not additional sources. Old operating-cost arrays
+remain zero for compatibility and are not presented as active costs.
 
-Collection and tariff remain separate bands with unchanged labels, colors,
-chart types and cumulative order. Coverage and financing effects use successive
-full model results, not cash proxies. Signed marginal results are retained.
-Tariff includes the interaction under collection-first attribution.
+Physical/commercial recovery, works schedules, benefit lag, capacity commitments
+and eligible opening Basic pools remain independent of billing assumptions.
+Commercial recovery cannot create physical supply. Default all-recovered sales
+has no household haircut. The saved household-only alternative uses the tagged
+proxy's technical household portion, not a blanket haircut to total receipts.
+Avoided-cost valuation excludes conflicting tagged sales without inventing NRW
+tariff revenue. Sanitation linked sales use their own service's baseline rates;
+reform uplifts appear in sanitation collection/tariff. Linked cash is not counted
+in water as well.
 
-Changed implementation groups: `model/utility_revenue.py`, input schemas and
-adapters, water/sanitation/engine wiring, the revenue-base editor/reconciliation
-component and app persistence paths, live/dashboard contribution calculations,
-CSV/XLSX and deck attribution, regression fixtures, and utility-revenue tests.
+## Loan funding and presentation
 
-The API and forecast exports expose baseline/scenario collected revenue and both
-utility cash streams. CSV and XLSX use the dashboard/deck's global intervention
-order. The added utility tests cover worked examples, annual identities,
-capital counted once, zero/full collection, zero volume, adverse/invalid inputs,
-separate schedules, growth, migration conflicts, equivalent anchors, reloads,
-BAU stability, sector separation, and cumulative outcome/export reconciliation.
-Existing financing-ledger and funded-asset regressions remain in the test suite.
+Connections are an optional source alongside collection, tariff and NRW.
+Existing loan selections retain the old source set. A source selector never
+enables its underlying intervention.
 
-The initial tariff/collection implementation did not add demand elasticity,
-general operating accounts or a new reinvestment assumption. Subsequent optional
-connection feedback and NRW reconciliation are described below.
+The chosen year's **frozen no-loan** source amounts are summed with their signs.
+Only the total is floored at zero, then multiplied by the allocation and existing
+annuity factor. One proceeds injection and carryover remain unchanged. Payments
+are deferred and allocation is hypothetical—not another cash inflow or an
+affordability certification.
 
-## Optional connection revenue: baseline and new customers
+Annual revenue displays use the final scenario ledger, never differences between
+cumulative reruns. Household comparison bands follow the documented fixed order:
+water connections, sanitation connections, remaining water interventions,
+remaining sanitation interventions, custom interventions, then loan funding.
+The bands telescope, but their attribution is not invariant to changing that
+comparison convention. Final scenario cash is invariant to UI/key order.
 
-Connection revenue is a baseline modeling choice for BAU and scenarios, not an
-intervention. Each calculation pass uses its own delivered household flows.
-Water/sanitation and urban/rural configurations remain independent.
-
-Version 3 separates the baseline SM/Basic billed shares from the percentages
-of **new** Basic connections and SM upgrades that receive a bill. Baseline shares
-and household share of billed volume calibrate annual consumption; changing
-future percentages cannot recalibrate consumption or rewrite historical results.
-Legacy version 1/2 settings inherit their baseline billing shares and retain
-their per-m³ cost basis without numerical changes.
-
-Billed-household equivalents are tracked as accumulated stocks. Basic entries
-join the billed Basic stock; SM upgrades remove their proportionate prior Basic
-billing status and add the selected SM billing status. An upgrade is not an
-entirely new customer. Newly delivered Basic households cannot upgrade in the
-same year. Closing stocks bill in the following year and incur recurring cost
-with the same lag. Signed reductions in billing and reference-related cost
-savings remain signed.
-
-### Operating cost choices
-
-Only one cost basis is authoritative:
-
-- **Existing unit cost:** annual household cost = calibrated annual consumption
-  × the existing real-currency cost per m³. This is a unit conversion.
-- **Manual annual household cost:** divide by positive calibrated consumption
-  to obtain the compatible effective cost per m³ for reconciliation.
-- **Average operating cost used as a proxy:** deliberately select compatible
-  baseline-year annual expenditure in raw real local currency, explicitly
-  allocate it to households, and divide by baseline billed households in raw HH.
-  A billed-volume share is only an accepted allocation assumption, not known cost
-  allocation. The saved snapshot preserves scope, year, currency and allocation;
-  changes to its source invalidate it until deliberately refreshed.
-
-The average proxy includes fixed costs and is not necessarily marginal. Unbilled
-households may also incur costs. These options do **not** constitute a complete
-utility operating account. Missing expenditure or zero placeholders do not imply
-zero operating cost. Positive annual cost with zero household consumption
-requires compatible calibration; valid legacy non-household-only cases remain
-supported.
-
-### Reference, reforms and NRW
-
-Additional recurring cost uses billed households minus the household equivalents
-already included in the funding reference, not total volume with non-household
-sales. Funding-reference confirmation remains required. Fixed, existing
-volume-growth and explicit annual household-volume reference options remain
-available; public-only funding needs explicit reconciliation.
-
-Collected cash uses the revenue year's baseline rates when reforms are off and
-their scheduled rates when on. Billing participation is distinct from collection
-efficiency, and cost is not discounted by collection efficiency. Connection,
-collection, tariff and NRW contributions reconcile once to additional collected
-cash less recurring costs and implementation cost.
-
-NRW physical-origin households remain distinct from the positive incremental
-billed equivalents attributable to each actual NRW upgrade. Tagged overlap uses
-that source pool's prior billing mix and follows the same lag; unrelated delivery
-does not become NRW overlap. Overlap costs move between source labels once.
-NRW implementation costs remain in signed NRW net cash, including in the selected
-loan-source pool. Only the combined selected pool is floored. Connection cash
-itself is not a loan-selectable source, and no loan-created revenue increases its
-own frozen no-loan sizing reference. No repayment or target-ceiling change is
-introduced here.
+Migration preserves enabled state, explicit zero/blank future shares and notes.
+v1/v2 shares inherit the former documented baseline-share defaults; cleared v3
+values remain missing. Costs and legacy NRW tariffs are archived, never used to
+block the new method. Saved numerical results may change on recalculation.

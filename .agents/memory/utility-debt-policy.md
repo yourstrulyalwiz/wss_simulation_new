@@ -4,14 +4,13 @@ description: User-confirmed net-revenue interpretation and exclusion of connecti
 ---
 
 Use incremental net revenues, not the entire utility revenue account, for
-utility borrowing. Limit selectable sources to collection efficiency, tariff
-reforms and NRW reductions. Do not reintroduce new-connection revenue into debt
-eligibility without a new explicit user instruction.
+utility borrowing. Selectable sources now include collection efficiency, tariff
+reforms, NRW reductions and connections. Preserve existing selections without
+automatically adding the newly supported connections source.
 
-**Why:** On 2026-10-05 the user confirmed the incremental net-revenue
-interpretation and then said, "let's just exclude revenue from new connection
-because it is difficult." This is a deliberate scope boundary, not an
-unfinished connection-revenue integration.
+**Why:** The 2026-10-08 instruction explicitly supersedes the earlier exclusion:
+baseline-rate reconciled connection receipts are an optional source, without
+connection operating costs. It does not authorize repayment or resizing changes.
 
 **How to apply:** Keep the separate optional connection-based baseline model
 unchanged. Explain modeled net-cash assumptions rather than claiming a complete
@@ -36,7 +35,7 @@ or verified affordable borrowing.
 **How to apply:** Keep Intervention Design as the intervention-only stage and
  Loan funding as the separate fourth workflow stage, with Results fifth.
 Show the same intervention contributions plus signed debt effects, and leave
-new-connection net cash outside repayment eligibility.
+new-connection receipts eligible only when explicitly selected.
 
 ## Optional debt and ordinary Results
 

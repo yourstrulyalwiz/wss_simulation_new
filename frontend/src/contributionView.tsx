@@ -1,7 +1,7 @@
 import React from 'react';
 export type ContributionView = 'individual' | 'category';
 export const CONTRIBUTION_CATEGORIES = [
-  { id: 'funding', label: 'Funding Mobilization', color: '#0f766e', keys: ['ws_financial_commitment_enabled', 'ws_exogenous_injection_enabled', 'san_financial_commitment_enabled', 'san_exogenous_injection_enabled', 'utility_debt_financing'] },
+  { id: 'funding', label: 'Funding Mobilization', color: '#0f766e', keys: ['ws_connections_enabled', 'san_connections_enabled', 'ws_financial_commitment_enabled', 'ws_exogenous_injection_enabled', 'san_financial_commitment_enabled', 'san_exogenous_injection_enabled', 'utility_debt_financing'] },
   { id: 'operations', label: 'Operational Efficiency Improvements', color: '#c58216', keys: ['ws_collection_efficiency_enabled', 'ws_nrw_enabled', 'san_collection_efficiency_enabled', 'san_nrw_link_enabled'] },
   { id: 'investment', label: 'Investment Planning and Delivery Improvements', color: '#7238f8', keys: ['ws_capital_efficiency_enabled', 'ws_costeff_enabled', 'ws_techmix_enabled', 'san_capital_efficiency_enabled', 'san_costeff_enabled', 'san_techmix_enabled'] },
   { id: 'tariff', label: 'Tariff Reform', color: '#c355fb', keys: ['ws_tariff_enabled', 'san_tariff_enabled'] },

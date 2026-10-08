@@ -1,7 +1,8 @@
 export const LOAN_FUNDING_QUALIFICATION =
   'Indicative loan proceeds — repayment accounting deferred. Loan sizing uses the selected year’s additional net cash and assumes equal annual repayments. Principal and interest payments are not deducted from model funding in this version.';
 
-const SOURCES = ['collection', 'tariff', 'nrw'];
+const LEGACY_SOURCES = ['collection', 'tariff', 'nrw'];
+const SOURCES = [...LEGACY_SOURCES, 'connections'];
 
 const hasOwn = (value: any, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 const isRecord = (value: any): value is Record<string, unknown> =>
@@ -22,7 +23,7 @@ export function migrateLoanFundingConfig(config: any = {}) {
       ? { legacy_metadata_original: config.legacy_metadata } : {};
   const inactiveParameters = { ...legacyFields, ...legacyMetadata, ...legacyParameters, ...legacyPayload };
   let sources = config.revenue_sources;
-  if (!hasOwn(config, 'revenue_sources') && legacyRecord) sources = [...SOURCES];
+  if ((!hasOwn(config, 'revenue_sources') && legacyRecord) || sources === 'all') sources = [...LEGACY_SOURCES];
   else if (!hasOwn(config, 'revenue_sources') && !legacyRecord) sources = [];
   let term = config.loan_term_years;
   let migrated = false;

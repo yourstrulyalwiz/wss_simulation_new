@@ -257,6 +257,7 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
     bau['scenario_target_hh'] = scn['target_hh']
     for key in SERVICE_GAP_FIELDS:
         bau['scenario_' + key] = scn[key]
+        bau['scenario_without_utility_debt_' + key] = scn_without_debt[key]
     from model.expansion_ledger import ExpansionLedger
     for key in ExpansionLedger(0, 0, 0).series:
         bau['scenario_' + key] = scn[key]
@@ -290,6 +291,7 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
     bau['scenario_tariff_cash'] = scn['tariff_cash']                    # tariff-reform revenue (scenario)
     for key in ('billed_volume_million_m3', 'baseline_collected_revenue', 'collected_revenue', 'additional_collected_revenue'):
         bau['scenario_' + key] = scn[key]
+        bau['scenario_without_utility_debt_' + key] = scn_without_debt[key]
     from model.connection_revenue import DIAGNOSTIC_FIELDS
     from model.revenue_reconciliation import RECONCILIATION_FIELDS
     for key in ('connection_revenue', 'revenue_reconciliation', *DIAGNOSTIC_FIELDS,
@@ -297,6 +299,9 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
                 'microfinance_cohort_unserved', 'microfinance_cohort_self_excluded',
                 'unallocated_positive_capital'):
         bau['scenario_' + key] = scn[key]
+        bau['scenario_without_utility_debt_' + key] = scn_without_debt[key]
+    for key in ('collection_cash', 'tariff_cash', 'eligible_nrw_link_cash'):
+        bau['scenario_without_utility_debt_' + key] = scn_without_debt[key]
     bau['scenario_financial_commitment_cash'] = scn.get('financial_commitment_cash', [])
     bau['scenario_exogenous_injection_cash'] = scn.get('exogenous_injection_cash', [])
     bau['scenario_nrw_net'] = scn.get('nrw_net', [])                    # NRW money ledger (scenario)
@@ -322,6 +327,13 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
 
 
 def calculate(inputs: ModelInputs) -> dict:
+    import copy
+    configs = copy.deepcopy(inputs.connection_revenue)
+    for prefix, sector in [('ws', 'water'), ('san', 'sanitation')]:
+        selected = getattr(inputs.toggles, prefix + '_connections_enabled', None)
+        if selected is not None:
+            configs[sector] = {**(configs.get(sector) or {}), 'enabled': selected}
+    inputs = inputs.model_copy(update={'connection_revenue': configs})
     ctx = build_context(inputs)
     from model.utility_revenue import resolve_bases, RevenueInputError
     resolutions = resolve_bases(inputs, ctx)
@@ -335,10 +347,13 @@ def calculate(inputs: ModelInputs) -> dict:
     #    user's toggles and is returned alongside as scenario_* (see _sector_with_scenario). ──
     bau_toggles = inputs.toggles.model_copy(update={f: False for f in InterventionToggles.model_fields})
     # BAU pass also drops every custom intervention, so custom levers can't move the counterfactual either.
-    bau_inputs = inputs.model_copy(update={'toggles': bau_toggles, 'custom_interventions': []})
+    bau_configs = {s: {**copy.deepcopy(c), 'enabled': False} for s, c in configs.items()}
+    bau_inputs = inputs.model_copy(update={'toggles': bau_toggles, 'custom_interventions': [],
+                                          'connection_revenue': bau_configs})
     customs = getattr(inputs, 'custom_interventions', None) or []
     any_toggle_on = (any(getattr(inputs.toggles, f, False) for f in InterventionToggles.model_fields)
-                     or any(getattr(c, 'enabled', False) for c in customs))
+                     or any(getattr(c, 'enabled', False) for c in customs)
+                     or any(c.get('enabled') for c in configs.values()))
     # Water is computed FIRST (both passes) so sanitation can consume the physical water the water NRW lever
     # recovers. The recovered volume is 0 in the water BAU pass (NRW off) and the water scenario value in the
     # scenario pass; each is threaded into the MATCHING sanitation pass, so the sanitation BAU stays a pure

@@ -190,4 +190,30 @@ assert.ok(read('../src/components/ResultsLedgerPanel.tsx').includes('key={`${row
 for (const component of [dashboard, read('../src/components/UtilityDebtPreview.tsx')]) {
   for (const field of ['debt_service_paid', 'debt_service_unfunded', 'funded_interest', 'unfunded_principal']) assert.ok(component.includes(field));
 }
-console.log('Source attribution: count aggregation, stock/annual reconciliation, category identity, signed funding, strict availability and shared frontend payloads passed.');
+// Selection filters both the display and the common visible-row export hierarchy,
+// without filtering the model total or hiding a selected zero-valued source.
+for (const metric of ['coverage', 'funding']) {
+  for (const service of ['sm', 'basic', 'total']) {
+    const data = { years, baselineYear: 2025, base: fundingSnapshots, scenario: fundingSnapshots,
+      contributions: [], attributionComplete: false, includesDebt: true,
+      coverageAttribution: a, sourceFunding: funding };
+    const options = { ...opts, metric, service };
+    const original = ledgerRows(data, options);
+    const filtered = ledgerRows({ ...data, selectedSourceKeys: ['tariff'] }, options);
+    const interventionRows = flat(filtered).filter(row => row.kind === 'intervention');
+    assert.deepEqual(interventionRows.map(row => row.key), [metric === 'coverage' ? 'tariff' : 'funding-source-tariff']);
+    assert.deepEqual(filtered.find(row => row.key === 'scenario').values,
+      original.find(row => row.key === 'scenario').values);
+    const empty = ledgerRows({ ...data, selectedSourceKeys: [] }, options);
+    assert.ok(!flat(empty).some(row => row.kind === 'intervention' || row.kind === 'category'));
+    assert.ok(!flat(empty).some(row => ['ordinary-injection', 'connectionNetCash', 'collectionCash', 'tariffCash', 'nrwNetCash', 'eligibleNrwLinkCash'].includes(row.key)));
+    const zero = structuredClone(data);
+    zero.selectedSourceKeys = ['tariff'];
+    for (const field of ['sm_stock', 'basic_stock', 'annual_sm_upgrades', 'annual_basic_entries'])
+      zero.coverageAttribution[field].tariff.fill(0);
+    for (const field of ['signed_contribution', 'sm_capital_spent', 'basic_capital_spent'])
+      zero.sourceFunding[field].tariff.fill(0);
+    assert.equal(flat(ledgerRows(zero, options)).filter(row => row.kind === 'intervention').length, 1);
+  }
+}
+console.log('Source attribution and selected-only ledger regression tests passed.');

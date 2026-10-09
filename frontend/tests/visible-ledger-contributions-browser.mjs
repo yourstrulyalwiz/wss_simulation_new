@@ -147,7 +147,9 @@ try {
         const combined = list.findIndex(row => row.key === 'scenario');
         const categories = list.filter(row => row.kind === 'category');
         const contributions = list.filter(row => row.kind === 'intervention');
-        assert.ok(contributions.length > 5, 'Individual contributions should be visible by default.');
+        assert.ok(contributions.length > 0, 'Selected individual contributions should be visible by default.');
+        assert.ok(!contributions.some(row => ['loan', 'funding-source-loan', 'zero_cost', 'funding-source-zero_cost'].includes(row.key)),
+          'Disabled loan or non-selectable zero-cost source shown as an intervention.');
         assert.ok(categories.length && list.slice(combined + 1).every(row => row.kind !== 'category' && row.kind !== 'intervention'), 'Historical contribution ordering changed.');
         assert.ok(!list.some(row => row.kind === 'component' && row.depth > 1), 'Nested allocation children must not be expanded by default.');
         const baseline = list.find(row => row.key === (metric === 'coverage' ? 'opening-baseline' : 'funding-source-baseline'));
@@ -189,6 +191,12 @@ try {
         console.log(`Checking ${sector}/${service}/${scope}`);
         await setScope(scope);
         await w(`!!document.querySelector('${root(sector)} [data-ledger-row="scenario"]')`, 'Scope ledger unavailable.');
+        if (sector === 'water') {
+          const scopeRows = await tableRows(sector);
+          assert.equal(scopeRows.some(row => row.key === 'funding-source-tariff'), scope !== 'urban',
+            'Tariff visibility must follow selected area toggles, not source registry presence.');
+          await checkExport(sector);
+        }
         values[scope] = (await tableRows(sector)).find(row => row.key === 'scenario').values;
       }
       values.national.forEach((value, i) => {

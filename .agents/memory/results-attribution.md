@@ -22,6 +22,17 @@ Preserve the familiar ledger presentation: baseline/reference, intervention
 category subtotals with individual rows, combined scenario, then supporting
 details. Individual view should expose the source rows, not only scenario totals.
 
+Only selected interventions belong in the ledger; omit unselected interventions
+and categories without selected members. Selected interventions with zero
+contributions remain eligible.
+
+**Why:** The user clarified that restoring the previous ledger includes its
+selected-interventions-only behavior, not a catalogue of all possible sources.
+
+**How to apply:** Use scenario selection for the relevant sector and geography,
+not source-registry presence or a nonzero threshold; apply the same rule to
+expanded rows and visible-row exports.
+
 **Why:** The user explicitly requested the presentation from before the source
 attribution change, rather than a newly designed layout.
 

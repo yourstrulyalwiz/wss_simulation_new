@@ -26,6 +26,7 @@ import { aggregateWeightedRevenueRate, connectionRevenueAreaModes, summarizeConn
 import { isModeledLoanSummary, LOAN_FUNDING_QUALIFICATION, LOAN_REPAYMENT_ACCOUNTING, LOAN_SUMMARY_VERSION } from '../loanFunding';
 import RevenueSourceChart from './RevenueSourceChart';
 import { WATER_INTERVENTIONS as WATER_INTV, SANITATION_INTERVENTIONS as SAN_INTV, GLOBAL_INTERVENTION_ORDER, comparisonInputs, interventionEnabled, type InterventionDefinition as IntvDef } from '../interventionRegistry';
+import { selectedLedgerSources } from '../ledgerSelection';
 import { aggregateCoverage, aggregateSourceFunding, sourceCoverageRows, sourceDefinition, BASELINE_COVERAGE_LABEL, SOURCE_COVERAGE_TEXT, type CoverageAttribution, type SourceFunding } from '../sourceAttribution';
 import { useNarrowChart } from '../useNarrowChart';
 
@@ -951,9 +952,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       base: s.ledgerBase, scenario: s.ledgerScenario, areas: s.ledgerAreas,
       contributions: cs?.ledgerContributions ?? [], attributionComplete: !!cs,
       coverageAttribution: s.attribution, sourceFunding: s.sourceFunding,
+      selectedSourceKeys: selectedLedgerSources(datasets, secKey),
       sourceBands: s.attribution.source_keys.map(key => sourceDefinition(key, secKey)),
-      includesDebt: datasets.some(inp => Object.values(inp.utility_debt || {})
-        .some((config: any) => config?.enabled && config.allocation_share > 0)),
+      includesDebt: selectedLedgerSources(datasets, secKey).includes('loan'),
     };
     const visibleLedgerYears = s.ledgerScenario.filter(row => (chartStart == null || row.year >= chartStart) &&
       (chartEnd == null || row.year <= chartEnd)).map(row => row.year);

@@ -37,6 +37,7 @@ export type LedgerData = {
   contributions: LedgerContribution[]; attributionComplete: boolean; includesDebt: boolean;
   areas?: LedgerArea[];
   coverageAttribution?: CoverageAttribution; sourceFunding?: SourceFunding; sourceBands?: ViewBand[];
+  selectedSourceKeys?: string[];
 };
 export type LedgerRow = {
   key: string; label: string; kind: 'baseline' | 'category' | 'intervention' | 'scenario' | 'detail' | 'target' | 'section' | 'summary' | 'area' | 'service' | 'component';
@@ -551,6 +552,8 @@ export function ledgerRows(data: LedgerData, options: {
     after.map((value, i) => value == null || before[i] == null ? null : value - before[i]!);
   const rows: LedgerRow[] = [{ key: 'bau', label: 'Pure BAU — year-end stock', kind: 'baseline', unit, values: series(data.base) }];
   const definition = (key: string) => sourceDefinition(key, data.sector ?? 'water');
+  const selectedSource = (key: string) => key === 'baseline' ||
+    (data.selectedSourceKeys == null || data.selectedSourceKeys.includes(key));
   const groupSources = (children: (LedgerRow & { category: string })[]) => {
     const categories = [...CONTRIBUTION_CATEGORIES.map(c => ({ id: c.id as string, label: c.label })),
       { id: 'custom', label: 'Custom interventions' }, { id: 'other', label: 'Direct physical delivery' }];
@@ -585,13 +588,20 @@ export function ledgerRows(data: LedgerData, options: {
     rows.push({ key: 'opening-baseline', label: annual ? 'Baseline-funded transitions' : 'Opening and baseline-funded coverage',
       kind: 'baseline', unit, timing: annual ? 'Annual delivered transitions' : 'Year-end stock',
       values: annual ? valuesFor(stockSM.baseline, stockBasic.baseline) : valuesFor(a.opening_baseline_stock.sm, a.opening_baseline_stock.basic) });
-    const children = a.source_keys.filter(key => key !== 'baseline').map(key => {
+    const children = a.source_keys.filter(key => key !== 'baseline' && selectedSource(key)).map(key => {
       const band = definition(key);
       return { key, label: band.label, kind: 'intervention' as const, unit,
         timing: annual ? 'Annual delivered transitions' : 'Year-end attributed stock',
         values: valuesFor(stockSM[key], stockBasic[key]), category: ledgerCategory(band?.interventionKey ?? key, band?.custom) };
     });
     groupSources(children);
+    // Zero-cost delivery is an accounting origin, not a selectable intervention.
+    if (data.selectedSourceKeys && a.source_keys.includes('zero_cost')) {
+      const values = valuesFor(stockSM.zero_cost, stockBasic.zero_cost);
+      if (values.some(value => value != null && Math.abs(value) > 1e-12))
+        rows.push({ key: 'zero-cost-delivery', label: 'Zero-cost delivery — accounting detail',
+          kind: 'detail', unit, values });
+    }
     const sumSources = (stocks: Record<string, number[]>) => data.years.map((_, i) => a.source_keys.reduce((sum, key) => sum + stocks[key][i], 0));
     rows.push({ key: 'scenario', label: annual ? service === 'total' ? 'Combined delivered transitions (entries + upgrades; not unique households)'
         : service === 'sm' ? 'Combined SM upgrades' : 'Combined Basic entries'
@@ -645,9 +655,10 @@ export function ledgerRows(data: LedgerData, options: {
     };
     rows.length = 0;
     rows.push(sourceRow('baseline'));
-    const children = keys.filter(key => key !== 'baseline').map(sourceRow);
+    const children = keys.filter(key => key !== 'baseline' && selectedSource(key)).map(sourceRow);
     groupSources(children);
-    const sources = [rows[0], ...children];
+    // Visibility must never change the actual combined model total.
+    const sources = keys.map(sourceRow);
     rows.push({ key: 'scenario', label: service === 'total'
         ? 'Combined scenario — ordinary available funding before debt'
         : `Combined scenario — ${service === 'sm' ? 'SM' : 'Basic'} capital paid`,
@@ -741,7 +752,7 @@ export function ledgerRows(data: LedgerData, options: {
         detail('repaymentsPaid', 'Debt service funded from selected sources');
         detail('repaymentsUnfunded', 'Debt service unfunded — not forgiven');
       }
-      if (data.scenario.some(snap => snap.values.ordinaryInjection[2] != null)) {
+      if (selectedSource('injection') && data.scenario.some(snap => snap.values.ordinaryInjection[2] != null)) {
         rows.push({
           key: 'ordinary-injection-section', label: 'Intervention funding injections — included in ordinary funds',
           kind: 'section', unit: '', values: years.map(() => null),
@@ -762,7 +773,12 @@ export function ledgerRows(data: LedgerData, options: {
         { key: 'eligibleNrwLinkCash', label: 'Eligible NRW-linked sanitation signed net cash' },
         { key: 'additionalNetCash', label: 'Total additional net cash (identity check)' },
       ];
-      const cashRows: LedgerRow[] = cashFields.map(item => ({
+      const cashSourceKeys: Record<string, string> = {
+        connectionNetCash: 'connections', collectionCash: 'collection', tariffCash: 'tariff',
+        nrwNetCash: 'nrw', eligibleNrwLinkCash: 'nrw_link',
+      };
+      const cashRows: LedgerRow[] = cashFields.filter(item =>
+        !cashSourceKeys[item.key] || selectedSource(cashSourceKeys[item.key])).map(item => ({
         key: item.key, label: item.label, kind: 'component' as const, unit,
         timing: 'Source cash diagnostic — included in ordinary available cash; not an additional funding amount',
         values: years.map(year => {

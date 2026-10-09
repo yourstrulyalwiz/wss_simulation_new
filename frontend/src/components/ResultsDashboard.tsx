@@ -945,6 +945,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const noImpact = Math.abs(s.sum.addHH) < 1e-4 && Math.abs(s.sum.gapBauCum - s.sum.gapScnCum) < 1e-4;
     const rows = s.impactRows;
     const ledgerData: LedgerData = {
+      sector: secKey,
       years: s.ledgerScenario.map(row => row.year),
       baselineYear: datasets[0]?.period?.baseline_year ?? s.ledgerScenario[0].year,
       base: s.ledgerBase, scenario: s.ledgerScenario, areas: s.ledgerAreas,
@@ -1021,13 +1022,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             bands={gapBands} lines={gapLines} fmt={gapFmt}
             filename={`${scopeName}_${secKey}_financing_gap_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} currencyDisplay={detailExportCurrency} />
         </div>
-        <ResultsLedgerPanel data={{ years: s.ledgerScenario.map(row => row.year),
-          baselineYear: datasets[0]?.period?.baseline_year ?? s.ledgerScenario[0].year,
-          base: s.ledgerBase, scenario: s.ledgerScenario, areas: s.ledgerAreas, contributions: cs?.ledgerContributions ?? [],
-          attributionComplete: !!cs, includesDebt: datasets.some(inp => Object.values(inp.utility_debt || {})
-            .some((config: any) => config?.enabled && config.allocation_share > 0)) }} sector={secKey} label={label} scope={scopeName}
-          years={s.ledgerScenario.filter(row => (chartStart == null || row.year >= chartStart) &&
-            (chartEnd == null || row.year <= chartEnd)).map(row => row.year)}
+        <ResultsLedgerPanel data={ledgerData} sector={secKey} label={label} scope={scopeName}
+          years={visibleLedgerYears}
           isShare={isShare} currency={displayCur} moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency}
           contributionView={contributionView}
           onRetry={() => setAttempt(value => value + 1)}

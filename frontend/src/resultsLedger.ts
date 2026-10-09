@@ -1,4 +1,5 @@
 import { CONTRIBUTION_CATEGORIES } from './contributionView';
+import { sourceDefinition } from './sourceAttribution';
 import type { CoverageAttribution, SourceFunding } from './sourceAttribution';
 import type { ViewBand } from './contributionView';
 
@@ -31,6 +32,7 @@ export type LedgerArea = {
   key: 'urban' | 'rural'; label: string; base?: LedgerSnapshot[]; scenario: LedgerSnapshot[];
 };
 export type LedgerData = {
+  sector?: 'water' | 'sanitation';
   years: number[]; baselineYear: number; base: LedgerSnapshot[]; scenario: LedgerSnapshot[];
   contributions: LedgerContribution[]; attributionComplete: boolean; includesDebt: boolean;
   areas?: LedgerArea[];
@@ -538,7 +540,7 @@ export function ledgerRows(data: LedgerData, options: {
     const populationByYear = new Map(denominators.map(s => [s.year, s.population]));
     return years.map(year => {
       const snap = byYear.get(year);
-      const value = snap?.values[key][component];
+      const value = snap?.values[key]?.[component];
       if (value == null || !snap) return null;
       const population = populationByYear.get(year) ?? 0;
       return isCoverage ? isShare ? (population > 0 ? value / population * 100 : null) : value
@@ -548,12 +550,31 @@ export function ledgerRows(data: LedgerData, options: {
   const difference = (after: (number | null)[], before: (number | null)[]) =>
     after.map((value, i) => value == null || before[i] == null ? null : value - before[i]!);
   const rows: LedgerRow[] = [{ key: 'bau', label: 'Pure BAU — year-end stock', kind: 'baseline', unit, values: series(data.base) }];
+  const definition = (key: string) => sourceDefinition(key, data.sector ?? 'water');
+  const groupSources = (children: (LedgerRow & { category: string })[]) => {
+    const categories = [...CONTRIBUTION_CATEGORIES.map(c => ({ id: c.id as string, label: c.label })),
+      { id: 'custom', label: 'Custom interventions' }, { id: 'other', label: 'Direct physical delivery' }];
+    for (const category of categories) {
+      const members = children.filter(c => c.category === category.id);
+      if (!members.length) continue;
+      rows.push({ key: category.id, label: category.label, kind: 'category', unit,
+        timing: isCoverage ? basis === 'annual' ? 'Annual delivered transitions' : 'Year-end attributed stock'
+          : service === 'total' ? 'Signed ordinary receipts — annual flow' : 'Service capital paid — annual flow',
+        children: members, values: years.map((_, i) => members.some(c => c.values[i] == null)
+          ? null : members.reduce((sum, c) => sum + c.values[i]!, 0)) });
+    }
+  };
+  if (isCoverage && (!data.coverageAttribution || data.coverageAttribution.version !== 1 ||
+      data.coverageAttribution.method !== 'actual_source_funding'))
+    throw new Error('Actual source-funded coverage is unavailable in this result set.');
   if (isCoverage && data.coverageAttribution) {
     const a = data.coverageAttribution;
     const annual = basis === 'annual';
     const valuesFor = (sm: number[], basic: number[]) => years.map(year => {
       const i = data.years.indexOf(year);
       if (i < 0) return null;
+      if (!Number.isFinite(sm?.[i]) || !Number.isFinite(basic?.[i]))
+        throw new Error(`Actual source-funded coverage is unavailable for ${year}.`);
       const value = service === 'sm' ? sm[i] : service === 'basic' ? basic[i] : sm[i] + basic[i];
       const population = data.scenario.find(s => s.year === year)?.population ?? 0;
       return isShare ? population > 0 ? value / population * 100 : null : value;
@@ -565,19 +586,12 @@ export function ledgerRows(data: LedgerData, options: {
       kind: 'baseline', unit, timing: annual ? 'Annual delivered transitions' : 'Year-end stock',
       values: annual ? valuesFor(stockSM.baseline, stockBasic.baseline) : valuesFor(a.opening_baseline_stock.sm, a.opening_baseline_stock.basic) });
     const children = a.source_keys.filter(key => key !== 'baseline').map(key => {
-      const band = data.sourceBands?.find(b => b.key === key);
-      return { key, label: band?.label ?? key, kind: 'intervention' as const, unit,
+      const band = definition(key);
+      return { key, label: band.label, kind: 'intervention' as const, unit,
         timing: annual ? 'Annual delivered transitions' : 'Year-end attributed stock',
         values: valuesFor(stockSM[key], stockBasic[key]), category: ledgerCategory(band?.interventionKey ?? key, band?.custom) };
     });
-    const categories = [...CONTRIBUTION_CATEGORIES.map(c => ({ id: c.id as string, label: c.label })),
-      { id: 'custom', label: 'Custom interventions' }, { id: 'other', label: 'Direct physical delivery' }];
-    for (const category of categories) {
-      const members = children.filter(c => c.category === category.id);
-      if (!members.length) continue;
-      rows.push({ key: category.id, label: category.label, kind: 'category', unit, children: members,
-        values: years.map((_, i) => members.some(c => c.values[i] == null) ? null : members.reduce((sum, c) => sum + c.values[i]!, 0)) });
-    }
+    groupSources(children);
     const sumSources = (stocks: Record<string, number[]>) => data.years.map((_, i) => a.source_keys.reduce((sum, key) => sum + stocks[key][i], 0));
     rows.push({ key: 'scenario', label: annual ? service === 'total' ? 'Combined delivered transitions (entries + upgrades; not unique households)'
         : service === 'sm' ? 'Combined SM upgrades' : 'Combined Basic entries'
@@ -586,7 +600,73 @@ export function ledgerRows(data: LedgerData, options: {
     if (annual) return rows;
     rows.push({ key: 'baseline-reconciliation', label: 'Baseline-funded difference from pure BAU (not an additional layer)', kind: 'detail',
       unit: isShare ? 'pp' : unit, values: valuesFor(a.baseline_difference_from_bau.sm, a.baseline_difference_from_bau.basic) });
-  } else if (!isCoverage && metric !== 'funding' && data.attributionComplete) {
+  } else if (metric === 'funding') {
+    const funding = data.sourceFunding;
+    if (!funding || funding.version !== 1 || funding.method !== 'actual_source_funding' ||
+        !Array.isArray(funding.source_keys) || !funding.source_keys.includes('baseline'))
+      throw new Error('Actual source funding is unavailable in this result set.');
+    const field = service === 'total' ? 'signed_contribution'
+      : service === 'sm' ? 'sm_capital_spent' : 'basic_capital_spent';
+    const amounts = (key: string, name = field, required = false) => years.map(year => {
+      if (year <= data.baselineYear) return null;
+      const v = funding[name]?.[key]?.[data.years.indexOf(year)];
+      if (required && (typeof v !== 'number' || !Number.isFinite(v)))
+        throw new Error(`Actual source funding unavailable: ${name}.${key} (${year}).`);
+      return typeof v === 'number' && Number.isFinite(v) ? v * moneyFactor / 1000 : null;
+    });
+    const fields: [string, string][] = [
+      ['signed_contribution', 'Signed ordinary contribution'],
+      ['loss_charge', 'Proportional loss charge'],
+      ['debt_charge', 'Debt service funded — not contractual debt due'],
+      ['replacement_charge', 'Replacement allocation paid'],
+      ['expansion_available', 'Expansion capacity before purchases'],
+      ['basic_capital_spent', 'Basic capital spent'],
+      ['sm_capital_spent', 'SM capital spent'],
+      ['ancillary_spent', 'Ancillary capital spent — shared allocation'],
+      ['unused', 'Unused source cash'],
+    ];
+    // Restricted proceeds and external household finance are not ordinary receipts.
+    const keys = funding.source_keys.filter(key => service !== 'total' ||
+      !['loan', 'microfinance', 'grant', 'zero_cost'].includes(key));
+    const sourceRow = (key: string): LedgerRow & { category: string } => {
+      const band = definition(key);
+      return { key: `funding-source-${key}`, label: key === 'baseline'
+          ? service === 'total' ? 'Baseline effective ordinary funding' : 'Baseline-funded service capital paid'
+          : band.label,
+        kind: key === 'baseline' ? 'baseline' : 'intervention', unit, values: amounts(key, field, true),
+        component: field, category: ledgerCategory(band.interventionKey ?? key, band.custom),
+        timing: service === 'total' ? 'Signed ordinary receipts — annual flow' : 'Service capital paid — annual flow',
+        status: service === 'total' ? undefined : 'Actual capital paid; shared receipts, replacement and ancillary spending are not split between services.',
+        children: fields.map(([name, label]) => ({
+          key: `funding-source-${key}-${name}`, label, kind: 'component', unit, component: name,
+          timing: 'Allocation stage — not additive to parent or other stages',
+          values: amounts(key, name),
+        })) };
+    };
+    rows.length = 0;
+    rows.push(sourceRow('baseline'));
+    const children = keys.filter(key => key !== 'baseline').map(sourceRow);
+    groupSources(children);
+    const sources = [rows[0], ...children];
+    rows.push({ key: 'scenario', label: service === 'total'
+        ? 'Combined scenario — ordinary available funding before debt'
+        : `Combined scenario — ${service === 'sm' ? 'SM' : 'Basic'} capital paid`,
+      kind: 'scenario', unit, component: field, timing: 'Annual flow',
+      values: years.map((_, i) => sources.some(row => row.values[i] == null)
+        ? null : sources.reduce((sum, row) => sum + row.values[i]!, 0)) });
+    if (service === 'total') {
+      for (const [name, label] of [['loss_unfunded', 'Uncovered negative cash'],
+        ['replacement_due', 'Replacement due'], ['replacement_paid', 'Replacement paid'],
+        ['replacement_unfunded', 'Replacement unfunded']]) {
+        rows.push({ key: `funding-total-${name}`, label, kind: 'detail', unit, component: name,
+          timing: 'Annual flow — not additional receipts',
+          values: years.map(year => {
+            const v = year > data.baselineYear ? funding[name]?.[data.years.indexOf(year)] : null;
+            return typeof v === 'number' && Number.isFinite(v) ? v * moneyFactor / 1000 : null;
+          }) });
+      }
+    }
+  } else if (!isCoverage && data.attributionComplete) {
     const children = data.contributions.map(contribution => {
       const after = series(contribution.after), before = series(contribution.before);
       return {
@@ -607,7 +687,7 @@ export function ledgerRows(data: LedgerData, options: {
           members.reduce((sum, c) => sum + c.values[i]!, 0)) });
     }
   }
-  if (!isCoverage || !data.coverageAttribution) rows.push({ key: 'scenario', label: 'Combined scenario', kind: 'scenario', unit, values: series(data.scenario) });
+  if (!isCoverage && metric !== 'funding') rows.push({ key: 'scenario', label: 'Combined scenario', kind: 'scenario', unit, values: series(data.scenario) });
   const detail = (key: LedgerMeasure, label: string) => {
     const timing = key === 'requirementsCatchUp' ? 'Before funding'
       : key === 'outstanding' || key === 'accumulatedShortfalls' || key === 'fundingShared' || key === 'fundingRestricted'
@@ -647,48 +727,6 @@ export function ledgerRows(data: LedgerData, options: {
     } else if (service === 'sm') serviceGap(0, 'smNetGap', 'SM net gap');
     else serviceGap(1, 'basicNetGap', 'Basic-only gap');
   } else if (metric === 'funding') {
-    if (data.sourceFunding) {
-      const funding = data.sourceFunding;
-      const fields: [string, string][] = service === 'total' ? [
-        ['signed_contribution', 'Signed ordinary contribution'],
-        ['loss_charge', 'Charge covering negative contributions'],
-        ['debt_charge', 'Debt service funded'],
-        ['replacement_charge', 'Replacement paid'],
-        ['expansion_available', 'Expansion balance before purchases'],
-        ['basic_capital_spent', 'Basic capital spent'],
-        ['sm_capital_spent', 'SM capital spent'],
-        ['ancillary_spent', 'Ancillary capital spent'],
-        ['unused', 'Unused funds'],
-      ] : [[service === 'sm' ? 'sm_capital_spent' : 'basic_capital_spent', service === 'sm' ? 'SM capital spent' : 'Basic capital spent']];
-      const sourceChildren: LedgerRow[] = funding.source_keys.map(key => ({
-        key: `funding-source-${key}`, label: data.sourceBands?.find(b => b.key === key)?.label ?? key,
-        kind: 'intervention', unit, values: years.map(() => null),
-        timing: 'Actual annual allocation — components are not additive',
-        children: fields.map(([field, label]) => ({
-          key: `funding-source-${key}-${field}`, label, kind: 'component' as const, unit, component: field,
-          timing: 'Annual flow / source balance before or after deductions',
-          values: years.map(year => {
-            const i = data.years.indexOf(year);
-            const v = year > data.baselineYear ? funding[field]?.[key]?.[i] : null;
-            return v == null ? null : v * moneyFactor / 1000;
-          }),
-        })),
-      }));
-      const totals: [string, string][] = [
-        ['loss_unfunded', 'Uncovered negative cash'],
-        ['debt_service_due', 'Debt service due'], ['debt_service_paid', 'Debt service funded'], ['debt_service_unfunded', 'Debt service unfunded'],
-        ['replacement_due', 'Replacement due'], ['replacement_paid', 'Replacement paid'], ['replacement_unfunded', 'Replacement unfunded'],
-      ];
-      if (service === 'total') sourceChildren.push(...totals.map(([field, label]) => ({
-        key: `funding-total-${field}`, label, kind: 'summary' as const, unit, timing: 'Annual flow — not additive to source rows',
-        values: years.map(year => {
-          const v = year > data.baselineYear ? funding[field]?.[data.years.indexOf(year)] : null;
-          return v == null ? null : v * moneyFactor / 1000;
-        }),
-      })));
-      rows.push({ key: 'actual-source-funding', label: 'Actual source funding — signed cash, deductions and spending',
-        kind: 'section', unit: '', values: years.map(() => null), children: sourceChildren });
-    }
     if (service === 'total') { detail('fundingApplied', 'Scenario — funds applied to SM + Basic'); detail('fundingShared', 'Scenario — available but not applied / restricted'); }
     detail('fundingExternal', 'Scenario — external household finance applied');
     if (service === 'total') {

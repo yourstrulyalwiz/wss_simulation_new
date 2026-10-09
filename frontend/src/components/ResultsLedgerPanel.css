@@ -399,7 +399,8 @@
   .results-ledger__period { min-height: 0; flex: 1 1 100%; margin-left: 0; }
   .results-ledger__notes { padding: 10px 14px; }
   .results-ledger__table { min-width: 670px; }
-  .results-ledger__table .results-ledger__rowhead { width: 210px; min-width: 210px; }
+  .results-ledger__table .results-ledger__rowhead { width: 210px; min-width: 210px; max-width: 210px; overflow-wrap: anywhere; }
+  .results-ledger__row-tag { white-space: normal; overflow-wrap: anywhere; }
   .results-ledger__table .results-ledger__unit { min-width: 86px; }
   .results-ledger__reconciliation summary { padding: 11px 14px; }
   .results-ledger__reconciliation-body { padding: 0 14px 13px; }

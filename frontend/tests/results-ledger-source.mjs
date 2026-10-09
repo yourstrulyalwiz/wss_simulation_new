@@ -1,14 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import ts from 'typescript';
+import { ledgerModule } from './ledger-module.mjs';
 
-const categories = readFileSync(new URL('../src/contributionView.tsx', import.meta.url), 'utf8')
-  .split('export function ContributionViewToggle')[0].replace("import React from 'react';", '')
-  .replace('import.meta.env.DEV', 'false');
-const source = readFileSync(new URL('../src/resultsLedger.ts', import.meta.url), 'utf8')
-  .replace("import { CONTRIBUTION_CATEGORIES } from './contributionView';", categories);
-const js = ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 });
-const { ledgerRows } = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+const { ledgerRows } = ledgerModule;
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-10, `${actual} != ${expected}`);
 const years = [2030, 2031, 2032];
 const measures = [

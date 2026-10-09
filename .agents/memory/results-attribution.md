@@ -18,6 +18,17 @@ exports; Basic origins are removed proportionally on later upgrades. Keep the
 signed baseline-funded-minus-BAU reconciliation where rows sum to gain over BAU.
 Retain ordered runs only for financial gaps and cost-savings reporting.
 
+Preserve the familiar ledger presentation: baseline/reference, intervention
+category subtotals with individual rows, combined scenario, then supporting
+details. Individual view should expose the source rows, not only scenario totals.
+
+**Why:** The user explicitly requested the presentation from before the source
+attribution change, rather than a newly designed layout.
+
+**How to apply:** Restore visibility and ordering without restoring sequential
+coverage arithmetic; keep actual source funding, correct baseline labels, and
+restricted loan proceeds distinct from ordinary receipts.
+
 For financial need, positive intervention effects mean **reductions** in need,
 not increases: BAU minus the ordered reductions equals the combined scenario.
 Financial-gap comparisons remain separate from source-funded household stocks.

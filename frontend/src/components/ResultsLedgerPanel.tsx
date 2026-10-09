@@ -63,8 +63,8 @@ function description(metric: LedgerMetric, service: LedgerService, basis: Ledger
   }
   if (metric === 'funding') {
     return service === 'total'
-      ? `Sector total is funding available in B ${currency}, including restricted loan cash carried forward. It is not the sum of service-level applied funding.`
-      : `Service views show actual funds applied to ${service === 'sm' ? 'safely managed' : 'basic'} service, not all funds available to the sector.`;
+      ? `Baseline effective ordinary funding plus signed source contributions equals ordinary available funding before debt in B ${currency}. Restricted loan proceeds and carryover are separate below.`
+      : `Service views show actual ${service === 'sm' ? 'SM' : 'Basic'} capital paid by each source, not an invented split of shared receipts. Category and combined totals use the same capital-paid measure.`;
   }
   if (metric === 'requirements') {
     if (view === 'source') return 'Requirements before this year’s funding. Scheduled expansion is a reference flow; unpaid obligations are shown by source and are not inferred from available funding.';
@@ -94,10 +94,10 @@ export default function ResultsLedgerPanel({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [reportingView, setReportingView] = useState<LedgerView>('source');
   const [sourceKind, setSourceKind] = useState<'scenario' | 'bau'>('scenario');
-  useEffect(() => setExpanded({ 'source-total': true }), [contributionView, reportingView, sourceKind]);
+  useEffect(() => setExpanded({ 'source-total': true }), [contributionView, reportingView, sourceKind, selection.metric, selection.service, selection.basis, sector]);
   const isExpanded = (key: string) => expanded[key] ?? (
     reportingView === 'source' && (selection.metric === 'requirements' || selection.metric === 'gap')
-      ? key === 'source-total' : contributionView === 'individual'
+      ? key === 'source-total' : contributionView === 'individual' && rows.some(row => row.key === key && row.kind === 'category')
   );
   const balanceRate = validRate(currencyDisplay, currency) ? currencyDisplay.localPerUsd : null;
   const canRoundBalance = currency.toUpperCase() === 'USD' || balanceRate != null;
@@ -128,7 +128,10 @@ export default function ResultsLedgerPanel({
   const exportRows = visibleRows.map(row => [
     reportingView === 'effects' ? 'BAU-to-scenario ordered attribution' : sourceKind === 'bau' ? 'BAU' : 'Combined scenario',
     sector, row.geography ?? scope, row.service ?? '', row.component ?? '', row.timing ?? '',
-    row.children?.length || row.timing?.startsWith('Reference') || row.timing?.startsWith('Reporting diagnostic') ? 'No — subtotal/reference' : 'Yes',
+    row.kind === 'category' || row.kind === 'baseline' || row.kind === 'scenario' || row.kind === 'target' ||
+      row.kind === 'section' || row.timing?.startsWith('Reference') || row.timing?.startsWith('Reporting diagnostic')
+      ? 'No — subtotal/reference' : row.timing?.startsWith('Allocation stage') ? 'No — allocation stage'
+        : row.kind === 'intervention' ? 'Yes — contribution to parent subtotal' : 'No — supporting detail',
     row.status ?? '', row.depth, `${'  '.repeat(row.depth)}${row.label}`, row.unit, ...row.values, ...(data.includesDebt ? [LOAN_FUNDING_QUALIFICATION] : []),
   ]);
   const metricLabel = metricOptions.find(option => option.value === selection.metric)?.label ?? 'Coverage';
@@ -319,7 +322,7 @@ export default function ResultsLedgerPanel({
                 const isSignedGap = 'signedGap' in row && row.signedGap === true;
                 const open = isExpanded(row.key);
                 return (
-                  <tr key={row.key} data-ledger-row={row.key} data-row-kind={row.kind} data-row-depth={row.depth ?? 0} className={`results-ledger__row results-ledger__row--${row.kind}`}>
+                  <tr key={`${row.kind}:${row.key}`} data-ledger-row={row.key} data-row-kind={row.kind} data-row-depth={row.depth ?? 0} className={`results-ledger__row results-ledger__row--${row.kind}`}>
                     <th className={`results-ledger__rowhead ${isChild ? 'results-ledger__rowhead--child' : ''}`} style={row.depth ? { paddingLeft: 12 + row.depth * 16 } : undefined} scope="row">
                       {isCategory ? (
                         <button
@@ -393,7 +396,7 @@ export default function ResultsLedgerPanel({
             {data.contributions.map(c => `${c.order ? `${c.order}. ` : ''}${c.label}`).join(' → ') || 'No interventions enabled.'}
             {' '}Tariff effects include their interaction with earlier collection improvements. Borrowing, when included, follows all selected reforms and custom interventions.</p>}
           {selection.metric === 'funding' ? (
-            <p><strong>Funding.</strong> Service rows use allocations actually applied to safely managed or basic service. Sector total reports available funding, including restricted loan cash carried forward; available funding can differ from the amount applied.</p>
+             <p><strong>Funding.</strong> Ordinary source receipts are signed, before debt payments. Restricted loan proceeds and carryover are separate, not recurring revenue. Service source rows, category subtotals and Combined scenario all use actual service capital paid, excluding unsplit replacement and ancillary amounts. Expand a source to inspect allocation stages; they are not additive funding.</p>
           ) : selection.metric === 'requirements' ? (
             <p><strong>Requirements.</strong> Annual requirement is a flow. Catch-up is the pre-funding expansion need with replacement and cash deficit. Paid rows show current-year cash spending: expansion includes sector and external household finance, including associated infrastructure, but excludes physical reuse without cash spending. Replacement paid maintains existing assets; it is not deducted from outstanding expansion. Closing expansion also reflects physical upgrades and changes in costs or targets. Outstanding expansion and accumulated shortfalls are end-of-year balances; do not sum them across years.</p>
           ) : selection.metric === 'gap' ? (

@@ -2,15 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
+import { ledgerModule } from './ledger-module.mjs';
 
-const categories = readFileSync(new URL('../src/contributionView.tsx', import.meta.url), 'utf8')
-  .split('export function ContributionViewToggle')[0].replace("import React from 'react';", '')
-  .replace('import.meta.env.DEV', 'false');
-const source = readFileSync(new URL('../src/resultsLedger.ts', import.meta.url), 'utf8')
-  .replace("import { CONTRIBUTION_CATEGORIES } from './contributionView';", categories);
-const js = ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 });
-const { ledgerSnapshots, ledgerRows, ledgerCategory } = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+const { ledgerSnapshots, ledgerRows, ledgerCategory, aggregateCoverage, aggregateSourceFunding } = ledgerModule;
 const fixture = JSON.parse(execFileSync('python', ['-c', `
 import json
 from test_utility_revenue import example
@@ -71,7 +65,9 @@ for (const sector of ['water_supply', 'sanitation']) {
     key, label:key, category:ledgerCategory(key), before:snapshots[i], after:snapshots[i+1],
   }));
   contributions.push({key:'custom',label:'Enabled zero-effect custom',category:'custom',before:scenario,after:scenario});
-  const data = {years,baselineYear:fixture.baseline,base,scenario,contributions,attributionComplete:true,includesDebt:false};
+  const data = {years,baselineYear:fixture.baseline,base,scenario,contributions,attributionComplete:true,includesDebt:false,
+    coverageAttribution:aggregateCoverage([fixture.results.at(-1)],sector),
+    sourceFunding:aggregateSourceFunding([fixture.results.at(-1)],sector)};
   for (const metric of ['coverage','funding','requirements','gap'])
     for (const service of ['sm','basic','total'])
       for (const basis of ['annual','closing'])
@@ -79,8 +75,9 @@ for (const sector of ['water_supply', 'sanitation']) {
           const options = {metric,service,basis,years,isShare,moneyFactor:.001,currency:'USD',view:'effects'};
           const rows = ledgerRows(data, options);
           const categories = rows.filter(row=>row.kind==='category');
-          assert.ok(categories.some(row=>row.key==='custom' && row.children[0].key==='custom'));
-          assert.equal(rows[0].key, 'bau');
+          assert.ok(categories.some(row=>row.key==='custom'));
+          assert.equal(rows[0].key, metric==='funding' ? 'funding-source-baseline'
+            : metric==='coverage' && basis==='annual' ? 'opening-baseline' : 'bau');
           const final = rows.find(row=>row.key==='scenario');
           if (metric==='requirements') {
             const rung=service==='sm'?0:service==='basic'?1:2;
@@ -104,15 +101,16 @@ for (const sector of ['water_supply', 'sanitation']) {
               continue;
             }
             const bridge = categories.reduce((sum,row)=>sum+row.values[i],0);
+            const reference = metric==='coverage' ? rows.find(row=>row.key==='opening-baseline') : rows[0];
             close(metric === 'requirements' || metric === 'gap'
-              ? rows[0].values[i] - bridge : rows[0].values[i] + bridge,final.values[i]);
+              ? reference.values[i] - bridge : reference.values[i] + bridge,final.values[i]);
             for (const row of categories)
               close(row.values[i],row.children.reduce((sum,child)=>sum+child.values[i],0));
             comparisons++;
           }
           if (metric === 'coverage' && isShare)
-            assert.ok(categories.every(row=>row.unit==='pp') && final.unit==='%');
-          if (metric === 'coverage' && service === 'sm') {
+            assert.ok(categories.every(row=>row.unit==='%') && final.unit==='%');
+          if (metric === 'coverage' && service === 'sm' && basis==='closing') {
             const target = rows.find(row=>row.key==='target');
             const net = rows.find(row=>row.key==='smNetGap');
             assert.equal(net.signedGap, true);
@@ -187,13 +185,11 @@ for (const sector of ['water_supply', 'sanitation']) {
       }
     }
   }
-  const unavailable = ledgerRows({...data,attributionComplete:false},{
+  assert.throws(()=>ledgerRows({...data,coverageAttribution:undefined,attributionComplete:false},{
     metric:'coverage',service:'basic',basis:'annual',years,isShare:false,moneyFactor:1,currency:'USD',
-  });
-  assert.ok(!unavailable.some(row=>row.kind==='category'));
-  assert.ok(unavailable.find(row=>row.key==='scenario'));
+  }),/unavailable/);
   // Basic remains exclusive, including its signed category gap.
-  const basic = ledgerRows(data,{metric:'coverage',service:'basic',basis:'annual',years,isShare:false,moneyFactor:1,currency:'USD'});
+  const basic = ledgerRows(data,{metric:'coverage',service:'basic',basis:'closing',years,isShare:false,moneyFactor:1,currency:'USD'});
   basic.find(row=>row.key==='scenario').values.forEach((value,i)=>close(value,fixture.results.at(-1)[sector].scenario_hh[1][i]));
   assert.ok(!basic.some(row=>row.key==='accessGap' || row.key==='smNetGap'));
   basic.find(row=>row.key==='basicNetGap').values.forEach((value,i)=>
@@ -229,11 +225,20 @@ for (const sector of ['water_supply','sanitation']) {
   const urban=makeArea(2,2.10), rural=makeArea(1.84,1.69);
   const rowsFor = (areas,isShare=false,keys=['urban','rural'],service='sm') => {
     const snapshots=ledgerSnapshots(areas,sector,fixture.baseline);
+    const a=aggregateCoverage(areas,sector);
+    // This test deliberately overrides reported scenario stocks to exercise signed area gaps.
+    for(const [rung,index] of [['sm',0],['basic',1]]) {
+      a.combined_stock[rung]=snapshots.map(s=>s.values.coverage[index]);
+      a.opening_baseline_stock[rung]=a.combined_stock[rung];
+      for(const key of a.source_keys) a[`${rung}_stock`][key]=key==='baseline'
+        ? a.combined_stock[rung] : snapshots.map(()=>0);
+    }
     return ledgerRows({years:urban.years,baselineYear:fixture.baseline,base:snapshots,scenario:snapshots,
+      coverageAttribution:a,
       contributions:[],attributionComplete:true,includesDebt:false,
       areas: areas.map((result,i)=>({key:keys[i],label:keys[i]==='urban' ? 'Urban' : 'Rural',
         scenario:ledgerSnapshots([result],sector,fixture.baseline)}))},
-      {metric:'coverage',service,basis:'annual',years:urban.years,isShare,moneyFactor:1,currency:'USD'});
+      {metric:'coverage',service,basis:'closing',years:urban.years,isShare,moneyFactor:1,currency:'USD'});
   };
   const rows=rowsFor([urban,rural]);
   const values=(rs,key)=>rs.find(row=>row.key===key).values;
@@ -307,8 +312,9 @@ for (const sector of ['water_supply','sanitation']) {
   // National-only input must not invent an area split.
   const snap=ledgerSnapshots([upgraded],sector,fixture.baseline);
   const national=ledgerRows({years:upgraded.years,baselineYear:fixture.baseline,base:snap,scenario:snap,
+    coverageAttribution:aggregateCoverage([upgraded],sector),
     contributions:[],attributionComplete:false,includesDebt:false},
-    {metric:'coverage',service:'total',basis:'annual',years:upgraded.years,isShare:false,moneyFactor:1,currency:'USD'});
+    {metric:'coverage',service:'total',basis:'closing',years:upgraded.years,isShare:false,moneyFactor:1,currency:'USD'});
   assert.ok(!national.some(r=>/-urban$|-rural$/.test(r.key)));
   assert.ok(national.some(r=>r.key==='atLeastBasicNetGap'));
 }
@@ -342,6 +348,7 @@ close(finalCashSnapshot.values.additionalNetCash[2], 32);
 const cashLedger = ledgerRows({
   years: fixture.results.at(-1).years, baselineYear: fixture.baseline,
   base: cashSnapshots, scenario: cashSnapshots, contributions: [], attributionComplete: false, includesDebt: false,
+  sourceFunding: aggregateSourceFunding(cashAreas, 'sanitation'),
 }, { metric: 'funding', service: 'total', basis: 'annual', years: [finalCashSnapshot.year], isShare: false, moneyFactor: 2, currency: 'USD' });
 const cashSection = cashLedger.find(row => row.key === 'revenue-source-cash-section');
 assert.ok(cashSection, 'funding source ledger exposes the reconciliation cash identity');

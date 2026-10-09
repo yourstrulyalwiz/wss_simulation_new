@@ -49,7 +49,8 @@ function checked(value: any, path: string): number {
 export function aggregateCoverage(results: any[], sector: 'water_supply' | 'sanitation', withoutDebt = false): CoverageAttribution {
   const field = withoutDebt ? 'scenario_without_utility_debt_coverage_attribution' : 'scenario_coverage_attribution';
   const sources = results.map(r => r[sector]?.[field]);
-  if (!sources.length || sources.some(s => s?.version !== 1 || s?.method !== 'actual_source_funding'))
+  if (!sources.length || sources.some(s => s?.version !== 1 || s?.method !== 'actual_source_funding' ||
+      !Array.isArray(s?.source_keys) || !s.source_keys.includes('baseline')))
     throw new Error('Actual source-funded coverage is unavailable in this result set.');
   const source_keys = [...new Set<string>(sources.flatMap(s => s.source_keys))];
   const out: any = { version: 1, method: 'actual_source_funding', source_keys };
@@ -67,7 +68,8 @@ export function aggregateCoverage(results: any[], sector: 'water_supply' | 'sani
 export function aggregateSourceFunding(results: any[], sector: 'water_supply' | 'sanitation', withoutDebt = false): SourceFunding | undefined {
   const field = withoutDebt ? 'scenario_without_utility_debt_source_funding' : 'scenario_source_funding';
   const sources = results.map(r => r[sector]?.[field]);
-  if (!sources.length || sources.some(s => s?.version !== 1 || s?.method !== 'actual_source_funding')) return undefined;
+  if (!sources.length || sources.some(s => s?.version !== 1 || s?.method !== 'actual_source_funding' ||
+      !Array.isArray(s?.source_keys) || !s.source_keys.includes('baseline'))) return undefined;
   const source_keys = [...new Set<string>(sources.flatMap(s => s.source_keys))];
   const add = (values: any[]) => values.every(v => typeof v === 'number' && Number.isFinite(v)) ? values.reduce((a, v) => a + v, 0) : null;
   const out: SourceFunding = { version: 1, method: 'actual_source_funding', source_keys };

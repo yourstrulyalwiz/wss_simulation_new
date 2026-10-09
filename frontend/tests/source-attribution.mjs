@@ -7,7 +7,8 @@ const colors = read('../src/chartColors.ts');
 const categories = read('../src/contributionView.tsx').split('export function ContributionViewToggle')[0]
   .replace("import React from 'react';", '');
 const attributionSource = read('../src/sourceAttribution.ts').replace("import { C, INTV_PALETTE as P } from './chartColors';", '');
-const ledgerSource = read('../src/resultsLedger.ts').replace("import { CONTRIBUTION_CATEGORIES } from './contributionView';", '');
+const ledgerSource = read('../src/resultsLedger.ts').replace("import { CONTRIBUTION_CATEGORIES } from './contributionView';", '')
+  .replace("import { sourceDefinition } from './sourceAttribution';", '');
 const js = ts.transpile(`${colors}\nconst P = INTV_PALETTE;\n${categories}\n${attributionSource}\n${ledgerSource}`,
   { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 });
 const { aggregateCoverage, aggregateSourceFunding, sourceCoverageRows, sourceDefinition, aggregateContributionRows, ledgerRows } =
@@ -102,13 +103,77 @@ const fundingSnapshots = snapshots.map((s, i) => ({
     ordinaryInjection: [null, null, 0] },
 }));
 const fundingRows = ledgerRows({ ...data, scenario: fundingSnapshots, base: fundingSnapshots }, { ...opts, metric: 'funding', service: 'total', isShare: false });
-const actualFunding = fundingRows.find(r => r.key === 'actual-source-funding');
-const nrwCash = actualFunding.children.find(r => r.key === 'funding-source-nrw').children.find(r => r.component === 'signed_contribution');
+const actualFunding = fundingRows.find(r => r.key === 'operations');
+const nrwParent = actualFunding.children.find(r => r.key === 'funding-source-nrw');
+const nrwCash = nrwParent.children.find(r => r.component === 'signed_contribution');
 close(nrwCash.values[1], -.06); // Money in millions -> billions once; preserve signed loss.
 assert.equal(nrwCash.values[0], null);
+assert.deepEqual(nrwParent.values, nrwCash.values);
 close(fundingRows.find(r => r.key === 'repaymentsPaid').values[1], .012);
 close(fundingRows.find(r => r.key === 'repaymentsUnfunded').values[1], .018);
 assert.ok(!fundingRows.some(r => r.label.includes('[Step')));
+// The old sourceBands list is nonzero-chart-only; zero enabled sources must still have
+// stable human-readable labels and canonical category membership in the ledger.
+const enabledZero = structuredClone(data);
+enabledZero.scenario = fundingSnapshots;
+enabledZero.base = fundingSnapshots;
+for (const key of ['budget_execution', 'financial', 'injection', 'collection', 'nrw_link', 'custom']) {
+  enabledZero.coverageAttribution.source_keys.push(key);
+  enabledZero.sourceFunding.source_keys.push(key);
+  for (const name of ['sm_stock', 'basic_stock', 'annual_sm_upgrades', 'annual_basic_entries'])
+    enabledZero.coverageAttribution[name][key] = years.map(() => 0);
+  for (const name of ['signed_contribution', 'loss_charge', 'debt_charge', 'replacement_charge',
+    'expansion_available', 'sm_capital_spent', 'basic_capital_spent', 'ancillary_spent', 'unused'])
+    enabledZero.sourceFunding[name][key] = years.map(() => 0);
+}
+enabledZero.sourceBands = []; // Simulate zero bands being omitted upstream.
+const flat = rows => rows.flatMap(row => [row, ...flat(row.children ?? [])]);
+for (const sector of ['water', 'sanitation']) {
+  for (const metric of ['coverage', 'funding']) for (const service of ['sm', 'basic', 'total']) {
+    const list = ledgerRows({ ...enabledZero, sector }, { ...opts, metric, service });
+    const combinedIndex = list.findIndex(row => row.key === 'scenario');
+    assert.ok(list.slice(0, combinedIndex).some(row => row.kind === 'category'));
+    assert.ok(list.slice(combinedIndex + 1).every(row => row.kind !== 'intervention' && row.kind !== 'category'));
+    const prefix = metric === 'funding' ? 'funding-source-' : '';
+    const children = flat(list);
+    for (const [key, category] of [['financial', 'funding'], ['budget_execution', 'investment'], ['collection', 'operations']]) {
+      const source = children.find(row => row.key === `${prefix}${key}`);
+      assert.equal(source.label, sourceDefinition(key, sector).label);
+      assert.ok(list.find(row => row.key === category).children.includes(source));
+      assert.equal(source.values[1], 0);
+    }
+    for (const row of list.filter(row => row.kind === 'category'))
+      row.values.forEach((value, i) => value == null
+        ? assert.ok(row.children.some(child => child.values[i] == null))
+        : close(value, row.children.reduce((sum, child) => sum + child.values[i], 0)));
+  }
+}
+// Paid service capital is not signed source receipts, nor a fabricated fraction of them.
+const paid = structuredClone(enabledZero);
+paid.sourceFunding.sm_capital_spent.baseline = [0, 31, 42];
+paid.sourceFunding.sm_capital_spent.tariff = [0, 7, 13];
+paid.sourceFunding.basic_capital_spent.baseline = [0, 19, 23];
+paid.sourceFunding.basic_capital_spent.tariff = [0, 11, 17];
+paid.sourceFunding.signed_contribution.baseline = [0, 251, 293];
+paid.sourceFunding.signed_contribution.tariff = [0, 61, 67];
+paid.sourceFunding.signed_contribution.loan = [0, 500, 700]; // Restricted, never ordinary.
+for (const service of ['sm', 'basic', 'total']) {
+  const list = ledgerRows(paid, { ...opts, metric: 'funding', service, moneyFactor: .002, years: [2027] });
+  const categoryRows = list.filter(row => row.kind === 'category');
+  const subtotal = categoryRows.reduce((sum, row) => sum + row.values[0], 0);
+  close(list.find(row => row.key === 'scenario').values[0], list[0].values[0] + subtotal);
+  const field = service === 'total' ? 'signed_contribution' : `${service}_capital_spent`;
+  close(flat(list).find(row => row.key === 'funding-source-tariff').values[0], paid.sourceFunding[field].tariff[2] * .002 / 1000);
+  if (service === 'total') assert.ok(!flat(list).some(row => row.key === 'funding-source-loan'));
+}
+assert.throws(() => ledgerRows({ ...data, coverageAttribution: undefined }, opts), /unavailable/);
+assert.throws(() => ledgerRows({ ...data, sourceFunding: undefined }, { ...opts, metric: 'funding' }), /unavailable/);
+const missingReceipt = structuredClone(data);
+missingReceipt.sourceFunding.signed_contribution.nrw[2] = null;
+assert.throws(() => ledgerRows(missingReceipt, { ...opts, metric: 'funding', service: 'total' }), /signed_contribution.nrw/);
+const missingServiceCapital = structuredClone(data);
+missingServiceCapital.sourceFunding.basic_capital_spent.tariff[2] = null;
+assert.throws(() => ledgerRows(missingServiceCapital, { ...opts, metric: 'funding', service: 'basic' }), /basic_capital_spent.tariff/);
 // Frontend export payloads share chart/table metrics; no legacy sequential household expressions remain.
 const live = read('../src/components/LiveInterventionChart.tsx');
 const dashboard = read('../src/components/ResultsDashboard.tsx');
@@ -119,6 +184,9 @@ assert.ok(!dashboard.includes('smY('));
 assert.ok(dashboard.includes('Included in funded additions'));
 assert.ok(dashboard.includes('sourceCoverage.rows'));
 assert.ok(dashboard.includes('aggregateCoverage(resList, secKey, !includeDebt)'));
+assert.ok(dashboard.includes('<ResultsLedgerPanel data={ledgerData}'), 'Ledger panel must receive the complete actual-source data used by the chart.');
+assert.ok(read('../src/components/ResultsLedgerPanel.tsx').includes('key={`${row.kind}:${row.key}`}'),
+  'Flattened category/source rows may share semantic keys (tariff/custom); React identity must include row kind.');
 for (const component of [dashboard, read('../src/components/UtilityDebtPreview.tsx')]) {
   for (const field of ['debt_service_paid', 'debt_service_unfunded', 'funded_interest', 'unfunded_principal']) assert.ok(component.includes(field));
 }

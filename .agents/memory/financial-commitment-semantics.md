@@ -5,6 +5,29 @@ description: Product rules for financial commitments, recurring funding and one-
 
 ## One-time injection exception
 
+## Approved public-spending execution policy
+
+The 2026-10-09 user brief supersedes the earlier configured-execution treatment
+for additional public spending only. Use the execution intervention's existing
+year-specific baseline rate for added public capital. Attribute the signed
+execution improvement on both existing and added public allocations entirely
+to Budget Execution, exactly once. Preserve the configured-factor cost-derived
+spending reference and the existing external-funding treatment independently.
+
+**Why:** Configured execution and the intervention's baseline execution can
+differ; the earlier model omitted the interaction on newly committed spending.
+Public-spending-only results may intentionally change under the approved rule.
+
+**How to apply:** Follow the attached Public Spending, Budget Execution and
+External Funding instructions dated 2026-10-09. Preserve actual funded coverage,
+original-budget response meanings, debt eligibility and selected-only display.
+Display Financial Commitments as Increase in Public Spending, and the separate
+injection as External Funding (Private Sector, Donor, Foreign Direct Investment);
+keep internal identifiers and saved inputs unchanged. This is approved policy,
+not a claim that the implementation has already changed.
+
+## External funding and spending reference
+
 The full one-time ordinary injection enters available funds in its selected
 year, without spending-share/execution adjustments. Recurring injections and
 financial commitments retain the rules below. Do not compensate saved amounts.

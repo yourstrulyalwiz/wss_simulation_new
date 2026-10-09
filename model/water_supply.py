@@ -378,6 +378,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     # Financial commitments and exogenous injections have independent switches and cash ledgers.
     # The GDP entry is a target TOTAL share: only max(target×GDP − BAU full spending, 0) counts.
     financial_cash = np.zeros(n)
+    additional_public_capital = np.zeros(n)
     injection_cash = np.zeros(n)
     fs = financial_settings or {}
     commitment_exec = execution_rate if financial_execution_rate is None else financial_execution_rate
@@ -386,8 +387,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     spending_reference_source = 'entered_total_spending'
     if budget_source == 'from_cost' and not full_spending_provided:
         # No observed total spending was supplied. Express the existing derived
-        # BAU investment as an equivalent total budget using the SAME treatment
-        # applied to new commitments; this is an estimate, never observed spending.
+        # BAU investment as an equivalent total budget using the preserved configured
+        # conversion factor. This spending anchor is separate from baseline execution
+        # of added public capital; it is an estimate, never observed spending.
         if financial_capex_factor > 0:
             commitment_base = np.asarray(full_budget, dtype=float) / financial_capex_factor
             spending_reference_source = 'cost_derived_equivalent'
@@ -430,7 +432,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                     injection_cash[t] = amt * financial_capex_factor
                 elif fs.get('injection_mode') != 'recurring' and y == iy:
                     injection_cash[t] = amt
-            financial_cash[t] = extra_full * financial_capex_factor
+            additional_public_capital[t] = extra_full * max(0.0, float(capex_pct))
     # "Budget used" = the capital that becomes service each year (the from_cost cost-of-service budget,
     # or the user's per-year override). This is the DRIVER of the baseline BAU. capex_pct_eff/exec_eff
     # are 1.0 in from_cost; in %GDP mode it is the capital share of the (executed) budget.
@@ -482,6 +484,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                       (used_budget[t] / allocated[t] if allocated[t] > 0 else 1.), 0., 1.))
         for t in range(n)])
     baseline_capital = capex_budget * baseline_eff
+    financial_cash = additional_public_capital * baseline_eff
+    execution_interaction = additional_public_capital * (eff - baseline_eff)
+    budget_execution_cash = bau_available - baseline_capital + execution_interaction
 
     # ── Collection efficiency (test2) ──────────────────────────────────────────────────────────────
     # Better revenue COLLECTION (cash collected ÷ revenue billed) recovers billed-but-uncollected revenue
@@ -829,13 +834,13 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             eligible_nrw_cash_arr[t] = nrw_net[t]
             nrw_net[t] = 0.0
             flow_diagnostics['nrw_net'][t] = 0.0
-        avail = bau_available[t] + collection_cash[t] + tariff_cash[t] + revenue_diagnostics['connection_net_cash'][t] + nrw_net[t] + financial_cash[t] + injection_cash[t] + extra_cash_arr[t] + (eligible_nrw_cash_arr[t] if linked_nrw_volume is not None else 0.0)
+        avail = bau_available[t] + execution_interaction[t] + collection_cash[t] + tariff_cash[t] + revenue_diagnostics['connection_net_cash'][t] + nrw_net[t] + financial_cash[t] + injection_cash[t] + extra_cash_arr[t] + (eligible_nrw_cash_arr[t] if linked_nrw_volume is not None else 0.0)
         available_total[t] = avail
         debt_cash_opening[t] = debt_cash_balance
         debt_cash_available[t] = max(0.0, debt_cash_balance + debt_disbursement_arr[t])
         sources = dict(
             baseline=baseline_capital[t],
-            budget_execution=bau_available[t]-baseline_capital[t],
+            budget_execution=budget_execution_cash[t],
             financial=financial_cash[t], injection=injection_cash[t],
             connections=revenue_diagnostics['connection_net_cash'][t],
             collection=collection_cash[t], tariff=tariff_cash[t], nrw=nrw_net[t],

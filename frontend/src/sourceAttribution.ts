@@ -25,8 +25,8 @@ export function sourceDefinition(key: string, sector: 'water' | 'sanitation'): V
   const definitions: Record<string, [string, string, string?]> = {
     baseline: [BASELINE_COVERAGE_LABEL, C.bau],
     budget_execution: ['Budget execution', P.budgetExec, `${prefix}_capital_efficiency_enabled`],
-    financial: ['Financial commitments', P.financial, `${prefix}_financial_commitment_enabled`],
-    injection: ['Exogenous injection of funds', P.injection, `${prefix}_exogenous_injection_enabled`],
+    financial: ['Increase in Public Spending', P.financial, `${prefix}_financial_commitment_enabled`],
+    injection: ['External Funding (Private Sector, Donor, Foreign Direct Investment)', P.injection, `${prefix}_exogenous_injection_enabled`],
     connections: ['Revenue from new connections', P.connections, `${prefix}_connections_enabled`],
     collection: ['Collection efficiency', P.collection, `${prefix}_collection_efficiency_enabled`],
     tariff: ['Tariff reform', P.tariff, `${prefix}_tariff_enabled`],

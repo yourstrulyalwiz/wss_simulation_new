@@ -339,6 +339,8 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 4, lineHeight: 1.4 }}>
           Reference only: baseline BAU total sector spending ÷ baseline real GDP, before the capex share and
           execution rate. The target is compared with each forecast year’s BAU total spending, not this fixed share.
+          {' '}Added public capital uses baseline budget execution. Any execution improvement on both existing
+          and added public allocations is attributed separately to Budget Execution, not Public Spending.
         </div>
       </div>
       {Number.isFinite(addedCapital) && <div data-financial-capital={section} style={{gridColumn:'1 / -1',fontSize:12,color:'#1e3a5f'}}>
@@ -451,10 +453,10 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
           <InterventionCategories sector="water">
           <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="water" area={scopeLabel || 'Selected area'} />
-          <InterventionToggle label="Increase in Financial Commitments" checked={inputs.toggles?.ws_financial_commitment_enabled ?? false} onChange={v => toggleIntv('ws_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('ws_financial_commitment')}>
+          <InterventionToggle label="Increase in Public Spending" checked={inputs.toggles?.ws_financial_commitment_enabled ?? false} onChange={v => toggleIntv('ws_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('ws_financial_commitment')}>
             {financialFields('water_interventions')}
           </InterventionToggle>
-          <InterventionToggle label="Exogenous Injection of Funds" checked={inputs.toggles?.ws_exogenous_injection_enabled ?? false} onChange={v => toggleIntv('ws_exogenous_injection_enabled', v)} onFocus={() => onSectionFocus?.('ws_exogenous_injection')}>
+          <InterventionToggle label="External Funding (Private Sector, Donor, Foreign Direct Investment)" checked={inputs.toggles?.ws_exogenous_injection_enabled ?? false} onChange={v => toggleIntv('ws_exogenous_injection_enabled', v)} onFocus={() => onSectionFocus?.('ws_exogenous_injection')}>
             {injectionFields('water_interventions')}
           </InterventionToggle>
 
@@ -590,10 +592,10 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
           <InterventionCategories sector="sanitation">
           <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="sanitation" area={scopeLabel || 'Selected area'} />
-          <InterventionToggle label="Increase in Financial Commitments" checked={inputs.toggles?.san_financial_commitment_enabled ?? false} onChange={v => toggleIntv('san_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('san_financial_commitment')}>
+          <InterventionToggle label="Increase in Public Spending" checked={inputs.toggles?.san_financial_commitment_enabled ?? false} onChange={v => toggleIntv('san_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('san_financial_commitment')}>
             {financialFields('sanitation_interventions')}
           </InterventionToggle>
-          <InterventionToggle label="Exogenous Injection of Funds" checked={inputs.toggles?.san_exogenous_injection_enabled ?? false} onChange={v => toggleIntv('san_exogenous_injection_enabled', v)} onFocus={() => onSectionFocus?.('san_exogenous_injection')}>
+          <InterventionToggle label="External Funding (Private Sector, Donor, Foreign Direct Investment)" checked={inputs.toggles?.san_exogenous_injection_enabled ?? false} onChange={v => toggleIntv('san_exogenous_injection_enabled', v)} onFocus={() => onSectionFocus?.('san_exogenous_injection')}>
             {injectionFields('sanitation_interventions')}
           </InterventionToggle>
 

@@ -759,7 +759,7 @@ export function ledgerRows(data: LedgerData, options: {
           timing: 'Annual flow — one-time injection is full available amount; recurring amount retains spending-share/execution adjustments',
           status: 'Engine-reported intervention injection series; not an additional amount to add to total funding.',
           children: [{
-            key: 'ordinary-injection', label: 'Exogenous intervention injection', kind: 'detail', unit,
+            key: 'ordinary-injection', label: 'External Funding (Private Sector, Donor, Foreign Direct Investment)', kind: 'detail', unit,
             timing: 'Annual flow — already included in ordinary available funds',
             values: series(data.scenario, 'ordinaryInjection'), component: 'ordinaryInjection',
           }],

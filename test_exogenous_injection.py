@@ -56,11 +56,11 @@ class ExogenousInjectionTests(unittest.TestCase):
                 legacy[section]["fin_injection_enabled"] = True
                 self.assertTrue(getattr(coerce_to_engine(legacy).toggles, injection))
                 rows = intervention_breakdown(legacy, sector, definitions)
-                self.assertTrue(any(label == "Exogenous Injection of Funds" and money > 0
+                self.assertTrue(any(label == "External Funding (Private Sector, Donor, Foreign Direct Investment)" and money > 0
                                     for label, _, money, _ in rows))
                 _, enabled, _ = cumulative_passes([legacy])
                 self.assertIn(injection, [definition[0] for definition in enabled])
-                self.assertIn("Exogenous Injection of Funds", scenario_csv(legacy))
+                self.assertIn("External Funding (Private Sector, Donor, Foreign Direct Investment)", scenario_csv(legacy))
 
                 legacy["toggles"][injection] = False
                 self.assertFalse(getattr(coerce_to_engine(legacy).toggles, injection))

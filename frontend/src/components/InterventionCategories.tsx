@@ -5,7 +5,7 @@ import './InterventionCategories.css';
 const categories = [
   { id: 'funding', title: '1. Funding Mobilization',
     description: 'Mobilize funding through coverage-expansion revenue, spending commitments and additional funds.',
-    labels: ['Revenue from new connections', 'Increase in Financial Commitments', 'Exogenous Injection of Funds'] },
+    labels: ['Revenue from new connections', 'Increase in Public Spending', 'External Funding (Private Sector, Donor, Foreign Direct Investment)'] },
   { id: 'operations', title: '2. Operational Efficiency Improvements',
     description: 'Improve revenue collection and reduce operational losses.',
     labels: ['Collection efficiency', 'NRW reduction', 'NRW-linked sanitation revenue'] },

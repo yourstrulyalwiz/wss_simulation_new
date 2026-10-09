@@ -3,8 +3,8 @@ import { INTV_PALETTE as P } from './chartColors';
 export type InterventionDefinition = { key: string; label: string; color: string; resourceKey?: string };
 export const WATER_INTERVENTIONS: InterventionDefinition[] = [
   { key: 'ws_connections_enabled', label: 'Revenue from new connections', color: P.connections, resourceKey: 'scenario_connection_net_cash' },
-  { key: 'ws_financial_commitment_enabled', label: 'Financial commitments', color: P.financial, resourceKey: 'scenario_financial_commitment_cash' },
-  { key: 'ws_exogenous_injection_enabled', label: 'Exogenous injection of funds', color: P.injection, resourceKey: 'scenario_exogenous_injection_cash' },
+  { key: 'ws_financial_commitment_enabled', label: 'Increase in Public Spending', color: P.financial, resourceKey: 'scenario_financial_commitment_cash' },
+  { key: 'ws_exogenous_injection_enabled', label: 'External Funding (Private Sector, Donor, Foreign Direct Investment)', color: P.injection, resourceKey: 'scenario_exogenous_injection_cash' },
   { key: 'ws_collection_efficiency_enabled', label: 'Collection efficiency', color: P.collection, resourceKey: 'scenario_collection_cash' },
   { key: 'ws_capital_efficiency_enabled', label: 'Budget execution', color: P.budgetExec },
   { key: 'ws_costeff_enabled', label: 'Capex efficiency', color: P.capex },
@@ -15,8 +15,8 @@ export const WATER_INTERVENTIONS: InterventionDefinition[] = [
 ];
 export const SANITATION_INTERVENTIONS: InterventionDefinition[] = [
   { key: 'san_connections_enabled', label: 'Revenue from new connections', color: P.connections, resourceKey: 'scenario_connection_net_cash' },
-  { key: 'san_financial_commitment_enabled', label: 'Financial commitments', color: P.financial, resourceKey: 'scenario_financial_commitment_cash' },
-  { key: 'san_exogenous_injection_enabled', label: 'Exogenous injection of funds', color: P.injection, resourceKey: 'scenario_exogenous_injection_cash' },
+  { key: 'san_financial_commitment_enabled', label: 'Increase in Public Spending', color: P.financial, resourceKey: 'scenario_financial_commitment_cash' },
+  { key: 'san_exogenous_injection_enabled', label: 'External Funding (Private Sector, Donor, Foreign Direct Investment)', color: P.injection, resourceKey: 'scenario_exogenous_injection_cash' },
   { key: 'san_collection_efficiency_enabled', label: 'Collection efficiency', color: P.collection, resourceKey: 'scenario_collection_cash' },
   { key: 'san_capital_efficiency_enabled', label: 'Budget execution', color: P.budgetExec },
   { key: 'san_costeff_enabled', label: 'Capex efficiency', color: P.capex },

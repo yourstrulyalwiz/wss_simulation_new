@@ -211,6 +211,11 @@ def intervention_breakdown(inputs, sector_key, defs):
         before, after = passes[idx], passes[idx + 1]
         add_hh = source_band(actual[sector_key], key, len(years))[-1]
         res = (cash_cum(after, rkey) - cash_cum(before, rkey)) / 1000.0 if rkey else None  # M → B
+        source = {'financial_commitment': 'financial', 'capital_efficiency': 'budget_execution',
+                  'exogenous_injection': 'injection'}.get(key.split('_', 1)[1].removesuffix('_enabled'))
+        if source:
+            cash = actual[sector_key]['scenario_source_funding']['signed_contribution'][source]
+            res = sum(cash[i] for i, year in enumerate(years) if year > by) / 1000.0
         if rkey in ('scenario_connection_net_cash', 'scenario_collection_cash',
                     'scenario_tariff_cash', 'scenario_nrw_net', 'scenario_nrw_link_cash'):
             res = cash_cum(passes[-1], rkey) / 1000.0

@@ -3,8 +3,6 @@ name: Financial commitment semantics
 description: Product rules for financial commitments, recurring funding and one-time injections.
 ---
 
-## One-time injection exception
-
 ## Approved public-spending execution policy
 
 The 2026-10-09 user brief supersedes the earlier configured-execution treatment
@@ -23,14 +21,14 @@ External Funding instructions dated 2026-10-09. Preserve actual funded coverage,
 original-budget response meanings, debt eligibility and selected-only display.
 Display Financial Commitments as Increase in Public Spending, and the separate
 injection as External Funding (Private Sector, Donor, Foreign Direct Investment);
-keep internal identifiers and saved inputs unchanged. This is approved policy,
-not a claim that the implementation has already changed.
+keep internal identifiers and saved inputs unchanged.
 
 ## External funding and spending reference
 
 The full one-time ordinary injection enters available funds in its selected
-year, without spending-share/execution adjustments. Recurring injections and
-financial commitments retain the rules below. Do not compensate saved amounts.
+year, without spending-share/execution adjustments. Recurring injections retain
+the configured capital/execution conversion. Public spending follows the approved
+baseline execution policy above. Do not compensate saved amounts.
 
 **Why:** The user's 2026-10-08 funding/repayment follow-on explicitly narrows this
 exception to one-time injections, not financial commitments in general.
@@ -39,7 +37,7 @@ exception to one-time injections, not financial commitments in general.
 the downstream ordinary priorities still include debt service and replacement.
 The GDP target and annual growth are additive commitment options; exogenous injection is a separate intervention, independently switched and separately attributed. The GDP entry is a target total sector-spending share, not an uplift; add only the positive difference above BAU. Annual growth compounds over its inclusive range, and absolute injections may be one-time or recurring.
 
-All added commitments are full-spending amounts and become capital available for service through the sector's existing capex-share and budget-execution treatment. In cost-derived budget mode, compare GDP targets and growth with the preserved total-spending BAU series, not the derived capital budget.
+All added public commitments are full-spending amounts: apply the sector capital share once, then baseline_eff for Public Spending and the signed execution improvement separately for Budget Execution. In cost-derived budget mode, compare GDP targets and growth with the preserved total-spending BAU series, not the derived capital budget.
 
 **Why:** This prevents double-counting BAU, keeps the intervention economically consistent across budget modes, preserves the agreed distinction between pledged spending and effective capital, and lets users identify injections separately from spending commitments.
 
@@ -47,7 +45,7 @@ All added commitments are full-spending amounts and become capital available for
 
 When total spending is genuinely missing in cost-derived mode, use the derived
 BAU investment's equivalent total spending (investment divided by capital share
-and execution rate) as an explicitly estimated commitment reference. Do not
+and the configured execution rate, not baseline_eff or improved execution) as an explicitly estimated commitment reference. Do not
 replace any supplied spending, including explicit zero.
 
 **Why:** The DRC mock scenario has cost-derived investment but no supplied total

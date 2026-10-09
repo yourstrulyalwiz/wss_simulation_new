@@ -21,8 +21,8 @@ from model.engine import calculate
 #   cost      — it cuts the unit cost of a connection, so the same budget buys more
 WATER_INTV = [
     ('ws_connections_enabled', 'Revenue from new connections', 'scenario_connection_net_cash', '0891b2', 'revenue'),
-    ('ws_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash', '0f766e', 'revenue'),
-    ('ws_exogenous_injection_enabled', 'Exogenous Injection of Funds', 'scenario_exogenous_injection_cash', 'b45309', 'revenue'),
+    ('ws_financial_commitment_enabled', 'Increase in Public Spending', 'scenario_financial_commitment_cash', '0f766e', 'revenue'),
+    ('ws_exogenous_injection_enabled', 'External Funding (Private Sector, Donor, Foreign Direct Investment)', 'scenario_exogenous_injection_cash', 'b45309', 'revenue'),
     ('ws_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash', '1a9ed6', 'revenue'),
     ('ws_capital_efficiency_enabled', 'Budget execution improvement', None, 'c58216', 'execution'),
     ('ws_costeff_enabled', 'Capex efficiency (unit cost)', None, '7238f8', 'cost'),
@@ -33,8 +33,8 @@ WATER_INTV = [
 ]
 SAN_INTV = [
     ('san_connections_enabled', 'Revenue from new connections', 'scenario_connection_net_cash', '0891b2', 'revenue'),
-    ('san_financial_commitment_enabled', 'Increase in Financial Commitments', 'scenario_financial_commitment_cash', '0f766e', 'revenue'),
-    ('san_exogenous_injection_enabled', 'Exogenous Injection of Funds', 'scenario_exogenous_injection_cash', 'b45309', 'revenue'),
+    ('san_financial_commitment_enabled', 'Increase in Public Spending', 'scenario_financial_commitment_cash', '0f766e', 'revenue'),
+    ('san_exogenous_injection_enabled', 'External Funding (Private Sector, Donor, Foreign Direct Investment)', 'scenario_exogenous_injection_cash', 'b45309', 'revenue'),
     ('san_collection_efficiency_enabled', 'Increased collection efficiency', 'scenario_collection_cash', '1a9ed6', 'revenue'),
     ('san_capital_efficiency_enabled', 'Budget execution improvement', None, 'c58216', 'execution'),
     ('san_costeff_enabled', 'Capex efficiency (unit cost)', None, '7238f8', 'cost'),
@@ -189,7 +189,12 @@ def intervention_rows(passes, enabled, has_custom, sk: str, years, by, final_res
             continue
         before, after = passes[idx], passes[idx + 1]
         add_hh = _at(after[sk].get('scenario_hh'), e, 0) - _at(before[sk].get('scenario_hh'), e, 0)
-        if rkey:
+        source = {'financial_commitment': 'financial', 'capital_efficiency': 'budget_execution',
+                  'exogenous_injection': 'injection'}.get(key.split('_', 1)[1].removesuffix('_enabled'))
+        if source:
+            money = _rng((final_result or passes[-1])[sk]['scenario_source_funding']['signed_contribution'][source],
+                         years, by + 1, years[-1])
+        elif rkey:
             if rkey in ('scenario_connection_net_cash', 'scenario_collection_cash',
                         'scenario_tariff_cash', 'scenario_nrw_net', 'scenario_nrw_link_cash'):
                 money = _rng((final_result or passes[-1])[sk].get(rkey), years, by + 1, years[-1])

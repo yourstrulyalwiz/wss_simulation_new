@@ -48,9 +48,13 @@ class BaselineSpendingShareTests(unittest.TestCase):
                 result = calculate(model)
                 base = result[sector]["financial_commitment_base"]
                 capex = getattr(model.wss_budget, prefix + "_capex_pct")
-                factor = (capex if capex is not None else model.wss_budget.capex_pct_budget) * model.wss_budget.execution_rate
+                capital_share = capex if capex is not None else model.wss_budget.capex_pct_budget
                 for year in (2026, 2027, 2028):
                     index = result["years"].index(year)
+                    override = iv.capeff_current_pct
+                    sec = result[sector]
+                    baseline_eff = override if override > 0 else min(1, sec["budget_used"][index] / sec["budget_allocated"][index]) if sec["budget_allocated"][index] > 0 else 1
+                    factor = capital_share * baseline_eff
                     self.assertGreater(result[sector]["scenario_financial_commitment_cash"][index], 0)
                     self.assertAlmostEqual(result[sector]["scenario_financial_commitment_cash"][index],
                                            base[index] * (1.1 ** (year - 2026 + 1) - 1) * factor)
@@ -58,6 +62,8 @@ class BaselineSpendingShareTests(unittest.TestCase):
                 case[section].update(fin_gdp_enabled=True, fin_gdp_start_year=None, fin_gdp_target_share=.05)
                 combined = calculate(coerce_to_engine(case))
                 index = combined["years"].index(2026)
+                baseline_eff = iv.capeff_current_pct if iv.capeff_current_pct > 0 else min(1, result[sector]["budget_used"][index] / result[sector]["budget_allocated"][index]) if result[sector]["budget_allocated"][index] > 0 else 1
+                factor = capital_share * baseline_eff
                 expected = max(.05 * combined["gdp_real_local"][index] - base[index], 0) * factor
                 self.assertAlmostEqual(combined[sector]["scenario_financial_commitment_cash"][index],
                                        result[sector]["scenario_financial_commitment_cash"][index] + expected)

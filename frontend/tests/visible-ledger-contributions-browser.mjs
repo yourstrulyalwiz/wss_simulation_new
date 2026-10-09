@@ -18,6 +18,8 @@ for (const area of [inputs, rural]) {
   area.toggles.ws_financial_commitment_enabled = true;
   area.toggles.ws_costeff_enabled = true;
   area.toggles.san_financial_commitment_enabled = true;
+  area.toggles.ws_exogenous_injection_enabled = true;
+  area.toggles.san_exogenous_injection_enabled = true;
 }
 inputs.toggles.ws_tariff_enabled = false;
 rural.toggles.ws_tariff_enabled = true; // Deliberately different area toggles.
@@ -148,6 +150,8 @@ try {
         const categories = list.filter(row => row.kind === 'category');
         const contributions = list.filter(row => row.kind === 'intervention');
         assert.ok(contributions.length > 0, 'Selected individual contributions should be visible by default.');
+        assert.ok(contributions.some(row => row.label.includes('Increase in Public Spending')));
+        assert.ok(contributions.some(row => row.label.includes('External Funding (Private Sector, Donor, Foreign Direct Investment)')));
         assert.ok(!contributions.some(row => ['loan', 'funding-source-loan', 'zero_cost', 'funding-source-zero_cost'].includes(row.key)),
           'Disabled loan or non-selectable zero-cost source shown as an intervention.');
         assert.ok(categories.length && list.slice(combined + 1).every(row => row.kind !== 'category' && row.kind !== 'intervention'), 'Historical contribution ordering changed.');

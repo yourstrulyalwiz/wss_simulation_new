@@ -15,6 +15,7 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
   inputs: any; onChange: (value: any) => void; sector: 'water' | 'sanitation'; area: string; label?: string;
 }) {
   const id = useId();
+  const [showSettings, setShowSettings] = useState(false);
   const stored = inputs.connection_revenue?.[sector];
   const config = useMemo(() => migrateConnectionRevenueConfig(stored), [stored]);
   const [validation, setValidation] = useState<{ key: string; status: any; error: string } | null>(null);
@@ -57,7 +58,13 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
         {' '}Include revenue from new connections
       </label>
       <span role="status" style={{ fontSize: 11 }}>{state}</span>
+      <button type="button" aria-expanded={showSettings} aria-controls={`${id}-settings`}
+        onClick={() => setShowSettings(value => !value)}
+        style={{ fontSize: 11, cursor: 'pointer', border: '1px solid #c2d3da', borderRadius: 4, padding: '4px 8px', background: '#fff', color: '#164e63' }}>
+        {showSettings ? 'Hide settings' : 'Show settings'}
+      </button>
     </div>
+    <div id={`${id}-settings`} hidden={!showSettings}>
     {config.current_behavior_notice && !dismissed.includes(noticeKey) && <div role="status" style={{ fontSize: 11, padding: '8px 0' }}>
       {config.current_behavior_notice} <button type="button" onClick={() => {
         setDismissed([...dismissed, noticeKey]);
@@ -108,6 +115,7 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
       equal percentages give no additional volume. This is an aggregate customer-mix proxy, not observed household consumption.
       Baseline collected revenue is comparison-only, not an extra funding injection.
     </p>
+    </div>
     {config.enabled && errors.length > 0 && <div role="alert" style={{ color: '#8b2c35', fontSize: 11, marginTop: 9 }}>
       <strong>Requested feature is incomplete; the baseline remains calculable.</strong>
       <ul>{errors.map(error => <li key={error}>{error}</li>)}</ul>

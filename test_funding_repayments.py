@@ -73,12 +73,13 @@ class FundingRepaymentTests(unittest.TestCase):
                       cost_sm=700,cost_basic=350)
         for i in range(4):
             self.assertEqual(sec['available_after_debt_service'][i],
-                             sec['available_total'][i]-sec['utility_debt_service'][i])
+                             max(0,sec['available_total'][i])-sec['debt_service_paid'][i])
             self.assertAlmostEqual(sec['utility_debt_cash_opening'][i]+sec['utility_debt_disbursement'][i],
                 sec['utility_debt_investment_used'][i]+sec['utility_debt_cash_closing'][i])
-        self.assertEqual(sec['available_after_debt_service'][2],80)
-        self.assertEqual(sec['available_after_debt_service'][3],-10)
-        self.assertEqual(sec['cash_deficit'][3],10)
+        # No servicing sources selected: baseline cannot repay contractual debt.
+        self.assertEqual(sec['available_after_debt_service'][2],100)
+        self.assertEqual(sec['available_after_debt_service'][3],10)
+        self.assertEqual(sec['cash_deficit'][3],20)
         self.assertGreater(sec['utility_debt_cash_closing'][3],0)
 
     def test_overlap_cannot_consume_baseline_and_identity(self):

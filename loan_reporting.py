@@ -11,7 +11,7 @@ INJECTION_FIELDS = (
 
 def loan_tables(debt, currency, money_factor=1.0):
     modeled = debt.get('repayment_accounting') == 'fixed_annuity_modeled'
-    accounting = 'Fixed annual scheduled obligations deducted from ordinary funding' if modeled else 'Legacy — repayments deferred'
+    accounting = 'Fixed annual scheduled obligations; paid only from selected sources. Unfunded amounts remain due; principal balances are contractual.' if modeled else 'Legacy — repayments deferred'
     headers = ['Assumption or balance', 'Value', f'Amount ({currency} M)']
     rows = [
         ['Qualification', debt.get('qualification') or (INDICATIVE_QUALIFICATION if modeled else accounting), None],
@@ -25,7 +25,9 @@ def loan_tables(debt, currency, money_factor=1.0):
     if modeled:
         for label, key in (('Fixed annual debt service', 'fixed_annual_debt_service'),
                            ('Outstanding principal at modeled horizon', 'horizon_closing_principal'),
-                           ('Remaining contractual debt service', 'remaining_contractual_debt_service')):
+                           ('Remaining contractual debt service', 'remaining_contractual_debt_service'),
+                           ('Funded service within horizon', 'horizon_debt_service_paid'),
+                           ('Unfunded service within horizon', 'horizon_debt_service_unfunded')):
             rows.append([label, None, (debt.get(key) or 0)*money_factor])
         rows.append(['Remaining contractual payment count', debt.get('remaining_contractual_payments'), None])
     for i, area in enumerate(debt.get('areas') or [debt]):
@@ -51,6 +53,12 @@ def loan_tables(debt, currency, money_factor=1.0):
     fields = (*INJECTION_FIELDS,
               ('ordinary_before_debt_service', 'Ordinary funds before debt service'),
               ('debt_service', 'Scheduled debt service'),
+              ('debt_service_paid', 'Funded debt service'),
+              ('debt_service_unfunded', 'Unfunded debt service'),
+              ('funded_principal', 'Funded principal'),
+              ('funded_interest', 'Funded interest'),
+              ('unfunded_principal', 'Unfunded principal'),
+              ('unfunded_interest', 'Unfunded interest'),
               ('ordinary_after_debt_service', 'Ordinary funds after debt service'),
               ('opening_principal', 'Opening outstanding principal'),
               ('principal_payment', 'Scheduled principal'),

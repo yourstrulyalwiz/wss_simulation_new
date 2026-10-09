@@ -1,25 +1,26 @@
 ---
 name: Results ledger attribution
-description: Why year-column results retain reconciled marginal effects instead of standalone intervention simulations.
+description: Actual funded coverage origins versus ordered financial-gap effects.
 ---
 
-Use a reconciled bridge from BAU to the combined scenario, retaining the model's
-ordered marginal intervention effects. Category grouping is presentation only;
-it must not imply a new calculation order or a category-alone simulation.
+Coverage uses actual source-funded stocks from the combined annual calculation,
+not ordered marginal effects, standalone runs or a fixed-revenue replay.
+Opening/baseline-funded coverage is the stack base; pure BAU is a separate line.
+Cost efficiency is embodied in purchases and earns no duplicate source band.
+Category grouping is presentation only.
 
-**Why:** The request called for separately listed interventions clustered by
-category. Standalone-versus-marginal meaning remained unanswered; the user
-authorized building after the recommendation to preserve reconciliation with
-existing graphs. Standalone comparisons were not explicitly selected.
+**Why:** The consolidated October 8 attribution instructions explicitly supersede
+the earlier sequential coverage convention to make every source band traceable
+to actual purchases or physical/external delivery.
 
-**How to apply:** Disclose calculation order independently of category display
-order, preserve signed Basic reductions after SM upgrades, and treat borrowing
-as conditional on prior reforms. Ask before switching to standalone attribution;
-it requires a separate combined-effects adjustment, not simple addition.
+**How to apply:** Use the same actual stock attribution for charts, tables and
+exports; Basic origins are removed proportionally on later upgrades. Keep the
+signed baseline-funded-minus-BAU reconciliation where rows sum to gain over BAU.
+Retain ordered runs only for financial gaps and cost-savings reporting.
 
 For financial need, positive intervention effects mean **reductions** in need,
 not increases: BAU minus the ordered reductions equals the combined scenario.
-Coverage and funding retain after-minus-before changes.
+Financial-gap comparisons remain separate from source-funded household stocks.
 
 **Why:** The approved financial reporting brief chose an understandable reduction
 convention while retaining the existing marginal calculation order. Legacy

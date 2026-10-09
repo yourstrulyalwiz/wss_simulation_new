@@ -446,8 +446,10 @@ def _solve_affordability_legacy(calc_fn, inputs, ctx, config, calc_kwargs=None, 
 # product mode is indicative funding; contractual repayments are not modeled.
 INDICATIVE_QUALIFICATION = (
     "Loan size uses selected additional revenue in the reference year. Fixed annual "
-    "principal-and-interest obligations are deducted from ordinary available funds from "
-    "the following year through maturity. Full affordability is not assessed; fees are excluded."
+    "principal-and-interest obligations run from the following year through maturity. "
+    "Payments use only selected sources after loss absorption; unfunded obligations remain due. "
+    "Principal balances follow the contractual schedule, not a claim of full cash payment. "
+    "Full affordability is not assessed; fees are excluded."
 )
 
 
@@ -604,6 +606,7 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
     from .fixed_loan import fixed_schedule
     plan = fixed_schedule(principal, annual, cfg.get('annual_real_interest_rate'),
                           cfg.get('loan_term_years'), year, years)
+    plan['servicing_sources'] = tuple(sources)
     financed = (calc_fn(inputs, ctx, **{**kwargs, 'utility_debt_execution': plan})
                 if principal > 0 or force_financed_run else reference)
     injection = []
@@ -621,10 +624,28 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
             'investment_from_loan_proceeds': cash('utility_debt_investment_used'),
             'closing_unspent_proceeds': cash('utility_debt_cash_closing'),
             'debt_service': plan['debt_service'][i],
+            'debt_service_paid': (financed.get('debt_service_paid') or [0.]*len(years))[i],
+            'debt_service_unfunded': (financed.get('debt_service_unfunded') or [0.]*len(years))[i],
             'ordinary_before_debt_service': (financed.get('available_total') or [None]*len(years))[i],
             'ordinary_after_debt_service': (financed.get('available_after_debt_service') or [None]*len(years))[i],
         })
     schedule = plan['schedule']
+    cash_by_year = {row['year']: row for row in injection}
+    for row in schedule:
+        cash_row = cash_by_year.get(row['year'])
+        paid = cash_row['debt_service_paid'] if cash_row else None
+        ratio = paid/row['debt_service'] if paid is not None and row['debt_service'] > 0 else 0.
+        row['debt_service_paid'] = paid
+        row['debt_service_unfunded'] = cash_row['debt_service_unfunded'] if cash_row else None
+        for component in ('principal', 'interest'):
+            row['funded_'+component] = row[component+'_payment']*ratio if paid is not None else None
+            row['unfunded_'+component] = row[component+'_payment']*(1-ratio) if paid is not None else None
+            if cash_row is not None:
+                cash_row['funded_'+component] = row['funded_'+component]
+                cash_row['unfunded_'+component] = row['unfunded_'+component]
+    for cash_row in injection:
+        for field in ('funded_principal', 'funded_interest', 'unfunded_principal', 'unfunded_interest'):
+            cash_row.setdefault(field, 0.)
     horizon = years[-1]
     at_horizon = [row for row in schedule if row['year'] <= horizon]
     remaining = [row for row in schedule if row['year'] > horizon and row['debt_service'] > 0]
@@ -645,6 +666,8 @@ def solve_scenario(calc_fn, inputs, ctx, config, calc_kwargs=None, asset_life=30
         'remaining_contractual_debt_service': sum(row['debt_service'] for row in remaining),
         'total_principal_repaid': sum(row['principal_payment'] for row in schedule),
         'total_interest': sum(row['interest_payment'] for row in schedule),
+        'horizon_debt_service_paid': sum(row['debt_service_paid'] for row in injection),
+        'horizon_debt_service_unfunded': sum(row['debt_service_unfunded'] for row in injection),
         'net_revenue_assumption': NET_REVENUE_ASSUMPTION,
         'qualification': INDICATIVE_QUALIFICATION,
     }

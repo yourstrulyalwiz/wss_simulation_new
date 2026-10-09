@@ -421,9 +421,9 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   }, [sectorTab]);
 
   return (
-    <div style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'hidden' }}>
+    <div className="intervention-workspace" style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'hidden' }}>
       {/* Left: intervention controls */}
-      <div style={{ flex: '0 1 598px', minWidth: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', borderRight: '1px solid #e0e0e0', fontSize: 12 }}>
+      <div className="intervention-workspace__controls" style={{ flex: '0 1 598px', minWidth: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', borderRight: '1px solid #e0e0e0', fontSize: 12 }}>
 
         {/* Area-scope banner */}
         <div style={{
@@ -827,8 +827,8 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         </div>
       </div>
 
-      {/* Right: LIVE intervention impact chart (two-pass BAU vs intervention) for the area being edited. */}
-      <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '24px 28px', background: '#fff', borderLeft: '1px solid #e2e8f0' }}>
+      {/* Right: actual source-funded coverage for the area being edited. */}
+      <div className="intervention-workspace__charts" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '24px 28px', background: '#fff', borderLeft: '1px solid #e2e8f0' }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
           <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={CUR}
             onModeChange={mode => onCurrencyDisplayChange({ ...currencyDisplay, mode, sourceCurrency: CUR })}

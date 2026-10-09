@@ -14,8 +14,7 @@ from demo_adapter import coerce_to_engine, financial_toggles
 from model.engine import calculate
 
 # Per-intervention definitions, mirroring the Results dashboard exactly — same labels, same colours,
-# same order (the order is load-bearing: attribution is marginal and cumulative, so a lever's measured
-# contribution depends on what is already switched on beneath it).
+# same order. Ordered passes serve financial effects only; source coverage comes from actual stocks.
 # `kind` decides how the lever is priced:
 #   revenue   — it mobilises cash; report the cash stream
 #   execution — it raises the share of the allocated budget that reaches service
@@ -182,7 +181,7 @@ def _released(before: dict, after: dict, sk: str, kind: str, years, by) -> Optio
 
 
 def intervention_rows(passes, enabled, has_custom, sk: str, years, by, final_result=None) -> List[dict]:
-    """One row per enabled lever for this sector: marginal households, money, and per-year band."""
+    """Actual attributed household stocks with existing financial/resource metrics."""
     e = len(years) - 1
     out = []
     for idx, (key, label, rkey, color, kind) in enumerate(enabled):
@@ -223,6 +222,17 @@ def intervention_rows(passes, enabled, has_custom, sk: str, years, by, final_res
             'added_hh': add_hh, 'money_m': float(debt.get('accepted_principal') or 0.0),
             'band': band,
         })
+    from coverage_export import source_band
+    sec = (final_result or passes[-1])[sk]
+    for row in out:
+        row['band'] = source_band(sec, row['key'], len(years))
+        row['added_hh'] = row['band'][-1]
+        row['coverage_note'] = ('Included in funded additions'
+                                if row['key'].endswith(('_costeff_enabled', '_techmix_enabled')) else '')
+    zero = sec['scenario_coverage_attribution']['sm_stock']['zero_cost']
+    if any(zero):
+        out.append(dict(key='zero_cost', label='Zero-cost delivery', color='#64748b',
+                        kind='physical', added_hh=zero[-1], money_m=None, band=zero))
     return out
 
 
@@ -313,7 +323,7 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
     }
 
     rows = intervention_rows(passes, enabled, has_custom, sk, years, by, final_result=result)
-    base_band = [_at(passes[0][sk].get('scenario_hh'), i, 0) for i in range(len(years))]
+    base_band = sec['scenario_coverage_attribution']['opening_baseline_stock']['sm']
     # Only show bands for levers that actually move the chart; an enabled-but-unparameterised lever
     # contributes a flat zero and would just add legend noise. It still appears in the table.
     chart_bands = [r for r in rows if any(abs(v) > 1e-12 for v in r['band'])]
@@ -323,6 +333,7 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
         'chart': {
             'years': years[fi:],
             'base': base_band[fi:],
+            'pure_bau': sec['scenario_coverage_attribution']['pure_bau_stock']['sm'][fi:],
             'bands': [(r['label'], r['color'], r['band'][fi:]) for r in chart_bands],
             # Reference line for the template's line group — the safely-managed target path, clamped
             # to total households (past the final target the raw array over-runs the population).

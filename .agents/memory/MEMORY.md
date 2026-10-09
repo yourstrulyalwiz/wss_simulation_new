@@ -8,7 +8,8 @@
 - [Minimum service targets](minimum-service-targets.md) — SM satisfies the basic minimum; preserve exclusive categories and assess deficits locally before aggregation.
 - [Graph viewing period](graph-window-policy.md) — open around simulation years with three preceding years; keep longer history selectable without changing model data.
 - [Utility debt scope](utility-debt-policy.md) — frozen sizing, optional connections, fixed repayments from the following year; Results defaults loan-excluded.
-- [Results attribution](results-attribution.md) — retain reconciled marginal effects; category display order is not calculation order or a standalone simulation.
+- [Results attribution](results-attribution.md) — coverage traces actual funding origins; only financial-gap effects retain ordered comparisons.
+- [Source funding](source-funding-policy.md) — proportional loss absorption, selected-source debt, pooled replacement, then actual purchases; accounting alone must not change delivery.
 - [Funding-balance materiality](financial-reporting-materiality.md) — US$10,000 is a user-approved display tolerance, not permission to erase obligations.
 - [Transition pricing boundary](transition-pricing-boundary.md) — SM incremental-versus-full upgrade pricing remains deferred; do not resolve it through transition-count fixes.
 - [Consolidated revenue policy](consolidated-revenue-policy.md) — after-cost NRW sizing, targets without delivery ceilings, one-off cohorts and explicit sales/sewer assumptions.

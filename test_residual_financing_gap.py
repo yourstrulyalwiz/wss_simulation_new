@@ -106,7 +106,11 @@ class ResidualFinancingGapTests(unittest.TestCase):
                 self.assertAlmostEqual(rows[-1][col], result[sector][key][-1], delta=0.000051)
             ws = wb[f"{'Water' if sector == 'water_supply' else 'Sanitation'} — forecast"]
             self.assertEqual(list(next(ws.values)), headers)
-            self.assertEqual(list(ws.values)[-1], tuple(rows[-1]))
+            for exported, expected in zip(list(ws.values)[-1], rows[-1]):
+                if isinstance(expected, (int, float)):
+                    self.assertAlmostEqual(exported, expected, delta=1e-10+abs(expected)*1e-12)
+                else:
+                    self.assertEqual(exported, expected)
         deck = Presentation(build_deck({'urban': inputs}))
         investment_tables = [
             sh.table for slide in deck.slides for sh in slide.shapes

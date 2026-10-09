@@ -87,7 +87,11 @@ for (const required of ['Reference / injection year', 'Pooled allocation', 'Annu
 for (const required of ['repayment_schedule', 'ordinary_before_debt_service', 'ordinary_after_debt_service', 'horizon_closing_principal'])
   assert.ok(preview.includes(required), `Loan preview must report ${required}`);
 assert.ok(results.includes('results-repayment-schedule'));
-assert.ok(results.includes('Scheduled interest'));
+assert.ok(results.includes('Interest due'));
+for (const required of ['debt_service_paid', 'debt_service_unfunded', 'funded_interest', 'funded_principal', 'unfunded_interest', 'unfunded_principal']) {
+  assert.ok(results.includes(required), `Results loan tables must distinguish ${required}`);
+  assert.ok(preview.includes(required), `Loan preview must distinguish ${required}`);
+}
 assert.ok(interventions.includes('The full amount enters available funds in the selected year'));
 assert.ok(interventions.includes('capital spending share and execution rate are not applied'));
 assert.ok(interventions.includes('Recurring funding is adjusted by the capital spending share and execution rate'));

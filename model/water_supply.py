@@ -477,6 +477,11 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         eff[t] = float(np.clip(e, 0.0, 1.0))
     capex_budget = active * allocated                                    # allocated capital budget (forecast-gated)
     bau_available = capex_budget * eff                                   # effective capex that reaches service
+    baseline_eff = np.array([
+        float(np.clip(override if override > 0 else
+                      (used_budget[t] / allocated[t] if allocated[t] > 0 else 1.), 0., 1.))
+        for t in range(n)])
+    baseline_capital = capex_budget * baseline_eff
 
     # ── Collection efficiency (test2) ──────────────────────────────────────────────────────────────
     # Better revenue COLLECTION (cash collected ÷ revenue billed) recovers billed-but-uncollected revenue
@@ -698,6 +703,14 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     debt_cash_opening = np.zeros(n); debt_cash_closing = np.zeros(n)
     debt_cash_available = np.zeros(n); debt_investment_used = np.zeros(n)
     debt_cash_balance = 0.0
+    from .source_funding import allocate_sources, allocate_purchases, new_ledger, record
+    from .coverage_attribution import CoverageAttribution
+    source_funding = new_ledger(years, bool(np.any(debt_disbursement_arr)))
+    coverage_origins = CoverageAttribution(n)
+    selected_sources = set(debt_execution.get('servicing_sources', ()))
+    if 'nrw' in selected_sources:
+        selected_sources.add('nrw_link')
+    after_debt_series = np.zeros(n)
     cash_deficit_by_service = np.zeros((2, n))
     # Replacement obligations follow gross funded assets, by service.
     # `funded_by_service` remains a compatibility alias for replacement credit only.
@@ -725,6 +738,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     # History (start..baseline): target = BAU; the opening stock is booked at the baseline year.
     for t in range(bi + 1):
         tgt_unadj[:, t] = bau[:, t]; tgt[:, t] = bau[:, t]
+        coverage_origins.history(t, bau[0, t], bau[1, t])
         booked = opening_stock if years[t] == by else 0.0
         stock[t] = booked + (stock[t - 1] if t > 0 else 0.0)
         need_stock_by_service[0, t] = opening_sm if years[t] == by else 0.0
@@ -819,8 +833,22 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         available_total[t] = avail
         debt_cash_opening[t] = debt_cash_balance
         debt_cash_available[t] = max(0.0, debt_cash_balance + debt_disbursement_arr[t])
-        cash_after_debt_service = avail - debt_service_arr[t]
-        replacement_reserved[t] = min(max(cash_after_debt_service, 0.0), max(bau_replacement[t], 0.0))
+        sources = dict(
+            baseline=baseline_capital[t],
+            budget_execution=bau_available[t]-baseline_capital[t],
+            financial=financial_cash[t], injection=injection_cash[t],
+            connections=revenue_diagnostics['connection_net_cash'][t],
+            collection=collection_cash[t], tariff=tariff_cash[t], nrw=nrw_net[t],
+            custom=custom_cash_arr[t],
+            nrw_link=extra_cash_arr[t]-custom_cash_arr[t] +
+                     (eligible_nrw_cash_arr[t] if linked_nrw_volume is not None else 0.))
+        if not np.isclose(sum(sources.values()), avail, rtol=1e-10, atol=1e-8):
+            raise ValueError('Ordinary source contributions do not reconcile to available funding')
+        allocation = allocate_sources(sources, max(bau_replacement[t], 0.),
+                                      debt_service_arr[t], selected_sources)
+        cash_after_debt_service = max(0., avail) - allocation['debt_service_paid']
+        after_debt_series[t] = cash_after_debt_service
+        replacement_reserved[t] = allocation['replacement_paid']
         if replacement[t] > 0:
             replacement_funding_applied_by_service[:, t] = (
                 replacement_reserved[t] * replacement_by_service[:, t] / replacement[t])
@@ -1025,7 +1053,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         replacement_credit[t] = replacement_reserved[t]
         unpaid_by_service = replacement_by_service[:, t] * (
             1 - replacement_credit[t] / replacement[t]) if replacement[t] > 0 else np.zeros(2)
-        cash_deficit[t] = max(-cash_after_debt_service, 0.0)
+        cash_deficit[t] = allocation['loss_unfunded'] + allocation['debt_service_unfunded']
         due_cost = np.maximum(np.array([tgt[0, t], sum(tgt[:2, t])]) - ledger.base - ledger.delivered, 0) * np.array([cost_sm_t[t], cost_basic_t[t]])
         weights = due_cost + replacement_by_service[:, t]
         sm_share = weights[0] / weights.sum() if weights.sum() > 0 else 1.0 - bs
@@ -1049,6 +1077,13 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             debt_cash_available[t], max(0.0, actual_sector_investment - ordinary_expansion_cash))
         debt_cash_balance = max(0.0, debt_cash_available[t] - debt_investment_used[t])
         debt_cash_closing[t] = debt_cash_balance
+        allocation = allocate_purchases(
+            allocation, new_basic * cost_basic_t[t] / hh_share if hh_share > 0 else 0.,
+            new_sm * cost_sm_t[t] / hh_share if hh_share > 0 else 0.,
+            ancillary_paid, debt_cash_available[t])
+        record(source_funding, t, allocation)
+        coverage_origins.step(t, allocation, new_basic, new_sm, nrw_upg, mf_flow[t],
+                              grant_flow[t], bau[0, t], bau[1, t])
         nc_total = float(closing.sum())
         new_capex_total[t] = nc_total
         new_capex_by_service[:, t] = closing
@@ -1056,7 +1091,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         if ff > 0 or pf > 0:
             replacement_credit[t] = min(replacement_reserved[t], max(replacement[t], 0.0))
             unfunded_replacement[t] = max(replacement[t] - replacement_credit[t], 0.0)
-            cash_deficit[t] = max(-cash_after_debt_service, 0.0)
+            cash_deficit[t] = allocation['loss_unfunded'] + allocation['debt_service_unfunded']
             financing_gap[t] = max(0.0, nc_total + unfunded_replacement[t] + cash_deficit[t])
             sm_gap, basic_gap, sm_paid, basic_paid = attribute_gap(
                 new_capex_by_service[0, t], new_capex_by_service[1, t],
@@ -1109,7 +1144,11 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'planned_annual': planned_annual.tolist(),
         'bau_available': bau_available.tolist(),
         'available_total': available_total.tolist(),
-        'available_after_debt_service': (available_total-debt_service_arr).tolist(),
+        'available_after_debt_service': after_debt_series.tolist(),
+        'source_funding': source_funding,
+        'coverage_attribution': coverage_origins.finish(bau),
+        'debt_service_paid': source_funding['debt_service_paid'],
+        'debt_service_unfunded': source_funding['debt_service_unfunded'],
         'billed_volume_million_m3': billed_volume.tolist(),
         'baseline_collected_revenue': baseline_revenue.tolist(),
         'collected_revenue': scenario_revenue.tolist(),

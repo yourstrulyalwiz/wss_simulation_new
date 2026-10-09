@@ -26,6 +26,8 @@ import { aggregateWeightedRevenueRate, connectionRevenueAreaModes, summarizeConn
 import { isModeledLoanSummary, LOAN_FUNDING_QUALIFICATION, LOAN_REPAYMENT_ACCOUNTING, LOAN_SUMMARY_VERSION } from '../loanFunding';
 import RevenueSourceChart from './RevenueSourceChart';
 import { WATER_INTERVENTIONS as WATER_INTV, SANITATION_INTERVENTIONS as SAN_INTV, GLOBAL_INTERVENTION_ORDER, comparisonInputs, interventionEnabled, type InterventionDefinition as IntvDef } from '../interventionRegistry';
+import { aggregateCoverage, aggregateSourceFunding, sourceCoverageRows, sourceDefinition, BASELINE_COVERAGE_LABEL, SOURCE_COVERAGE_TEXT, type CoverageAttribution, type SourceFunding } from '../sourceAttribution';
+import { useNarrowChart } from '../useNarrowChart';
 
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
 function round3(v: number): number { return (!isFinite(v) || v === 0) ? 0 : Number(v.toPrecision(3)); }
@@ -64,19 +66,18 @@ interface Props {
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
 type DebtData = { summary: any; rows: any[]; areas: any[]; annualRows: any[] };
-type Series = { sum: any; inv: InvTable; unit: { sm: number; basic: number }; ledgerBase: LedgerSnapshot[]; ledgerScenario: LedgerSnapshot[]; ledgerAreas: LedgerData['areas']; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any; nrwResults: any[] };
+type Series = { sum: any; attribution: CoverageAttribution; sourceFunding?: SourceFunding; sourceBands: ContribBand[]; impactRows: Row[]; inv: InvTable; unit: { sm: number; basic: number }; ledgerBase: LedgerSnapshot[]; ledgerScenario: LedgerSnapshot[]; ledgerAreas: LedgerData['areas']; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any; nrwResults: any[] };
 type Both = { water: Series; sanitation: Series } | null;
-type Row = { key: string; label: string; addHH: number; resources: number | null };
+type Row = { key: string; label: string; addHH: number | null; resources: number | null };
 
 // Per-intervention stacked breakdown for a sector. covRows/gapRows are per-year rows keyed by each band's
 // label (plus reserved keys __bau/__total/__target for coverage and __remain for the gap). `bands` lists the
 // interventions that actually contribute (each with its INTV_PALETTE colour), in stack order.
 type ContribBand = { key: string; label: string; color: string; interventionKey?: string; custom?: boolean; members?: { key: string; label: string }[] };
-type ContribSeries = { covRows: any[]; gapRows: any[]; bands: ContribBand[]; ledgerContributions: LedgerContribution[] };
+type ContribSeries = { gapRows: any[]; bands: ContribBand[]; ledgerContributions: LedgerContribution[] };
 type Contrib = { water: ContribSeries; sanitation: ContribSeries } | null;
 
-// A stacked-contribution chart: a base area at the bottom, one stacked band per intervention on top (so the
-// coloured stack IS each lever's marginal contribution), plus optional reference lines drawn over the top.
+// Coverage stacks actual source stocks; financial bridges retain ordered gap-effect bands.
 function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, domain, filename, captureKey, currencyDisplay }: {
   title: string; subtitle?: string; data: any[]; yLabel: string;
   base?: { key: string; label: string; stroke: string; fill: string };   // optional bottom area (coverage BAU)
@@ -86,6 +87,7 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
   currencyDisplay?: CurrencyDisplaySettings;
 }) {
   const chartRef = useRef<HTMLDivElement>(null);
+  const narrowChart = useNarrowChart();
   // Data series behind the chart, for the "⤓ Excel" export: Year, [base], each band, then the reference lines.
   const loanFundingShown = bands.some(b => b.key === 'Utility debt financing' || b.key === 'Indicative loan funding' || b.key === 'utility_debt_financing');
   const exHeaders = ['Year', ...(base ? [base.label] : []), ...bands.map(b => b.label), ...lines.map(l => l.name), ...(loanFundingShown ? ['Loan funding qualification'] : [])];
@@ -97,7 +99,7 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
     lines: lines.map(l => ({ name: l.name, color: l.color, dash: !!l.dash })),
     yTitle: yLabel, xTitle: 'Year',
   };
-  // Coverage: BAU base at the bottom then a band per intervention. Financing gap: no base — the intervention
+  // Coverage: actual baseline stock plus source stocks. Financing gap: no base — the intervention
   // bands stack up from zero and a reference line marks the total BAU gap (the distance up to it is the gap left).
   const baseArea = base ? (
     <Area key={base.key} type="monotone" dataKey={base.key} name={base.label} stackId="s" fill={base.fill} stroke={base.stroke} fillOpacity={0.7} strokeWidth={1.25} legendType="rect" isAnimationActive={false} />
@@ -107,7 +109,7 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
   ));
   const stackAreas = base ? [baseArea, ...bandAreas] : bandAreas;
   return (
-    <div data-results-chart={captureKey} style={{ marginBottom: 12 }} title="Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.">
+    <div data-results-chart={captureKey} style={{ marginBottom: 12 }} title={captureKey.endsWith('coverage') ? SOURCE_COVERAGE_TEXT : 'Financial-gap effects are incremental in the displayed intervention order.'}>
       {/* Fixed-height header so paired charts' plot areas line up horizontally regardless of subtitle length.
           The title/subtitle column takes the full width (flex:1, minWidth:0 so it can wrap) and overflow is
           clipped to the fixed height. */}
@@ -120,8 +122,8 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
           sheets={[{ name: 'Data', headers: exHeaders, rows: exRows }]} chartSpec={chartSpec} compact />
       </div>
       <div ref={chartRef} style={{ background: '#fff' }}>
-      <ResponsiveContainer width="100%" height={280}>
-        <ComposedChart data={data} margin={{ top: 10, right: 24, bottom: 5, left: 12 }}>
+      <ResponsiveContainer width="100%" height={narrowChart ? 380 : 280}>
+        <ComposedChart data={data} margin={{ top: 10, right: 24, bottom: narrowChart ? 22 : 5, left: 12 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis dataKey="year" tick={{ fontSize: 10 }} interval={yearAxisInterval(data)} />
           <YAxis tick={{ fontSize: 10 }} domain={domain} tickFormatter={fmt}>
@@ -138,7 +140,7 @@ function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, do
           }} labelFormatter={(l: any) => String(l)} contentStyle={{ fontSize: 11 }} />
           {/* Legend lists reference lines first, then the stacked area fills (see chartLegend). */}
           <Legend wrapperStyle={{ fontSize: 10 }} content={linesFirstLegend} />
-          {/* Coverage: BAU base at the bottom then a band per intervention. Financing gap: no base — the bands
+          {/* Coverage: actual baseline plus source stocks. Financing gap: no base — the bands
               stack up from zero and a reference line (in `lines`) marks the total BAU gap to close. */}
           {stackAreas}
           {lines.map(l => (
@@ -163,15 +165,20 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
     nrw: 'Water NRW net / eligible sanitation-link net cash',
     connections: 'Revenue from new connections',
   };
-  const tableHeaders = ['Year', 'Ordinary funds before service', 'Scheduled debt service', 'Ordinary funds after service',
+  const tableHeaders = ['Year', 'Ordinary funds before service', 'Debt service due', 'Debt service funded', 'Debt service unfunded',
+    'Funded interest', 'Funded principal', 'Unfunded interest', 'Unfunded principal', 'Ordinary funds after funded service',
     'New loan injection', 'Opening unspent proceeds', 'Investment from proceeds', 'Closing unspent proceeds', 'Qualification'];
   const tableRows = debt.rows.map((r: any) => [r.year, money(r.ordinary_before_debt_service), money(r.debt_service),
+    money(r.debt_service_paid), money(r.debt_service_unfunded), money(r.funded_interest), money(r.funded_principal),
+    money(r.unfunded_interest), money(r.unfunded_principal),
     money(r.ordinary_after_debt_service), money(r.disbursement), money(r.opening_unspent_proceeds),
     money(r.investment_from_loan_proceeds), money(r.closing_unspent_proceeds), LOAN_FUNDING_QUALIFICATION]);
-  const repaymentHeaders = ['Year', 'Opening principal', 'Disbursement', 'Scheduled principal', 'Scheduled interest', 'Debt service', 'Closing principal'];
+  const repaymentHeaders = ['Year', 'Opening contractual principal', 'Disbursement', 'Principal due', 'Interest due', 'Debt service due',
+    'Debt service funded', 'Debt service unfunded', 'Funded interest', 'Funded principal', 'Unfunded interest', 'Unfunded principal', 'Closing contractual principal'];
   const repaymentRows = (debt.summary?.repayment_schedule || []).map((row: any) => [
     row.year, money(row.opening_principal), money(row.disbursement), money(row.principal_payment),
-    money(row.interest_payment), money(row.debt_service), money(row.closing_principal),
+    money(row.interest_payment), money(row.debt_service), money(row.debt_service_paid), money(row.debt_service_unfunded),
+    money(row.funded_interest), money(row.funded_principal), money(row.unfunded_interest), money(row.unfunded_principal), money(row.closing_principal),
   ]);
   return (
     <section style={{ marginTop: 12, border: '1px solid #cbd5e1', borderRadius: 7, background: '#fff', padding: '10px 12px' }}>
@@ -243,7 +250,6 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     Object.entries(liveAreas(geoScope, inputs, altInputs)).map(([area, data]) => [area, resultsInputs(data, includeDebt)])),
     [geoScope, inputs, altInputs, includeDebt]);
   const [both, setBoth] = useState<Both>(null);
-  const [table, setTable] = useState<{ water: Row[]; sanitation: Row[] } | null>(null);
   const [contrib, setContrib] = useState<Contrib>(null);   // per-intervention stacked series
   const [error, setError] = useState<string | null>(null);
   const [contributionError, setContributionError] = useState<string | null>(null);
@@ -303,6 +309,23 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         const totalHH = years.map((_, i) => resList.reduce((a, res) => a + (res.total_hh[i] || 0), 0));
         const build = (secKey: 'water_supply' | 'sanitation'): Series => {
           const secOf = (res: any) => res[secKey];
+          const sector = secKey === 'water_supply' ? 'water' : 'sanitation';
+          const attribution = aggregateCoverage(resList, secKey, !includeDebt);
+          const sourceFunding = aggregateSourceFunding(resList, secKey, !includeDebt);
+          const sourceCoverage = sourceCoverageRows(years, totalHH, attribution, sector);
+          const impactRows: Row[] = attribution.source_keys.filter(key => key !== 'baseline').map(key => ({
+            key, label: sourceDefinition(key, sector).label, addHH: attribution.sm_stock[key][endIdx] * 1000,
+            resources: key === 'loan' ? resList.reduce((a, r) => a + Number(secOf(r).scenario_utility_debt?.accepted_principal || 0), 0) / 1000
+              : key === 'microfinance' || key === 'grant' ? resList.reduce((a, r) =>
+                a + Number(secOf(r)[key === 'microfinance' ? 'scenario_mf_loan_volume' : 'scenario_grant_spend']?.[endIdx] || 0), 0) / 1000
+              : Array.isArray(sourceFunding?.signed_contribution?.[key]) ? sourceFunding!.signed_contribution[key].reduce((a: number, v: number, i: number) =>
+                a + (years[i] > baseYr ? v : 0), 0) / 1000 : null,
+          }));
+          impactRows.unshift({ key: 'baseline_difference', label: 'Baseline-funded difference from pure BAU',
+            addHH: attribution.baseline_difference_from_bau.sm[endIdx] * 1000, resources: null });
+          const defs = sector === 'water' ? WATER_INTV : SAN_INTV;
+          defs.filter(d => /_(costeff|techmix)_enabled$/.test(d.key) && datasets.some(inp => interventionEnabled(inp, d.key)))
+            .forEach(d => impactRows.push({ key: d.key, label: d.label, addHH: null, resources: null }));
           const revenueFields = [
             'baseline_billed_volume_million_m3', 'connection_raw_volume_million_m3', 'connection_overlap_volume_million_m3',
             'connection_volume_million_m3', 'nrw_avoided_sales_adjustment', 'connection_scale', 'connection_aggregate_volume_proxy',
@@ -449,7 +472,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           debtAreas.forEach(area => (area.annual_injection || []).forEach((row: any) => {
             const year = Number(row.year);
             if (!Number.isFinite(year)) return;
-            const fields = ['ordinary_before_debt_service', 'debt_service', 'ordinary_after_debt_service',
+            const fields = ['ordinary_before_debt_service', 'debt_service', 'debt_service_paid', 'debt_service_unfunded',
+              'funded_interest', 'funded_principal', 'unfunded_interest', 'unfunded_principal', 'ordinary_after_debt_service',
               'disbursement', 'opening_unspent_proceeds', 'investment_from_loan_proceeds', 'closing_unspent_proceeds'];
             const total = injectionMap.get(year) || { year, ...Object.fromEntries(fields.map(key => [key, 0])) };
             fields.forEach(key => {
@@ -462,9 +486,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           debtAreas.forEach(area => (area.repayment_schedule || []).forEach((row: any) => {
             const year = Number(row.year);
             if (!Number.isFinite(year)) return;
-            const fields = ['opening_principal', 'disbursement', 'principal_payment', 'interest_payment', 'debt_service', 'closing_principal'];
+            const fields = ['opening_principal', 'disbursement', 'principal_payment', 'interest_payment', 'debt_service', 'closing_principal',
+              'debt_service_paid', 'debt_service_unfunded', 'funded_interest', 'funded_principal', 'unfunded_interest', 'unfunded_principal'];
             const total = repaymentMap.get(year) || { year, ...Object.fromEntries(fields.map(key => [key, 0])) };
-            fields.forEach(key => { total[key] += Number(row[key] || 0); });
+            fields.forEach(key => {
+              if (row[key] == null || !Number.isFinite(Number(row[key]))) total[key] = null;
+              else if (total[key] != null) total[key] += Number(row[key]);
+            });
             repaymentMap.set(year, total);
           }));
           const sumDebt = (key: string) => debtAreas.reduce((sum, a) => sum + Number(a[key] || 0), 0);
@@ -494,7 +522,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             },
           };
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
-           return { inv, unit, ledgerBase: ledgerSnapshots(resList, secKey, baseYr, false),
+           return { inv, unit, attribution, sourceFunding, sourceBands: sourceCoverage.bands, impactRows,
+            ledgerBase: ledgerSnapshots(resList, secKey, baseYr, false),
             ledgerScenario: ledgerSnapshots(resList, secKey, baseYr),
             ledgerAreas: geoScope === 'national' ? [] : resList.map((result, index) => {
               const key: 'urban' | 'rural' = effScope === 'rural' || (effScope === 'national' &&
@@ -503,7 +532,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
                 base: ledgerSnapshots([result], secKey, baseYr, false),
                 scenario: ledgerSnapshots([result], secKey, baseYr) };
             }),
-            coverageRows: years.map((year, i) => ({ year, __bau: bau[i], __scenario: scn[i], __total: totalHH[i], __target: tgt[i] })),
+            coverageRows: sourceCoverage.rows.map((row, i) => ({ ...row, __target: tgt[i] })),
             financingRows: years.map((year, i) => ({ year,
               __bau_gap: resList.reduce((total, r) => total + secOf(r).endline_financing_requirement[i], 0) / 1000,
               __scenario_gap: resList.reduce((total, r) => total + secOf(r).scenario_endline_financing_requirement[i], 0) / 1000 })),
@@ -520,15 +549,10 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     return () => { cancelled = true; clearTimeout(h); };
   }, [depKey, attempt, effScope, geoScope]);
 
-  // ── Per-intervention breakdown: cumulative passes over the ENABLED built-in toggles isolate each lever's
-  //    marginal safely-managed households (Δ scenario_hh) and gap reduction (Δ scenario_financing_gap) per
-  //    YEAR, plus its mobilised resources at the endline. Feeds both the endline table AND the stacked
-  //    per-intervention charts. Enabled customs are folded into one final pass so the stack still tops out
-  //    at the true with-interventions scenario (shown as a single "Custom interventions" band). ───────────
+  // Ordered comparisons are retained only for financial effects, never source coverage.
   useEffect(() => {
-    if (!datasets.length || !datasets[0]) { setTable(null); setContrib(null); return; }
+    if (!datasets.length || !datasets[0]) { setContrib(null); return; }
     let cancelled = false;
-    setTable(null);
     setContrib(null);
     setContributionError(null);
     const enabled = GLOBAL_INTERVENTION_ORDER.filter(d => datasets.some(inp => interventionEnabled(inp, d.key)));
@@ -559,14 +583,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         const years: number[] = passes[0][0].years;
         const per = datasets[0]?.period || {};
         const baseYr = per.baseline_year ?? years[0];
-        const endIdx = years.length - 1;
         const nBuiltin = enabled.length;                           // passes[1..nBuiltin] built-in; passes[nBuiltin+1] = customs
-        const smY = (rl: any[], sk: string, i: number) => rl.reduce((a, r) => a + (r[sk].scenario_hh[0][i] || 0), 0);
         const gapY = (rl: any[], sk: string, i: number) => rl.reduce((a, r) => a + r[sk].scenario_endline_financing_requirement[i], 0);
-        const totY = (i: number) => passes[0].reduce((a: number, r: any) => a + (r.total_hh[i] || 0), 0);
-        const tgtY = (sk: string, i: number) => passes[0].reduce((a: number, r: any) => a + (r[sk].target_hh[0][i] || 0), 0);
-        const cashCum = (rl: any[], sk: string, f: string) => rl.reduce((a, r) =>
-          a + (r[sk][f] || []).reduce((s: number, v: number, i: number) => s + (years[i] > baseYr ? (v || 0) : 0), 0), 0);
         const idxOf = (d: IntvDef) => enabled.findIndex(e => e.key === d.key);   // cumulative position of a lever
         const fullNoDebtIdx = hasCustoms ? nBuiltin + 1 : nBuiltin;
 
@@ -575,45 +593,40 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const own = new Set(defs.map(d => d.key));
           const en = enabled.filter(d => own.has(d.key) || years.some((_, i) => {
             const idx = idxOf(d);
-            return Math.abs(smY(passes[idx + 1], sk, i) - smY(passes[idx], sk, i)) > 1e-12 ||
-              Math.abs(gapY(passes[idx + 1], sk, i) - gapY(passes[idx], sk, i)) > 1e-12;
+            return Math.abs(gapY(passes[idx + 1], sk, i) - gapY(passes[idx], sk, i)) > 1e-12;
           }));
           const bandLabel = (d: IntvDef) => own.has(d.key) ? d.label :
             `${d.key.startsWith('ws_') ? 'Water' : 'Sanitation'}: ${d.label}`;
-          const covRows: any[] = [], gapRows: any[] = [];
+          const gapRows: any[] = [];
           years.forEach((y, i) => {
-            const covRow: any = { year: y, __bau: +smY(passes[0], sk, i).toFixed(4), __total: +totY(i).toFixed(4), __target: +tgtY(sk, i).toFixed(4) };
             const bauGap = gapY(passes[0], sk, i);
             const gapRow: any = { year: y };
             let sumRed = 0;
             en.forEach(d => {
               const idx = idxOf(d);
-              covRow[bandLabel(d)] = smY(passes[idx + 1], sk, i) - smY(passes[idx], sk, i);
               const red = gapY(passes[idx], sk, i) - gapY(passes[idx + 1], sk, i);
               gapRow[bandLabel(d)] = red / 1000;          // M → B
               sumRed += red;
             });
             if (hasCustoms) {
-              covRow['Custom interventions'] = smY(passes[nBuiltin + 1], sk, i) - smY(passes[nBuiltin], sk, i);
               const redC = gapY(passes[nBuiltin], sk, i) - gapY(passes[nBuiltin + 1], sk, i);
               gapRow['Custom interventions'] = redC / 1000;
               sumRed += redC;
             }
             if (debtPass) {
-              covRow['Indicative loan funding'] = smY(debtPass, sk, i) - smY(passes[fullNoDebtIdx], sk, i);
               const redDebt = gapY(passes[fullNoDebtIdx], sk, i) - gapY(debtPass, sk, i);
               gapRow['Indicative loan funding'] = redDebt / 1000;
               sumRed += redDebt;
             }
             gapRow.__remain = (bauGap - sumRed) / 1000;
             gapRow.__bau_gap = +(bauGap / 1000).toFixed(4);                        // total BAU gap → the target line to close
-            covRows.push(covRow); gapRows.push(gapRow);
+            gapRows.push(gapRow);
           });
           const all: ContribBand[] = en.map(d => ({ key: bandLabel(d), label: bandLabel(d), color: d.color, interventionKey: d.key }));
           if (hasCustoms) all.push({ key: 'Custom interventions', label: 'Custom interventions', color: P.custom, custom: true });
           if (debtPass) all.push({ key: 'Indicative loan funding', label: 'Indicative loan funding', color: P.utilityDebt, interventionKey: 'utility_debt_financing' });
           // keep only bands that actually move either chart (an enabled-but-unparameterised lever adds 0)
-          const bands = all.filter(b => covRows.some(r => Math.abs(r[b.key] || 0) > 1e-12) || gapRows.some(r => Math.abs(r[b.key] || 0) > 1e-12));
+          const bands = all.filter(b => gapRows.some(r => Math.abs(r[b.key] || 0) > 1e-12));
           const snapshots = passes.map(pass => ledgerSnapshots(pass, sk as 'water_supply' | 'sanitation', baseYr));
           const ledgerContributions: LedgerContribution[] = enabled.map((d, index) => ({
             key: d.key, label: bandLabel(d), category: ledgerCategory(d.key), order: index + 1,
@@ -631,36 +644,10 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             category: ledgerCategory('utility_debt_financing'), before: snapshots[fullNoDebtIdx],
             after: ledgerSnapshots(debtPass, sk as 'water_supply' | 'sanitation', baseYr),
           });
-          return { covRows, gapRows, bands, ledgerContributions };
+          return { gapRows, bands, ledgerContributions };
         };
         setContrib({ water: buildContrib(WATER_INTV, 'water_supply'), sanitation: buildContrib(SAN_INTV, 'sanitation') });
 
-        // ── endline resources-and-households table (built-in levers only) ──
-        if (!enabled.length && !debtPass) { setTable({ water: [], sanitation: [] }); return; }
-        const smEnd = (rl: any[], sk: string) => smY(rl, sk, endIdx);
-        const rowsFor = (defs: IntvDef[], sk: string): Row[] => {
-          const rows = defs.filter(d => datasets.some(inp => interventionEnabled(inp, d.key))).map(d => {
-          const idx = idxOf(d);
-          const after = passes[idx + 1], before = passes[idx];
-          const addHH = (smEnd(after, sk) - smEnd(before, sk)) * 1000;
-          const resources = d.resourceKey
-            ? (['ws_connections_enabled', 'san_connections_enabled', 'ws_collection_efficiency_enabled', 'san_collection_efficiency_enabled',
-              'ws_tariff_enabled', 'san_tariff_enabled', 'ws_nrw_enabled', 'san_nrw_link_enabled'].includes(d.key)
-              ? cashCum(debtPass || passes[fullNoDebtIdx], sk, d.resourceKey)
-              : cashCum(after, sk, d.resourceKey) - cashCum(before, sk, d.resourceKey)) / 1000
-            : null;
-          return { key: d.key, label: d.label, addHH, resources };
-          });
-          if (debtPass) {
-            const principal = debtPass.reduce((sum: number, r: any) =>
-              sum + Number(r[sk].scenario_utility_debt?.accepted_principal || 0), 0) / 1000;
-            const addHH = (smEnd(debtPass, sk) - smEnd(passes[fullNoDebtIdx], sk)) * 1000;
-            if (Math.abs(principal) > 1e-12 || Math.abs(addHH) > 1e-12)
-              rows.push({ key: 'utility_debt_financing', label: 'Indicative loan funding', addHH, resources: principal });
-          }
-          return rows;
-        };
-        setTable({ water: rowsFor(WATER_INTV, 'water_supply'), sanitation: rowsFor(SAN_INTV, 'sanitation') });
       }).catch(e => { if (!cancelled) setContributionError(e instanceof Error ? e.message : String(e)); });
     }, 400);
     return () => { cancelled = true; clearTimeout(h); };
@@ -668,7 +655,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
 
   const isShare = unitMode === 'share';
   const chartWindow = resolveChartWindow(
-    contrib?.water?.covRows?.map((r: any) => r.year) ?? [],
+    both?.water?.coverageRows?.map((r: any) => r.year) ?? [],
     datasets[0]?.period, chartStartOverride, chartEndOverride);
   const chartYears = chartWindow.years;
   const chartStart = chartWindow.start, chartEnd = chartWindow.end;
@@ -684,7 +671,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // Coverage stack in % mode: divide the base, every band, and the target/ceiling by that year's total.
   const asShareStack = (rows: any[], bands: ContribBand[]) => rows.map(r => {
     const tot = r.__total || 0; const d = (v: number) => tot > 0 ? v / tot : 0;
-    const o: any = { ...r, year: r.year, __source_total: tot, __total: tot > 0 ? 1 : 0, __bau: d(r.__bau || 0), __target: d(r.__target || 0), __scenario: d(r.__scenario || 0) };
+    const o: any = { ...r, year: r.year, __source_total: tot, __total: tot > 0 ? 1 : 0, __baseline: d(r.__baseline || 0), __bau: d(r.__bau || 0), __target: d(r.__target || 0), __scenario: d(r.__scenario || 0) };
     bands.forEach(b => { o[b.key] = d(r[b.key] || 0); });
     return o;
   });
@@ -712,7 +699,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const th: React.CSSProperties = { padding: '7px 12px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#0ea5e9', textAlign: 'right' };
     const td: React.CSSProperties = { padding: '6px 12px', fontSize: 11.5, borderBottom: '1px solid #eef2f7', textAlign: 'right' };
     const exHeaders = ['Intervention', `Resources / financing (${displayCur} B)`, hhCol];
-    const exRows = [...rows.map(r => [r.label, r.resources == null ? 'n/a' : r.resources * moneyFactor, r.addHH]), ['Total', totRes * moneyFactor, totHH]];
+    const exRows = [...rows.map(r => [r.label, r.resources == null ? 'n/a' : r.resources * moneyFactor, r.addHH == null ? 'Included in funded additions' : r.addHH]), ['Total gain over BAU', totRes * moneyFactor, totHH]];
     return (
       <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4, maxWidth: 680 }}>
@@ -732,11 +719,11 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
               <tr key={r.key} style={{ background: i % 2 ? '#f1f8fd' : '#fff' }}>
                 <td style={{ ...td, textAlign: 'left', color: '#334155' }}>{r.label}</td>
                 <td style={{ ...td, color: '#0369a1' }}>{r.resources == null ? 'n/a' : sig3(r.resources * moneyFactor)}</td>
-                <td style={{ ...td, color: '#0369a1' }}>{sig3(r.addHH)}</td>
+                <td style={{ ...td, color: '#0369a1' }}>{r.addHH == null ? 'Included in funded additions' : sig3(r.addHH)}</td>
               </tr>
             ))}
             <tr style={{ background: '#dff1fb', fontWeight: 700 }}>
-              <td style={{ ...td, textAlign: 'left', color: '#1e3a5f', borderBottom: 'none' }}>Total</td>
+              <td style={{ ...td, textAlign: 'left', color: '#1e3a5f', borderBottom: 'none' }}>Total gain over BAU</td>
               <td style={{ ...td, color: '#1e3a5f', borderBottom: 'none' }}>{sig3(totRes * moneyFactor)}</td>
               <td style={{ ...td, color: '#1e3a5f', borderBottom: 'none' }}>{sig3(totHH)}</td>
             </tr>
@@ -925,7 +912,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const s = secKey === 'water' ? both.water : both.sanitation;
     const label = secKey === 'water' ? 'Water Supply' : 'Sanitation';
     const cs = secKey === 'water' ? contrib?.water : contrib?.sanitation;
-    const groupedCov = cs && contributionView === 'category' ? aggregateContributionRows(cs.covRows, cs.bands) : { rows: cs?.covRows ?? s.coverageRows, bands: cs?.bands ?? [] };
+    const groupedCov = contributionView === 'category' ? aggregateContributionRows(s.coverageRows, s.sourceBands) : { rows: s.coverageRows, bands: s.sourceBands };
     const groupedGap = cs && contributionView === 'category' ? aggregateContributionRows(cs.gapRows, cs.bands) : { rows: cs?.gapRows ?? s.financingRows, bands: cs?.bands ?? [] };
     const csBands = groupedCov.bands as ContribBand[];
     const gapBands = groupedGap.bands as ContribBand[];
@@ -939,29 +926,31 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     // ceiling, so their heights can be compared directly in count mode.
     const maxCoverage = Math.max(0,
       ...covData.map(r => Math.max(r.__total || 0, r.__target || 0,
-        (r.__bau || 0) + csBands.reduce((sum, b) => sum + (r[b.key] || 0), 0))),
+        (r.__baseline || 0) + csBands.reduce((sum, b) => sum + (r[b.key] || 0), 0))),
       ...basicData.map(r => Math.max(r.total, r.bau, r.scenario, r.target)));
     const coverageDomain: [number, number] = isShare ? [0, 1] : [0, maxCoverage > 0 ? maxCoverage * 1.05 : 1];
-    // Coverage stack: BAU base (blue) at the bottom, one intervention band on top, then the ceiling & target
+    // Coverage stack: actual opening/baseline layer (blue), source layers, pure BAU, ceiling & target
     // reference lines (grey Total dashed, green Target dashed) drawn over the stack.
-    const covBase = { key: '__bau', label: 'BAU (safely managed)', stroke: C.bau, fill: C.bauFill };
+    const covBase = { key: '__baseline', label: BASELINE_COVERAGE_LABEL, stroke: C.bau, fill: C.bauFill };
     const covLines = [
       { key: '__total', name: 'Total households', color: C.total, dash: '8 4', width: 1.25 },
       { key: '__target', name: 'Target', color: C.target, dash: '6 3', width: 2 },
+      { key: '__bau', name: 'Pure BAU (safely managed)', color: C.bau, dash: '4 3', width: 1.25 },
     ];
-    if (!cs) covLines.push({ key: '__scenario', name: 'Full scenario', color: C.bau, dash: '', width: 2 });
     // Gap chart: NO base area — the intervention gap-reduction bands stack UP from zero (what the levers close),
     // and a dashed line marks the total BAU financing gap. The vertical distance from the top of the stack up to
     // that line is the gap still remaining to reach the fully-financed target.
     const gapLines = [{ key: '__bau_gap', name: 'Total financing gap (BAU) — target to close', color: C.gap, dash: '6 3', width: 2 }];
     if (!cs) gapLines.push({ key: '__scenario_gap', name: 'Full scenario requirement', color: C.bau, dash: '', width: 2 });
     const noImpact = Math.abs(s.sum.addHH) < 1e-4 && Math.abs(s.sum.gapBauCum - s.sum.gapScnCum) < 1e-4;
-    const rows = secKey === 'water' ? table?.water : table?.sanitation;
+    const rows = s.impactRows;
     const ledgerData: LedgerData = {
       years: s.ledgerScenario.map(row => row.year),
       baselineYear: datasets[0]?.period?.baseline_year ?? s.ledgerScenario[0].year,
       base: s.ledgerBase, scenario: s.ledgerScenario, areas: s.ledgerAreas,
       contributions: cs?.ledgerContributions ?? [], attributionComplete: !!cs,
+      coverageAttribution: s.attribution, sourceFunding: s.sourceFunding,
+      sourceBands: s.attribution.source_keys.map(key => sourceDefinition(key, secKey)),
       includesDebt: datasets.some(inp => Object.values(inp.utility_debt || {})
         .some((config: any) => config?.enabled && config.allocation_share > 0)),
     };
@@ -975,7 +964,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     const needBAU = closingValues('bau');
     const needScenario = closingValues('scenario');
     const needChartRows = visibleLedgerYears.map((year, i) => ({ year, bau: needBAU[i], scenario: needScenario[i] }));
-    const hhCol = secKey === 'water' ? "Added HHs with treated, piped (HHs '000)" : "Added safely-managed HHs (HHs '000)";
+    const hhCol = "Attributed SM stock / BAU reconciliation (HHs '000)";
     const modes = s.revenueModes.map((mode: any) => {
       const effective = String(mode.effective ?? '').toLowerCase().replace(/[_ ]/g, '-');
       return {
@@ -1020,7 +1009,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             onClick={() => showLedger(secKey, { metric: 'gap', service: 'total', basis: 'closing' })}>View financing table</button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: 8 }}>
-          <StackChart title={`${label} — safely-managed coverage`} subtitle={!cs ? 'BAU, full scenario, target and total households. Intervention breakdown is pending or unavailable.' : contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : "BAU base + each intervention's added households (target & ceiling shown as lines)"}
+          <StackChart title={`${label} — safely-managed coverage`} subtitle={contributionView === 'category' ? 'Categories sum actual source-funded and physical coverage; pure BAU is a separate line.' : 'Opening/baseline-funded stock + actual source-funded and physical coverage'}
             data={covData} yLabel={isShare ? '% of population' : '# households (millions)'}
             base={covBase} bands={csBands} lines={covLines} fmt={covFmt} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_coverage_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_coverage`} currencyDisplay={detailExportCurrency} />
@@ -1095,7 +1084,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         <UtilityDebtSchedule debt={s.debt} currency={displayCur} moneyFactor={moneyFactor} />
         {rows && rows.length > 0 && (
           <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f', marginBottom: 3 }}>Contribution by intervention{contributionView === 'category' ? ' — individual detail' : ''} (cumulative to {s.sum.endline})</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f', marginBottom: 3 }}>Attributed coverage by source{contributionView === 'category' ? ' — individual detail' : ''} (stock at {s.sum.endline})</div>
             <ImpactTable rows={rows} hhCol={hhCol} />
           </div>
         )}
@@ -1133,7 +1122,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         <div>
           <h2 style={{ fontSize: 17, color: '#1e3a5f', margin: 0 }}>Results — intervention impact (live)</h2>
           <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-            Safely-managed coverage and financing-gap charts show each intervention's contribution. Basic coverage compares the BAU, full scenario and target; Basic households may move up to Safely Managed.
+            Safely-managed coverage shows actual funding-source and physical delivery stocks; financial-gap effects retain ordered comparisons. Basic coverage compares the BAU, full scenario and target; Basic households may move up to Safely Managed.
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -1246,9 +1235,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
 
       <div style={{ fontSize: 10, color: '#94a3b8', marginTop: -6, marginBottom: 16 }}>
         Table: “Resources / financing” reports cash mobilised or loan principal accepted; utility borrowing is financing,
-        not operating revenue. Cost-side and budget-execution levers show “n/a” as they stretch existing budget.
-        “Added HHs” is each lever’s marginal safely-managed service. Enabled custom
-        interventions appear as a single “Custom interventions” band on the charts above, but are not itemised in this table.
+        not operating revenue. Attributed SM stocks plus the signed baseline-funded difference reconcile the total gain over pure BAU.
+        Cost-efficiency and technology benefits are included in funded additions, not separate coverage sources.
       </div>
 
       {scenarios.length > 0 && (

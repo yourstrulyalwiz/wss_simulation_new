@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { REVENUE_ATTRIBUTION } from './RevenueBase';
+import { aggregateCoverage, sourceCoverageRows, sourceDefinition, BASELINE_COVERAGE_LABEL, SOURCE_COVERAGE_TEXT } from '../sourceAttribution';
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Label,
 } from 'recharts';
@@ -8,15 +8,8 @@ import { runCalculation } from '../api';
 import ServiceAccessGaps from './ServiceAccessGaps';
 import { serviceAccessRows, type AccessRow } from '../serviceAccess';
 
-/**
- * Live intervention-impact chart. INCREMENTAL multi-pass compare: it POSTs /api/calculate once for the
- * pure BAU (every toggle off), then once more for each enabled intervention added CUMULATIVELY on top.
- * The marginal safely-managed households each pass adds become a STACKED band, one colour per
- * intervention, sitting on the grey BAU base — so the coloured stack is the extra coverage the enabled
- * interventions deliver, and the top of the stack is the full with-intervention scenario. Replaces the
- * old synthetic StaticCharts.InterventionImpactChart.
- */
-import { C, INTV_PALETTE as P } from '../chartColors';
+/** Actual source-funded stocks from one combined engine result. */
+import { C } from '../chartColors';
 import { yearAxisInterval } from '../chartAxis';
 import { resolveChartWindow } from '../chartWindow';
 import { linesFirstLegend } from './chartLegend';
@@ -24,11 +17,10 @@ import { aggregateContributionRows, type ContributionView, type ViewBand } from 
 import { convertMoney, currencyRateNote, type CurrencyDisplaySettings } from '../currencyDisplay';
 import { connectionRevenueAreaModes, connectionRevenueModeText } from '../connectionRevenueMode';
 import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
-import { GLOBAL_INTERVENTION_ORDER, interventionEnabled, comparisonInputs, COMPARISON_ORDER_TEXT } from '../interventionRegistry';
+import { useNarrowChart } from '../useNarrowChart';
 
 type Intv = [key: string, label: string, color: string];   // toggle key, legend label, band colour
 // Band palette excludes blue (BAU) and green (target) so those meanings stay reserved (see chartColors).
-const zeroToggles = (t: any) => Object.fromEntries(Object.keys(t || {}).map(k => [k, false]));
 const sig = (v: number) => (!isFinite(v) || v === 0) ? '0' : Number(v.toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
 export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung = 0, contributionView, currencyDisplay }: {
@@ -37,7 +29,8 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   // Investment can now be directed at either rung, so the chart is drawn per rung: 0 = safely managed,
   // 1 = basic. The engine returns every rung, so only the row index and the labels change.
   const rungName = rung === 0 ? 'safely-managed' : 'basic';
-  const baseKey = `BAU (${rungName})`;
+  const baseKey = BASELINE_COVERAGE_LABEL;
+  const bauKey = `Pure BAU (${rungName})`;
   const [data, setData] = useState<any[]>([]);
   const [bands, setBands] = useState<Intv[]>([]);   // interventions that actually contribute, in stack order
   const [summary, setSummary] = useState<any>(null);
@@ -55,79 +48,26 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   useEffect(() => {
     if (!inputs) return;
     let cancelled = false;
-    const enabled: Intv[] = GLOBAL_INTERVENTION_ORDER.filter(d => interventionEnabled(inputs, d.key))
-      .map(d => [d.key, `${d.key.startsWith(sector === 'water' ? 'ws_' : 'san_') ? '' : d.key.startsWith('ws_') ? 'Water: ' : 'Sanitation: '}${d.label}`, d.color]);
-    // Enabled CUSTOM interventions that apply to this sector become trailing bands after the built-in ones.
-    const enabledCustoms: any[] = (inputs?.custom_interventions || []).filter((c: any) => c && c.enabled !== false);
+    setData([]); setBands([]); setSummary(null); setAccessRows([]); setError(null);
     const h = setTimeout(() => {
       const post = runCalculation;
       const secOf = (res: any) => sector === 'water' ? res.water_supply : res.sanitation;
-      const off = zeroToggles(inputs?.toggles);
-      const withoutDebt = (source: any) => ({
-        ...(source || {}),
-        water: { ...(source?.water || {}), enabled: false },
-        sanitation: { ...(source?.sanitation || {}), enabled: false },
-      });
-      const includeDebt = ['water', 'sanitation'].some((k: string) =>
-        !!inputs?.utility_debt?.[k]?.enabled && Number(inputs?.utility_debt?.[k]?.allocation_share || 0) > 0);
-      // Cross-sector prerequisite: the sanitation "NRW-linked revenue" lever only has recovered water to
-      // charge for when the WATER NRW lever is on, so keep ws_nrw_enabled at the user's setting in every
-      // sanitation pass (it doesn't affect any of the other sanitation levers). Without this the linked
-      // band would always read 0 on the sanitation chart even with water NRW switched on.
-      // Cumulative payloads: [BAU] → +each toggle → +each custom. The baseline and toggle passes carry NO
-      // customs (custom_interventions:[]) so the grey base is the pure BAU and customs show as their own
-      // bands on top; customs are then added one-by-one over all toggles.
-      const payloads: any[] = [{ ...comparisonInputs(inputs, off), custom_interventions: [], utility_debt: withoutDebt(inputs?.utility_debt) }];
-      let acc: any = { ...off };
-      enabled.forEach(([k]) => { acc = { ...acc, [k]: true }; payloads.push({ ...comparisonInputs(inputs, acc), custom_interventions: [], utility_debt: withoutDebt(inputs?.utility_debt) }); });
-      let accCustoms: any[] = [];
-      enabledCustoms.forEach((c: any) => { accCustoms = [...accCustoms, c]; payloads.push({ ...comparisonInputs(inputs, acc), custom_interventions: accCustoms, utility_debt: withoutDebt(inputs?.utility_debt) }); });
-      // Combined stack order (toggles then customs) with UNIQUE labels for the chart dataKeys.
-      const bandDefs: Intv[] = [...enabled];
-      const seen = new Set<string>(enabled.map(([, label]) => label));
-      enabledCustoms.forEach((c: any, i: number) => {
-        let label = ((c.name || '').trim()) || `Custom ${i + 1}`;
-        while (seen.has(label)) label += ' ';
-        seen.add(label);
-        bandDefs.push([`custom_${i}`, label, c.color || P.custom]);
-      });
-      const debtPayload = includeDebt ? {
-        ...comparisonInputs(inputs, acc), custom_interventions: enabledCustoms,
-        utility_debt: inputs.utility_debt,
-      } : null;
-      Promise.all(payloads.map(post).concat(debtPayload ? [post(debtPayload)] : [])).then(allResults => {
+      post(inputs).then(result => {
         if (cancelled) return;
-        const results = includeDebt ? allResults.slice(0, -1) : allResults;
-        const debtResult = includeDebt ? allResults[allResults.length - 1] : null;
         setRevenueModeLabel(connectionRevenueModeText(connectionRevenueAreaModes(
-          [debtResult || results[results.length - 1]], [inputs], sector === 'water' ? 'water_supply' : 'sanitation', sector,
+          [result], [inputs], sector === 'water' ? 'water_supply' : 'sanitation', sector,
         )).text);
-        const years: number[] = results[0].years;
-        // The engine returns a PURE BAU (`bau_hh`, invariant) plus the SCENARIO safely-managed path under
-        // that pass's toggles+customs (`scenario_hh`). Grey base = pure BAU; each pass's scenario_hh gives
-        // the extra SM its newly-added lever delivers (sm[p+1] − sm[p] for band p, in payload order).
-        const bauBase = secOf(results[0]).bau_hh[rung];              // pure BAU (same in every pass)
-        const sm = results.map((r: any) => secOf(r).scenario_hh[rung]); // rung WITH the pass's levers
-        const rows = years.map((y: number, i: number) => {
-          const row: any = { year: +y, [baseKey]: +(+bauBase[i]).toFixed(4), 'Total households': +(+results[0].total_hh[i]).toFixed(4) };
-          bandDefs.forEach(([, label], p) => { row[label] = sm[p + 1][i] - sm[p][i]; });
-          if (debtResult) {
-            const noDebtFinal = sm[sm.length - 1][i];
-            row['Indicative loan funding'] = secOf(debtResult).scenario_hh[rung][i] - noDebtFinal;
-          }
-          return row;
-        });
-        if (debtResult) bandDefs.push(['utility_debt_financing', 'Indicative loan funding', P.utilityDebt]);
-        // Only stack levers that actually move the needle (an enabled-but-unparameterised one adds 0).
-        const contributing = bandDefs.filter(([, label]) => rows.some((r: any) => Math.abs(r[label]) > 1e-12));
+        const years: number[] = result.years;
+        const attribution = aggregateCoverage([result], sector === 'water' ? 'water_supply' : 'sanitation');
+        const coverage = sourceCoverageRows(years, result.total_hh, attribution, sector, rung === 0 ? 'sm' : 'basic');
+        const rows = coverage.rows.map(row => ({ ...row, [baseKey]: row.__baseline, [bauKey]: row.__bau, 'Total households': row.__total }));
         setData(rows);
-        setBands(contributing);
-        const full = debtResult ? secOf(debtResult) : secOf(results[results.length - 1]); // all enabled toggles + customs, then utility debt
-        setAccessRows(serviceAccessRows([debtResult || results[results.length - 1]],
+        setBands(coverage.bands.map(b => [b.key, b.label, b.color]));
+        const full = secOf(result);
+        setAccessRows(serviceAccessRows([result],
           sector === 'water' ? 'water_supply' : 'sanitation', inputs.period.baseline_year));
-        const bau = secOf(results[0]);
+        const bau = full;
         const e = years.length - 1;
-        const cum = (a: number[]) => (a || []).reduce((s: number, v: number) => s + (+v || 0), 0);
         setSummary({
           // Compare the full-scenario SM / gap against the PURE BAU (bau_hh / financing_gap).
           endline: years[e], addHH: (+full.scenario_hh[rung][e]) - (+bau.bau_hh[rung][e]),
@@ -149,16 +89,16 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const showLoanFunding = ['water', 'sanitation'].some((key: string) =>
     !!inputs?.utility_debt?.[key]?.enabled && Number(inputs?.utility_debt?.[key]?.allocation_share || 0) > 0);
   const chartRef = useRef<HTMLDivElement>(null);
+  const narrowChart = useNarrowChart();
   const isShare = unitMode === 'share';
   const sourceBands: ViewBand[] = useMemo(() => bands.map(([key, label, color]) => ({
-    key: label, label, color, interventionKey: key.startsWith('custom_') ? undefined : key,
-    custom: key.startsWith('custom_'),
-  })), [bands]);
+    ...sourceDefinition(key, sector), key, label, color,
+  })), [bands, sector]);
   const grouped = useMemo(() => contributionView === 'category'
     ? aggregateContributionRows(data, sourceBands) : { rows: data, bands: sourceBands },
     [data, contributionView, sourceBands]);
   const displayBands = grouped.bands.map(b => [b.key, b.label, b.color] as Intv);
-  // Share mode divides the BAU base, every intervention band and the ceiling by that year's total
+  // Share mode divides the actual baseline layer, source stocks and reference lines by the year's total
   // households, so the stack still adds up and the ceiling becomes a flat 100%. One household size
   // is used throughout the model, so the household share is also the share of population.
   const displayData = useMemo(() => {
@@ -166,7 +106,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
     return grouped.rows.map((r: any) => {
       const tot = r['Total households'] || 0;
       const d = (v: number) => (tot > 0 ? (+v || 0) / tot : 0);
-      const o: any = { ...r, year: r.year, __source_total: tot, 'Total households': tot > 0 ? 1 : 0, [baseKey]: d(r[baseKey]) };
+      const o: any = { ...r, year: r.year, __source_total: tot, 'Total households': tot > 0 ? 1 : 0, [baseKey]: d(r[baseKey]), [bauKey]: d(r[bauKey]) };
       displayBands.forEach(([key]) => { o[key] = d(r[key]); });
       return o;
     });
@@ -183,29 +123,29 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
   const availableYears = chartWindow.years;
   const fmtAxis = (v: number) => (isShare ? Math.round(v * 100) + '%' : sig(v));
   const fmtVal = (v: number) => (isShare ? (v * 100).toFixed(1) + '%' : sig(v) + ' M');
-  // Data series behind the chart, for the "⤓ Excel" export: Year, BAU base, each band, and the ceiling.
-  const exportHeaders = ['Year', baseKey, ...displayBands.map(([, label]) => label), 'Total households', ...(showLoanFunding ? ['Loan funding qualification'] : [])];
-  const exportRows = visibleData.map((r: any) => [r.year, r[baseKey], ...displayBands.map(([key]) => r[key] ?? 0), r['Total households'], ...(showLoanFunding ? [LOAN_FUNDING_QUALIFICATION] : [])]);
-  // Native Excel chart: grey BAU base + each contributing intervention band as stacked areas, ceiling as a line.
+  // Exports consume the same unrounded attributed stocks and independent pure-BAU comparison.
+  const exportHeaders = ['Year', baseKey, ...displayBands.map(([, label]) => label), bauKey, 'Total households', ...(showLoanFunding ? ['Loan funding qualification'] : [])];
+  const exportRows = visibleData.map((r: any) => [r.year, r[baseKey], ...displayBands.map(([key]) => r[key] ?? 0), r[bauKey], r['Total households'], ...(showLoanFunding ? [LOAN_FUNDING_QUALIFICATION] : [])]);
+  // Native Excel chart: actual baseline/source stack, pure BAU and ceiling as independent lines.
   const chartSpec = {
     category: 'Year', stacked: true,
     areas: [{ name: baseKey, color: C.bauFill }, ...displayBands.map(([, label, color]) => ({ name: label, color }))],
-    lines: [{ name: 'Total households', color: C.total, dash: true }],
+    lines: [{ name: bauKey, color: C.bau, dash: true }, { name: 'Total households', color: C.total, dash: true }],
     yTitle: isShare ? '% of population' : '# households (millions)', xTitle: 'Year',
   };
   const fileBase = `${scopeLabel ? scopeLabel + '_' : ''}${sector}_${rung === 0 ? 'sm' : 'basic'}_intervention_impact_${contributionView === 'category' ? 'categories' : 'individual'}`;
   return (
     <div>
-      <p title={REVENUE_ATTRIBUTION} style={{ fontSize: 11 }}>{contributionView === 'category' ? 'Categories sum the existing intervention contributions. Model results and attribution order are unchanged.' : REVENUE_ATTRIBUTION}</p>
+      <p title={SOURCE_COVERAGE_TEXT} style={{ fontSize: 11 }}>{SOURCE_COVERAGE_TEXT}</p>
       <div style={{ fontSize: 10.5, color: '#334155', background: '#f0fdfa', borderLeft: '3px solid #0f766e', padding: '5px 8px', marginBottom: 6 }}>
-        {revenueModeLabel}. The pure baseline is always exogenous. {COMPARISON_ORDER_TEXT}
+        {revenueModeLabel}. The pure baseline is always exogenous.
       </div>
       {showLoanFunding && <div style={{ fontSize: 10, color: '#65736c', background: '#f4f3e9', padding: '5px 8px', marginBottom: 6 }}>{LOAN_FUNDING_QUALIFICATION}</div>}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
         <h3 style={{ fontSize: 14, margin: 0, fontWeight: 600, color: '#1e3a5f' }}>
           {scopeLabel ? scopeLabel + ' ' : ''}{sectorLabel} — {rungName} impact (live)
         </h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {availableYears.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: '#475569' }}>
               <span style={{ fontWeight: 600 }}>Years</span>
@@ -247,7 +187,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         </div>
       </div>
       <div style={{ fontSize: 10, color: '#334155', background: '#f1f5f9', padding: '4px 8px', borderRadius: 4, marginBottom: 8 }}>
-        Live engine output. The blue base is business-as-usual {rungName} coverage; each coloured band stacked on top is the extra coverage an enabled intervention delivers. Switch between absolute households and share of population above.
+        Live engine output. The blue layer is opening and baseline-funded {rungName} coverage; source and physical layers sum to the actual scenario. The thin blue line is pure BAU.
       </div>
       {error && <div style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>{error}</div>}
       {summary && (
@@ -258,8 +198,8 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
       )}
       <ServiceAccessGaps rows={accessRows} filename={`${sector}_${rung}_intervention_service_access`} />
       <div ref={chartRef} style={{ background: '#fff' }}>
-      <ResponsiveContainer width="100%" height={360}>
-        <ComposedChart data={visibleData} margin={{ top: 14, right: 24, bottom: 5, left: 10 }}>
+      <ResponsiveContainer width="100%" height={narrowChart ? 440 : 360}>
+        <ComposedChart data={visibleData} margin={{ top: 14, right: 24, bottom: narrowChart ? 22 : 5, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis dataKey="year" tick={{ fontSize: 10 }} interval={yearAxisInterval(visibleData)} />
           <YAxis tick={{ fontSize: 10 }} domain={isShare ? ['auto', 1] : undefined} tickFormatter={fmtAxis}>
@@ -279,7 +219,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
           {/* Legend lists the Total-households line first, then the area fills (see chartLegend). Render
               order below stays areas-then-line so the line still draws on top; only the legend is reordered. */}
           <Legend wrapperStyle={{ fontSize: 10 }} content={linesFirstLegend} />
-          {/* Grey BAU base, then one stacked band per contributing intervention. Animated transitions.
+          {/* Actual baseline stock, then attributed source/physical stocks. Animated transitions.
               Each band keeps a saturated same-colour top edge (width 1.75) so its boundary reads
               crisply against the lighter translucent band stacked above it — a shape cue on top of
               the hue. Stroke stays the band colour (not white) because recharts derives the legend
@@ -289,6 +229,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
           {displayBands.map(([k, label, color]) => (
             <Area key={k} type="monotone" dataKey={k} name={label} stackId="s" fill={color} stroke={color} fillOpacity={0.6} strokeWidth={1.75} strokeOpacity={1} legendType="rect" isAnimationActive animationDuration={600} animationEasing="ease-out" />
           ))}
+          <Line type="monotone" dataKey={bauKey} stroke={C.bau} strokeWidth={1.25} strokeDasharray="4 3" dot={false} legendType="plainline" isAnimationActive={false} />
           {/* Total households — the coverage ceiling, drawn on top (not stacked). */}
           <Line type="monotone" dataKey="Total households" stroke={C.total} strokeWidth={1.5} strokeDasharray="6 4" dot={false} legendType="plainline" isAnimationActive animationDuration={600} />
         </ComposedChart>

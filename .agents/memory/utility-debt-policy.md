@@ -23,9 +23,11 @@ a lender credit assessment.
 Size one indicative loan injection from the selected year's signed, selected
 intervention cash pool in a frozen no-loan reference. Floor the sum at zero,
 then apply allocation and the ordinary annuity present-value factor. The same
-year receives the injection. Fixed annual principal/interest obligations deduct
-ordinary cash from the following year through maturity, before replacement and
-expansion. Keep full contractual schedules beyond the modeled cash horizon.
+year receives the injection. Fixed annual principal/interest obligations start
+the following year through maturity. Actual payments use only originally selected
+sources after proportional loss absorption, before pooled replacement. Unselected
+cash remains available for replacement/expansion even with unpaid scheduled service.
+Keep full contractual schedules beyond the modeled cash horizon.
 Fees and affordability verification remain excluded. Restricted proceeds cannot
 pay service or replacement. Do not restore start-year capital protection,
 future-year checks, ceilings or iterative resizing.
@@ -34,7 +36,9 @@ future-year checks, ceilings or iterative resizing.
 superseded the earlier affordability constraints and full-maturity repayment
 verification. The 2026-10-08 follow-on expressly supersedes deferred repayment:
 scheduled debt service remains fixed even when future ordinary cash is insufficient.
-This is not verified affordable borrowing; expose deficits rather than inventing cash.
+The later consolidated attribution instructions restrict actual payments to selected
+sources without resizing or forgiving obligations. This is not verified affordable
+borrowing; report unpaid principal/interest without invented catch-up or penalties.
 
 **How to apply:** Keep Intervention Design as the intervention-only stage and
  Loan funding as the separate fourth workflow stage, with Results fifth.

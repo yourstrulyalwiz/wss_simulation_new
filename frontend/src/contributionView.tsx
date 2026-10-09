@@ -5,13 +5,13 @@ export const CONTRIBUTION_CATEGORIES = [
   { id: 'operations', label: 'Operational Efficiency Improvements', color: '#c58216', keys: ['ws_collection_efficiency_enabled', 'ws_nrw_enabled', 'san_collection_efficiency_enabled', 'san_nrw_link_enabled'] },
   { id: 'investment', label: 'Investment Planning and Delivery Improvements', color: '#7238f8', keys: ['ws_capital_efficiency_enabled', 'ws_costeff_enabled', 'ws_techmix_enabled', 'san_capital_efficiency_enabled', 'san_costeff_enabled', 'san_techmix_enabled'] },
   { id: 'tariff', label: 'Tariff Reform', color: '#c355fb', keys: ['ws_tariff_enabled', 'san_tariff_enabled'] },
-  { id: 'household', label: 'Household Financing and Affordability', color: '#c5146a', keys: ['ws_microfinance_enabled', 'san_microfinance_enabled'] },
+  { id: 'household', label: 'Household Financing and Affordability', color: '#c5146a', keys: ['ws_microfinance_enabled', 'san_microfinance_enabled', 'household_grant'] },
 ] as const;
 export type ViewBand = { key: string; label: string; color: string; interventionKey?: string; custom?: boolean; members?: { key: string; label: string }[] };
 export function aggregateContributionRows(rows: any[], bands: ViewBand[]) {
   const mappedKeys = new Set<string>(CONTRIBUTION_CATEGORIES.flatMap(c => [...c.keys]));
   const unmapped = bands.filter(b => !b.custom && b.interventionKey && !mappedKeys.has(b.interventionKey));
-  if (unmapped.length && import.meta.env.DEV) {
+  if (unmapped.length && import.meta.env?.DEV) {
     console.warn('Unmapped contribution keys are retained individually:', unmapped.map(b => b.interventionKey));
   }
   const out: ViewBand[] = [];

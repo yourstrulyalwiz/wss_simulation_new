@@ -88,23 +88,36 @@ try {
   const text = await e(`document.querySelector('.debt-preview').textContent`);
   assert.ok(text.includes('fixed annual obligations modeled'));
   assert.ok(text.includes('Repayment schedule'));
-  assert.ok(text.includes('Ordinary funds after service'));
+  assert.ok(text.includes('Ordinary funds after funded service'));
   assert.ok(!/verified feasible|Supportable borrowing|Protected revenue|Tightest repayment/.test(text));
   const displayed = await e(`document.querySelector('[data-testid="indicative-principal"]').textContent`);
   assert.equal(Number(displayed.split(' ')[0].replaceAll(',','')),Number(debt.indicative_principal.toFixed(3)));
   const heads = await e(`[...document.querySelector('[data-testid="loan-injection-table"]').querySelectorAll('thead th')].map(x=>x.textContent)`);
-  assert.deepEqual(heads,['Year','Ordinary funds before service','Scheduled debt service','Ordinary funds after service','New injection','Opening unspent proceeds','Investment from proceeds','Closing unspent proceeds']);
+  assert.deepEqual(heads,['Year','Ordinary funds before service','Debt service due','Debt service funded','Debt service unfunded',
+    'Funded interest','Funded principal','Unfunded interest','Unfunded principal','Ordinary funds after funded service',
+    'New injection','Opening unspent proceeds','Investment from proceeds','Closing unspent proceeds']);
   assert.equal(debt.annual_injection.filter(r=>r.disbursement>0).length,1);
   for(const r of debt.annual_injection) assert.ok(Math.abs(r.opening_unspent_proceeds+r.disbursement-r.investment_from_loan_proceeds-r.closing_unspent_proceeds)<1e-9);
   for(const row of debt.annual_injection) if(row.ordinary_before_debt_service!=null&&row.ordinary_after_debt_service!=null)
-    assert.ok(Math.abs(row.ordinary_before_debt_service-row.debt_service-row.ordinary_after_debt_service)<1e-8);
+    {
+      assert.ok(Math.abs(row.ordinary_before_debt_service-row.debt_service_paid-row.ordinary_after_debt_service)<1e-8);
+      assert.ok(Math.abs(row.debt_service-row.debt_service_paid-row.debt_service_unfunded)<1e-8);
+    }
+  for (const row of debt.repayment_schedule) {
+    if (row.year <= inputs.period.forecast_end_year) {
+      assert.ok(Math.abs(row.funded_interest+row.funded_principal-row.debt_service_paid)<1e-8);
+      assert.ok(Math.abs(row.unfunded_interest+row.unfunded_principal-row.debt_service_unfunded)<1e-8);
+      assert.ok(Math.abs(row.debt_service_paid+row.debt_service_unfunded-row.debt_service)<1e-8);
+    } else for (const field of ['debt_service_paid','debt_service_unfunded','funded_interest','funded_principal','unfunded_interest','unfunded_principal'])
+      assert.equal(row[field],null,`Future contractual ${field} must remain unavailable`);
+  }
   await screenshot('loan-desktop.png');
   await e(`document.querySelector('.debt-annual button[title="Download this table as CSV"]').click()`);
   await w(`window.__loanCSVs.length>0`,'No proceeds table CSV download');
-  assert.ok((await e(`window.__loanCSVs[0]`)).includes('Fixed annual principal-and-interest obligations'));
+  assert.ok((await e(`window.__loanCSVs[0]`)).includes('Only funded payments are deducted'));
   await e(`document.querySelector('[data-testid="loan-repayment-schedule"] button[title="Download this table as CSV"]')?.click()`);
   await w(`window.__loanCSVs.length>1`,'No repayment schedule CSV download');
-  assert.ok((await e(`window.__loanCSVs[1]`)).includes('Scheduled interest'));
+  assert.ok((await e(`window.__loanCSVs[1]`)).includes('Interest due'));
   await number(0,75);
   await w(`Number(document.querySelector('[data-testid="indicative-principal"]').textContent.split(' ')[0].replaceAll(',',''))===${Number((debt.indicative_principal*1.5).toFixed(3))}`,'Allocation did not update live principal');
   const larger = await actual();

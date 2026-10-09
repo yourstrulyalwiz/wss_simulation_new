@@ -327,9 +327,11 @@ def _fill_interventions(slide, b, cur, contribution_view='individual', money_fac
         # The template's chart is a COMBO: a stacked-area group for the bands plus a line group for a
         # reference line — the same shape as the tool's on-screen chart, so the target goes on the line.
         k = lambda vs: [v * 1000 for v in vs]          # engine millions -> the chart's ('000) axis
-        areas = [('BAU (safely managed)', k(ch['base']))] + [(lbl, k(vals)) for lbl, _, vals in ch['bands']]
+        areas = [('Opening and baseline-funded coverage', k(ch['base']))] + [(lbl, k(vals)) for lbl, _, vals in ch['bands']]
         groups = chart_groups(sh.chart)
         lines = [('Target', k(ch['target']))] if len(groups) > 1 and ch.get('target') else []
+        if len(groups) > 1 and ch.get('pure_bau'):
+            lines.append(('Pure BAU comparison', k(ch['pure_bau'])))
         if len(groups) > 1:
             set_group_series_counts(sh.chart, [len(areas), len(lines)])
         set_chart(sh, [str(y) for y in ch['years']], areas + lines)
@@ -341,7 +343,7 @@ def _fill_interventions(slide, b, cur, contribution_view='individual', money_fac
     if t is not None:
         set_cell(t, 0, 0, 'Intervention — individual detail' if contribution_view == 'category' else 'Intervention')
         set_cell(t, 0, 1, f'Resources / financing ({cur} b)')
-        set_cell(t, 0, 2, "Added HHs ('000)")
+        set_cell(t, 0, 2, "Attributed coverage ('000 HH)")
         # The template ships 4 lever rows between the header and the Total row; grow or shrink to fit.
         TEMPLATE_LEVER_ROWS = 4
         n = len(rows)
@@ -353,7 +355,7 @@ def _fill_interventions(slide, b, cur, contribution_view='individual', money_fac
         for i, r in enumerate(rows):
             set_cell(t, i + 1, 0, r['label'])
             set_cell(t, i + 1, 1, 'n/a' if r['money_m'] is None else bn(r['money_m'] * money_factor, 2))
-            set_cell(t, i + 1, 2, hh(r['added_hh'], 1))
+            set_cell(t, i + 1, 2, r.get('coverage_note') or hh(r['added_hh'], 1))
         tot_money = sum((r['money_m'] or 0.0) for r in rows) * money_factor
         set_cell(t, n + 1, 0, 'Total')
         set_cell(t, n + 1, 1, bn(tot_money, 2))
@@ -391,7 +393,7 @@ def _fill_detail(slide, b, row, inputs, sk, source_cur, display_cur, money_facto
         replace_tokens(slide, {'Resources generated: [X] billion': 'Resources generated: [X] billion USD'})
     replace_tokens(slide, {
         '[X]': 'n/a' if row['money_m'] is None else bn(row['money_m'] * money_factor, 2),
-        '[Y]': hh(row['added_hh'], 1),
+        '[Y]': row.get('coverage_note') or hh(row['added_hh'], 1),
         '[Z]': 'n/a',                      # the model carries no per-lever programme cost
         '[start year]': str(perf.get('start_year') or b['baseline_year'] + 1),
         '[end year]': str(perf.get('target_year') or b['end_year']),

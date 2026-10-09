@@ -454,6 +454,25 @@ h1, h2, h3, h4 {
   .wb-tab { font-size: 10px !important; }
 }
 
+/* Keep the desktop editor/preview split; narrow screens share one vertical scroller
+   instead of squeezing the live chart beside the controls. */
+@media (max-width: 767px) {
+  .intervention-workspace {
+    flex-direction: column;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+  .intervention-workspace > .intervention-workspace__controls,
+  .intervention-workspace > .intervention-workspace__charts {
+    flex: 0 0 auto !important;
+    width: 100%;
+    overflow: visible !important;
+    padding: 16px !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+}
+
 .revenue-error-toggle {
   display: flex;
   align-items: center;

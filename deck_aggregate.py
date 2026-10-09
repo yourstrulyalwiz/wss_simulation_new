@@ -178,6 +178,21 @@ def aggregate(results: List[dict]) -> dict:
             else:
                 agg[key] = val
         for prefix in ('', 'scenario_', 'scenario_without_utility_debt_'):
+            for field in ('source_funding', 'coverage_attribution'):
+                items = [s.get(prefix+field) for s in secs]
+                if all(items):
+                    def merge(values, name=''):
+                        first = values[0]
+                        if name in ('version', 'method', 'units', 'years', 'source_keys'):
+                            return first
+                        if name == 'debt_included':
+                            return any(values)
+                        if isinstance(first, dict):
+                            return {k: merge([v[k] for v in values], k) for k in first}
+                        if isinstance(first, list):
+                            return _sum_series(values)
+                        return first
+                    agg[prefix+field] = merge(items)
             metas = [s.get(prefix + 'revenue_reconciliation') or {} for s in secs]
             if any(metas):
                 agg[prefix + 'revenue_reconciliation'] = {
@@ -262,7 +277,9 @@ def _aggregate_utility_debt(summaries: List[dict]) -> dict:
             target = by_year.setdefault(row['year'], {'year': row['year']})
             for key in ('disbursement', 'opening_unspent_proceeds',
                         'investment_from_loan_proceeds', 'closing_unspent_proceeds',
-                        'debt_service', 'ordinary_before_debt_service', 'ordinary_after_debt_service'):
+                        'debt_service', 'debt_service_paid', 'debt_service_unfunded',
+                        'funded_principal', 'funded_interest', 'unfunded_principal', 'unfunded_interest',
+                        'ordinary_before_debt_service', 'ordinary_after_debt_service'):
                 value = row.get(key)
                 target[key] = (None if value is None or (key in target and target[key] is None)
                                else target.get(key, 0) + value)
@@ -271,8 +288,12 @@ def _aggregate_utility_debt(summaries: List[dict]) -> dict:
         for row in area.get('repayment_schedule') or []:
             target = repayment_years.setdefault(row['year'], {'year': row['year']})
             for key in ('opening_principal', 'disbursement', 'principal_payment',
-                        'interest_payment', 'debt_service', 'closing_principal'):
-                target[key] = target.get(key, 0) + row.get(key, 0)
+                        'interest_payment', 'debt_service', 'closing_principal',
+                        'debt_service_paid', 'debt_service_unfunded',
+                        'funded_principal', 'funded_interest', 'unfunded_principal', 'unfunded_interest'):
+                value = row.get(key)
+                target[key] = (None if value is None or (key in target and target[key] is None)
+                               else target.get(key, 0)+value)
     result = {
         'schema_version': min(a.get('schema_version', 2) for a in areas), 'mode': 'indicative_lump_sum',
         'status': ' · '.join(dict.fromkeys(a.get('status', 'disabled') for a in areas)),
@@ -286,7 +307,8 @@ def _aggregate_utility_debt(summaries: List[dict]) -> dict:
     for key in ('indicative_principal', 'annual_allocation', 'selected_signed_pool',
                 'eligible_pool', 'closing_restricted_cash', 'fixed_annual_debt_service',
                 'horizon_closing_principal', 'remaining_contractual_debt_service',
-                'remaining_contractual_payments', 'total_interest', 'total_principal_repaid'):
+                'remaining_contractual_payments', 'total_interest', 'total_principal_repaid',
+                'horizon_debt_service_paid', 'horizon_debt_service_unfunded'):
         result[key] = sum(a.get(key) or 0 for a in areas)
     result['accepted_principal'] = result['indicative_principal']
     result['reference_source_cash'] = {

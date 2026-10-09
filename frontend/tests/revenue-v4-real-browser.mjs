@@ -232,8 +232,22 @@ try {
     return call?.data?.water_supply?.scenario_utility_debt?.reference_source_cash?.connections === 0;
   })()`, 'Inactive selected connection source was not zero in real preview');
   assert.equal(await e(`document.querySelector('[aria-label="Eligible source: Revenue from new connections"]').checked`), true);
+  // API preview debounce is 350ms; working-bundle persistence is separately debounced at 800ms.
+  // The completed API response proves current React state, not yet persisted localStorage.
+  await w(`JSON.parse(localStorage.getItem('wss_working_bundle')).inputs.connection_revenue.water.enabled === false`,
+    'Disabled connection setting did not persist after the working-bundle autosave');
   assert.equal(await e(`JSON.parse(localStorage.getItem('wss_working_bundle')).inputs.connection_revenue.water.enabled`), false,
     'Loan selection must not re-enable underlying connections');
+  // Reload the saved bundle to catch real state restoration/re-enabling bugs, not just timing.
+  await browser.call('Page.reload');
+  await w(`document.querySelectorAll('.wb-tab').length === 5`, 'Persisted bundle did not reload');
+  await tab(3);
+  await w(`document.querySelector('[aria-label="Eligible source: Revenue from new connections"]')?.checked === true &&
+    window.__realRevenueCalls.some(c => c.url.includes('/api/calculate') && c.status === 200 &&
+      c.input.connection_revenue?.water?.enabled === false && c.input.utility_debt?.water?.enabled === true &&
+      c.data?.water_supply?.scenario_utility_debt?.reference_source_cash?.connections === 0)`,
+    'Reloaded loan selection must remain selected but must not re-enable its inactive connection source');
+  assert.equal(await e(`JSON.parse(localStorage.getItem('wss_working_bundle')).inputs.connection_revenue.water.enabled`), false);
   assert.equal(browser.errors.length, 0, JSON.stringify(browser.errors));
   const badCalls = await e(`window.__realRevenueCalls.filter(c => c.status >= 400).map(c => ({url:c.url,status:c.status,data:c.data}))`);
   assert.deepEqual(badCalls, [], 'Real DRC browser flow returned API errors');

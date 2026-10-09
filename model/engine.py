@@ -250,6 +250,17 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
         asset_life=debt_asset_life, reference_result=reference,
         force_financed_run=reference_kwargs is not None and reference_kwargs != (scn_kwargs or {}))
     scn['utility_debt'] = debt_summary
+    for result in (scn, scn_without_debt):
+        attribution = result['coverage_attribution']
+        attribution['pure_bau_stock'] = {
+            rung: list(bau['bau_hh'][i]) for i, rung in enumerate(('sm', 'basic'))}
+        attribution['baseline_difference_from_bau'] = {
+            rung: [a-b for a, b in zip(attribution['opening_baseline_stock'][rung],
+                                      attribution['pure_bau_stock'][rung])]
+            for rung in ('sm', 'basic')}
+    for key in ('source_funding', 'coverage_attribution', 'debt_service_paid', 'debt_service_unfunded'):
+        bau['scenario_'+key] = scn[key]
+        bau['scenario_without_utility_debt_'+key] = scn_without_debt[key]
     bau['scenario_hh'] = scn['bau_hh']                                  # SM path WITH interventions
     bau['scenario_financing_gap'] = scn['financing_gap']
     bau['scenario_total_investment_need'] = scn['total_investment_need']

@@ -2,9 +2,8 @@
 XLSX builders for the frontend's per-table and per-chart export buttons.
 
 All money is exported in the engine's native MILLIONS (full precision) with clear column labels; households
-in millions. The per-intervention breakdown mirrors the Results dashboard: cumulative engine passes over the
-enabled built-in toggles isolate each lever's marginal safely-managed households, mobilised resources, and
-financing-gap reduction. Customs are excluded from the itemisation (they still sit in the scenario totals)."""
+in millions. Coverage is actual source-funded stock; cumulative engine passes remain only for
+financial effects and cost-savings information."""
 
 import io
 import csv
@@ -160,6 +159,12 @@ def per_year_table(result, inputs, sector_key):
         rows[-1] += [mode, json.dumps(status.get('configuration') or status.get('area_configurations') or {},
                                     ensure_ascii=False) if y == inputs.get('period', {}).get('baseline_year') else None,
                      '; '.join((status.get('errors') or []) + (status.get('warnings') or [])) or None]
+    from coverage_export import source_export_columns
+    columns = source_export_columns(sec, len(years))
+    headers += [f'{label} ({cur} M)' if unit == 'money' else f'{label} (M HH)'
+                for label, unit, _ in columns]
+    for i, row in enumerate(rows):
+        row.extend(values[i] for _, _, values in columns)
     return headers, rows
 
 
@@ -178,7 +183,8 @@ def intervention_breakdown(inputs, sector_key, defs):
     sector = 'water' if sector_key == 'water_supply' else 'sanitation'
     debt_cfg = ((inputs.get('utility_debt') or {}).get(sector) or {})
     debt_active = bool(debt_cfg.get('enabled')) and float(debt_cfg.get('allocation_share') or 0) > 0
-    if not enabled and not debt_active:
+    has_custom = any(c.get('enabled', True) for c in inputs.get('custom_interventions', []))
+    if not enabled and not debt_active and not has_custom:
         return []
     # Same GLOBAL order as dashboard and branded deck, including intervening levers.
     from deck_data import cumulative_passes
@@ -198,21 +204,31 @@ def intervention_breakdown(inputs, sector_key, defs):
         return res[sector_key]['scenario_endline_financing_requirement'][e]
 
     out = []
+    from coverage_export import source_band
+    actual = calculate(coerce_to_engine(inputs))
     for idx, (key, label, rkey) in enumerate(enabled):
         idx = next(i for i, d in enumerate(global_enabled) if d[0] == key)
         before, after = passes[idx], passes[idx + 1]
-        add_hh = sm_end(after) - sm_end(before)                 # signed, millions
+        add_hh = source_band(actual[sector_key], key, len(years))[-1]
         res = (cash_cum(after, rkey) - cash_cum(before, rkey)) / 1000.0 if rkey else None  # M → B
         if rkey in ('scenario_connection_net_cash', 'scenario_collection_cash',
                     'scenario_tariff_cash', 'scenario_nrw_net', 'scenario_nrw_link_cash'):
             res = cash_cum(passes[-1], rkey) / 1000.0
         gap_closed = (gap_cum(before) - gap_cum(after)) / 1000.0  # signed change; M → B
         out.append((label, round(add_hh, 5), (round(res, 4) if res is not None else None), round(gap_closed, 4)))
+    if has_custom:
+        custom_hh = source_band(actual[sector_key], '__custom', len(years))[-1]
+        out.append(('Custom interventions', custom_hh,
+                    cash_cum(actual, 'scenario_custom_cash')/1000.,
+                    (gap_cum(passes[-2])-gap_cum(passes[-1]))/1000.))
+    zero_hh = actual[sector_key]['scenario_coverage_attribution']['sm_stock']['zero_cost'][-1]
+    if zero_hh:
+        out.append(('Zero-cost delivery', zero_hh, None, 0.))
     if debt_active:
         final_with_debt = calculate(coerce_to_engine(inputs))
         no_debt = passes[-1]
         debt_summary = final_with_debt[sector_key].get('scenario_utility_debt') or {}
-        add_hh = sm_end(final_with_debt) - sm_end(no_debt)
+        add_hh = source_band(actual[sector_key], 'utility_debt_financing', len(years))[-1]
         principal = float(debt_summary.get('accepted_principal') or 0.0) / 1000.0
         gap_closed = (gap_cum(no_debt) - gap_cum(final_with_debt)) / 1000.0
         out.append(('Utility debt financing', round(add_hh, 5), round(principal, 4), round(gap_closed, 4)))
@@ -221,10 +237,11 @@ def intervention_breakdown(inputs, sector_key, defs):
 
 def breakdown_table(inputs, sector_key, defs):
     cur = _cur(inputs)
-    headers = ['Intervention', 'Added safely-managed (M HH)', f'Resources / financing ({cur} B)', f'Financing gap closed ({cur} B)']
+    headers = ['Intervention', 'Attributed safely-managed coverage (M HH)', f'Resources / financing ({cur} B)', f'Financing gap closed ({cur} B)']
     rows = []
     for label, add_hh, res, gap in intervention_breakdown(inputs, sector_key, defs):
-        rows.append([label, add_hh, ('n/a' if res is None else res), gap])
+        rows.append([label, ('Included in funded additions' if label in ('Capex efficiency', 'Optimised technology') else add_hh),
+                     ('n/a' if res is None else res), gap])
     return headers, rows
 
 
@@ -401,17 +418,17 @@ def scenario_csv(inputs, currency_display=None, contribution_view='individual'):
         if contribution_view == 'category':
             category_rows, local_category_rows = _category_contributions(inputs, sk, defs, display.get('factor', 1.0))
             w.writerow([name + ' — contribution by category'])
-            w.writerow(['Category', 'Added safely-managed (M HH)',
+            w.writerow(['Category', 'Attributed safely-managed coverage (M HH)',
                         f'Gap closed (B {display.get("display_currency", _cur(inputs))})', 'Resources'])
             w.writerows(category_rows if category_rows else [['(no contributing interventions)']])
             if converted_usd:
                 w.writerow([name + ' — source-currency category detail'])
-                w.writerow(['Category', 'Added safely-managed (M HH)', f'Gap closed (B {_cur(inputs)})', 'Resources'])
+                w.writerow(['Category', 'Attributed safely-managed coverage (M HH)', f'Gap closed (B {_cur(inputs)})', 'Resources'])
                 w.writerows(local_category_rows if local_category_rows else [['(no contributing interventions)']])
         else:
             bh, br = breakdown_table(inputs, sk, defs)
             w.writerow([name + ' — contribution by intervention (cumulative to endline)'])
-            w.writerow(['Contributions are incremental in the displayed intervention order. The tariff contribution includes its interaction with collection improvement.'])
+            w.writerow(['Coverage is actual source-funded stock. Financial gap effects remain ordered comparisons. Tariff and collection own their expanded-volume interactions.'])
             local_bh, local_br = bh, br
             bh, br, breakdown_indexes = _currency_table(bh, br, display)
             w.writerow(bh)
@@ -457,6 +474,10 @@ def _category_contributions(inputs, sector_key, defs, factor=1.0):
             gap_closed = sum(row[3] for _, row in members)
             output.append([label, households, gap_closed * factor, 'Not aggregated (unlike resource metrics)'])
             local.append([label, households, gap_closed, 'Not aggregated (unlike resource metrics)'])
+    for row in raw:
+        if row[0] in ('Custom interventions', 'Zero-cost delivery'):
+            output.append([row[0], row[1], row[3]*factor, 'Not aggregated (unlike resource metrics)'])
+            local.append([row[0], row[1], row[3], 'Not aggregated (unlike resource metrics)'])
     return output, local
 
 
@@ -512,11 +533,11 @@ def scenario_xlsx(inputs, contribution_view='individual', currency_display=None)
             category_rows, category_local_rows = _category_contributions(
                 inputs, sk, defs, display.get('factor', 1.0))
             _write_sheet(wb, f'{name} — categories{suffix}',
-                         ['Category (contributions sum existing individual values)', 'Added safely-managed (M HH)', f'Gap closed (B {display.get("display_currency", _cur(inputs))})', 'Resources'],
+                         ['Category (contributions sum existing individual values)', 'Attributed safely-managed coverage (M HH)', f'Gap closed (B {display.get("display_currency", _cur(inputs))})', 'Resources'],
                          category_rows or [['(no contributing interventions)']])
             if converted_usd:
                 _write_sheet(wb, f'{name} — local categories',
-                             ['Category', 'Added safely-managed (M HH)', f'Gap closed (B {_cur(inputs)})', 'Resources'],
+                             ['Category', 'Attributed safely-managed coverage (M HH)', f'Gap closed (B {_cur(inputs)})', 'Resources'],
                              category_local_rows or [['(no contributing interventions)']])
     return _save(wb)
 
@@ -574,7 +595,7 @@ def table_xlsx(sheets, currency_display=None):
     if currency_display:
         _currency_metadata(wb, currency_display, 'table')
     notes = wb.create_sheet('Revenue assumptions')
-    notes.append(['Contributions are incremental in the model calculation order; category grouping can change their display order. Step labels in year-column ledgers identify the calculation order. The tariff contribution includes its interaction with collection improvement.'])
+    notes.append(['Coverage is actual source-funded stock, not sequential marginal effects. Financial gap effects retain ordered comparisons.'])
     notes.append(['Revenue mode follows the saved sector/area configuration. Reference collected revenue is not added to capital; connection net cash is credited once when enabled.'])
     for s in sheets:
         ws = _write_sheet(wb, s.get('name', 'Sheet'), s.get('headers', []), s.get('rows', []))

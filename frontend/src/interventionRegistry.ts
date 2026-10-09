@@ -32,7 +32,7 @@ export const GLOBAL_INTERVENTION_ORDER = [
   WATER_INTERVENTIONS[0], SANITATION_INTERVENTIONS[0],
   ...WATER_INTERVENTIONS.slice(1), ...SANITATION_INTERVENTIONS.slice(1),
 ];
-export const COMPARISON_ORDER_TEXT = 'Household comparison order: water connections → sanitation connections → water interventions → sanitation interventions → custom interventions → loan funding. Bands show delivered household effects, not cash-source receipts.';
+export const COMPARISON_ORDER_TEXT = 'Financial-effect comparison order: water connections → sanitation connections → water interventions → sanitation interventions → custom interventions → loan funding. Coverage uses actual source-funded stocks, not these ordered comparisons.';
 
 export function interventionEnabled(inputs: any, key: string): boolean {
   if (key === 'ws_connections_enabled' || key === 'san_connections_enabled') {

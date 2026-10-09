@@ -1,9 +1,9 @@
 export const LOAN_FUNDING_QUALIFICATION =
-  'Loan size uses selected additional revenue in the reference year. Fixed annual principal-and-interest obligations are deducted from ordinary available funds from the following year through maturity. Full affordability is not assessed; fees are excluded.';
+  'Loan size uses selected additional revenue in the reference year. Fixed annual principal-and-interest obligations run from the following year through maturity. Only funded payments are deducted from originally selected sources after loss absorption; unfunded obligations remain reported and are not forgiven. Full affordability is not assessed; fees are excluded.';
 export const LOAN_REPAYMENT_ACCOUNTING = 'fixed_annuity_modeled';
 export const LOAN_SUMMARY_VERSION = 3;
 export const FUNDING_RECALCULATION_NOTICE =
-  'Funding and coverage results may change: fixed loan repayments are deducted from ordinary funds, and new-connection revenue is addition-only. Recalculate to update this scenario.';
+  'Funding and coverage results may change: loan payments are funded only from originally selected sources, unpaid obligations are retained, and new-connection revenue is addition-only. Recalculate to update this scenario.';
 export function isModeledLoanSummary(summary: any) {
   return Number(summary?.summary_version ?? summary?.schema_version) >= LOAN_SUMMARY_VERSION &&
     summary?.repayment_accounting === LOAN_REPAYMENT_ACCOUNTING;

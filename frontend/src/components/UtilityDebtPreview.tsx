@@ -48,6 +48,7 @@ export default function UtilityDebtPreview({ debt, result, scenarioResult, curre
     row.year,
     amountOrDash(row.ordinary_before_debt_service),
     amountOrDash(row.debt_service),
+    ...['debt_service_paid', 'debt_service_unfunded', 'funded_interest', 'funded_principal', 'unfunded_interest', 'unfunded_principal'].map(key => amountOrDash(row[key])),
     amountOrDash(row.ordinary_after_debt_service),
     convertMoney(Number(row.disbursement || 0), currencyDisplay, currency),
     convertMoney(Number(row.opening_unspent_proceeds || 0), currencyDisplay, currency),
@@ -56,17 +57,22 @@ export default function UtilityDebtPreview({ debt, result, scenarioResult, curre
     LOAN_FUNDING_QUALIFICATION,
   ]);
   const headers = ['Year', `Ordinary funds before service (${displayCurrency(currencyDisplay, currency)} mn)`,
-    `Scheduled debt service (${displayCurrency(currencyDisplay, currency)} mn)`,
-    `Ordinary funds after service (${displayCurrency(currencyDisplay, currency)} mn)`,
+    `Debt service due (${displayCurrency(currencyDisplay, currency)} mn)`,
+    ...['Debt service funded', 'Debt service unfunded', 'Funded interest', 'Funded principal', 'Unfunded interest', 'Unfunded principal']
+      .map(label => `${label} (${displayCurrency(currencyDisplay, currency)} mn)`),
+    `Ordinary funds after funded service (${displayCurrency(currencyDisplay, currency)} mn)`,
     `New injection (${displayCurrency(currencyDisplay, currency)} mn)`,
     `Opening unspent proceeds (${displayCurrency(currencyDisplay, currency)} mn)`,
     `Investment from proceeds (${displayCurrency(currencyDisplay, currency)} mn)`,
     `Closing unspent proceeds (${displayCurrency(currencyDisplay, currency)} mn)`, 'Qualification'];
-  const scheduleHeaders = ['Year', 'Opening principal', 'Disbursement', 'Scheduled principal',
-    'Scheduled interest', 'Scheduled debt service', 'Closing principal'];
+  const scheduleHeaders = ['Year', 'Opening contractual principal', 'Disbursement', 'Principal due',
+    'Interest due', 'Debt service due', 'Debt service funded', 'Debt service unfunded', 'Funded interest', 'Funded principal',
+    'Unfunded interest', 'Unfunded principal', 'Closing contractual principal'];
   const scheduleRows = schedule.map(row => [row.year,
     amountOrDash(row.opening_principal), amountOrDash(row.disbursement), amountOrDash(row.principal_payment),
-    amountOrDash(row.interest_payment), amountOrDash(row.debt_service), amountOrDash(row.closing_principal)]);
+    amountOrDash(row.interest_payment), amountOrDash(row.debt_service),
+    ...['debt_service_paid', 'debt_service_unfunded', 'funded_interest', 'funded_principal', 'unfunded_interest', 'unfunded_principal'].map(key => amountOrDash(row[key])),
+    amountOrDash(row.closing_principal)]);
   const referenceCashRows = sources.map(([key, label]) => (
     <div className="debt-diagnostics-row" key={key}>
       <span>{label}{selectedSources.includes(key) ? ' · selected' : ''}</span>
@@ -122,13 +128,15 @@ export default function UtilityDebtPreview({ debt, result, scenarioResult, curre
            <thead><tr>{headers.slice(0, -1).map((header, i) => <th key={i}>{i === 0 ? 'Year' : header.split(' (')[0]}</th>)}</tr></thead>
           <tbody>{injection.map((row, i) => <tr key={`${row.year}-${i}`}>
             <th scope="row">{row.year}</th>
-            {[row.ordinary_before_debt_service, row.debt_service, row.ordinary_after_debt_service,
+            {[row.ordinary_before_debt_service, row.debt_service,
+              ...['debt_service_paid', 'debt_service_unfunded', 'funded_interest', 'funded_principal', 'unfunded_interest', 'unfunded_principal'].map(key => row[key]),
+              row.ordinary_after_debt_service,
               row.disbursement, row.opening_unspent_proceeds, row.investment_from_loan_proceeds, row.closing_unspent_proceeds].map((value, j) =>
               <td key={j}>{amountOrDash(value)}</td>)}
           </tr>)}</tbody>
         </table>
       </div> : <div className="debt-preview-state">The proceeds-use ledger appears when calculation output is available.</div>}
-      <p className="debt-reference-note">Opening unspent proceeds are carried balances, not new borrowing. A new injection is counted once in its selected year. Scheduled debt service is deducted once from ordinary funds; proceeds remain restricted to expansion and cannot pay debt service or replacement. NRW enters the selected-source pool as signed net cash after implementation cost.</p>
+      <p className="debt-reference-note">Opening unspent proceeds are carried balances, not new borrowing. A new injection is counted once in its selected year. Only funded debt service is deducted from originally selected sources after loss absorption; unfunded obligations are not forgiven. Proceeds remain restricted to expansion and cannot pay debt service or replacement. NRW enters the selected-source pool as signed net cash after implementation cost.</p>
     </div>
     {modeled && <div className="debt-annual" data-testid="loan-repayment-schedule">
       <div className="debt-annual-head">
@@ -140,7 +148,9 @@ export default function UtilityDebtPreview({ debt, result, scenarioResult, curre
           <thead><tr>{scheduleHeaders.map(header => <th key={header}>{header}</th>)}</tr></thead>
           <tbody>{schedule.map((row, i) => <tr key={`${row.year}-${i}`}>
             <th scope="row">{row.year}</th>
-            {[row.opening_principal, row.disbursement, row.principal_payment, row.interest_payment, row.debt_service, row.closing_principal]
+            {[row.opening_principal, row.disbursement, row.principal_payment, row.interest_payment, row.debt_service,
+              ...['debt_service_paid', 'debt_service_unfunded', 'funded_interest', 'funded_principal', 'unfunded_interest', 'unfunded_principal'].map(key => row[key]),
+              row.closing_principal]
               .map((value, j) => <td key={j}>{amountOrDash(value)}</td>)}
           </tr>)}</tbody>
         </table>

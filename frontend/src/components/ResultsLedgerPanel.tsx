@@ -59,9 +59,7 @@ function formatValue(value: number | null, unit: string, delta = false) {
 
 function description(metric: LedgerMetric, service: LedgerService, basis: LedgerBasis, isShare: boolean, currency: string, view: LedgerView) {
   if (metric === 'coverage') {
-    return isShare
-      ? 'Coverage is shown as a share of population. Intervention changes and coverage gaps are percentage-point differences.'
-      : 'Coverage is shown in million households. Intervention changes are marginal differences from the preceding scenario state.';
+    return `${basis === 'annual' ? 'Annual delivered Basic entries / SM upgrades' : 'Year-end attributed source stocks'} in ${isShare ? '% of households' : 'million households'}. Sources report actual funding and physical delivery, not ordered marginal effects.`;
   }
   if (metric === 'funding') {
     return service === 'total'
@@ -283,8 +281,10 @@ export default function ResultsLedgerPanel({
         {selection.metric === 'requirements' && reportingView === 'effects' && (
           <p>Paid rows are positive recorded spending; household expansion separates sector cash from external finance. Noncash physical reuse and its credited value are reported separately; neither is cash spending.</p>
         )}
-        <p>Positive intervention effects mean a reduction in financial need; negative values mean need increased. Coverage and funding retain their own labelled change signs.</p>
-        {data.attributionComplete ? (
+        <p>{selection.metric === 'coverage' ? 'Source rows report actual funded and physical delivery, not marginal effects. Annual values are delivered Basic entries / SM upgrades; closing values are surviving source stocks.'
+          : selection.metric === 'funding' ? 'Funding reports actual allocations; due obligations and funded payments are distinct. Source-accounting components are not additional funding to sum together.'
+            : 'Positive intervention effects mean a reduction in financial need; negative values mean need increased.'}</p>
+        {selection.metric === 'coverage' || selection.metric === 'funding' ? null : data.attributionComplete ? (
           <p>Interventions are ordered marginal effects: each change is measured from the state immediately before it, not as an independent run.</p>
         ) : (
           <p className="results-ledger__notice" role="status">
@@ -385,8 +385,11 @@ export default function ResultsLedgerPanel({
       <details className="results-ledger__reconciliation">
         <summary>Calculation notes &amp; reconciliation</summary>
         <div className="results-ledger__reconciliation-body">
-          <p><strong>Scenario bridge.</strong> BAU is the baseline, intervention rows show ordered marginal changes, and Combined scenario is the modelled outcome. Category totals reconcile their visible children; individual effects can be zero or negative.</p>
-          {data.attributionComplete && <p><strong>Calculation order (not category display order).</strong>{' '}
+          <p><strong>Scenario reconciliation.</strong> {selection.metric === 'coverage'
+            ? 'Opening/baseline-funded coverage plus attributed source stocks equals the combined scenario. Pure BAU is independent; the signed baseline-funded difference plus other source stocks explains gain over BAU. Cost-efficiency and technology benefits are included in funded additions.'
+            : selection.metric === 'funding' ? 'Actual signed sources reconcile ordinary funding. Only funded service is charged to originally selected debt sources; unpaid obligations are reported separately.'
+              : 'BAU is the baseline, intervention rows show ordered marginal changes, and Combined scenario is the modelled outcome. Category totals reconcile their visible children; individual effects can be zero or negative.'}</p>
+          {selection.metric !== 'coverage' && selection.metric !== 'funding' && data.attributionComplete && <p><strong>Calculation order (not category display order).</strong>{' '}
             {data.contributions.map(c => `${c.order ? `${c.order}. ` : ''}${c.label}`).join(' → ') || 'No interventions enabled.'}
             {' '}Tariff effects include their interaction with earlier collection improvements. Borrowing, when included, follows all selected reforms and custom interventions.</p>}
           {selection.metric === 'funding' ? (
@@ -396,7 +399,7 @@ export default function ResultsLedgerPanel({
           ) : selection.metric === 'gap' ? (
             <p><strong>Gap.</strong> Current-year residual gap = outstanding expansion + replacement obligation − capped replacement credit + cash deficit. Funded expansion receives no second credit; cash deficits are allocated once. Year-end requirement = outstanding expansion + accumulated unpaid replacement and deficits. National sums remaining local obligations; unused or restricted funds elsewhere are not assumed transferable. This is not generally annual requirements minus all available funding. Both include balances: do not sum across years.</p>
           ) : (
-            <p><strong>Coverage.</strong> Safely Managed and Basic-only are exclusive; At least basic is their sum. Signed gaps are Combined scenario minus Original target. A Basic-only deficit may reflect upgrades to SM rather than an access shortfall. These reporting differences do not replace local access deficits or financing obligations in the model. Coverage is a year-end level, not a sum of annual levels. Share values use population as the denominator; effects and gaps are in percentage points.</p>
+            <p><strong>Coverage.</strong> Safely Managed and Basic-only are exclusive; At least basic stock is their sum. Annual transitions report Basic entries and SM upgrades, not net Basic stock growth; entries plus upgrades are not unique households. Closing stocks carry funded origins forward and remove Basic households when upgraded. Signed gaps are Combined scenario minus Original target. Shares divide aggregated household counts by the selected scope’s households; gaps and the baseline difference are percentage points.</p>
           )}
           <p>Displayed values are rounded for readability. CSV and Excel retain unrounded values and include only the rows currently visible in the table.</p>
         </div>

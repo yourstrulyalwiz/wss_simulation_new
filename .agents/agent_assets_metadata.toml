@@ -70,3 +70,31 @@ mtime_ms = 1791314177776
 storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/0a8f1164-5bc1-4355-a3d9-0e25b96200cb/5e2c2104-8911-4f03-929f-f16fa911478f"
 storage_version_token = "1791314198678814"
 content_type = "text/html"
+
+[[outputs]]
+id = "n6zXEbRNqGn51dVo1JB40"
+uri = "file://frontend/screenshots/source-attribution/results-water-desktop.png"
+type = "image"
+title = "Updated Results coverage charts"
+description = "Desktop verification of source-funded coverage with the independent BAU comparison."
+logical_id = "67a8e1b7-6ba4-4422-9e0b-005c506ca166"
+content_hash = "sha256:52b141caecbecb23eec3509cda90d385baf909d7d75f5e74d520426b6d27d300"
+size = 251250
+mtime_ms = 1791516245123
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/67a8e1b7-6ba4-4422-9e0b-005c506ca166/441594cc-1cc0-462a-984a-7c01679a8133"
+storage_version_token = "1791516390528043"
+content_type = "image/png"
+
+[[outputs]]
+id = "Cif07DgHpxCT_hSGlZLl2"
+uri = "file://frontend/screenshots/source-attribution/live-water-narrow.png"
+type = "image"
+title = "Updated coverage chart on mobile"
+description = "Narrow-screen verification of the existing live coverage chart."
+logical_id = "9405ba78-0f47-4d23-82fd-6cf705be1a08"
+content_hash = "sha256:f9688f440efcaaa10bc6854ab92a68434ebdbe719119f775003dc7d5cbca7702"
+size = 107354
+mtime_ms = 1791516255051
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/9405ba78-0f47-4d23-82fd-6cf705be1a08/3fe878a3-b502-4344-b80d-478f179bdfc4"
+storage_version_token = "1791516391229614"
+content_type = "image/png"

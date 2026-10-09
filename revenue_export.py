@@ -95,6 +95,13 @@ def revenue_table(result, sector, currency):
             values = [(sec.get(prefix + field) or [0] * len(result['years']))[i]
                       for _, field, _ in FIELDS]
             rows.append([year, label, mode, *values])
+    from coverage_export import source_export_columns
+    columns = source_export_columns(sec, len(result['years']))
+    headers += [f'{label} ({currency} M)' if unit == 'money' else f'{label} (M HH)'
+                for label, unit, _ in columns]
+    n = len(result['years'])
+    for j, row in enumerate(rows):
+        row.extend(values[j % n] if row[1] == 'Scenario' else None for _, _, values in columns)
     return headers, rows
 
 

@@ -62,7 +62,7 @@
       "inflation_us_ongoing": null,
       "gdp_growth_forecast": null,
       "real_price_year": null,
-      "ws_budget_is_total_spending": true,
+      "ws_budget_is_total_spending": false,
       "ws_budget_capital_share": 0.6
     },
     "population": {
@@ -2091,7 +2091,7 @@
     "areaRural": true
   },
   "presentation": {
-    "contributionView": "individual",
+    "contributionView": "category",
     "currencyDisplay": {
       "mode": "usd",
       "sourceCurrency": "CDF",

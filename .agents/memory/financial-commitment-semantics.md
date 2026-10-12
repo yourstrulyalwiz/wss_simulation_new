@@ -5,6 +5,23 @@ description: Product rules for financial commitments, recurring funding and one-
 
 ## Approved public-spending execution policy
 
+The approved 2026-10-12 Budget Forecast, Capital Share and Public Spending brief
+supersedes the October 9 rules below for the active Budget-input workflow.
+Its executed target is not discounted by baseline execution: Public Spending
+receives kD and Budget Execution receives k(A+D/r0)(r1-r0). Executed and allocated
+budgets are independently forecast from entered GDP shares; the explicit
+total-spending toggle alone enables capital conversion. Revenue changes remain
+deferred, and saved country profiles must not be rewritten.
+
+**Why:** The user supplied a new approved modeling contract distinguishing
+executed targets from allocations and replacing cost-derived budget forecasts.
+
+**How to apply:** Follow the attached Budget Forecast, Capital Share and Public
+Spending instructions dated 2026-10-12; do not use the older policy below to
+override that brief. Preserve external-funding formulas separately.
+
+### Earlier policy, superseded for the active workflow
+
 The 2026-10-09 user brief supersedes the earlier configured-execution treatment
 for additional public spending only. Use the execution intervention's existing
 year-specific baseline rate for added public capital. Attribute the signed

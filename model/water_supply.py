@@ -487,7 +487,11 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     tgt = float(np.clip(capeff_target_pct or 1.0, 0.0, 1.0))
     override = float(np.clip(capeff_current_pct, 0.0, 1.0)) if (capeff_current_pct and capeff_current_pct > 0) else 0.0
     if entered_budget:
-        allocated = np.array([v if v is not None else 0. for v in raw_allocated]) * public_capital_share
+        # Preserve raw observations; a zero allocation with positive execution
+        # uses executed spending as its effective allocation, without blocking.
+        effective_allocated = [e if a == 0 and e is not None and e > 0 else a
+                               for e, a in zip(raw_executed, raw_allocated)]
+        allocated = np.array([v if v is not None else 0. for v in effective_allocated]) * public_capital_share
         allocated_capex = allocated
         e0_auto = raw_rates[bi]
         override = 0.
@@ -509,7 +513,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                     e = base + (tgt - base) * (years[t] - capeff_start) / (capeff_target_year - capeff_start)
             elif years[t] >= capeff_start:
                 e = tgt
-        eff[t] = float(np.clip(e, 0.0, 1.0))
+        eff[t] = float(e) if entered_budget else float(np.clip(e, 0.0, 1.0))
     capex_budget = active * allocated                                    # allocated capital budget (forecast-gated)
     bau_available = capex_budget * eff                                   # effective capex that reaches service
     baseline_eff = np.array([
@@ -1226,6 +1230,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         **({
             'budget_executed_input_basis': raw_executed,
             'budget_allocated_input_basis': raw_allocated,
+            'budget_effective_allocated_input_basis': effective_allocated,
             'budget_execution_baseline': raw_rates,
             'budget_forecast_metadata': budget_metadata,
             'budget_input_basis': 'total spending' if budget_is_total_spending else 'capital spending',

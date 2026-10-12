@@ -220,7 +220,7 @@ def aggregate(results: List[dict]) -> dict:
         if all('budget_executed_input_basis' in s for s in secs):
             # Raw-basis ratios remain meaningful even with zero capital shares.
             executed = agg['budget_executed_input_basis']
-            allocated = agg['budget_allocated_input_basis']
+            allocated = agg.get('budget_effective_allocated_input_basis', agg['budget_allocated_input_basis'])
             rates = [e / a if a > 0 else None for e, a in zip(executed, allocated)]
             reference_year = secs[0]['budget_reference_year']
             reference_index = years.index(reference_year)

@@ -46,9 +46,8 @@ def resolve_budget(executed, allocated, years, gdp, baseline_year, label):
     a, am = forecast_budget(allocated, years, gdp, baseline_year, f'{label} allocated')
     rates = []
     for i, (ev, av) in enumerate(zip(e, a)):
-        if ev is not None and av is not None and ev > av + 1e-9 * max(1., av):
-            raise BudgetInputError(f'{label} {years[i]}: executed spending exceeds allocated budget. Review both inputs.')
-        rates.append(ev / av if ev is not None and av is not None and av > 0 else None)
+        rates.append(ev / av if ev is not None and av is not None and av > 0
+                     else 1. if ev is not None and ev > 0 and av == 0 else None)
     notices = []
     for name, meta in [('Executed', em), ('Allocated', am)]:
         if meta['observation_count'] < 3:

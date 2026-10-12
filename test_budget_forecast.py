@@ -26,8 +26,8 @@ class BudgetForecastTests(unittest.TestCase):
         np.testing.assert_allclose(values[3:], [2,3.75,4.5])
         with self.assertRaisesRegex(ValueError, 'no historical'):
             forecast_budget([], years, [100]*6, 2024, 'Fixture')
-        with self.assertRaisesRegex(ValueError, 'exceeds'):
-            resolve_budget([2], [1], years, [100]*6, 2024, 'Fixture')
+        _, _, rates, _ = resolve_budget([2], [1], years, [100]*6, 2024, 'Fixture')
+        self.assertEqual(rates, [2.] * 6)
 
     def fixture(self, executed=1, allocated=5):
         d = frontend_defaults()
@@ -86,6 +86,26 @@ class BudgetForecastTests(unittest.TestCase):
         m.toggles.ws_financial_commitment_enabled=True
         with self.assertRaisesRegex(ValueError,'positive baseline execution'):
             calculate(m)
+
+    def test_execution_above_allocation_does_not_block_or_clip(self):
+        for allocation, rate in [(1, 2), (0, 1)]:
+            m = self.fixture(2, allocation)
+            r = calculate(m)
+            i = r['years'].index(2026)
+            for sector in ['water_supply', 'sanitation']:
+                s = r[sector]
+                self.assertEqual(s['budget_execution_baseline'][i], rate)
+                self.assertEqual(s['budget_allocated_input_basis'][i], allocation)
+                self.assertAlmostEqual(s['scenario_available_total'][i], 2)
+                self.assertEqual(s['scenario_source_funding']['signed_contribution']['budget_execution'][i], 0)
+            m.toggles.ws_financial_commitment_enabled = True
+            m.water_interventions.fin_gdp_target_share = .03
+            r = calculate(m)
+            self.assertAlmostEqual(r['water_supply']['scenario_available_total'][i], 3)
+            m.toggles.ws_capital_efficiency_enabled = True
+            r = calculate(m)
+            cash = r['water_supply']['scenario_source_funding']['signed_contribution']
+            self.assertAlmostEqual(sum(v[i] for v in cash.values()), 3 * .4 / rate)
 
     def test_input_roundtrip_and_cost_independence(self):
         from excel_io import build_template, parse_template

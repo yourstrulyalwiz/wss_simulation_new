@@ -5,6 +5,18 @@ description: Product rules for financial commitments, recurring funding and one-
 
 ## Approved public-spending execution policy
 
+The user explicitly clarified on 2026-10-12 that executed budgets higher than
+allocated budgets are normal and must not block forecasting or later steps.
+Allow E/A above 100% without clipping or warnings. For positive E with zero A,
+use E as the effective allocation and 100% execution internally, keeping the
+entered allocation unchanged. Execution reform retains signed effects.
+
+**Why:** This supersedes the brief's E>A rejection; rejecting overspending
+prevented the user's legitimate country scenarios from running.
+
+**How to apply:** Preserve raw inputs and independent forecasts. Use the same
+effective allocation in source reconciliation and aggregate execution ratios.
+
 The approved 2026-10-12 Budget Forecast, Capital Share and Public Spending brief
 supersedes the October 9 rules below for the active Budget-input workflow.
 Its executed target is not discounted by baseline execution: Public Spending
@@ -23,13 +35,12 @@ override that brief. Preserve external-funding formulas separately.
 ### Earlier policy, superseded for the active workflow
 
 Country calibration must not be repaired by borrowing example budgets just to
-make a calculation run. Older DRC observations include executed amounts above
-their allocations, in addition to the brief's questionable 2025 demo entries.
-Use explicit synthetic budgets only in controlled regression fixtures; report
-country-data inconsistencies to the user without rewriting saved profiles.
+make a calculation run. Use explicit synthetic budgets only in controlled
+regression fixtures, without rewriting saved profiles. Overspending is valid,
+not a country-data inconsistency; apply the clarification above.
 
-**Why:** Strict independent-budget validation exposes inconsistencies that the
-old cost-derived/fallback workflow concealed.
+**Why:** Missing observations and unverified demo entries remain distinct from
+legitimate spending above allocations.
 
 **How to apply:** Preserve original observations, display targeted validation,
 and distinguish arithmetic verification from validation of country estimates.

@@ -92,6 +92,8 @@ class UtilityRevenueTests(unittest.TestCase):
 
     def test_migration_conflict_reload_single_base_zero_and_missing(self):
         data = unresolved_defaults()
+        from test_support import controlled_budgets
+        controlled_budgets(data)
         engine = coerce_to_engine(data)
         r = resolve_bases(engine, build_context(engine))
         self.assertIsNotNone(r['water']['base'])

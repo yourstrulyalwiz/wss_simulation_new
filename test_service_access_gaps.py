@@ -153,6 +153,8 @@ class ServiceAccessGapTests(unittest.TestCase):
         original = path.read_bytes()
         bundle = json.loads(original)
         inputs = bundle['inputs']
+        from test_support import controlled_budgets
+        controlled_budgets(inputs)
         result = calculate(coerce_to_engine(inputs))
         disabled = copy.deepcopy(inputs)
         disabled['toggles'] = {key:False for key in disabled['toggles']}

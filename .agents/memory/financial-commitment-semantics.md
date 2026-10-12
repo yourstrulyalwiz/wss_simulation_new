@@ -22,6 +22,18 @@ override that brief. Preserve external-funding formulas separately.
 
 ### Earlier policy, superseded for the active workflow
 
+Country calibration must not be repaired by borrowing example budgets just to
+make a calculation run. Older DRC observations include executed amounts above
+their allocations, in addition to the brief's questionable 2025 demo entries.
+Use explicit synthetic budgets only in controlled regression fixtures; report
+country-data inconsistencies to the user without rewriting saved profiles.
+
+**Why:** Strict independent-budget validation exposes inconsistencies that the
+old cost-derived/fallback workflow concealed.
+
+**How to apply:** Preserve original observations, display targeted validation,
+and distinguish arithmetic verification from validation of country estimates.
+
 The 2026-10-09 user brief supersedes the earlier configured-execution treatment
 for additional public spending only. Use the execution intervention's existing
 year-specific baseline rate for added public capital. Attribute the signed

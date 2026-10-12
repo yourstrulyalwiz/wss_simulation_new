@@ -278,13 +278,13 @@ function App() {
   const shiftAreaArrays = useCallback((obj: any, delta: number) => {
     if (!obj || !delta) return obj;
     const shift = (arr: any) => !Array.isArray(arr) ? arr : delta > 0 ? arr.slice(delta) : [...Array(-delta).fill(0), ...arr];
-    const g = (o: any, fields: string[]) => { if (!o) return o; const n = { ...o }; fields.forEach(f => { if (Array.isArray(n[f])) n[f] = shift(n[f]); }); return n; };
+    const g = (o: any, fields: string[]) => { if (!o) return o; const n = { ...o }; fields.forEach(f => { if (Array.isArray(n[f])) n[f] = delta < 0 && /^(ws|san)_(expend|alloc)_ts$/.test(f) ? [...Array(-delta).fill(null), ...n[f]] : shift(n[f]); }); return n; };
     return { ...obj,
       macro: g(obj.macro, ['gdp_real_local', 'gdp_nominal_usd', 'inflation_nepal', 'inflation_us', 'exchange_rate', 'gdp_growth']),
       population: g(obj.population, ['pop_ts', 'hh_ts']),
       water_service: g(obj.water_service, ['serv1_ts', 'serv2_ts', 'serv3_ts', 'serv4_ts', 'serv5_ts']),
       sanitation_service: g(obj.sanitation_service, ['sserv1_ts', 'sserv2_ts', 'sserv3_ts', 'sserv4_ts', 'sserv5_ts']),
-      bau: g(obj.bau, ['ws_budget_ts', 'san_budget_ts', 'ws_expend_ts', 'san_expend_ts']) };
+      bau: g(obj.bau, ['ws_budget_ts', 'san_budget_ts', 'ws_expend_ts', 'san_expend_ts', 'ws_alloc_ts', 'san_alloc_ts']) };
   }, []);
   // 'urban' is the primary dataset (held in `inputs`). §1 Country config and §2a Analysis Period are
   // SHARED across urban/rural: always sourced from the primary and overlaid onto the area being edited,
@@ -1009,12 +1009,12 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     title: '5. Budget',
     content: (
       <div>
-        <p style={{ margin: '0 0 6px' }}>Two budgets per sector, year by year — computed for you, with per-year overrides.</p>
+        <p style={{ margin: '0 0 6px' }}>Executed and allocated budgets are forecast independently as shares of real GDP. Each forecast starts with a three-year observation window, then uses two-year moving averages multiplied by forecast GDP.</p>
         <div style={gFieldWrap}>
-          <span style={gFieldLbl}>Executed budget (millions, real):</span> The capital that actually gets put to work building new service — households served × their unit cost (set by the technology mix). Historically from the cost of new service; for forecast years from the average historical budget-to-GDP ratio × real GDP. This is what drives the BAU. Override any year with your own figure.
+          <span style={gFieldLbl}>Executed spending (millions, real):</span> Enter actual spending. Its capital component funds BAU after existing deductions. Blank means missing/calculated; zero is an observation. Future overrides feed subsequent moving averages. Leave the total-spending toggle off for capital-only budgets; otherwise choose the capital share. The household investment share is separate.
         </div>
         <div style={gFieldWrap}>
-          <span style={gFieldLbl}>Allocated budget (millions, real):</span> The capital budget on paper (e.g. the government's allocation) — a manual input, normally larger than what actually gets put to work. Its historical default implies ≈77% budget execution, and its forecast is the mean historical (allocated ÷ executed) ratio × the executed-budget forecast. The ratio <b>executed budget ÷ allocated</b> is the <b>budget execution</b> that the Budget-execution intervention improves toward 100%.
+          <span style={gFieldLbl}>Allocated budget (millions, real):</span> Enter allocations on the same basis as executed spending. Allocations have their own forecast, independent of executed spending. Execution is that year's resolved executed spending ÷ allocation, not a default rate. Missing or inconsistent observations require review; calculated values are never saved as entered data.
           <GFind items={[
             "Your country's Ministry of Finance (budget documents / execution reports) for the allocated budget",
             "Your country's Ministry of Water Supply / Sanitation or equivalent sector ministry",

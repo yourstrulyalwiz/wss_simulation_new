@@ -9,6 +9,7 @@ import numpy as np
 from app import development_preview, run_calculation, project_economics, missing_country_inputs
 from calculation_setup import economic_projections, restore_automatic_inputs, CountryCalibrationError
 from demo_adapter import coerce_to_engine, frontend_defaults
+from test_support import frontend_defaults, controlled_budgets
 from model.engine import calculate
 
 PROFILE = Path("profiles/DRC_Data_Preview_Settings_Pending.json")
@@ -24,7 +25,7 @@ def configured_fixture(inputs):
         "version": 1, "volume_mld": 1, "reference_year": 2025,
         "tariff": 1, "collection_ratio": 1, "growth_rate": None,
     } for sector in ("water", "sanitation")}
-    return value
+    return controlled_budgets(value)
 
 
 class CalculationSetupTests(unittest.TestCase):

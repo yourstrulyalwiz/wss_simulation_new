@@ -217,6 +217,19 @@ def aggregate(results: List[dict]) -> dict:
         # silently disagree with the per-area figure even when the areas are identical.
         agg['capex_efficiency_baseline'] = _baseline_efficiency(
             agg.get('budget_used') or [], agg.get('budget_allocated') or [], years, end_asis)
+        if all('budget_executed_input_basis' in s for s in secs):
+            # Raw-basis ratios remain meaningful even with zero capital shares.
+            executed = agg['budget_executed_input_basis']
+            allocated = agg['budget_allocated_input_basis']
+            rates = [e / a if a > 0 else None for e, a in zip(executed, allocated)]
+            reference_year = secs[0]['budget_reference_year']
+            reference_index = years.index(reference_year)
+            agg['budget_execution_baseline'] = rates
+            agg['capex_efficiency_baseline'] = rates[reference_index]
+            gdp = results[0]['gdp_real_local'][reference_index]
+            agg['baseline_bau_executed_spending_share'] = executed[reference_index] / gdp
+            agg['baseline_bau_total_spending_share'] = agg['baseline_bau_executed_spending_share']
+            agg['budget_reference_year'] = reference_year
         agg['execution_rate'] = _wavg([s.get('execution_rate') or 0.0 for s in secs], w)
         agg['hist_cagr'] = _agg_hist_cagr(secs, years, end_asis)
         for prefix in ('', 'scenario_', 'scenario_without_utility_debt_'):

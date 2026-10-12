@@ -379,7 +379,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
   };
 
   if (!inputs) return null;
-  const u = (section: string, field: string, value: number) => {
+  const u = (section: string, field: string, value: number | boolean) => {
     onChange({ ...inputs, [section]: { ...inputs[section], [field]: value } });
   };
 
@@ -400,14 +400,15 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
       const shiftGroup = (obj: any, fields: string[]) => {
         if (!obj) return obj;
         const o = { ...obj };
-        fields.forEach(f => { if (Array.isArray(o[f])) o[f] = shiftYearSeries(o[f], delta); });
+        fields.forEach(f => { if (Array.isArray(o[f])) o[f] = delta < 0 && /^(ws|san)_(expend|alloc)_ts$/.test(f)
+          ? [...Array(-delta).fill(null), ...o[f]] : shiftYearSeries(o[f], delta); });
         return o;
       };
       next.macro = shiftGroup(next.macro, ['gdp_real_local', 'gdp_nominal_usd', 'inflation_nepal', 'inflation_us', 'exchange_rate', 'gdp_growth']);
       next.population = shiftGroup(next.population, ['pop_ts', 'hh_ts']);
       next.water_service = shiftGroup(next.water_service, ['serv1_ts', 'serv2_ts', 'serv3_ts', 'serv4_ts', 'serv5_ts']);
       next.sanitation_service = shiftGroup(next.sanitation_service, ['sserv1_ts', 'sserv2_ts', 'sserv3_ts', 'sserv4_ts', 'sserv5_ts']);
-      next.bau = shiftGroup(next.bau, ['ws_budget_ts', 'san_budget_ts', 'ws_expend_ts', 'san_expend_ts']);
+      next.bau = shiftGroup(next.bau, ['ws_budget_ts', 'san_budget_ts', 'ws_expend_ts', 'san_expend_ts', 'ws_alloc_ts', 'san_alloc_ts']);
     }
     onChange(next);
   };
@@ -743,13 +744,13 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
           // Budget cell (from_cost): the model-computed budget shows as a PLACEHOLDER; type to OVERRIDE that
           // year (stored in the bau expenditure series). Historical = cream, forecast = blue.
           const budgetCostCell = (ovField: string, sector: 'water_supply' | 'sanitation', idx: number, placeholderField: string) => {
-            const ov = (inputs.bau?.[ovField] || [])[idx] ?? 0;
+            const ov = (inputs.bau?.[ovField] || [])[idx];
             const forecast = years[idx] > baseYr2;
             const computed = secRes(sector, placeholderField, idx);
-            return <NumInput value={ov > 0 ? Math.round(ov * 100) / 100 : undefined} commas
+            return <NumInput value={ov != null ? ov : undefined} commas
               placeholder={computed != null ? String(Math.round(computed)) : ''}
-              title={ov > 0 ? 'Your override for this year' : 'Model-computed value — type to override'}
-              onValue={v => { const a = [...(inputs.bau?.[ovField] || [])]; while (a.length <= idx) a.push(0); a[idx] = v === undefined ? 0 : v; onChange({ ...inputs, bau: { ...inputs.bau, [ovField]: a } }); }}
+              title={ov != null ? 'Entered budget for this year (zero is an observation)' : 'Calculated budget on the selected input basis — type to override'}
+              onValue={v => { const a = [...(inputs.bau?.[ovField] || [])]; while (a.length <= idx) a.push(null); a[idx] = v === undefined ? null : v; onChange({ ...inputs, bau: { ...inputs.bau, [ovField]: a } }); }}
               style={{ ...inputBase, width: 64, ...(forecast ? BLUE : CREAM) }} />;
           };
 
@@ -915,10 +916,10 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
             }) },
           ];
           const budgetRows: YRow[] = [
-            { label: 'WS executed budget', tip: 'Water supply capital that actually gets put to work building new service = new households × unit cost (set by the technology mix). Historical = cost of new service; forecast = mean historical budget/GDP × real GDP. Placeholder shows the model value — type to override.', cells: years.map((_: number, i: number) => budgetCostCell('ws_expend_ts', 'water_supply', i, 'budget_used')) },
-            { label: 'WS allocated budget', tip: 'Water supply capital budget ALLOCATED on paper (e.g. government budget) — a manual input, normally larger than the budget actually put to work. Historical default ≈ 77% budget execution; forecast = mean historical (allocated ÷ executed) × the executed-budget forecast. Budget execution = executed budget ÷ allocated.', cells: years.map((_: number, i: number) => budgetCostCell('ws_alloc_ts', 'water_supply', i, 'budget_allocated')) },
-            { label: 'SAN executed budget', tip: 'Sanitation capital that actually gets put to work building new service = new households × unit cost. Historical = cost of new service; forecast = mean historical budget/GDP × real GDP. Placeholder shows the model value — type to override.', cells: years.map((_: number, i: number) => budgetCostCell('san_expend_ts', 'sanitation', i, 'budget_used')) },
-            { label: 'SAN allocated budget', tip: 'Sanitation capital budget ALLOCATED on paper — a manual input, normally larger than the budget actually put to work. Historical default ≈ 77% budget execution; forecast = mean historical (allocated ÷ executed) × the executed-budget forecast. Budget execution = executed budget ÷ allocated.', cells: years.map((_: number, i: number) => budgetCostCell('san_alloc_ts', 'sanitation', i, 'budget_allocated')) },
+            { label: 'WS executed budget', tip: 'Entered executed spending. Forecast independently from annual spending/GDP shares: three-year initialization, then a two-year moving average. Blank restores the calculated value; zero is an observation.', cells: years.map((_: number, i: number) => budgetCostCell('ws_expend_ts', 'water_supply', i, 'budget_executed_input_basis')) },
+            { label: 'WS allocated budget', tip: 'Entered allocated budget on the same basis as executed spending. Independently forecast from allocation/GDP shares; execution = executed ÷ allocated.', cells: years.map((_: number, i: number) => budgetCostCell('ws_alloc_ts', 'water_supply', i, 'budget_allocated_input_basis')) },
+            { label: 'SAN executed budget', tip: 'Entered executed spending. Forecast independently from annual spending/GDP shares: three-year initialization, then a two-year moving average. Blank restores the calculated value; zero is an observation.', cells: years.map((_: number, i: number) => budgetCostCell('san_expend_ts', 'sanitation', i, 'budget_executed_input_basis')) },
+            { label: 'SAN allocated budget', tip: 'Entered allocated budget on the same basis as executed spending. Independently forecast from allocation/GDP shares; execution = executed ÷ allocated.', cells: years.map((_: number, i: number) => budgetCostCell('san_alloc_ts', 'sanitation', i, 'budget_allocated_input_basis')) },
           ];
           return (
             <>
@@ -961,8 +962,33 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
 
               <Section title="5. Budget" sectionKey="budget" onFocus={onSectionFocus}>
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 12px', marginBottom: 4 }}>
-                  <b>Two budgets per sector.</b> <b>Executed budget</b> = capital that actually gets put to work building service (new households × unit cost) — this drives the BAU. <b>Allocated budget</b> = the capital budget on paper (a manual input, normally larger). Their ratio is the <b>budget execution</b> (executed budget ÷ allocated budget) that the Budget-execution intervention improves. Type any cell to override that year; blanks fill from the model.
+                  <b>Two independent budgets per sector.</b> Enter executed spending and allocated budgets. Each forecast starts with the mean annual budget/real-GDP share in its latest three-calendar-year observation window, then uses a two-year moving average of shares multiplied by forecast real GDP. Zero is an observation; blank means missing or calculated. Execution is executed ÷ allocated. Calculated values are not saved as observations.
                 </div>
+                {(() => {
+                  const prefix = bauSector === 'water' ? 'ws' : 'san';
+                  const key = `${prefix}_budget_is_total_spending`;
+                  const shareKey = `${prefix}_budget_capital_share`;
+                  const enabled = !!inputs.macro?.[key];
+                  const share = inputs.macro?.[shareKey] ?? 1;
+                  const result = results?.[bauSector === 'water' ? 'water_supply' : 'sanitation'];
+                  const meta = result?.budget_forecast_metadata;
+                  return <div style={{ gridColumn: '1 / -1', padding: 10, background: '#f3f8f9', borderRadius: 5 }}>
+                    <label><input type="checkbox" checked={enabled} onChange={e => u('macro', key, e.target.checked)} /> Budget Provided is Total Spending, Specify Capital Share</label>
+                    {enabled && <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                      Capital share of total spending
+                      <input aria-label="Capital share of total spending" type="range" min="0" max="100" step="1" value={share * 100} onChange={e => u('macro', shareKey, Number(e.target.value) / 100)} />
+                      <strong>{Math.round(share * 100)}%</strong>
+                    </label>}
+                    <p style={{ fontSize: 11 }}>Input basis: <b>{enabled ? 'total spending' : 'capital spending'}</b>. Enable this if the budget includes capital and recurrent spending; leave it off for capital-only budgets. The household investment share is applied separately within capital spending. Changing the basis does not rescale your Public Spending target.</p>
+                    {[2784, 3469].includes(inputs.bau?.[`${prefix}_alloc_ts`]?.[2025 - inputs.period.model_start_year]) &&
+                      <div role="note" style={{ fontSize: 11 }}>Review the 2025 allocation: it matches a legacy demonstration value. Confirm whether it is an actual observation; it has not been removed.</div>}
+                    {meta && <div style={{ fontSize: 11 }}>
+                      {(['executed', 'allocated'] as const).map(name => <div key={name}>{name === 'executed' ? 'Executed' : 'Allocated'} seed observations: {meta[name].initialization_years.join(', ')} ({meta[name].observation_count} years).</div>)}
+                      {meta.notices.map((notice: string) => <div role="note" key={notice}>{notice}</div>)}
+                    </div>}
+                    {calculationError && <div role="alert" style={{ color: '#9f1239' }}>{calculationError}</div>}
+                  </div>;
+                })()}
                 <YearTable rows={budgetRows} years={years} baseYr2={baseYr2} />
                 <SplitControl inputs={inputs} onChange={onChange}
                   section={bauSector === 'water' ? 'water_interventions' : 'sanitation_interventions'}

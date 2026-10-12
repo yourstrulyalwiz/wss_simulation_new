@@ -200,8 +200,8 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   // historical budget rows — it is shown read-only as the current value in the Budget-execution
   // intervention (no user override). NB: internally still keyed capeff_*/ws_capital_efficiency_enabled
   // (the same ratio, renamed in the UI).
-  const wsCurEff = results?.water_supply?.capex_efficiency_baseline ?? 1;
-  const sanCurEff = results?.sanitation?.capex_efficiency_baseline ?? 1;
+  const wsCurEff = results?.water_supply?.capex_efficiency_baseline;
+  const sanCurEff = results?.sanitation?.capex_efficiency_baseline;
   const u = (section: string, field: string, value: number | string) => {
     onChange({ ...inputs, [section]: { ...inputs[section], [field]: value } });
   };
@@ -307,9 +307,9 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   const financialFields = (section: 'water_interventions' | 'sanitation_interventions') => {
     const iv = inputs[section] || {};
     const sectorResult = section === 'water_interventions' ? results?.water_supply : results?.sanitation;
-    const baselineShare = sectorResult?.baseline_bau_total_spending_share;
+    const baselineShare = sectorResult?.baseline_bau_executed_spending_share;
     const baselineYear = inputs?.period?.baseline_year;
-    const estimated = sectorResult?.baseline_spending_reference_source === 'cost_derived_equivalent';
+    const basis = inputs.macro?.[section === 'water_interventions' ? 'ws_budget_is_total_spending' : 'san_budget_is_total_spending'] ? 'total spending' : 'capital spending';
     const addedCapital = sectorResult?.scenario_financial_commitment_cash?.reduce((sum: number, value: number) => sum + value, 0);
     const option = (field: string, label: string, fields: React.ReactNode) => (
       <div style={{ gridColumn: '1 / -1', border: '1px solid #dbeafe', borderRadius: 6, padding: 10, background: '#f8fbff' }}>
@@ -324,39 +324,36 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
     return (<>
       <div data-financial-reference={section} style={{ gridColumn: '1 / -1', border: '1px solid #dbeafe', background: '#f8fbff',
         borderRadius: 6, padding: '10px 12px', fontSize: 12, color: '#1e3a5f' }}>
-        <span style={{ fontWeight: 700 }}>Baseline BAU total spending share{estimated ? ' (estimated)' : ''}{baselineYear ? ` (${baselineYear})` : ''}: </span>
+        <span style={{ fontWeight: 700 }}>Baseline BAU executed spending share — {basis}{baselineYear ? ` (${baselineYear})` : ''}: </span>
         <strong>{typeof baselineShare === 'number' && Number.isFinite(baselineShare)
           ? `${(baselineShare * 100).toFixed(4)}% of GDP`
           : !results && !calculationError ? 'Calculating baseline spending…'
           : calculationError ? `Unavailable — ${calculationError}`
           : 'Unavailable — check baseline real GDP, capital share and execution rate'}</strong>
-        {estimated && <div style={{fontSize:10.5, marginTop:4}}>
-          No total spending input was supplied. This is the cost-derived BAU investment divided by the capital share and execution rate, expressed as a share of GDP—not observed public expenditure.
-        </div>}
         {baselineShare === 0 && !!iv.fin_growth_enabled && <div style={{fontSize:10.5,marginTop:4}}>
           A percentage increase on zero spending adds no funds. Enter a spending baseline in Data Inputs or use a GDP spending target.
         </div>}
         <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 4, lineHeight: 1.4 }}>
-          Reference only: baseline BAU total sector spending ÷ baseline real GDP, before the capex share and
-          execution rate. The target is compared with each forecast year’s BAU total spending, not this fixed share.
-          {' '}Added public capital uses baseline budget execution. Any execution improvement on both existing
-          and added public allocations is attributed separately to Budget Execution, not Public Spending.
+          The target is evaluated at baseline budget execution. Public Spending supplies the difference above
+          that year's BAU executed spending, not this fixed reference. Improved budget execution increases spending
+          from the entire expanded allocation; that additional effect is attributed to Budget Execution.
         </div>
       </div>
       {Number.isFinite(addedCapital) && <div data-financial-capital={section} style={{gridColumn:'1 / -1',fontSize:12,color:'#1e3a5f'}}>
         Added effective capital over the forecast: <strong>{addedCapital.toLocaleString('en-US', {maximumFractionDigits:2})} {CUR} million (real)</strong>.
         <div style={{fontSize:10.5,color:'#64748b',marginTop:4}}>
-          After the capital share and execution rate. Funds may first cover operating deficits and replacement before expanding service.
+          The capital share has been applied once; the executed target is not reduced by baseline execution again.
+          Additional execution benefits appear under Budget Execution. Funds may cover deficits and replacement before expansion.
         </div>
       </div>}
       <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b' }}>
         Select either or both options. Enabled options overlap additively and apply only to the intervention scenario.
       </div>
-      {option('fin_gdp_enabled', 'Target spending as a share of GDP', <>
-        <F label="Target total spending share" value={iv.fin_gdp_target_share} onChange={v => u(section, 'fin_gdp_target_share', Math.max(0, v))} isPercent unit="% of GDP"
-          tip="Enter the target total sector-spending share, not the percentage increase. Only the positive difference above BAU is added." />
+      {option('fin_gdp_enabled', 'Target executed spending as a share of GDP', <>
+        <F label="Target executed spending share" value={iv.fin_gdp_target_share} onChange={v => u(section, 'fin_gdp_target_share', Math.max(0, v))} isPercent unit="% of GDP"
+          tip="Enter the target executed-spending GDP share on the selected capital/total basis, not the percentage increase. Only the positive difference above BAU executed spending is added." />
         <F label="Start year" value={scheduleYear(iv, 'fin_gdp_start_year')} onChange={v => u(section, 'fin_gdp_start_year', v)}
-          tip="The target total spending share applies from this year onward." />
+          tip="The executed-spending GDP target applies from this year onward on the selected capital/total spending basis." />
       </>)}
       {option('fin_growth_enabled', 'Annual percentage increase in spending', <>
         <F label="Annual spending increase" value={iv.fin_growth_rate} onChange={v => u(section, 'fin_growth_rate', Math.max(0, v))} isPercent unit="% per year"
@@ -550,12 +547,12 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           </InterventionToggle>
 
           <InterventionToggle label="Budget execution improvement" checked={inputs.toggles?.ws_capital_efficiency_enabled ?? false} onChange={v => toggleIntv('ws_capital_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('ws_budget_exec')}>
-            <F label="Current budget execution" value={wsCurEff} onChange={() => {}} fieldType="computed" isPercent unit="%" tip="Executed budget ÷ allocated budget: the share of the allocated capital budget that actually gets spent on new service (unit cost × new households). Computed from your historical budget rows in Data Inputs → Budget — not editable here." />
+            <F label="Current budget execution" value={wsCurEff} onChange={() => {}} fieldType="computed" isPercent unit="%" tip="Resolved executed spending ÷ allocated budget at the service baseline year, before capital conversion. Each forecast year uses its own calculated baseline rate. Not editable here." />
             <F label="Target budget execution" value={inputs.water_interventions.capeff_target_pct ?? 1} onChange={v => u('water_interventions','capeff_target_pct',v)} isPercent unit="%" tip="The budget execution rate to reach — at most 100% (spend the whole allocated budget). Raising it lets the same allocated budget build more service and shrinks the financing gap." />
             <F label="Improvement start year" value={inputs.water_interventions.capeff_start_year} onChange={v => u('water_interventions','capeff_start_year',v)} tip="Year the budget-execution improvement begins" />
             <F label="Target year" value={inputs.water_interventions.capeff_target_year} onChange={v => u('water_interventions','capeff_target_year',v)} tip="Year the target execution rate is reached; it ramps linearly from the start year to here." />
             <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
-              Current is <b>{Math.round(wsCurEff * 100)}%</b> (auto-calculated from your budget data) — improving it toward the target spends more of the allocated budget on new service.
+              Current is <b>{wsCurEff == null ? 'unavailable' : `${(wsCurEff * 100).toFixed(2)}%`}</b> (resolved executed ÷ allocated budget for {inputs.period.baseline_year}) — improving it toward the target spends more of the expanded allocation.
             </div>
           </InterventionToggle>
 
@@ -614,12 +611,12 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           </InterventionToggle>
 
           <InterventionToggle label="Budget execution improvement" checked={inputs.toggles?.san_capital_efficiency_enabled ?? false} onChange={v => toggleIntv('san_capital_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('san_budget_exec')}>
-            <F label="Current budget execution" value={sanCurEff} onChange={() => {}} fieldType="computed" isPercent unit="%" tip="Executed budget ÷ allocated budget: the share of the allocated capital budget that actually gets spent on new service. Computed from your historical budget rows in Data Inputs → Budget — not editable here." />
+            <F label="Current budget execution" value={sanCurEff} onChange={() => {}} fieldType="computed" isPercent unit="%" tip="Resolved executed spending ÷ allocated budget at the service baseline year, before capital conversion. Each forecast year uses its own calculated baseline rate. Not editable here." />
             <F label="Target budget execution" value={inputs.sanitation_interventions.capeff_target_pct ?? 1} onChange={v => u('sanitation_interventions','capeff_target_pct',v)} isPercent unit="%" tip="The budget execution rate to reach — at most 100% (spend the whole allocated budget). Raising it lets the same allocated budget build more service." />
             <F label="Improvement start year" value={inputs.sanitation_interventions.capeff_start_year} onChange={v => u('sanitation_interventions','capeff_start_year',v)} tip="Year the budget-execution improvement begins" />
             <F label="Target year" value={inputs.sanitation_interventions.capeff_target_year} onChange={v => u('sanitation_interventions','capeff_target_year',v)} tip="Year the target execution rate is reached; it ramps linearly from the start year to here." />
             <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
-              Current is <b>{Math.round(sanCurEff * 100)}%</b> (auto-calculated from your budget data) — improving it toward the target spends more of the allocated budget on new service.
+              Current is <b>{sanCurEff == null ? 'unavailable' : `${(sanCurEff * 100).toFixed(2)}%`}</b> (resolved executed ÷ allocated budget for {inputs.period.baseline_year}) — improving it toward the target spends more of the expanded allocation.
             </div>
           </InterventionToggle>
 

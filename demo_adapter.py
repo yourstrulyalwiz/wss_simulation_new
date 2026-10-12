@@ -545,6 +545,10 @@ def to_engine(fe: dict) -> ModelInputs:
     )
     bau = fe.get('bau', {}) or {}
     budget = WSSBudgetInputs(
+        ws_budget_is_total_spending=bool(macro.get('ws_budget_is_total_spending', False)),
+        san_budget_is_total_spending=bool(macro.get('san_budget_is_total_spending', False)),
+        ws_budget_capital_share=1.0 if macro.get('ws_budget_capital_share') is None else macro['ws_budget_capital_share'],
+        san_budget_capital_share=1.0 if macro.get('san_budget_capital_share') is None else macro['san_budget_capital_share'],
         ws_budget_pct_gdp=macro.get('ws_budget_pct_gdp', _WS_BUDGET_PCT),
         san_budget_pct_gdp=macro.get('san_budget_pct_gdp', _SAN_BUDGET_PCT),
         ws_total_spending_provided=macro.get('ws_total_spending_provided', True),
@@ -558,8 +562,7 @@ def to_engine(fe: dict) -> ModelInputs:
         # direct-entry budget: 'actual expenditure' series drives the model (real terms, full budget)
         budget_input_mode=macro.get('budget_input_mode', bau.get('budget_input_mode', 'pct_gdp')),
         # test2 budget source: 'pct_gdp' | 'direct' | 'from_cost' (historical from connection cost)
-        budget_source=macro.get('budget_source', bau.get('budget_source',
-                                 macro.get('budget_input_mode', bau.get('budget_input_mode', 'pct_gdp')))),
+        budget_source='entered_budget',
         ws_budget_direct=bau.get('ws_expend_ts', []) or [],
         san_budget_direct=bau.get('san_expend_ts', []) or [],
         ws_budget_direct_ongoing=bau.get('ws_budget_ongoing', 0.05),

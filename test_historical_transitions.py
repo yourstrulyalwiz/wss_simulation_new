@@ -153,7 +153,11 @@ class HistoricalTransitionTests(unittest.TestCase):
             inputs = copy.deepcopy(original)
             inputs['bau'].update(budget_source='from_cost', budget_input_mode='from_cost',
                                  ws_expend_ts=[], san_expend_ts=[])
-            result = calculate(coerce_to_engine(inputs))
+            # This test isolates the legacy transition-derived cost calculation,
+            # not the active entered-budget UI contract.
+            model = coerce_to_engine(inputs)
+            model.wss_budget.budget_source = 'from_cost'
+            result = calculate(model)
             bi = result['years'].index(inputs['period']['baseline_year'])
             gdp = np.asarray(result['gdp_real_local'])
             for sector in ('water_supply', 'sanitation'):

@@ -402,7 +402,9 @@ def lever_performance(inputs: dict, sector_key: str, key: str) -> dict:
     if 'financial_commitment' in key:
         modes = []
         if g('fin_gdp_enabled', False):
-            modes.append(f"target {_fmt_pct(g('fin_gdp_target_share', 0))} of GDP")
+            prefix = 'ws' if sector_key == 'water_supply' else 'san'
+            basis = 'total' if inputs.get('macro', {}).get(prefix + '_budget_is_total_spending') else 'capital'
+            modes.append(f"target {g('fin_gdp_target_share', 0) * 100:g}% of GDP (executed {basis})")
         if g('fin_growth_enabled', False):
             modes.append(f"{_fmt_pct(g('fin_growth_rate', 0))} annual growth")
         starts = [g(k) for k, enabled in [
@@ -429,8 +431,17 @@ def lever_performance(inputs: dict, sector_key: str, key: str) -> dict:
                 'target': _fmt_pct(g('nrw_link_return_ratio', 0)) + ' of recovered water billed',
                 'start_year': wat.get('nrw_start_year'), 'target_year': wat.get('nrw_target_year')}
     if 'capital_efficiency' in key:
-        cur = g('capeff_current_pct') or 0
-        return {'current': _fmt_pct(cur) if cur > 0 else 'auto (from budget history)',
+        from model.engine import build_context
+        from model.budget_forecast import resolve_budget
+        model = coerce_to_engine(inputs)
+        ctx = build_context(model)
+        prefix = 'ws' if sector_key == 'water_supply' else 'san'
+        budget = model.wss_budget
+        _, _, rates, _ = resolve_budget(
+            getattr(budget, prefix + '_budget_direct'), getattr(budget, prefix + '_budget_allocated'),
+            ctx['years'], ctx['gdp_real_local'], model.period.baseline_year, prefix)
+        cur = rates[ctx['bi']]
+        return {'current': f'{cur * 100:.2f}%' if cur is not None else 'unavailable',
                 'target': _fmt_pct(g('capeff_target_pct', 0)),
                 'start_year': g('capeff_start_year'), 'target_year': g('capeff_target_year')}
     if 'costeff' in key:

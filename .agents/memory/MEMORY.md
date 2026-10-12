@@ -1,4 +1,4 @@
-- [Financial commitment semantics](financial-commitment-semantics.md) — added spending uses a total-spending base, then becomes effective capex through sector treatment.
+- [Financial commitment semantics](financial-commitment-semantics.md) — entered-budget GDP-share forecasts and executed public targets supersede cost-derived spending.
 - [Residual financing gap](service-level-gap-attribution.md) — expansion capital gets no second credit; replacement credit follows asset obligations and cash deficits are allocated once.
 - [Funded assets](funded-assets.md) — unfunded work never creates assets; endline need uses closing expansion plus accumulated shortfalls.
 - [Utility revenue](utility-revenue.md) — preserve separate collection/tariff contributions and legacy-volume compatibility; avoid incidental NRW or reinvestment changes.

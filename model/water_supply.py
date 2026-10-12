@@ -270,7 +270,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                 extra_cash=None, eligible_nrw_cash=None, custom_cash=None, revenue_base=None, revenue_volume=None,
                 utility_debt_execution=None, full_spending_provided=True, connection_config=None,
                 nrw_value_basis='tariff', nrw_sales_assumption='all_recovered_sold',
-                linked_nrw_volume=None, linked_overlap_volume=None, revenue_reconciliation_meta=None):
+                linked_nrw_volume=None, linked_overlap_volume=None, revenue_reconciliation_meta=None,
+                budget_is_total_spending=False, budget_capital_share=1.0, budget_label='Budget'):
     """Shared 4a-4d core. All HH and money values are in MILLIONS; costs in actual currency.
 
     `full_budget` is the sector's FULL budget per year in real terms, from EITHER %GDP mode
@@ -350,7 +351,19 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     # capex_budget = the capex actually SPENT each forecast year (the BAU investment that funds new
     # connections). For pct_gdp/direct this is full_budget × %capex × execution. For 'from_cost' the
     # budget IS the capital investment, so no further %capex split applies (capex%/execution = 1).
-    if budget_source == 'from_cost':
+    budget_metadata = {}
+    entered_budget = budget_source == 'entered_budget'
+    if entered_budget:
+        from .budget_forecast import resolve_budget, BudgetInputError
+        active = np.asarray(ctx['forecast_flag'], dtype=float)
+        raw_executed, raw_allocated, raw_rates, budget_metadata = resolve_budget(
+            budget_override, allocated_series, years, ctx['gdp_real_local'], by, budget_label)
+        if not np.isfinite(budget_capital_share) or not 0 <= budget_capital_share <= 1:
+            raise BudgetInputError(f'{budget_label}: capital share must be between 0% and 100%.')
+        public_capital_share = budget_capital_share if budget_is_total_spending else 1.0
+        full_budget = np.array([v if v is not None else 0. for v in raw_executed])
+        capex_pct_eff, exec_eff = public_capital_share, 1.0
+    elif budget_source == 'from_cost':
         gdp = np.asarray(gdp_real if gdp_real is not None else ctx['gdp_real_local'], dtype=float)
         # Historical budget follows the forward transition convention: below
         # Basic -> Basic entries and Basic -> SM upgrades. Basic-only stock
@@ -381,10 +394,18 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     additional_public_capital = np.zeros(n)
     injection_cash = np.zeros(n)
     fs = financial_settings or {}
+    if entered_budget and financial_enabled:
+        for key in ('gdp_target_share', 'growth_rate'):
+            value = fs.get(key) or 0.
+            if not np.isfinite(value) or value < 0:
+                raise BudgetInputError(f'{budget_label}: {key} must be finite and nonnegative.')
     commitment_exec = execution_rate if financial_execution_rate is None else financial_execution_rate
     financial_capex_factor = max(0.0, float(capex_pct)) * max(0.0, float(commitment_exec))
     commitment_base = full_budget_in
     spending_reference_source = 'entered_total_spending'
+    if entered_budget:
+        commitment_base = full_budget.copy()
+        spending_reference_source = 'entered_executed_spending'
     if budget_source == 'from_cost' and not full_spending_provided:
         # No observed total spending was supplied. Express the existing derived
         # BAU investment as an equivalent total budget using the preserved configured
@@ -432,7 +453,10 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                     injection_cash[t] = amt * financial_capex_factor
                 elif fs.get('injection_mode') != 'recurring' and y == iy:
                     injection_cash[t] = amt
-            additional_public_capital[t] = extra_full * max(0.0, float(capex_pct))
+            additional_public_capital[t] = extra_full * (
+                public_capital_share if entered_budget else max(0.0, float(capex_pct)))
+            if entered_budget and extra_full > 0 and not raw_rates[t]:
+                raise BudgetInputError(f'{budget_label} {y}: a positive Public Spending target requires a positive baseline execution rate and valid allocation.')
     # "Budget used" = the capital that becomes service each year (the from_cost cost-of-service budget,
     # or the user's per-year override). This is the DRIVER of the baseline BAU. capex_pct_eff/exec_eff
     # are 1.0 in from_cost; in %GDP mode it is the capital share of the (executed) budget.
@@ -462,11 +486,20 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     e0_auto = float(np.clip(1.0 / exec_ratio, 0.0, 1.0)) if exec_ratio > 0 else 1.0   # baseline efficiency = used÷allocated
     tgt = float(np.clip(capeff_target_pct or 1.0, 0.0, 1.0))
     override = float(np.clip(capeff_current_pct, 0.0, 1.0)) if (capeff_current_pct and capeff_current_pct > 0) else 0.0
+    if entered_budget:
+        allocated = np.array([v if v is not None else 0. for v in raw_allocated]) * public_capital_share
+        allocated_capex = allocated
+        e0_auto = raw_rates[bi]
+        override = 0.
+        if not np.isfinite(capeff_target_pct) or not 0 <= capeff_target_pct <= 1:
+            raise BudgetInputError(f'{budget_label}: execution target must be between 0% and 100%.')
+        tgt = float(capeff_target_pct)
     eff = np.ones(n)
     for t in range(n):
         if years[t] <= by:
             continue                                                      # history: bau_available is 0 anyway
-        base = override if override > 0 else ((used_budget[t] / allocated[t]) if allocated[t] > 0 else 1.0)
+        base = (raw_rates[t] or 0.) if entered_budget else (
+            override if override > 0 else ((used_budget[t] / allocated[t]) if allocated[t] > 0 else 1.0))
         e = base                                                          # baseline efficiency (also the BAU)
         if capeff_enabled and capeff_start:
             if capeff_target_year and capeff_target_year > capeff_start:
@@ -483,9 +516,17 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         float(np.clip(override if override > 0 else
                       (used_budget[t] / allocated[t] if allocated[t] > 0 else 1.), 0., 1.))
         for t in range(n)])
+    if entered_budget:
+        baseline_eff = np.array([r if r is not None else 0. for r in raw_rates])
     baseline_capital = capex_budget * baseline_eff
     financial_cash = additional_public_capital * baseline_eff
     execution_interaction = additional_public_capital * (eff - baseline_eff)
+    if entered_budget:
+        baseline_capital = active * used_budget
+        financial_cash = additional_public_capital
+        additional_allocation_capital = np.divide(
+            financial_cash, baseline_eff, out=np.zeros(n), where=baseline_eff > 0)
+        execution_interaction = additional_allocation_capital * (eff - baseline_eff)
     budget_execution_cash = bau_available - baseline_capital + execution_interaction
 
     # ── Collection efficiency (test2) ──────────────────────────────────────────────────────────────
@@ -1182,6 +1223,15 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'mf_loan_volume': mf_loan_cum.tolist(),        # cumulative microfinance loan volume mobilised (LC millions)
         'budget_used': used_budget.tolist(),           # capital that becomes service (drives baseline BAU)
         'budget_allocated': allocated.tolist(),        # allocated capital budget (manual input, ≥ used)
+        **({
+            'budget_executed_input_basis': raw_executed,
+            'budget_allocated_input_basis': raw_allocated,
+            'budget_execution_baseline': raw_rates,
+            'budget_forecast_metadata': budget_metadata,
+            'budget_input_basis': 'total spending' if budget_is_total_spending else 'capital spending',
+            'budget_reference_year': int(years[bi]),
+            'baseline_bau_executed_spending_share': float(commitment_base[bi] / ctx['gdp_real_local'][bi]),
+        } if entered_budget else {}),
         'capex_efficiency_baseline': e0_auto,          # baseline efficiency = used ÷ allocated (=1/mean exec ratio)
         'capex_efficiency': eff.tolist(),              # per-year efficiency actually applied
         # Per-year EFFECTIVE safely-managed connection cost, after the cost-side levers' factor. In the
@@ -1312,6 +1362,9 @@ def calculate_water_supply(inputs, ctx, utility_debt_execution=None):
     # Water capex share of the water budget (workbook G321 = 0.21); falls back to the shared capex%.
     ws_capex = b.ws_capex_pct if b.ws_capex_pct is not None else b.capex_pct_budget
     res = sector_bau(
+        budget_is_total_spending=b.ws_budget_is_total_spending,
+        budget_capital_share=b.ws_budget_capital_share,
+        budget_label=f'{inputs.country_config.area} Water budget',
         revenue_base=inputs.revenue_bases['water'],
         connection_config=inputs.connection_revenue.get('water'),
         revenue_volume=volume_path(inputs.revenue_bases['water'], ctx, inputs.constants.days_in_year, inputs.constants.cubic_meter_liters),

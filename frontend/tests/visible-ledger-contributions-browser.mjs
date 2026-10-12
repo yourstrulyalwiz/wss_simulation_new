@@ -14,6 +14,12 @@ bundle.presentation = { ...bundle.presentation, contributionView: 'individual' }
 const inputs = bundle.inputs;
 const rural = bundle.altInputs.rural;
 for (const area of [inputs, rural]) {
+  // Explicit controlled finance; original profile has unresolved budget observations.
+  const count = area.period.baseline_year - area.period.model_start_year + 1;
+  for (const prefix of ['ws', 'san']) {
+    area.bau[`${prefix}_expend_ts`] = Array(count).fill(100);
+    area.bau[`${prefix}_alloc_ts`] = Array(count).fill(500);
+  }
   area.toggles.ws_collection_efficiency_enabled = true;
   area.toggles.ws_financial_commitment_enabled = true;
   area.toggles.ws_costeff_enabled = true;

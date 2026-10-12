@@ -65,6 +65,9 @@ class SourceAttributionTests(unittest.TestCase):
     def test_profile_stock_cash_exports_and_selected_repayment(self):
         with open('profiles/DRC OCT 8.json') as handle:
             p=json.load(handle)
+        from test_support import controlled_budgets
+        for q in [p['inputs'], p['altInputs']['rural']]:
+            controlled_budgets(q)
         results=[calculate(coerce_to_engine(q)) for q in [p['inputs'],p['altInputs']['rural']]]
         for r in results+[aggregate(results)]:
             for sector in ['water_supply','sanitation']:

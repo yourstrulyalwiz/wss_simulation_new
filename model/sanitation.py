@@ -100,6 +100,9 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None, utility_debt_execu
     san_capex = b.san_capex_pct if b.san_capex_pct is not None else b.capex_pct_budget
     from model.utility_revenue import volume_path
     res = sector_bau(
+        budget_is_total_spending=b.san_budget_is_total_spending,
+        budget_capital_share=b.san_budget_capital_share,
+        budget_label=f'{inputs.country_config.area} Sanitation budget',
         revenue_base=inputs.revenue_bases['sanitation'],
         connection_config=inputs.connection_revenue.get('sanitation'),
         revenue_volume=volume_path(inputs.revenue_bases['sanitation'], ctx, inputs.constants.days_in_year, inputs.constants.cubic_meter_liters),

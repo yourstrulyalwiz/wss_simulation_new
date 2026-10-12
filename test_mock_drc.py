@@ -31,7 +31,8 @@ class MockDRCTests(unittest.TestCase):
             self.assertGreater(area["revenue_bases"]["water"]["volume_mld"], 0)
             self.assertGreater(area["revenue_bases"]["sanitation"]["volume_mld"], 0)
             self.assertEqual(area["profile_metadata"]["status"], "mock_simulation")
-            outputs = calculate(coerce_to_engine(area))
+            from test_support import controlled_budgets
+            outputs = calculate(coerce_to_engine(controlled_budgets(copy.deepcopy(area))))
             for sector in ("water_supply", "sanitation"):
                 self.assertEqual(len(outputs[sector]["bau_hh"][0]), 25)
                 self.assertEqual(len(outputs[sector]["bau_hh"][1]), 25)

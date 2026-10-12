@@ -132,10 +132,10 @@ def _calc_rows(results, n):
         'pop_used': pop, 'pop_growth': growth(pop),
         'hh_used': hh,
         'hh_size': [(pop[i] / hh[i]) if (pop[i] and hh[i]) else None for i in range(n)],
-        'ws_budget_used': arr((results.get('water_supply') or {}).get('budget_used')),
-        'ws_budget_alloc': arr((results.get('water_supply') or {}).get('budget_allocated')),
-        'san_budget_used': arr((results.get('sanitation') or {}).get('budget_used')),
-        'san_budget_alloc': arr((results.get('sanitation') or {}).get('budget_allocated')),
+        'ws_budget_used': arr((results.get('water_supply') or {}).get('budget_executed_input_basis')),
+        'ws_budget_alloc': arr((results.get('water_supply') or {}).get('budget_allocated_input_basis')),
+        'san_budget_used': arr((results.get('sanitation') or {}).get('budget_executed_input_basis')),
+        'san_budget_alloc': arr((results.get('sanitation') or {}).get('budget_allocated_input_basis')),
     }
 
 
@@ -181,13 +181,13 @@ def build_template(fe: dict, results: dict = None) -> io.BytesIO:
     ws['B1'] = 'WSS year-by-year data — input template'
     ws['B1'].font = Font(bold=True, size=14, color='1E3A5F')
     ws['B2'] = (f"{cc.get('country', '')} — {cc.get('area', '')}   |   currency: {cc.get('currency', 'LCU')}"
-                f"   |   budget mode: from_cost")
+                f"   |   budget basis: WS {'total' if fe.get('macro', {}).get('ws_budget_is_total_spending') else 'capital'}; SAN {'total' if fe.get('macro', {}).get('san_budget_is_total_spending') else 'capital'}")
     ws['B2'].font = Font(color='475569')
     ws['B3'] = ('Fill the CREAM cells (historical) and, optionally, the BLUE cells (forecast). Leave a blue cell '
                 'blank to fill it in from the yearly growth rate, or the model-computed budget. Grey cells are '
                 'auto-calculated, so leave them alone. For service levels, fill a forecast column '
                 '(all 5 rungs add up to 100%) to set a target year (green column header). Enter percentages as shown (e.g. 5.00%). '
-                'Blanking a pre-filled cell keeps its current value; type 0 to clear an override or target cell.')
+                'Budget rows: blank means missing/calculated; zero is an entered observation. Budget forecasts use a three-year GDP-share seed, then two-year moving averages. Other rows retain their existing blank/zero conventions.')
     ws['B3'].font = Font(italic=True, color='B45309')
     # Hidden span stamp (col A is hidden): the parser refuses a file whose analysis period no longer
     # matches the inputs — the grey engine-path cells would otherwise land in the wrong years.
@@ -247,7 +247,7 @@ def build_template(fe: dict, results: dict = None) -> io.BytesIO:
                     v = _num(arr[i]) if i < len(arr) else None
                     # Match the UI's blank-when-unset display: zeros mean "not entered" for the
                     # all-year rows and for forecast target cells; start/baseline svc cells show 0.
-                    if v is not None and (v > 0 or (kind == 'svc_tgt' and i <= bi)):
+                    if v is not None and (v > 0 or kind == 'ovr' or (kind == 'svc_tgt' and i <= bi)):
                         cell.value = v
                     cell.fill = FCST_FILL if i > bi else EDIT_FILL
                     cell.number_format = numfmt
@@ -335,6 +335,12 @@ def parse_template(file_bytes: bytes, fe: dict):
                 continue
             v = ws.cell(rr, col).value
             if v is None or v == '' or isinstance(v, bool):
+                if kind == 'ovr':
+                    while len(arr) <= i:
+                        arr.append(None)
+                    if arr[i] is not None:
+                        changed += 1
+                    arr[i] = None
                 continue                       # blank = keep the existing value (auto-fill from the yearly growth rate)
             try:
                 fv = float(v)
@@ -347,7 +353,7 @@ def parse_template(file_bytes: bytes, fe: dict):
                     continue                   # garbage — not a share in any unit
                 fv /= 100                      # pasted-as-plain-number percent (85 meaning 85%)
             while len(arr) <= i:               # grow to reach forecast years the user filled in
-                arr.append(0)
+                arr.append(None if kind == 'ovr' else 0)
             if abs(fv - (arr[i] or 0)) > 1e-12:
                 changed += 1                   # count real changes only, not pre-filled echoes
             arr[i] = fv

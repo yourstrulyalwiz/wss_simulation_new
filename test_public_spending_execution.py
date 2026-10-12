@@ -118,6 +118,8 @@ class PublicSpendingExecutionTests(unittest.TestCase):
         for path in paths:
             bundle = json.loads(path.read_text())
             inputs = copy.deepcopy(bundle.get('inputs', bundle))
+            from test_support import controlled_budgets
+            controlled_budgets(inputs)
             for prefix, section in [('ws', 'water_interventions'), ('san', 'sanitation_interventions')]:
                 inputs['toggles'][prefix + '_financial_commitment_enabled'] = True
                 inputs['toggles'][prefix + '_capital_efficiency_enabled'] = True

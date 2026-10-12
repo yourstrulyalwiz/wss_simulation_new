@@ -255,6 +255,10 @@ class SanitationUnitCosts(BaseModel):
 # WSS budget  (contract #96-#98)
 # ──────────────────────────────────────────────────────────────────────────
 class WSSBudgetInputs(BaseModel):
+    ws_budget_is_total_spending: bool = False
+    san_budget_is_total_spending: bool = False
+    ws_budget_capital_share: float = 1.0
+    san_budget_capital_share: float = 1.0
     capex_pct_budget: float = 0.21          # #96 capex as % of total budget (shared fallback / legacy)
     # Per-sector capex share of that sector's budget. Water and sanitation carry DIFFERENT capex
     # fractions in the workbook (excel2 I|General Urban: water G321 = 0.21, sanitation G328 = 0.15).
@@ -278,15 +282,15 @@ class WSSBudgetInputs(BaseModel):
     # hard values compound at *_budget_direct_ongoing.
     budget_input_mode: str = 'pct_gdp'
     budget_source: str = 'pct_gdp'          # test2 alias: 'pct_gdp' | 'direct' | 'from_cost'
-    ws_budget_direct: List[float] = []      # user overrides (direct mode; also per-year overrides in from_cost)
-    san_budget_direct: List[float] = []
+    ws_budget_direct: List[Optional[float]] = []
+    san_budget_direct: List[Optional[float]] = []
     ws_budget_direct_ongoing: float = 0.05
     san_budget_direct_ongoing: float = 0.05
     # ALLOCATED capital budget (manual input, bigger than what's actually used/spent on service). Blank
     # years default to used ÷ 0.8 (history) and mean(allocated÷used) × used-forecast (forecast); capex
     # efficiency = used ÷ allocated. Per-year overrides, same shape as *_budget_direct.
-    ws_budget_allocated: List[float] = []
-    san_budget_allocated: List[float] = []
+    ws_budget_allocated: List[Optional[float]] = []
+    san_budget_allocated: List[Optional[float]] = []
 
 
 # ──────────────────────────────────────────────────────────────────────────

@@ -573,6 +573,10 @@ export function ledgerRows(data: LedgerData, options: {
   if (isCoverage && data.coverageAttribution) {
     const a = data.coverageAttribution;
     const annual = basis === 'annual';
+    const coverageHeading = (key: string, label: string): LedgerRow => ({
+      key, label, kind: 'section', unit: '', values: years.map(() => null),
+    });
+    if (!annual) rows.unshift(coverageHeading('coverage-bau-heading', 'BAU'));
     const valuesFor = (sm: number[], basic: number[]) => years.map(year => {
       const i = data.years.indexOf(year);
       if (i < 0) return null;
@@ -585,6 +589,7 @@ export function ledgerRows(data: LedgerData, options: {
     const stockSM = annual ? a.annual_sm_upgrades : a.sm_stock;
     const stockBasic = annual ? a.annual_basic_entries : a.basic_stock;
     if (annual) rows.length = 0;
+    rows.push(coverageHeading('coverage-scenario-heading', 'Combined Scenario'));
     rows.push({ key: 'opening-baseline', label: annual ? 'Baseline-funded transitions' : 'Opening and baseline-funded coverage',
       kind: 'baseline', unit, timing: annual ? 'Annual delivered transitions' : 'Year-end stock',
       values: annual ? valuesFor(stockSM.baseline, stockBasic.baseline) : valuesFor(a.opening_baseline_stock.sm, a.opening_baseline_stock.basic) });

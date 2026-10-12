@@ -316,6 +316,12 @@ export default function ResultsLedgerPanel({
             </thead>
             <tbody>
               {visibleRows.map(row => {
+                if (row.key === 'coverage-bau-heading' || row.key === 'coverage-scenario-heading') {
+                  return <tr key={row.key} data-ledger-row={row.key} data-row-kind="section"
+                    className="results-ledger__row results-ledger__row--scenario">
+                    <th className="results-ledger__rowhead" scope="rowgroup" colSpan={years.length + 2}>{row.label}</th>
+                  </tr>;
+                }
                 const isExpandable = !!row.children?.length;
                 const isCategory = isExpandable;
                 const isChild = row.kind === 'intervention';

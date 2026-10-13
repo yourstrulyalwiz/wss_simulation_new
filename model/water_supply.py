@@ -268,7 +268,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                selffinance_enabled=False, selffinance_share=0.0, connection_fee=0.0,
                 financial_enabled=False, injection_enabled=False, financial_settings=None, financial_execution_rate=None,
                 extra_cash=None, eligible_nrw_cash=None, custom_cash=None, revenue_base=None, revenue_volume=None,
-                utility_debt_execution=None, full_spending_provided=True, connection_config=None,
+                utility_debt_execution=None, full_spending_provided=True, connection_config=None, revenue_sector='Water Supply',
                 nrw_value_basis='tariff', nrw_sales_assumption='all_recovered_sold',
                 linked_nrw_volume=None, linked_overlap_volume=None, revenue_reconciliation_meta=None,
                 budget_is_total_spending=False, budget_capital_share=1.0, budget_label='Budget'):
@@ -618,7 +618,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     if not ctx.get('pure_bau', False) and connection_runtime is None and (
             connection_funding or ce_enabled or tariff_enabled or nrw_enabled or
             (linked_nrw_volume is not None and np.any(linked_nrw_volume))):
-        raise RevenueInputError('Dynamic billing calibration incomplete: ' +
+        raise RevenueInputError(revenue_sector + ' — Data Inputs → 6. Revenue Inputs → Show settings: ' +
                                 '; '.join(connection_status.get('errors', [])))
     revenue_diagnostics = {key: np.zeros(n) for key in DIAGNOSTIC_FIELDS}
     revenue_diagnostics['reference_billed_volume_million_m3'][:] = billed_volume

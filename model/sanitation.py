@@ -105,6 +105,7 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None, utility_debt_execu
         budget_label=f'{inputs.country_config.area} Sanitation budget',
         revenue_base=inputs.revenue_bases['sanitation'],
         connection_config=inputs.connection_revenue.get('sanitation'),
+        revenue_sector='Sanitation',
         revenue_volume=volume_path(inputs.revenue_bases['sanitation'], ctx, inputs.constants.days_in_year, inputs.constants.cubic_meter_liters),
         ctx=ctx, period=inputs.period,
         pct_start=[sl.pct_sserv1_start, sl.pct_sserv2_start, sl.pct_sserv3_start, sl.pct_sserv4_start, sl.pct_sserv5_start],

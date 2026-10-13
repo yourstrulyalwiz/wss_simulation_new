@@ -89,8 +89,14 @@ def prepare_connection(config, base, ctx, history, days=365, liters=1000, dynami
             return status, None
         if cfg['version'] != 5:
             raise RevenueInputError('Unsupported connection configuration version.')
-        fb = number(cfg.get('new_billed_share_basic'), 'new_billed_share_basic', 1)
-        fs = number(cfg.get('new_billed_share_sm'), 'new_billed_share_sm', 1)
+        missing = [label for key, label in (
+            ('new_billed_share_basic', 'Basic expansion billed (%)'),
+            ('new_billed_share_sm', 'Safely Managed expansion billed (%)'))
+            if cfg.get(key) is None]
+        if missing:
+            raise RevenueInputError('Enter ' + ' and '.join(missing) + '.')
+        fb = number(cfg.get('new_billed_share_basic'), 'Basic expansion billed (%)', 1)
+        fs = number(cfg.get('new_billed_share_sm'), 'Safely Managed expansion billed (%)', 1)
         status.update(effective=cfg['enabled'], state='active' if cfg['enabled'] else 'off',
                       volume_mode='dynamic', volume_effective=True, funding_enabled=cfg['enabled'])
         return status, dict(baseline=baseline.copy(), total_hh=hh.copy(), bi=bi,

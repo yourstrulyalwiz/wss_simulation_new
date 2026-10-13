@@ -44,7 +44,8 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
   const base = inputs.revenue_bases?.[sector] || {};
   const errors = [...new Set([...validateConnectionRevenueConfig(config),
     ...(Array.isArray(current?.status?.errors) ? current.status.errors : [])])];
-  const state = !config.enabled ? 'Off' : errors.length ? 'Incomplete' :
+  const settingsVisible = showSettings || errors.length > 0;
+  const state = errors.length ? 'Billing calibration incomplete' : !config.enabled ? 'Funding off' :
     current?.error ? 'Verification unavailable' : !current?.status ? 'Checking current inputs…' :
       current.status.effective === true || ['aggregate_coverage_expansion', 'aggregate-coverage-expansion'].includes(current.status.effective) || ['on', 'active', 'effective'].includes(current.status.state)
         ? 'Active' : 'Incomplete';
@@ -63,13 +64,13 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
         {' '}Include revenue from new connections
       </label>
       <span role="status" style={{ fontSize: 11 }}>{state}</span>
-      <button type="button" aria-expanded={showSettings} aria-controls={`${id}-settings`}
+      <button type="button" aria-expanded={settingsVisible} aria-controls={`${id}-settings`}
         onClick={() => setShowSettings(value => !value)}
         style={{ fontSize: 11, cursor: 'pointer', border: '1px solid #c2d3da', borderRadius: 4, padding: '4px 8px', background: '#fff', color: '#164e63' }}>
         {showSettings ? 'Hide settings' : 'Show settings'}
       </button>
     </div>
-    <div id={`${id}-settings`} hidden={!showSettings}>
+    <div id={`${id}-settings`} hidden={!settingsVisible}>
     {config.current_behavior_notice && !dismissed.includes(noticeKey) && <div role="status" style={{ fontSize: 11, padding: '8px 0' }}>
       {config.current_behavior_notice} <button type="button" onClick={() => {
         setDismissed([...dismissed, noticeKey]);

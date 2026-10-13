@@ -67,4 +67,5 @@ class ConnectionRevenueTests(unittest.TestCase):
             self.assertTrue(prepare_connection(configuration(**{key: None}),base,ctx,hist)[0]['effective'])
         status,_ = prepare_connection(dict(version=4,enabled=True),base,ctx,hist)
         self.assertFalse(status['effective'])
-        self.assertIn('new_billed_share_basic', status['errors'][0])
+        self.assertIn('Basic expansion billed (%)', status['errors'][0])
+        self.assertIn('Safely Managed expansion billed (%)', status['errors'][0])

@@ -31,7 +31,7 @@ def fixture():
 class ConnectionRevenueTests(unittest.TestCase):
     def test_legacy_fields_inactive_and_pure_bau(self):
         d = example()
-        d['connection_revenue'] = {'water': configuration(marginal_cost=99999, household_volume_share=None)}
+        d['connection_revenue']['water'] = configuration(marginal_cost=99999, household_volume_share=None)
         before = copy.deepcopy(d)
         a = calculate(coerce_to_engine(d))
         self.assertEqual(d, before)

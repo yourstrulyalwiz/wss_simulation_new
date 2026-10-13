@@ -57,7 +57,9 @@ class PublicSpendingExecutionTests(unittest.TestCase):
                     self.assertAlmostEqual(cash[source][i], amount)
                 self.assertAlmostEqual(sum(cash[s][i] for s in cash), sum(expected))
                 self.assertAlmostEqual(sec['scenario_available_total'][i], sum(expected))
-                self.assertEqual(sec['scenario_financial_commitment_cash'][i + 1], 0)
+                held = 120 * (1 + 100/120) / r['gdp_real_local'][i]
+                self.assertAlmostEqual(sec['scenario_financial_commitment_cash'][i + 1],
+                    max(0., held * r['gdp_real_local'][i+1] - 120) * .5 * .6 if spending else 0.)
                 self.assertTrue(all(v == 0 for v in sec['scenario_financial_commitment_cash'][:i]))
                 self.assertEqual(sec['financial_commitment_base'][i], 120)
                 attr = sec['scenario_coverage_attribution']
@@ -104,6 +106,10 @@ class PublicSpendingExecutionTests(unittest.TestCase):
             for year, eff in [(2026, .6), (2027, .75), (2028, .9), (2029, .9)]:
                 i = r['years'].index(year)
                 delta = 60 * ((1 + 100/120) ** (year-2027+1) - 1) if 2027 <= year <= 2028 else 0
+                if year > 2028:
+                    end = r['years'].index(2028)
+                    delta = max(0., 120 * (1+100/120)**2 / r['gdp_real_local'][end] *
+                                r['gdp_real_local'][i] - 120) * .5
                 self.assertAlmostEqual(cash['financial'][i], delta * .6)
                 self.assertAlmostEqual(cash['budget_execution'][i], (100 + delta) * (eff - .6))
         for share in [0, None]:

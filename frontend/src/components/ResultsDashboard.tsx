@@ -332,7 +332,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             'connection_volume_million_m3', 'nrw_avoided_sales_adjustment', 'connection_scale', 'connection_aggregate_volume_proxy',
             'raw_billed_volume_million_m3',
             'non_nrw_billed_volume_million_m3', 'reference_billed_volume_million_m3',
-            'reference_collected_revenue', 'connection_revenue_delta',
+            'reference_collected_revenue', 'connection_revenue_delta', 'connection_excluded_receipts',
             'connection_net_cash', 'additional_net_cash', 'applicable_tariff', 'applicable_collection_ratio',
             'billed_volume_million_m3', 'collected_revenue', 'collection_cash', 'tariff_cash',
             'nrw_net', 'eligible_nrw_link_cash',

@@ -151,6 +151,9 @@ class HistoricalTransitionTests(unittest.TestCase):
         for area, original in [('urban', profile['inputs']),
                                ('rural', profile['altInputs']['rural'])]:
             inputs = copy.deepcopy(original)
+            for sector in ('water', 'sanitation'):
+                inputs.setdefault('connection_revenue', {}).setdefault(sector, {}).update(
+                    new_billed_share_basic=0., new_billed_share_sm=0.)
             inputs['bau'].update(budget_source='from_cost', budget_input_mode='from_cost',
                                  ws_expend_ts=[], san_expend_ts=[])
             # This test isolates the legacy transition-derived cost calculation,

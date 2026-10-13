@@ -36,7 +36,7 @@ export const COMPARISON_ORDER_TEXT = 'Financial-effect comparison order: water c
 
 export function interventionEnabled(inputs: any, key: string): boolean {
   if (key === 'ws_connections_enabled' || key === 'san_connections_enabled') {
-    if (inputs?.toggles?.[key] === false) return false;
+    if (typeof inputs?.toggles?.[key] === 'boolean') return inputs.toggles[key];
     return !!inputs?.connection_revenue?.[key.startsWith('ws_') ? 'water' : 'sanitation']?.enabled;
   }
   return !!inputs?.toggles?.[key];

@@ -21,7 +21,7 @@ ATTRIBUTION = ('Connections and NRW sales at baseline rates; collection then tar
 
 def reconcile_revenue(raw, reference, sales, overlap, p0, c0, p, c,
                       marginal_cost=0.0, implementation_cost=0.0,
-                      avoided_cost=0.0):
+                      avoided_cost=0.0, connection_funding=True):
     """Version 4: addition-only direct connections; reforms on the full volume.
 
     marginal_cost is an inactive legacy parameter. Avoided-cost mode can exclude
@@ -38,7 +38,8 @@ def reconcile_revenue(raw, reference, sales, overlap, p0, c0, p, c,
     connection_gross = (pre - reference) * p0 * c0
     connection_cost = 0.0  # inactive compatibility argument: no connection operating account
     nrw_cost = 0.0
-    connection_net = connection_gross - connection_cost
+    connection_net = connection_gross if connection_funding else 0.0
+    connection_excluded = connection_gross - connection_net
     collection = total * p0 * (c - c0)
     tariff = total * (p - p0) * c
     nrw_gross = sales * p0 * c0
@@ -46,7 +47,7 @@ def reconcile_revenue(raw, reference, sales, overlap, p0, c0, p, c,
     recurring_cost = connection_cost + nrw_cost
     additional = connection_net + collection + tariff + nrw_net
     collected, ref_collected = total * p * c, reference * p0 * c0
-    expected = collected - ref_collected - recurring_cost + avoided_cost - implementation_cost
+    expected = collected - ref_collected - connection_excluded - recurring_cost + avoided_cost - implementation_cost
     if not math.isclose(additional, expected, rel_tol=1e-10, abs_tol=1e-8):
         raise RevenueInputError('Reconciled source cash does not match collected revenue less costs.')
     return {
@@ -63,6 +64,7 @@ def reconcile_revenue(raw, reference, sales, overlap, p0, c0, p, c,
         'baseline_collected_revenue': total * p0 * c0,
         'reference_collected_revenue': ref_collected, 'collected_revenue': collected,
         'connection_revenue_delta': connection_gross,
+        'connection_excluded_receipts': connection_excluded,
         'incremental_variable_operating_cost': recurring_cost,
         'connection_net_cash': connection_net,
         'collection_cash': collection, 'tariff_cash': tariff,

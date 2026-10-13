@@ -357,9 +357,10 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
       </>)}
       {option('fin_growth_enabled', 'Annual percentage increase in spending', <>
         <F label="Annual spending increase" value={iv.fin_growth_rate} onChange={v => u(section, 'fin_growth_rate', Math.max(0, v))} isPercent unit="% per year"
-          tip="The increase compounds annually from the start year through the end year." />
+          tip="Compounded uplift over each year's BAU spending through the end year. Afterwards, the achieved executed-spending share of GDP is maintained, unless BAU exceeds it. The separate GDP-target option remains additive." />
         <F label="Start year" value={scheduleYear(iv, 'fin_growth_start_year')} onChange={v => u(section, 'fin_growth_start_year', v)} />
-        <F label="End year" value={scheduleYear(iv, 'fin_growth_end_year', true)} onChange={v => u(section, 'fin_growth_end_year', v)} />
+        <F label="End year" value={scheduleYear(iv, 'fin_growth_end_year', true)} onChange={v => u(section, 'fin_growth_end_year', v)}
+          tip="Annual increases stop in this year. The achieved executed-spending share of GDP is maintained afterwards." />
       </>)}
     </>);
   };
@@ -512,6 +513,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             })()}
             <F label="System input volume (at start year)" value={inputs.water_interventions.nrw_system_input_vol || 0} onChange={v => u('water_interventions','nrw_system_input_vol',v)} step={1} unit="MLD" tip="Total water produced / put into the system at the start year, in million litres per day. It grows each forecast year — with population by default, or at the growth rate below if you set one." />
             <F label="Volume growth rate" value={inputs.water_interventions.nrw_vol_growth} onChange={v => u('water_interventions','nrw_vol_growth',v)} isPercent unit="%" placeholder="population" tip="Annual real growth of the system input volume from the start year. Leave blank to scale with population; enter a rate to override (e.g. 3%)." />
+            <p style={{ fontSize: 11, gridColumn: '1 / -1' }}>Scenario system input also scales with coverage-driven billable expansion, excluding NRW’s own direct physical upgrades. This is a modeling proxy, not a hydraulic estimate. Zero or missing system input produces no recovered water.</p>
             <F label="Water per basic→SM upgrade" value={inputs.water_interventions.nrw_water_per_upgrade || 0} onChange={v => u('water_interventions','nrw_water_per_upgrade',v)} step={5} unit="m³/HH/yr" tip="Extra water a basic household needs each year to become safely managed. Recovered physical water ÷ this = households upgraded." />
             <F label="Cost of fixing" value={inputs.water_interventions.nrw_capex_unit_cost_local || 0} onChange={v => u('water_interventions','nrw_capex_unit_cost_local',v)} step={1000} unit={`${CUR}/m³/day`} tip="Existing implementation-cost input and timing are retained. This cost stays inside signed NRW net cash and is not added again as a separate financing requirement." />
             <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>

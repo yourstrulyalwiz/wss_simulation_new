@@ -31,6 +31,10 @@ class BaselineSpendingShareTests(unittest.TestCase):
             s = r[name]
             for i,y in enumerate(r['years']):
                 expected = s['financial_commitment_base'][i] * (1.1**(y-2026)-1) if 2027<=y<=2028 else 0
+                if y > 2028:
+                    end = r['years'].index(2028)
+                    expected = max(0., s['financial_commitment_base'][end] * 1.1**2 /
+                                   r['gdp_real_local'][end] * r['gdp_real_local'][i] - s['financial_commitment_base'][i])
                 self.assertAlmostEqual(s['scenario_financial_commitment_cash'][i], expected)
 
     def test_missing_budget_is_not_cost_derived(self):

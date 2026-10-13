@@ -61,8 +61,8 @@ export function migrateConnectionRevenueInputs(inputs: any) {
   if (!inputs) return inputs;
   const water = migrateConnectionRevenueConfig(inputs.connection_revenue?.water);
   const sanitation = migrateConnectionRevenueConfig(inputs.connection_revenue?.sanitation);
-  if (inputs.toggles?.ws_connections_enabled === false) water.enabled = false;
-  if (inputs.toggles?.san_connections_enabled === false) sanitation.enabled = false;
+  if (typeof inputs.toggles?.ws_connections_enabled === 'boolean') water.enabled = inputs.toggles.ws_connections_enabled;
+  if (typeof inputs.toggles?.san_connections_enabled === 'boolean') sanitation.enabled = inputs.toggles.san_connections_enabled;
   return { ...inputs, connection_revenue: {
     ...(inputs.connection_revenue || {}),
     water,

@@ -21,10 +21,10 @@ export function aggregateWeightedRevenueRate(
 
 function effectiveMode(value: any, requested: boolean, version?: number, state?: string): AreaMode['effective'] {
   const mode = String(value ?? '').toLowerCase().replace(/[_ ]/g, '-');
-  if (state === 'off' || mode === 'off') return 'exogenous';
   if (state === 'incomplete') return 'incomplete';
   if (value === true || mode.includes('connection') || mode === 'dynamic' || mode.includes('aggregate'))
     return version === 5 ? 'aggregate coverage expansion' : 'connection-based (legacy)';
+  if (state === 'off' || mode === 'off') return 'exogenous';
   if (value === false || mode.includes('exogenous')) return 'exogenous';
   return requested ? 'unknown' : 'exogenous';
 }
@@ -34,7 +34,7 @@ export function connectionRevenueAreaModes(results: any[], inputs: any[], result
     const metadata = result?.[resultSector]?.scenario_connection_revenue ?? result?.[resultSector]?.connection_revenue;
     const config = inputs[index]?.connection_revenue?.[sector];
     const requested = metadata?.requested ?? !!config?.enabled;
-    const effective = effectiveMode(metadata?.effective, requested, Number(metadata?.version ?? metadata?.configuration?.version ?? metadata?.config?.version), metadata?.state);
+    const effective = effectiveMode(metadata?.volume_mode ?? metadata?.effective, requested, Number(metadata?.version ?? metadata?.configuration?.version ?? metadata?.config?.version), metadata?.state);
     const area = inputs[index]?.country_config?.area ||
       (inputs.length > 1 ? (index === 0 ? 'Urban' : index === 1 ? 'Rural' : `Area ${index + 1}`)
         : inputs[index]?.country_config?.country || 'Selected area');
@@ -69,7 +69,7 @@ export function connectionRevenueModeText(areaConfigurations: AreaMode[]) {
   }));
   return {
     ...summary,
-    text: `Pure baseline: exogenous · New-connection revenue: ${summary.label}${perArea.length > 1 || summary.mixed
+    text: `Pure baseline: exogenous · Billing volume: ${summary.label} · New-connection receipts used for funding: ${areaConfigurations.every(a => a.requested) ? 'on' : areaConfigurations.some(a => a.requested) ? 'mixed' : 'off'}${perArea.length > 1 || summary.mixed
       ? ` · Per area: ${perArea.map(area => `${area.area}: ${area.label}`).join(' · ')}` : ''}`,
   };
 }

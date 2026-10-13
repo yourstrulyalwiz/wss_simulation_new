@@ -17,7 +17,12 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
   const id = useId();
   const [showSettings, setShowSettings] = useState(false);
   const stored = inputs.connection_revenue?.[sector];
-  const config = useMemo(() => migrateConnectionRevenueConfig(stored), [stored]);
+  const fundingToggle = inputs.toggles?.[sector === 'water' ? 'ws_connections_enabled' : 'san_connections_enabled'];
+  const config = useMemo(() => {
+    const value = migrateConnectionRevenueConfig(stored);
+    if (typeof fundingToggle === 'boolean') value.enabled = fundingToggle;
+    return value;
+  }, [stored, fundingToggle]);
   const [validation, setValidation] = useState<{ key: string; status: any; error: string } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [dismissed, setDismissed] = useState<string[]>([]);
@@ -116,8 +121,10 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
       Baseline collected revenue is comparison-only, not an extra funding injection.
     </p>
     </div>
-    {config.enabled && errors.length > 0 && <div role="alert" style={{ color: '#8b2c35', fontSize: 11, marginTop: 9 }}>
-      <strong>Requested feature is incomplete; the baseline remains calculable.</strong>
+    <p style={{ fontSize: 11 }}>Billing volume: {current?.status?.volume_mode === 'dynamic' ? 'dynamic from delivered coverage' : 'requires valid billing calibration'}.
+      {' '}New-connection receipts used for funding: {config.enabled ? 'on' : 'off'}. Billing percentages are also needed by active collection, tariff and NRW reforms when funding is off.</p>
+    {errors.length > 0 && <div role="alert" style={{ color: '#8b2c35', fontSize: 11, marginTop: 9 }}>
+      <strong>Dynamic revenue calibration is incomplete.</strong>
       <ul>{errors.map(error => <li key={error}>{error}</li>)}</ul>
     </div>}
     {current?.error && <div role="alert" style={{ fontSize: 11, marginTop: 8 }}>{current.error}{' '}

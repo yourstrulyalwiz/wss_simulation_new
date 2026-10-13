@@ -98,3 +98,17 @@ mtime_ms = 1791516255051
 storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/9405ba78-0f47-4d23-82fd-6cf705be1a08/3fe878a3-b502-4344-b80d-478f179bdfc4"
 storage_version_token = "1791516391229614"
 content_type = "image/png"
+
+[[outputs]]
+id = "3MrW7HvYV1BM8XQwk9DBf"
+uri = "file://reports/dynamic-feedback-verification.html"
+type = "html"
+title = "Implementation verification and numerical examples"
+description = "Spending continuation, funding-off CE feedback, paired loan results, changed files, test outcomes and calibration limitations."
+logical_id = "80bca9f4-df63-4266-9bbd-e730f55f8aba"
+content_hash = "sha256:bba297f04567255cdfc985fbfd348ac5808ae10d318643c14e9f1d21a8ac4474"
+size = 9408
+mtime_ms = 1791916673167
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:b22311bd-5675-4960-8601-336d9da1485d/80bca9f4-df63-4266-9bbd-e730f55f8aba/0bfd06b2-a46a-4cb0-8e2e-c5e4688ec442"
+storage_version_token = "1791916674007603"
+content_type = "text/html"

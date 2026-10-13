@@ -10,6 +10,11 @@ Scheduled physical recovery must not acquire a cash-availability gate.
 **Why:** The revised user instruction explicitly rejected both cost-treatment
 changes; they can otherwise silently change borrowing eligibility and duplicate
 financing shortfalls.
+The 2026-10-13 throughput proxy retains the independently entered NRW system-input
+anchor and scales it with coverage-driven expansion excluding NRW's own physical
+upgrades. Current works and lagged benefits use the annual scenario state.
+**Why:** This avoids self-amplifying recovery without introducing hydraulic or
+customer-cohort assumptions. Keep this proxy distinct from billing overlap.
 **How to apply:** Preserve after-cost source cash and floor only the combined
 selected signed pool. Do not interpret service-impact chart bands as source cash.
 

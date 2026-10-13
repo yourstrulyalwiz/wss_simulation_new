@@ -5,6 +5,14 @@ description: Product rules for financial commitments, recurring funding and one-
 
 ## Approved public-spending execution policy
 
+The 2026-10-13 instruction maintains the standalone growth option's achieved
+executed-spending/GDP share after the increase window. It is a floor, not a
+ceiling, and excludes the additive GDP-target option and execution gains.
+Zero growth stays inert even if later BAU shares fall.
+**Why:** Stopping the increases must not undo the commitment or freeze its
+currency amount; other execution benefits remain independently attributable.
+**How to apply:** Preserve the calendar exponent and total-versus-capital basis.
+
 The user explicitly clarified on 2026-10-12 that executed budgets higher than
 allocated budgets are normal and must not block forecasting or later steps.
 Allow E/A above 100% without clipping or warnings. For positive E with zero A,

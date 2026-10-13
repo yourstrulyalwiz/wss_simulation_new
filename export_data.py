@@ -218,7 +218,7 @@ def intervention_breakdown(inputs, sector_key, defs):
             res = sum(cash[i] for i, year in enumerate(years) if year > by) / 1000.0
         if rkey in ('scenario_connection_net_cash', 'scenario_collection_cash',
                     'scenario_tariff_cash', 'scenario_nrw_net', 'scenario_nrw_link_cash'):
-            res = cash_cum(passes[-1], rkey) / 1000.0
+            res = cash_cum(actual, rkey) / 1000.0
         gap_closed = (gap_cum(before) - gap_cum(after)) / 1000.0  # signed change; M → B
         out.append((label, round(add_hh, 5), (round(res, 4) if res is not None else None), round(gap_closed, 4)))
     if has_custom:

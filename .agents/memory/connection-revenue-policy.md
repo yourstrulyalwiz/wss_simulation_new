@@ -15,6 +15,12 @@ methods. The funding/repayment follow-on later that day supersedes negative
 connection adjustments with addition-only revenue. Preserve the aggregate
 customer mix, including non-household sales.
 
+The 2026-10-13 instruction separates physical billing volume from the financing
+switch: valid scenario volume responds to delivered prior-year coverage even
+when direct connection receipts are excluded from funding. Pure BAU alone keeps
+the independent exogenous convention. Missing weights must not be invented.
+**Why:** Publicly funded expansion must affect later CE, tariff and NRW receipts
+without requiring admission of direct connection receipts.
 **How to apply:** Do not revive historical billing shares, consumption calibration,
 cost proxies, household revenue haircuts or activation confirmations. Preserve
 old values only as inactive audit metadata. Direct connection and NRW sales use

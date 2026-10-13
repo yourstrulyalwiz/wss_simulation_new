@@ -36,6 +36,7 @@ def project(n=4, initial=(.6, .3, .1, 0, 0), **overrides):
         nrw_start=2026, nrw_target_year=2026, nrw_current=.5, nrw_target=0,
         nrw_physical=.5, nrw_vol_m3yr=100, nrw_vol_m3day=100e6/365,
         nrw_water_per_upgrade=100, nrw_value_basis='production', nrw_value_unit=0)
+    args['connection_config'] = dict(enabled=False, new_billed_share_basic=0., new_billed_share_sm=0.)
     args.update(overrides)
     return sector_bau(ctx, **args)
 

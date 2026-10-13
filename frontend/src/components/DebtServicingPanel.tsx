@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import LiveInterventionChart from './LiveInterventionChart';
 import UtilityDebtPreview from './UtilityDebtPreview';
 import DebtServicingControls from './DebtServicingControls';
@@ -6,7 +6,6 @@ import { ContributionViewToggle, type ContributionView } from '../contributionVi
 import { CurrencyDisplayControl, displayCurrency, type CurrencyDisplaySettings } from '../currencyDisplay';
 import ExportButtons from './ExportButtons';
 import TableExport from './TableExport';
-import { runCalculation } from '../api';
 import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
 import './debt-servicing.css';
 import RevenueSourceChart from './RevenueSourceChart';
@@ -91,37 +90,22 @@ export default function DebtServicingPanel({
 }
 
 function AccessGapComparison({ inputs, withDebt, sectorKey }: { inputs: any; withDebt: any; sectorKey: 'water_supply' | 'sanitation' }) {
-  const [withoutDebt, setWithoutDebt] = useState<any>(null);
-  const [error, setError] = useState('');
-  const [attempt, setAttempt] = useState(0);
-  const inputKey = JSON.stringify(inputs);
-  useEffect(() => {
-    let cancelled = false;
-    const utilityDebt = Object.fromEntries(['water', 'sanitation'].map(key => [
-      key, { ...(inputs.utility_debt?.[key] || {}), enabled: false },
-    ]));
-    setWithoutDebt(null);
-    setError('');
-    runCalculation({ ...inputs, utility_debt: utilityDebt })
-      .then(value => { if (!cancelled) setWithoutDebt(value); })
-      .catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason)); });
-    return () => { cancelled = true; };
-    // View-only no-debt counterfactual; this never updates or saves shared inputs.
-  }, [inputKey, attempt]);
-
   const financed = withDebt?.[sectorKey];
-  const reference = withoutDebt?.[sectorKey];
-   if (!withDebt?.years?.length) return null;
-  if (error) return <div className="debt-preview-error" role="alert">
-    Access comparison unavailable — {error}
-    <button type="button" onClick={() => setAttempt(value => value + 1)} className="debt-retry">Retry comparison</button>
-  </div>;
-   if (!withoutDebt?.years?.length) return <div className="debt-preview-state">Calculating the no-debt service-access reference…</div>;
+  const reference: any = Object.fromEntries(Object.entries(financed || {})
+    .filter(([key]) => key.startsWith('scenario_without_utility_debt_'))
+    .map(([key, value]) => [key.replace('scenario_without_utility_debt_', 'scenario_'), value]));
+  if (!withDebt?.years?.length) return <div className="debt-preview-state">Recalculating matched loan comparisons…</div>;
 
    const years: number[] = withDebt.years.filter((year: number) => year > Number(inputs.period.baseline_year));
   const totalHouseholds = withDebt?.hh_total || withDebt?.total_hh || financed.hh_total || financed.total_hh || [];
    const indexes = years.map(year => withDebt.years.indexOf(year));
-   const rungValue = (data: any, rung: number, index: number) => Number(data?.scenario_hh?.[rung]?.[indexes[index]] ?? 0);
+  const endYear = Number(inputs.period.forecast_end_year);
+  const validSeries = (v: any) => Array.isArray(v) && indexes.every(i => typeof v[i] === 'number' && Number.isFinite(v[i]));
+  if (!years.includes(endYear) || [financed, reference].some(data =>
+    ![data?.scenario_hh?.[0], data?.scenario_hh?.[1], data?.scenario_sm_access_gap,
+      data?.scenario_at_least_basic_access_gap].every(validSeries)))
+    return <div className="debt-preview-error" role="alert">Access comparison unavailable — matched results are incomplete. Recalculate the scenario.</div>;
+   const rungValue = (data: any, rung: number, index: number) => Number(data.scenario_hh[rung][indexes[index]]);
   const metricDefinitions = [
     { label: 'Safely-managed coverage', kind: 'coverage', values: years.map((year, index) => ({ year, before: rungValue(reference, 0, index), after: rungValue(financed, 0, index) })) },
     { label: 'Minimum Basic coverage · SM + Basic', kind: 'coverage', values: years.map((year, index) => ({ year, before: rungValue(reference, 0, index) + rungValue(reference, 1, index), after: rungValue(financed, 0, index) + rungValue(financed, 1, index) })) },
@@ -138,7 +122,7 @@ function AccessGapComparison({ inputs, withDebt, sectorKey }: { inputs: any; wit
   if (!metricDefinitions.length) return null;
    const fmt = (value: number) => `${(value * 1e6).toLocaleString('en-US', { maximumFractionDigits: 2 })} HH`;
   const fmtSigned = (value: number) => `${value > 0 ? '+' : ''}${fmt(value)}`;
-  const lastYear = years[years.length - 1];
+  const lastYear = endYear;
   const favorable = (kind: string, change: number) => kind === 'coverage' ? change >= 0 : change <= 0;
   const exportRows = years.flatMap(year => metricDefinitions.map(metric => {
     const value = metric.values.find(item => item.year === year);
@@ -153,9 +137,10 @@ function AccessGapComparison({ inputs, withDebt, sectorKey }: { inputs: any; wit
       </div>
       <div className="debt-gap-grid">
         {metricDefinitions.map(metric => {
-          const final = metric.values.find(item => item.year === lastYear) || metric.values[metric.values.length - 1];
+          const final = metric.values.find(item => item.year === lastYear)!;
           return <div className="debt-gap-card" key={metric.label}>
             <span>{metric.label}</span>
+            <small>Net {metric.kind === 'coverage' ? 'coverage' : 'access-gap'} difference at simulation end</small>
             <strong className={favorable(metric.kind, final.change) ? 'is-favorable' : 'is-adverse'}>{fmtSigned(final.change)}</strong>
             <small>{final.year} · {final.points == null ? 'percentage-point change unavailable' : `${final.points > 0 ? '+' : ''}${final.points.toFixed(3)} pp`}</small>
             <small>Without loan funding {fmt(final.before)} → With indicative loan funding {fmt(final.after)}</small>

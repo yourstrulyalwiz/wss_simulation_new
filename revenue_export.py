@@ -22,6 +22,7 @@ LEGACY_FIELDS = (
     ('Reference collected revenue', 'reference_collected_revenue', '{currency} M'),
     ('Collected revenue', 'collected_revenue', '{currency} M'),
     ('Connection gross revenue difference', 'connection_revenue_delta', '{currency} M'),
+    ('Connection receipts excluded from financing', 'connection_excluded_receipts', '{currency} M'),
     ('Incremental variable operating cost', 'incremental_variable_operating_cost', '{currency} M'),
     ('Revenue from new connections', 'connection_net_cash', '{currency} M'),
     ('Collection-efficiency cash', 'collection_cash', '{currency} M'),

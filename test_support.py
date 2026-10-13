@@ -14,11 +14,15 @@ def controlled_budgets(data):
     for prefix in ('ws', 'san'):
         data.setdefault('bau', {})[prefix + '_expend_ts'] = [100.] * n
         data['bau'][prefix + '_alloc_ts'] = [500.] * n
+    for sector in ('water', 'sanitation'):
+        data.setdefault('connection_revenue', {}).setdefault(sector, {}).update(
+            new_billed_share_basic=.5, new_billed_share_sm=1.)
     return data
 
 
 def frontend_defaults():
     data = unresolved_defaults()
+    controlled_budgets(data)
     # Controlled financial observations for tests unrelated to budget calibration.
     # Production defaults intentionally remain uncalibrated.
     n = data['period']['baseline_year'] - data['period']['model_start_year'] + 1

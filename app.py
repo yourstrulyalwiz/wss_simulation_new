@@ -58,7 +58,7 @@ def revenue_bases(inputs: dict = Body(...)):
         item['connection'], _ = prepare_connection(
             model.connection_revenue.get(sector), item['base'], ctx,
             sector_history(model, ctx, sector), model.constants.days_in_year,
-            model.constants.cubic_meter_liters)
+            model.constants.cubic_meter_liters, dynamic=True)
     return resolved
 
 app.add_middleware(

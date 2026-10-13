@@ -1,7 +1,7 @@
 import { INTV_PALETTE as P } from './chartColors';
 
 export const REVENUE_SOURCES = [
-  { key: 'connections', label: 'Revenue from new connections', color: P.connections, fields: ['connection_revenue_cash', 'connection_net_cash', 'connections_cash', 'connection_revenue_delta'] },
+  { key: 'connections', label: 'Revenue from new connections', color: P.connections, fields: ['connection_revenue_cash', 'connection_net_cash', 'connections_cash'] },
   { key: 'nrw', label: 'NRW signed cash', color: P.nrw, fields: ['nrw_net', 'eligible_nrw_link_cash', 'nrw_link_cash'] },
   { key: 'collection', label: 'Collection improvement', color: P.collection, fields: ['collection_cash'] },
   { key: 'tariff', label: 'Tariff reform', color: P.tariff, fields: ['tariff_cash'] },

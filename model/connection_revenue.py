@@ -17,6 +17,7 @@ DIAGNOSTIC_FIELDS = (
     'connections_cash', 'nrw_avoided_sales_adjustment',
     'reference_billed_volume_million_m3', 'reference_collected_revenue',
     'connection_revenue_delta', 'connection_net_cash', 'additional_net_cash',
+    'connection_excluded_receipts',
     'applicable_tariff', 'applicable_collection_ratio',
     # Inactive, zero-only compatibility outputs. Never infer household observations.
     'connection_billed_households', 'household_billed_volume_million_m3',
@@ -52,7 +53,7 @@ def migrate_connection(config):
     return cfg
 
 
-def prepare_connection(config, base, ctx, history, days=365, liters=1000):
+def prepare_connection(config, base, ctx, history, days=365, liters=1000, dynamic=False):
     if config is not None and not isinstance(config, dict):
         return {'requested': True, 'effective': False, 'state': 'incomplete',
                 'errors': ['Connection revenue configuration must be an object.'],
@@ -84,19 +85,22 @@ def prepare_connection(config, base, ctx, history, days=365, liters=1000):
             baseline_tariff=base['tariff'], baseline_collection_ratio=base['collection_ratio'],
             original_volume_mld=base['volume_mld'], original_reference_year=base['reference_year'],
             growth_rate=base.get('growth_rate'))
-        if not cfg['enabled']:
+        if not cfg['enabled'] and not dynamic:
             return status, None
         if cfg['version'] != 5:
             raise RevenueInputError('Unsupported connection configuration version.')
         fb = number(cfg.get('new_billed_share_basic'), 'new_billed_share_basic', 1)
         fs = number(cfg.get('new_billed_share_sm'), 'new_billed_share_sm', 1)
-        status.update(effective=True, state='active')
+        status.update(effective=cfg['enabled'], state='active' if cfg['enabled'] else 'off',
+                      volume_mode='dynamic', volume_effective=True, funding_enabled=cfg['enabled'])
         return status, dict(baseline=baseline.copy(), total_hh=hh.copy(), bi=bi,
                             s0=s0, sm0=sm, basic0=basic, new_sm=fs, new_basic=fb,
                             p0=base['tariff'], c0=base['collection_ratio'])
     except (RevenueInputError, ValueError, TypeError, IndexError, KeyError) as exc:
-        if cfg['enabled']:
+        if cfg['enabled'] or dynamic:
             status['state'] = 'incomplete'
+            status['volume_mode'] = 'incomplete'
+            status['volume_effective'] = False
             status['errors'].append(str(exc))
         return status, None
 

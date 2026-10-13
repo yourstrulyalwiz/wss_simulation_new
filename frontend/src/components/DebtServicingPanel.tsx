@@ -71,7 +71,7 @@ export default function DebtServicingPanel({
         </div>
         <UtilityDebtPreview debt={debt} result={detail} currency={currency} currencyDisplay={currencyDisplay}
           scenarioResult={results?.[sectorKey]}
-          calculationError={calculationError} fresh={!!results && !calculationError} onRetry={onRetry} />
+          calculationError={results ? results.sector_errors?.[sectorKey] : calculationError} fresh={!!results?.[sectorKey]} onRetry={onRetry} />
         <div className="debt-chart-stack">
           <RevenueSourceChart inputs={inputs} results={results} sector={sectorTab} currencyDisplay={currencyDisplay} />
           <LiveInterventionChart key={`${chartRunKey}:sm`} inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} rung={0} contributionView={contributionView} currencyDisplay={currencyDisplay} />

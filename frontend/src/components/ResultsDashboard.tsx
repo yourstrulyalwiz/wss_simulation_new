@@ -68,7 +68,7 @@ interface Props {
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
 type DebtData = { summary: any; rows: any[]; areas: any[]; annualRows: any[] };
 type Series = { sum: any; attribution: CoverageAttribution; sourceFunding?: SourceFunding; sourceBands: ContribBand[]; impactRows: Row[]; inv: InvTable; unit: { sm: number; basic: number }; ledgerBase: LedgerSnapshot[]; ledgerScenario: LedgerSnapshot[]; ledgerAreas: LedgerData['areas']; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any; nrwResults: any[] };
-type Both = { water: Series; sanitation: Series } | null;
+type Both = { water: Series | null; sanitation: Series | null } | null;
 type Row = { key: string; label: string; addHH: number | null; resources: number | null };
 
 // Per-intervention stacked breakdown for a sector. covRows/gapRows are per-year rows keyed by each band's
@@ -76,7 +76,7 @@ type Row = { key: string; label: string; addHH: number | null; resources: number
 // interventions that actually contribute (each with its INTV_PALETTE colour), in stack order.
 type ContribBand = { key: string; label: string; color: string; interventionKey?: string; custom?: boolean; members?: { key: string; label: string }[] };
 type ContribSeries = { gapRows: any[]; bands: ContribBand[]; ledgerContributions: LedgerContribution[] };
-type Contrib = { water: ContribSeries; sanitation: ContribSeries } | null;
+type Contrib = { water: ContribSeries | null; sanitation: ContribSeries | null } | null;
 
 // Coverage stacks actual source stocks; financial bridges retain ordered gap-effect bands.
 function StackChart({ title, subtitle, data, base, bands, lines, fmt, yLabel, domain, filename, captureKey, currencyDisplay }: {
@@ -299,7 +299,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     setBoth(null);
     setError(null);
     const h = setTimeout(() => {
-      Promise.all(datasets.map(runCalculation)).then(resList => {
+      Promise.all(datasets.map(data => runCalculation(data, 'partial'))).then(resList => {
         if (cancelled) return;
         const years: number[] = resList[0].years;
         const per = datasets[0]?.period || {};
@@ -308,7 +308,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         const sum = (pick: (res: any, i: number) => number) =>
           years.map((_: number, i: number) => resList.reduce((a, res) => a + (pick(res, i) || 0), 0));
         const totalHH = years.map((_, i) => resList.reduce((a, res) => a + (res.total_hh[i] || 0), 0));
-        const build = (secKey: 'water_supply' | 'sanitation'): Series => {
+        const build = (secKey: 'water_supply' | 'sanitation'): Series | null => {
+          if (resList.some(res => !res[secKey])) return null;
           const secOf = (res: any) => res[secKey];
           const sector = secKey === 'water_supply' ? 'water' : 'sanitation';
           const attribution = aggregateCoverage(resList, secKey, !includeDebt);
@@ -544,6 +545,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           } };
         };
         setBoth({ water: build('water_supply'), sanitation: build('sanitation') });
+        const issues = resList.flatMap((res, i) => Object.values(res.sector_errors || {}).map(message =>
+          `${datasets.length > 1 ? (i === 0 ? 'Urban: ' : 'Rural: ') : ''}${message}`));
+        if (issues.length) setError(`Incomplete sectors excluded; valid sector results remain below. ${issues.join(' ')}`);
         setError(null);
       }).catch(e => { if (!cancelled) { setBoth(null); setError(e instanceof Error ? e.message : String(e)); } });
     }, 350);
@@ -574,7 +578,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       const fetchPass = (tg: any, useCustoms: boolean, debtEnabled = false) => Promise.all(datasets.map((inp: any) =>
         runCalculation({ ...comparisonInputs(inp, tg),
           custom_interventions: useCustoms ? (inp.custom_interventions || []) : [],
-          utility_debt: debtEnabled ? inp.utility_debt : withoutDebt(inp.utility_debt) })));
+          utility_debt: debtEnabled ? inp.utility_debt : withoutDebt(inp.utility_debt) }, 'partial')));
       const specs = sets.map(tg => ({ tg, customs: false }));
       if (hasCustoms) specs.push({ tg: acc, customs: true });      // final pass = all built-ins on + real customs
       Promise.all(specs.map(s => fetchPass(s.tg, s.customs)).concat(hasUtilityDebt ? [fetchPass(acc, true, true)] : [])).then(allPasses => {
@@ -590,7 +594,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         const fullNoDebtIdx = hasCustoms ? nBuiltin + 1 : nBuiltin;
 
         // ── stacked per-year series for one sector ──
-        const buildContrib = (defs: IntvDef[], sk: string): ContribSeries => {
+        const buildContrib = (defs: IntvDef[], sk: string): ContribSeries | null => {
+          if (passes.some(pass => pass.some((res: any) => !res[sk])) ||
+              debtPass?.some((res: any) => !res[sk])) return null;
           const own = new Set(defs.map(d => d.key));
           const en = enabled.filter(d => own.has(d.key) || years.some((_, i) => {
             const idx = idxOf(d);
@@ -738,6 +744,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // ── Table 9: Executive summary — SM coverage now vs BAU / target / with-reforms at the endline ──
   const ExecSummary = () => {
     if (!both) return null;
+    if (!both.water || !both.sanitation) return <p role="alert">Combined summary unavailable: complete both sectors. Valid sector results are shown separately.</p>;
     const end = both.water.sum.endline;
     const th: React.CSSProperties = { padding: '7px 12px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#0ea5e9', textAlign: 'right' };
     const td: React.CSSProperties = { padding: '6px 12px', fontSize: 11.5, borderBottom: '1px solid #eef2f7', textAlign: 'right' };
@@ -911,6 +918,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   const sectorBlock = (secKey: 'water' | 'sanitation') => {
     if (!both) return null;
     const s = secKey === 'water' ? both.water : both.sanitation;
+    if (!s) return <section role="alert">{secKey === 'water' ? 'Water Supply' : 'Sanitation'} results unavailable. Missing sector or geography results are not counted as zero.</section>;
     const label = secKey === 'water' ? 'Water Supply' : 'Sanitation';
     const cs = secKey === 'water' ? contrib?.water : contrib?.sanitation;
     const groupedCov = contributionView === 'category' ? aggregateContributionRows(s.coverageRows, s.sourceBands) : { rows: s.coverageRows, bands: s.sourceBands };

@@ -174,7 +174,7 @@ def delete_profile(name: str):
 
 @app.post("/api/calculate")
 def run_calculation(inputs: dict = Body(...)):
-    return calculate(coerce_to_engine(inputs))
+    return calculate(coerce_to_engine(inputs), allow_partial=True)
 
 
 @app.post("/api/projections")

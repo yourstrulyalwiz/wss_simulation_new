@@ -340,7 +340,7 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
     return _ui_aliases(bau)
 
 
-def calculate(inputs: ModelInputs) -> dict:
+def calculate(inputs: ModelInputs, allow_partial=False) -> dict:
     import copy
     configs = copy.deepcopy(inputs.connection_revenue)
     for prefix, sector in [('ws', 'water'), ('san', 'sanitation')]:
@@ -351,9 +351,17 @@ def calculate(inputs: ModelInputs) -> dict:
     ctx = build_context(inputs)
     from model.utility_revenue import resolve_bases, RevenueInputError
     resolutions = resolve_bases(inputs, ctx)
-    for sector, resolution in resolutions.items():
-        if resolution['base'] is None:
-            raise RevenueInputError(f'{sector.title()}: reconcile the shared billed-revenue base before calculating.')
+    sector_errors = {}
+    def independently(sector, run):
+        try:
+            if resolutions[sector]['base'] is None:
+                raise RevenueInputError(f'{sector.title()}: reconcile the shared billed-revenue base before calculating.')
+            return run()
+        except ValueError as exc:
+            if not allow_partial:
+                raise
+            sector_errors['water_supply' if sector == 'water' else sector] = str(exc)
+            return None
     inputs = inputs.model_copy(update={'revenue_bases': {k: v['base'] for k, v in resolutions.items()}})
     # ── BAU and interventions are SEPARATE calculations. The business-as-usual path must be a fixed
     #    counterfactual, so the BAU pass forces every intervention toggle OFF; changing an intervention
@@ -375,18 +383,22 @@ def calculate(inputs: ModelInputs) -> dict:
     debt_inputs = getattr(inputs, 'utility_debt', None)
     water_debt = getattr(debt_inputs, 'water', None) if debt_inputs is not None else None
     sanitation_debt = getattr(debt_inputs, 'sanitation', None) if debt_inputs is not None else None
-    water = _sector_with_scenario(
+    water = independently('water', lambda: _sector_with_scenario(
         calculate_water_supply, bau_inputs, inputs, ctx, any_toggle_on,
-        debt_config=water_debt, debt_asset_life=inputs.technical.ws_asset_life)
-    nrw_vol_bau = water.get('nrw_recovered_phys_vol', [])
-    nrw_vol_scn = water.get('scenario_nrw_recovered_phys_vol', nrw_vol_bau)
-    nrw_vol_reference = water['scenario_without_utility_debt_nrw_recovered_phys_vol']
-    sanitation = _sector_with_scenario(
+        debt_config=water_debt, debt_asset_life=inputs.technical.ws_asset_life))
+    nrw_vol_bau = (water or {}).get('nrw_recovered_phys_vol', [])
+    nrw_vol_scn = (water or {}).get('scenario_nrw_recovered_phys_vol', nrw_vol_bau)
+    nrw_vol_reference = (water or {}).get('scenario_without_utility_debt_nrw_recovered_phys_vol', [])
+    def run_sanitation():
+        if water is None and inputs.toggles.san_nrw_link_enabled:
+            raise RevenueInputError('Sanitation requires valid water results while the water-to-sanitation NRW link is enabled.')
+        return _sector_with_scenario(
         calculate_sanitation, bau_inputs, inputs, ctx, any_toggle_on,
         bau_kwargs={'nrw_recovered_vol': nrw_vol_bau},
         scn_kwargs={'nrw_recovered_vol': nrw_vol_scn},
         reference_kwargs={'nrw_recovered_vol': nrw_vol_reference},
         debt_config=sanitation_debt, debt_asset_life=inputs.technical.san_asset_life)
+    sanitation = independently('sanitation', run_sanitation)
     return {
         'years': ctx['years'].tolist(),
         'end_asis_year': ctx['end_asis_year'],
@@ -403,4 +415,5 @@ def calculate(inputs: ModelInputs) -> dict:
         'inflation_us': ctx['inflation_us'].tolist(),
         'water_supply': water,
         'sanitation': sanitation,
+        **({'sector_errors': sector_errors} if allow_partial else {}),
     }

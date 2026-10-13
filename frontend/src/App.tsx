@@ -318,8 +318,8 @@ function App() {
           setProjectionError(error instanceof Error ? error.message : String(error));
         }
       });
-      runCalculation(activeInputs).then(value => {
-        if (!cancelled) { resultInputs.current = activeInputs; setResults(value); setCalculationError(''); }
+      runCalculation(activeInputs, 'partial').then(value => {
+        if (!cancelled) { resultInputs.current = activeInputs; setResults(value); setCalculationError(Object.values(value.sector_errors || {}).join(' ')); }
       }).catch(error => {
         if (!cancelled) { setResults(null); setCalculationError(error.message); }
       });

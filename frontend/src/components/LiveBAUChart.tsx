@@ -187,7 +187,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
     if (!datasets.length) return;
     let cancelled = false;
     const h = setTimeout(() => {
-      Promise.all(datasets.map(inp => runCalculation(inp))).then(resList => {
+      Promise.all(datasets.map(inp => runCalculation(inp, sector))).then(resList => {
         if (cancelled) return;
         setRevenueModeLabel(connectionRevenueModeText(connectionRevenueAreaModes(
           resList, datasets, sector === 'water' ? 'water_supply' : 'sanitation', sector,

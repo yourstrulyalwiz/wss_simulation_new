@@ -10,14 +10,14 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
   inputs: any | any[]; results?: any | any[]; sector: 'water' | 'sanitation'; currencyDisplay: CurrencyDisplaySettings;
 }) {
   const datasets = Array.isArray(inputs) ? inputs : [inputs];
-  const key = JSON.stringify(datasets);
+  const key = JSON.stringify(datasets) + sector;
   const [loaded, setLoaded] = useState<{ key: string; results: any[]; error: string } | null>(null);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (results) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      Promise.all(datasets.map(runCalculation)).then(data => {
+      Promise.all(datasets.map(data => runCalculation(data, sector))).then(data => {
         if (!cancelled) setLoaded({ key, results: data, error: '' });
       }).catch(error => {
         if (!cancelled) setLoaded({ key, results: [], error: error.message });
@@ -28,6 +28,9 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
   const current = loaded?.key === key ? loaded : null;
   const resultList = results ? (Array.isArray(results) ? results : [results]) : current?.results || [];
   const sectorKey = sector === 'water' ? 'water_supply' : 'sanitation';
+  if (resultList.some(result => !result?.[sectorKey])) return <section role="alert">
+    {sector === 'water' ? 'Water Supply' : 'Sanitation'} revenue unavailable: {resultList.map(result => result.sector_errors?.[sectorKey]).filter(Boolean).join(' ')}
+  </section>;
   const currentVersion = resultList.length > 0 && resultList.every(result => reconciliationVersion(result, sectorKey) === 4);
   const currency = datasets[0]?.country_config?.currency || 'LCU';
   const rows = revenueSourceRows(resultList, sectorKey);

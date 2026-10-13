@@ -19,7 +19,7 @@ export async function fetchCostMixTemplates() {
   return res.json();
 }
 
-export async function runCalculation(inputs: any) {
+export async function runCalculation(inputs: any, required: 'water' | 'sanitation' | 'partial' | 'both' = 'both') {
   // A recalculation must never reuse cached pre-v4/v3 attribution. Migrated configurations
   // also change every input-keyed chart/result request; saved legacy results retain their metadata.
   const res = await fetch(`${BASE_URL}/calculate`, {
@@ -33,7 +33,13 @@ export async function runCalculation(inputs: any) {
     const body = await res.json();
     throw new Error(typeof body.detail === 'string' ? body.detail : 'Calculation inputs are invalid.');
   }
-  return res.json();
+  const result = await res.json();
+  const errors = result.sector_errors || {};
+  const keys = required === 'partial' ? [] : required === 'water' ? ['water_supply'] :
+    required === 'sanitation' ? ['sanitation'] : ['water_supply', 'sanitation'];
+  const missing = keys.filter(key => errors[key] || !result[key]);
+  if (missing.length) throw new Error(missing.map(key => errors[key] || `${key}: results unavailable`).join(' '));
+  return result;
 }
 
 // Cost-independent calculated rows use the same engine's population/GDP formulas.

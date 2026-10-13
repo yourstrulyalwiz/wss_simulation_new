@@ -50,7 +50,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
     let cancelled = false;
     setData([]); setBands([]); setSummary(null); setAccessRows([]); setError(null);
     const h = setTimeout(() => {
-      const post = runCalculation;
+      const post = (value: any) => runCalculation(value, sector);
       const secOf = (res: any) => sector === 'water' ? res.water_supply : res.sanitation;
       post(inputs).then(result => {
         if (cancelled) return;

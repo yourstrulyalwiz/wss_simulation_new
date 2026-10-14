@@ -1,0 +1,2007 @@
+{
+  "__wss_bundle": 1,
+  "inputs": {
+    "country_config": {
+      "country": "Congo, Dem. Rep.",
+      "area": "DRC data preview \u2014 settings pending",
+      "currency": "CDF",
+      "ws_serv1_name": "Safely managed",
+      "ws_serv2_name": "Basic",
+      "ws_serv3_name": "Limited",
+      "ws_serv4_name": "Unimproved",
+      "ws_serv5_name": "No service",
+      "san_serv1_name": "Safely managed",
+      "san_serv2_name": "Basic",
+      "san_serv3_name": "Limited",
+      "san_serv4_name": "Unimproved",
+      "san_serv5_name": "No service",
+      "provider1_name": "Provider 1",
+      "provider2_name": "Provider 2",
+      "area_of_focus": "DRC mock simulation \u2014 illustrative inputs"
+    },
+    "period": {
+      "model_start_year": 2011,
+      "baseline_year": 2024,
+      "forecast_end_year": 2035,
+      "perf_improvement_start_year": null,
+      "target1_year": 2030,
+      "target2_year": 2035,
+      "as_is_forecast_start": 2026,
+      "as_is_forecast_length": null
+    },
+    "macro": {
+      "ws_budget_pct_gdp": null,
+      "san_budget_pct_gdp": null,
+      "capex_pct_budget": null,
+      "ws_capex_pct": null,
+      "san_capex_pct": null,
+      "execution_rate": null,
+      "budget_input_mode": "from_cost",
+      "budget_source": "from_cost",
+      "gdp_real_local": [
+        73029297.60214259,
+        79359910.6244932,
+        93260523.1048249,
+        100070665.308007,
+        106434896.997792,
+        106854072.530851,
+        111385978.645565,
+        118148988.531574,
+        118805169.458085,
+        119726417.998427,
+        127424359.81031,
+        139289057.86091,
+        151175275.450344,
+        160400791.147182
+      ],
+      "gdp_nominal_usd": [],
+      "inflation_nepal": [],
+      "inflation_us": [],
+      "exchange_rate": [],
+      "inflation_local_ongoing": null,
+      "inflation_us_ongoing": null,
+      "gdp_growth_forecast": null,
+      "real_price_year": null
+    },
+    "population": {
+      "pop_ts": [
+        28.187377,
+        29.431536,
+        30.745883,
+        32.111135,
+        33.502987,
+        35.034213,
+        36.673221,
+        38.26544,
+        39.850945,
+        41.51842,
+        43.257755,
+        45.058032,
+        46.944694,
+        48.896299
+      ],
+      "hh_ts": [
+        5.31837301886793,
+        5.55312,
+        5.80111,
+        6.05870471698113,
+        6.32131830188679,
+        6.61022886792453,
+        6.91947566037736,
+        7.21989433962264,
+        7.5190462264151,
+        7.8336641509434,
+        8.16184056603774,
+        8.50151547169811,
+        8.85748943396227,
+        9.22571679245283
+      ],
+      "total_pop_start": null,
+      "total_hh_start": null,
+      "total_pop_baseline": null,
+      "total_hh_baseline": null
+    },
+    "water_service": {
+      "serv1_ts": [
+        0.2858923,
+        0.2809645,
+        0.2759687,
+        0.2709048,
+        0.2657728,
+        0.2605728,
+        0.2553047,
+        0.2499685,
+        0.2445642,
+        0.2390919,
+        0.2403032,
+        0.2415145,
+        0.2415145,
+        0.2415145,
+        0.27,
+        0,
+        0,
+        0,
+        0,
+        0.3,
+        0,
+        0,
+        0,
+        0,
+        0.25
+      ],
+      "serv2_ts": [
+        0.3697871,
+        0.3694848,
+        0.3691586,
+        0.3688084,
+        0.3684343,
+        0.3680363,
+        0.3676144,
+        0.3671685,
+        0.3666987,
+        0.366205,
+        0.3589357,
+        0.3515744,
+        0.3515744,
+        0.3515744,
+        0.36,
+        0,
+        0,
+        0,
+        0,
+        0.4,
+        0,
+        0,
+        0,
+        0,
+        0.35
+      ],
+      "serv3_ts": [
+        0.1917102,
+        0.2014384,
+        0.2112587,
+        0.2211709,
+        0.2311752,
+        0.2412714,
+        0.2514596,
+        0.2617398,
+        0.272112,
+        0.2825762,
+        0.2931323,
+        0.3037805,
+        0.3037805,
+        0.3037805,
+        0.3,
+        0,
+        0,
+        0,
+        0,
+        0.3,
+        0,
+        0,
+        0,
+        0,
+        0.4
+      ],
+      "serv4_ts": [
+        0.1315655,
+        0.1284577,
+        0.12535,
+        0.1222422,
+        0.1191344,
+        0.1160267,
+        0.1129189,
+        0.1098111,
+        0.1067034,
+        0.1035956,
+        0.0990974,
+        0.0945993,
+        0.0945993,
+        0.0945993,
+        0.07
+      ],
+      "serv5_ts": [
+        0.0210449,
+        0.0196545,
+        0.0182641,
+        0.0168737,
+        0.0154833,
+        0.0140929,
+        0.0127025,
+        0.0113121,
+        0.0099217,
+        0.0085313,
+        0.0085313,
+        0.0085313,
+        0.0085313,
+        0.0085313,
+        0
+      ]
+    },
+    "sanitation_service": {
+      "sserv1_ts": [
+        0.1750048,
+        0.1728448,
+        0.1706278,
+        0.1683537,
+        0.1660225,
+        0.1636342,
+        0.1611889,
+        0.1586865,
+        0.1561271,
+        0.1535105,
+        0.1525344,
+        0.1515264,
+        0.1515264,
+        0.1515264,
+        0.16,
+        0,
+        0,
+        0,
+        0,
+        0.2,
+        0,
+        0,
+        0,
+        0,
+        0.15
+      ],
+      "sserv2_ts": [
+        0.0494412,
+        0.0511907,
+        0.0529619,
+        0.0547546,
+        0.0565689,
+        0.0584049,
+        0.0602624,
+        0.0621415,
+        0.0640422,
+        0.0659646,
+        0.0662111,
+        0.0664538,
+        0.0664538,
+        0.0664538,
+        0.1,
+        0,
+        0,
+        0,
+        0,
+        0.2,
+        0,
+        0,
+        0,
+        0,
+        0.35
+      ],
+      "sserv3_ts": [
+        0.3221437,
+        0.3171936,
+        0.312279,
+        0.3073999,
+        0.3025562,
+        0.2977481,
+        0.2929754,
+        0.2882381,
+        0.2835364,
+        0.2788701,
+        0.2742393,
+        0.2696439,
+        0.2696439,
+        0.2696439,
+        0.35,
+        0,
+        0,
+        0,
+        0,
+        0.4,
+        0,
+        0,
+        0,
+        0,
+        0.4
+      ],
+      "sserv4_ts": [
+        0.4203388,
+        0.4250402,
+        0.4297415,
+        0.4344429,
+        0.4391442,
+        0.4438456,
+        0.4485469,
+        0.4532483,
+        0.4579497,
+        0.462651,
+        0.4680115,
+        0.473372,
+        0.473372,
+        0.473372,
+        0.38,
+        0,
+        0,
+        0,
+        0,
+        0.19,
+        0,
+        0,
+        0,
+        0,
+        0.1
+      ],
+      "sserv5_ts": [
+        0.0330716,
+        0.0337307,
+        0.0343898,
+        0.035049,
+        0.0357081,
+        0.0363672,
+        0.0370264,
+        0.0376855,
+        0.0383447,
+        0.0390038,
+        0.0390038,
+        0.0390038,
+        0.0390038,
+        0.0390038,
+        0.01,
+        0,
+        0,
+        0,
+        0,
+        0.01
+      ]
+    },
+    "water_targets": {
+      "target1_serv1": 0.3,
+      "target1_serv2": 0.4,
+      "target1_serv3": 0.3,
+      "target1_serv4": 0,
+      "target1_serv5": 0,
+      "target2_serv1": 0.25,
+      "target2_serv2": 0.35,
+      "target2_serv3": 0.4,
+      "target2_serv4": 0,
+      "target2_serv5": 0,
+      "providers": []
+    },
+    "sanitation_targets": {
+      "target1_sserv1": 0.2,
+      "target1_sserv2": 0.2,
+      "target1_sserv3": 0.4,
+      "target1_sserv4": 0.19,
+      "target1_sserv5": 0.01,
+      "target2_sserv1": 0.15,
+      "target2_sserv2": 0.35,
+      "target2_sserv3": 0.4,
+      "target2_sserv4": 0.1,
+      "target2_sserv5": 0
+    },
+    "water_costs": {
+      "network_cost_per_hh_serv1": 2771496,
+      "network_cost_per_hh_serv2": 923832,
+      "price_index_year": 2024,
+      "price_index": 100,
+      "sm_tech_mix": [
+        {
+          "name": "Piped into dwelling",
+          "share": 0.375,
+          "cost": 3233412
+        },
+        {
+          "name": "Piped to yard/plot",
+          "share": 0.125,
+          "cost": 1385748
+        },
+        {
+          "name": "Tubewell/borehole on own premises",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Protected dug well on own premises",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Rainwater collection (cistern/tank)",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Bottled water",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Sachet water",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Wholesale vendor / tanker water",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "New technology",
+          "share": 0.5,
+          "cost": 2771496
+        }
+      ],
+      "basic_tech_mix": [
+        {
+          "name": "Piped to yard/plot",
+          "share": 0.5,
+          "cost": 1154790
+        },
+        {
+          "name": "Piped to neighbour",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Tubewell/borehole on own premises",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Public tap / standpipe",
+          "share": 0.5,
+          "cost": 692874
+        },
+        {
+          "name": "Communal protected well / kiosk",
+          "share": 0,
+          "cost": null
+        }
+      ]
+    },
+    "sanitation_costs": {
+      "sewer_cost_per_hh_sserv1": 4157244,
+      "sewer_cost_per_hh_sserv2": 808353,
+      "price_index_year": 2024,
+      "price_index": 100,
+      "sm_tech_mix": [
+        {
+          "name": "Flush/pour-flush to piped sewer",
+          "share": 0.6,
+          "cost": 5542992
+        },
+        {
+          "name": "Flush/pour-flush to septic tank",
+          "share": 0.4,
+          "cost": 2078622
+        },
+        {
+          "name": "Flush/pour-flush to pit latrine",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Ventilated improved pit (VIP) latrine",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Pit latrine with slab / covered",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Composting toilet (incl. twin-pit)",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Other improved on-site (e.g. biogas-attached)",
+          "share": 0,
+          "cost": null
+        }
+      ],
+      "basic_tech_mix": [
+        {
+          "name": "Flush/pour-flush to piped sewer",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Flush/pour-flush to septic tank",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Flush/pour-flush to pit latrine",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Ventilated improved pit (VIP) latrine",
+          "share": 0.5,
+          "cost": 1039311
+        },
+        {
+          "name": "Pit latrine with slab / covered",
+          "share": 0.5,
+          "cost": 577395
+        },
+        {
+          "name": "Composting toilet (incl. twin-pit)",
+          "share": 0,
+          "cost": null
+        },
+        {
+          "name": "Other improved on-site (e.g. biogas-attached)",
+          "share": 0,
+          "cost": null
+        }
+      ]
+    },
+    "bau": {
+      "budget_input_mode": "from_cost",
+      "budget_source": "from_cost",
+      "ws_budget_ts": [],
+      "san_budget_ts": [],
+      "ws_expend_ts": [
+        3959.424209099568,
+        4389.548641873296,
+        4996.219023883824,
+        5801.905789261825,
+        6416.599087782048,
+        53640.32138432248,
+        5343.889185809857,
+        26940.5253328184,
+        28984.33197414584,
+        9809.43615790192,
+        14185.96845345872,
+        21262.42108464568,
+        25680.85431525504,
+        32150.427634314
+      ],
+      "san_expend_ts": [
+        1194.881788145232,
+        1324.690070110704,
+        1507.775532023376,
+        1750.917956194176,
+        1936.427007469152,
+        8945.73994541672,
+        7353.838701606145,
+        11704.2338394712,
+        2346.828437156544,
+        1019.411829013248,
+        3479.072976093265,
+        6416.640873805536,
+        7750.053776319361,
+        9702.4534912668
+      ],
+      "ws_alloc_ts": [
+        24343.7537961684,
+        26984.48422952776,
+        30704.05666380624,
+        35664.13077737296,
+        39448.36708299904,
+        51820.36247082024,
+        248227.7205502544,
+        169373.597681708,
+        150834.0479060936,
+        156064.2059824744,
+        202215.1661445136,
+        130697.2691686736,
+        157890.4641390176,
+        197649.4476276152,
+        2784
+      ],
+      "san_alloc_ts": [
+        1609.5453922284,
+        1784.148291373008,
+        2030.06948610576,
+        2358.016644945456,
+        2608.220907085728,
+        9287.51827803096,
+        11835.9538320112,
+        7069.975797546289,
+        6499.732381511425,
+        7724.470283438832,
+        9764.286359523201,
+        8641.36010382424,
+        10439.30822945416,
+        13068.06696708424,
+        3469
+      ],
+      "ws_budget_ongoing": null,
+      "san_budget_ongoing": null
+    },
+    "technical": {
+      "ws_asset_life": 30,
+      "ws_non_hh_pct": 0.1,
+      "san_asset_life": 30,
+      "san_non_hh_pct": 0.1
+    },
+    "water_interventions": {
+      "fin_gdp_enabled": 1,
+      "fin_gdp_start_year": 2028,
+      "fin_gdp_target_share": 0.03,
+      "fin_growth_enabled": false,
+      "fin_growth_rate": null,
+      "fin_growth_start_year": null,
+      "fin_growth_end_year": null,
+      "fin_injection_enabled": false,
+      "fin_injection_mode": "one_time",
+      "fin_injection_amount": null,
+      "fin_injection_start_year": null,
+      "fin_injection_end_year": null,
+      "ce_start_year": null,
+      "ce_target_year": null,
+      "ce_current_ratio": null,
+      "ce_target_ratio": 0.8,
+      "ce_water_sold_mld": null,
+      "ce_current_tariff": null,
+      "nrw_start_year": null,
+      "nrw_target_year": null,
+      "nrw_current_pct": null,
+      "nrw_target_pct": null,
+      "nrw_treatment_cost_pct_capex": null,
+      "nrw_commercial_loss_pct": null,
+      "nrw_physical_loss_pct": null,
+      "nrw_capex_unit_cost_usd": null,
+      "nrw_lag_years": null,
+      "nrw_system_input_vol": null,
+      "nrw_water_per_upgrade": null,
+      "nrw_capex_unit_cost_local": null,
+      "nrw_value_basis": "tariff",
+      "nrw_tariff": null,
+      "nrw_production_cost": null,
+      "capeff_start_year": null,
+      "capeff_target_year": null,
+      "capeff_target_pct": 0.18,
+      "capeff_current_pct": null,
+      "capeff_gains_pct": null,
+      "costeff_start_year": null,
+      "costeff_target_year": null,
+      "costeff_current_pct": null,
+      "costeff_target_pct": null,
+      "techmix_start_year": null,
+      "techmix_sm_tech_mix": [],
+      "techmix_basic_tech_mix": [],
+      "basic_share": null,
+      "tariff_start_year": null,
+      "tariff_target_year": null,
+      "tariff_volume_mld": null,
+      "tariff_current": null,
+      "tariff_target": 1154.79,
+      "mf_connection_fee": null,
+      "mf_start_year": null,
+      "mf_end_year": null,
+      "mf_pct_income": null,
+      "mf_interest_rate": null,
+      "mf_tenor": null,
+      "mf_partial_share": null,
+      "mf_upfront_payable_ratio": null,
+      "mf_takeup_rate": null,
+      "mf_gap_shares": [],
+      "mf_selffinance_share": null,
+      "grant_total": null
+    },
+    "sanitation_interventions": {
+      "fin_gdp_enabled": false,
+      "fin_gdp_start_year": null,
+      "fin_gdp_target_share": null,
+      "fin_growth_enabled": false,
+      "fin_growth_rate": null,
+      "fin_growth_start_year": null,
+      "fin_growth_end_year": null,
+      "fin_injection_enabled": false,
+      "fin_injection_mode": "one_time",
+      "fin_injection_amount": null,
+      "fin_injection_start_year": null,
+      "fin_injection_end_year": null,
+      "ce_start_year": null,
+      "ce_target_year": null,
+      "ce_sewer_tariff_pct_water": null,
+      "capeff_start_year": null,
+      "capeff_target_year": null,
+      "capeff_target_pct": null,
+      "capeff_current_pct": null,
+      "capeff_gains_pct": null,
+      "costeff_start_year": null,
+      "costeff_target_year": null,
+      "costeff_current_pct": null,
+      "costeff_target_pct": null,
+      "techmix_start_year": null,
+      "techmix_sm_tech_mix": [],
+      "techmix_basic_tech_mix": [],
+      "basic_share": null,
+      "nrw_link_return_ratio": null,
+      "nrw_link_sewer_charge": null,
+      "nrw_link_collection_rate": null,
+      "tariff_start_year": null,
+      "tariff_target_year": null,
+      "tariff_volume_mld": null,
+      "tariff_current": null,
+      "tariff_target": 692.87,
+      "mf_connection_fee": null,
+      "mf_start_year": null,
+      "mf_end_year": null,
+      "mf_pct_income": null,
+      "mf_interest_rate": null,
+      "mf_tenor": null,
+      "mf_partial_share": null,
+      "mf_upfront_payable_ratio": null,
+      "mf_takeup_rate": null,
+      "mf_gap_shares": [],
+      "mf_selffinance_share": null,
+      "grant_total": null,
+      "ce_target_ratio": 0.8
+    },
+    "toggles": {
+      "ws_collection_efficiency_enabled": false,
+      "ws_nrw_enabled": false,
+      "ws_capital_efficiency_enabled": true,
+      "ws_tariff_enabled": false,
+      "ws_microfinance_enabled": false,
+      "ws_costeff_enabled": false,
+      "ws_techmix_enabled": false,
+      "ws_financial_commitment_enabled": false,
+      "ws_exogenous_injection_enabled": false,
+      "san_collection_efficiency_enabled": false,
+      "san_capital_efficiency_enabled": false,
+      "san_tariff_enabled": false,
+      "san_microfinance_enabled": false,
+      "san_costeff_enabled": false,
+      "san_techmix_enabled": false,
+      "san_nrw_link_enabled": false,
+      "san_financial_commitment_enabled": false,
+      "san_exogenous_injection_enabled": false
+    },
+    "income_distribution": {
+      "brackets": []
+    },
+    "custom_interventions": [],
+    "utility_debt": {
+      "schema_version": null,
+      "water": {
+        "enabled": false,
+        "allocation_share": null,
+        "annual_real_interest_rate": null,
+        "disbursement_year": null,
+        "principal_grace_years": null,
+        "maturity_year": null,
+        "repayment_structure": "annuity",
+        "loan_ceiling": null
+      },
+      "sanitation": {
+        "enabled": false,
+        "allocation_share": null,
+        "annual_real_interest_rate": null,
+        "disbursement_year": null,
+        "principal_grace_years": null,
+        "maturity_year": null,
+        "repayment_structure": "annuity",
+        "loan_ceiling": null
+      }
+    },
+    "revenue_bases": {
+      "water": {
+        "version": 1,
+        "origin": "user-entered",
+        "volume_mld": 1449.9926,
+        "tariff": 1154.79,
+        "collection_ratio": 0.8,
+        "reference_year": 2024,
+        "growth_rate": null,
+        "legacy": {
+          "water_interventions": {
+            "fin_gdp_enabled": false,
+            "fin_gdp_start_year": null,
+            "fin_gdp_target_share": null,
+            "fin_growth_enabled": false,
+            "fin_growth_rate": null,
+            "fin_growth_start_year": null,
+            "fin_growth_end_year": null,
+            "fin_injection_enabled": false,
+            "fin_injection_mode": "one_time",
+            "fin_injection_amount": null,
+            "fin_injection_start_year": null,
+            "fin_injection_end_year": null,
+            "ce_start_year": null,
+            "ce_target_year": null,
+            "ce_current_ratio": null,
+            "ce_target_ratio": null,
+            "ce_water_sold_mld": null,
+            "ce_current_tariff": null,
+            "nrw_start_year": null,
+            "nrw_target_year": null,
+            "nrw_current_pct": null,
+            "nrw_target_pct": null,
+            "nrw_treatment_cost_pct_capex": null,
+            "nrw_commercial_loss_pct": null,
+            "nrw_physical_loss_pct": null,
+            "nrw_capex_unit_cost_usd": null,
+            "nrw_lag_years": null,
+            "nrw_system_input_vol": null,
+            "nrw_water_per_upgrade": null,
+            "nrw_capex_unit_cost_local": null,
+            "nrw_value_basis": "tariff",
+            "nrw_tariff": null,
+            "nrw_production_cost": null,
+            "capeff_start_year": null,
+            "capeff_target_year": null,
+            "capeff_target_pct": null,
+            "capeff_current_pct": null,
+            "capeff_gains_pct": null,
+            "costeff_start_year": null,
+            "costeff_target_year": null,
+            "costeff_current_pct": null,
+            "costeff_target_pct": null,
+            "techmix_start_year": null,
+            "techmix_sm_tech_mix": [],
+            "techmix_basic_tech_mix": [],
+            "basic_share": null,
+            "tariff_start_year": null,
+            "tariff_target_year": null,
+            "tariff_volume_mld": null,
+            "tariff_current": null,
+            "tariff_target": null,
+            "mf_connection_fee": null,
+            "mf_start_year": null,
+            "mf_end_year": null,
+            "mf_pct_income": null,
+            "mf_interest_rate": null,
+            "mf_tenor": null,
+            "mf_partial_share": null,
+            "mf_upfront_payable_ratio": null,
+            "mf_takeup_rate": null,
+            "mf_gap_shares": [],
+            "mf_selffinance_share": null,
+            "grant_total": null
+          },
+          "sanitation_interventions": {
+            "fin_gdp_enabled": false,
+            "fin_gdp_start_year": null,
+            "fin_gdp_target_share": null,
+            "fin_growth_enabled": false,
+            "fin_growth_rate": null,
+            "fin_growth_start_year": null,
+            "fin_growth_end_year": null,
+            "fin_injection_enabled": false,
+            "fin_injection_mode": "one_time",
+            "fin_injection_amount": null,
+            "fin_injection_start_year": null,
+            "fin_injection_end_year": null,
+            "ce_start_year": null,
+            "ce_target_year": null,
+            "ce_sewer_tariff_pct_water": null,
+            "capeff_start_year": null,
+            "capeff_target_year": null,
+            "capeff_target_pct": null,
+            "capeff_current_pct": null,
+            "capeff_gains_pct": null,
+            "costeff_start_year": null,
+            "costeff_target_year": null,
+            "costeff_current_pct": null,
+            "costeff_target_pct": null,
+            "techmix_start_year": null,
+            "techmix_sm_tech_mix": [],
+            "techmix_basic_tech_mix": [],
+            "basic_share": null,
+            "nrw_link_return_ratio": null,
+            "nrw_link_sewer_charge": null,
+            "nrw_link_collection_rate": null,
+            "tariff_start_year": null,
+            "tariff_target_year": null,
+            "tariff_volume_mld": null,
+            "tariff_current": null,
+            "tariff_target": null,
+            "mf_connection_fee": null,
+            "mf_start_year": null,
+            "mf_end_year": null,
+            "mf_pct_income": null,
+            "mf_interest_rate": null,
+            "mf_tenor": null,
+            "mf_partial_share": null,
+            "mf_upfront_payable_ratio": null,
+            "mf_takeup_rate": null,
+            "mf_gap_shares": [],
+            "mf_selffinance_share": null,
+            "grant_total": null
+          }
+        }
+      },
+      "sanitation": {
+        "version": 1,
+        "reference_year": 2024,
+        "volume_mld": 319.7528,
+        "tariff": 692.87,
+        "collection_ratio": 0.8,
+        "growth_rate": null
+      }
+    },
+    "revenue_legacy": {},
+    "profile_metadata": {
+      "status": "mock_simulation",
+      "area": "urban",
+      "source_workbook": "wss_input_template_urban_1791162260127.xlsx",
+      "imported_cells": 265,
+      "notice": "Illustrative mock inputs for graph simulation only; not validated DRC costing or utility data.",
+      "mock_setup_revision": "drc-mock-inputs-2309.58-v1",
+      "mock_assumptions": [
+        {
+          "field": "network_cost_per_hh_serv1",
+          "value": 2771496,
+          "basis": "Illustrative technology mix; USD costs multiplied by the supplied 2,309.58 CDF/USD."
+        },
+        {
+          "field": "price_index_year",
+          "value": 2024,
+          "basis": "Mock nominal price year equals the baseline."
+        },
+        {
+          "field": "price_index",
+          "value": 100,
+          "basis": "Baseline price-index normalization; nominal equals real."
+        },
+        {
+          "field": "network_cost_per_hh_serv2",
+          "value": 923832,
+          "basis": "Illustrative technology mix; USD costs multiplied by the supplied 2,309.58 CDF/USD."
+        },
+        {
+          "field": "sewer_cost_per_hh_sserv1",
+          "value": 4157244,
+          "basis": "Illustrative technology mix; USD costs multiplied by the supplied 2,309.58 CDF/USD."
+        },
+        {
+          "field": "price_index_year",
+          "value": 2024,
+          "basis": "Mock nominal price year equals the baseline."
+        },
+        {
+          "field": "price_index",
+          "value": 100,
+          "basis": "Baseline price-index normalization; nominal equals real."
+        },
+        {
+          "field": "sewer_cost_per_hh_sserv2",
+          "value": 808353,
+          "basis": "Illustrative technology mix; USD costs multiplied by the supplied 2,309.58 CDF/USD."
+        },
+        {
+          "field": "san_asset_life",
+          "value": 30,
+          "basis": "Mock 30-year infrastructure life."
+        },
+        {
+          "field": "san_non_hh_pct",
+          "value": 0.1,
+          "basis": "Mock 10% non-household share."
+        },
+        {
+          "field": "volume_mld",
+          "value": 1449.9926,
+          "basis": "Mock water billed-volume equivalent: 50 L/served person/day; mock tariff and collection, not observed utility data."
+        },
+        {
+          "field": "tariff",
+          "value": 1154.79,
+          "basis": "Mock water billed-volume equivalent: 50 L/served person/day; mock tariff and collection, not observed utility data."
+        },
+        {
+          "field": "collection_ratio",
+          "value": 0.8,
+          "basis": "Mock water billed-volume equivalent: 50 L/served person/day; mock tariff and collection, not observed utility data."
+        },
+        {
+          "field": "ce_target_ratio",
+          "value": 0.8,
+          "basis": "Neutral mock reform target equals the entered revenue baseline."
+        },
+        {
+          "field": "tariff_target",
+          "value": 1154.79,
+          "basis": "Neutral mock reform target equals the entered revenue baseline."
+        },
+        {
+          "field": "version",
+          "value": 1,
+          "basis": "Mock sanitation billed-volume equivalent: 30 L/served person/day; mock tariff and collection, not observed utility data."
+        },
+        {
+          "field": "reference_year",
+          "value": 2024,
+          "basis": "Mock sanitation billed-volume equivalent: 30 L/served person/day; mock tariff and collection, not observed utility data."
+        },
+        {
+          "field": "volume_mld",
+          "value": 319.7528,
+          "basis": "Mock sanitation billed-volume equivalent: 30 L/served person/day; mock tariff and collection, not observed utility data."
+        },
+        {
+          "field": "tariff",
+          "value": 692.87,
+          "basis": "Mock sanitation billed-volume equivalent: 30 L/served person/day; mock tariff and collection, not observed utility data."
+        },
+        {
+          "field": "collection_ratio",
+          "value": 0.8,
+          "basis": "Mock sanitation billed-volume equivalent: 30 L/served person/day; mock tariff and collection, not observed utility data."
+        },
+        {
+          "field": "ce_target_ratio",
+          "value": 0.8,
+          "basis": "Neutral mock reform target equals the entered revenue baseline."
+        },
+        {
+          "field": "tariff_target",
+          "value": 692.87,
+          "basis": "Neutral mock reform target equals the entered revenue baseline."
+        }
+      ],
+      "cdf_per_usd": 2309.58
+    }
+  },
+  "altInputs": {
+    "rural": {
+      "country_config": {
+        "country": "Congo, Dem. Rep.",
+        "area": "DRC data preview \u2014 settings pending",
+        "currency": "CDF",
+        "ws_serv1_name": "Safely managed",
+        "ws_serv2_name": "Basic",
+        "ws_serv3_name": "Limited",
+        "ws_serv4_name": "Unimproved",
+        "ws_serv5_name": "No service",
+        "san_serv1_name": "Safely managed",
+        "san_serv2_name": "Basic",
+        "san_serv3_name": "Limited",
+        "san_serv4_name": "Unimproved",
+        "san_serv5_name": "No service",
+        "provider1_name": "Provider 1",
+        "provider2_name": "Provider 2",
+        "area_of_focus": "DRC mock simulation \u2014 illustrative inputs"
+      },
+      "period": {
+        "model_start_year": 2011,
+        "baseline_year": 2025,
+        "forecast_end_year": 2035,
+        "perf_improvement_start_year": null,
+        "target1_year": 2030,
+        "target2_year": 2035,
+        "as_is_forecast_start": 2026,
+        "as_is_forecast_length": null
+      },
+      "macro": {
+        "ws_budget_pct_gdp": null,
+        "san_budget_pct_gdp": null,
+        "capex_pct_budget": null,
+        "ws_capex_pct": null,
+        "san_capex_pct": null,
+        "execution_rate": null,
+        "budget_input_mode": "from_cost",
+        "budget_source": "from_cost",
+        "gdp_real_local": [
+          73029297.60214259,
+          79359910.6244932,
+          93260523.1048249,
+          100070665.308007,
+          106434896.997792,
+          106854072.530851,
+          111385978.645565,
+          118148988.531574,
+          118805169.458085,
+          119726417.998427,
+          127424359.81031,
+          139289057.86091,
+          151175275.450344,
+          160400791.147182,
+          6282512.724,
+          6597888.691,
+          7093510.353,
+          7613745.849,
+          8169040.004,
+          8760728.393
+        ],
+        "gdp_nominal_usd": [],
+        "inflation_nepal": [],
+        "inflation_us": [],
+        "exchange_rate": [],
+        "inflation_local_ongoing": null,
+        "inflation_us_ongoing": null,
+        "gdp_growth_forecast": null,
+        "real_price_year": null
+      },
+      "population": {
+        "pop_ts": [
+          42.661934,
+          43.823082,
+          45.043512,
+          46.292107,
+          47.532544,
+          48.922202,
+          50.410177,
+          51.782204,
+          53.096497,
+          54.471578,
+          55.891177,
+          57.338936,
+          58.845037,
+          60.379966
+        ],
+        "hh_ts": [
+          8.049421509433962,
+          8.268506037735849,
+          8.498775849056605,
+          8.734359811320756,
+          8.968404528301887,
+          9.230604150943396,
+          9.511354150943395,
+          9.77022716981132,
+          10.01820698113208,
+          10.2776562264151,
+          10.54550509433962,
+          10.81866716981132,
+          11.10283716981132,
+          11.39244641509434
+        ],
+        "total_pop_start": null,
+        "total_hh_start": null,
+        "total_pop_baseline": null,
+        "total_hh_baseline": null
+      },
+      "water_service": {
+        "serv1_ts": [
+          0.0058448,
+          0.005766,
+          0.0056847,
+          0.005601,
+          0.005514799999999999,
+          0.005426100000000001,
+          0.0053349,
+          0.0052413,
+          0.0051452,
+          0.0050466,
+          0.005090099999999999,
+          0.0051337,
+          0.0051337,
+          0.0051337,
+          0.01,
+          0,
+          0,
+          0,
+          0,
+          0.02,
+          0,
+          0,
+          0,
+          0,
+          0.05
+        ],
+        "serv2_ts": [
+          0.1660384,
+          0.1634538,
+          0.1607924,
+          0.1580544,
+          0.1552397,
+          0.1523483,
+          0.1493803,
+          0.1463356,
+          0.1432143,
+          0.1400162,
+          0.136597,
+          0.1330985,
+          0.1330985,
+          0.1330985,
+          0.14,
+          0,
+          0,
+          0,
+          0,
+          0.24,
+          0,
+          0,
+          0,
+          0,
+          0.35
+        ],
+        "serv3_ts": [
+          0.1196773,
+          0.1250674,
+          0.1305366,
+          0.1360849,
+          0.1417124,
+          0.147419,
+          0.1532048,
+          0.1590697,
+          0.1650137,
+          0.1710369,
+          0.1771393,
+          0.1833207,
+          0.1833207,
+          0.1833207,
+          0.2,
+          0,
+          0,
+          0,
+          0,
+          0.3,
+          0,
+          0,
+          0,
+          0,
+          0.4
+        ],
+        "serv4_ts": [
+          0.5180722,
+          0.5208105,
+          0.5235489,
+          0.5262873,
+          0.5290256,
+          0.531764,
+          0.5345023,
+          0.5372407,
+          0.539979,
+          0.5427174,
+          0.5399908,
+          0.5372642,
+          0.5372642,
+          0.5372642,
+          0.55,
+          0,
+          0,
+          0,
+          0,
+          0.44,
+          0,
+          0,
+          0,
+          0,
+          0.2
+        ],
+        "serv5_ts": [
+          0.1903673,
+          0.1849023,
+          0.1794374,
+          0.1739725,
+          0.1685075,
+          0.1630426,
+          0.1575777,
+          0.1521127,
+          0.1466478,
+          0.1411828,
+          0.1411828,
+          0.1411828,
+          0.1411828,
+          0.1411828,
+          0.1
+        ]
+      },
+      "sanitation_service": {
+        "sserv1_ts": [
+          0.1674545,
+          0.1610597,
+          0.1547151,
+          0.1484207,
+          0.1421765,
+          0.1359825,
+          0.1298386,
+          0.1237449,
+          0.1177013,
+          0.111708,
+          0.111708,
+          0.111708,
+          0.111708,
+          0.111708,
+          0.11,
+          0,
+          0,
+          0,
+          0,
+          0.11,
+          0,
+          0,
+          0,
+          0,
+          0.15
+        ],
+        "sserv2_ts": [
+          0.0011158,
+          0.0010442,
+          0.0009732,
+          0.0009028,
+          0.000833,
+          0.0007638,
+          0.0006952,
+          0.0006271,
+          0.0005597,
+          0.0004927999999999999,
+          0.0004927999999999999,
+          0.0004927999999999999,
+          0.0004927999999999999,
+          0.0004927999999999999,
+          0.01,
+          0,
+          0,
+          0,
+          0,
+          0.05,
+          0,
+          0,
+          0,
+          0,
+          0.2
+        ],
+        "sserv3_ts": [
+          0.1274374,
+          0.1238117,
+          0.1201352,
+          0.1164079,
+          0.1126299,
+          0.1088011,
+          0.1049215,
+          0.1009912,
+          0.0970101,
+          0.0929783,
+          0.0929783,
+          0.0929783,
+          0.0929783,
+          0.0929783,
+          0.1,
+          0,
+          0,
+          0,
+          0,
+          0.2,
+          0,
+          0,
+          0,
+          0,
+          0.45
+        ],
+        "sserv4_ts": [
+          0.5340955000000001,
+          0.5421245,
+          0.5501534,
+          0.5581824000000001,
+          0.5662113,
+          0.5742403,
+          0.5822692,
+          0.5902980999999999,
+          0.5983271,
+          0.606356,
+          0.606356,
+          0.606356,
+          0.606356,
+          0.606356,
+          0.65,
+          0,
+          0,
+          0,
+          0,
+          0.59,
+          0,
+          0,
+          0,
+          0,
+          0.2
+        ],
+        "sserv5_ts": [
+          0.1698968,
+          0.1719599,
+          0.174023,
+          0.1760862,
+          0.1781493,
+          0.1802124,
+          0.1822755,
+          0.1843387,
+          0.1864018,
+          0.1884649,
+          0.1884649,
+          0.1884649,
+          0.1884649,
+          0.1884649,
+          0.13,
+          0,
+          0,
+          0,
+          0,
+          0.05
+        ]
+      },
+      "water_targets": {
+        "target1_serv1": 0.02,
+        "target1_serv2": 0.24,
+        "target1_serv3": 0.3,
+        "target1_serv4": 0.44,
+        "target1_serv5": 0,
+        "target2_serv1": 0.05,
+        "target2_serv2": 0.35,
+        "target2_serv3": 0.4,
+        "target2_serv4": 0.2,
+        "target2_serv5": 0,
+        "providers": []
+      },
+      "sanitation_targets": {
+        "target1_sserv1": 0.11,
+        "target1_sserv2": 0.05,
+        "target1_sserv3": 0.2,
+        "target1_sserv4": 0.59,
+        "target1_sserv5": 0.05,
+        "target2_sserv1": 0.15,
+        "target2_sserv2": 0.2,
+        "target2_sserv3": 0.45,
+        "target2_sserv4": 0.2,
+        "target2_sserv5": 0
+      },
+      "water_costs": {
+        "network_cost_per_hh_serv1": 3464370,
+        "network_cost_per_hh_serv2": 1154790,
+        "price_index_year": 2025,
+        "price_index": 100,
+        "sm_tech_mix": [
+          {
+            "name": "Piped into dwelling",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Piped to yard/plot",
+            "share": 0.5,
+            "cost": 4157244
+          },
+          {
+            "name": "Tubewell/borehole on own premises",
+            "share": 0.5,
+            "cost": 2771496
+          },
+          {
+            "name": "Protected dug well on own premises",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Rainwater collection (cistern/tank)",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Bottled water",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Sachet water",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Wholesale vendor / tanker water",
+            "share": 0,
+            "cost": null
+          }
+        ],
+        "basic_tech_mix": [
+          {
+            "name": "Piped to yard/plot",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Piped to neighbour",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Tubewell/borehole on own premises",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Public tap / standpipe",
+            "share": 0.5,
+            "cost": 1385748
+          },
+          {
+            "name": "Communal protected well / kiosk",
+            "share": 0.5,
+            "cost": 923832
+          }
+        ]
+      },
+      "sanitation_costs": {
+        "sewer_cost_per_hh_sserv1": 2771496,
+        "sewer_cost_per_hh_sserv2": 577395,
+        "price_index_year": 2025,
+        "price_index": 100,
+        "sm_tech_mix": [
+          {
+            "name": "Flush/pour-flush to piped sewer",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Flush/pour-flush to septic tank",
+            "share": 0.5,
+            "cost": 3233412
+          },
+          {
+            "name": "Flush/pour-flush to pit latrine",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Ventilated improved pit (VIP) latrine",
+            "share": 0.5,
+            "cost": 2309580
+          },
+          {
+            "name": "Pit latrine with slab / covered",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Composting toilet (incl. twin-pit)",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Other improved on-site (e.g. biogas-attached)",
+            "share": 0,
+            "cost": null
+          }
+        ],
+        "basic_tech_mix": [
+          {
+            "name": "Flush/pour-flush to piped sewer",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Flush/pour-flush to septic tank",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Flush/pour-flush to pit latrine",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Ventilated improved pit (VIP) latrine",
+            "share": 0.5,
+            "cost": 808353
+          },
+          {
+            "name": "Pit latrine with slab / covered",
+            "share": 0.5,
+            "cost": 346437
+          },
+          {
+            "name": "Composting toilet (incl. twin-pit)",
+            "share": 0,
+            "cost": null
+          },
+          {
+            "name": "Other improved on-site (e.g. biogas-attached)",
+            "share": 0,
+            "cost": null
+          }
+        ]
+      },
+      "bau": {
+        "budget_input_mode": "from_cost",
+        "budget_source": "from_cost",
+        "ws_budget_ts": [],
+        "san_budget_ts": [],
+        "ws_expend_ts": [
+          989.856052274892,
+          1097.387160468324,
+          1249.054755970956,
+          1450.476447315456,
+          1604.149771945512,
+          13410.08034608062,
+          1335.972296452464,
+          6735.131333204601,
+          7246.08299353646,
+          2452.35903947548,
+          3546.49211336468,
+          5315.60527116142,
+          6420.21357881376,
+          8037.6069085785
+        ],
+        "san_expend_ts": [
+          298.720447036308,
+          331.1725175276761,
+          376.943883005844,
+          437.7294890485441,
+          484.106751867288,
+          2236.43498635418,
+          1838.459675401536,
+          2926.0584598678,
+          586.707109289136,
+          254.852957253312,
+          869.7682440233161,
+          1604.160218451384,
+          1937.51344407984,
+          2425.6133728167
+        ],
+        "ws_alloc_ts": [
+          6085.9384490421,
+          6746.12105738194,
+          7676.014165951561,
+          8916.032694343241,
+          9862.091770749761,
+          12955.09061770506,
+          62056.93013756361,
+          42343.39942042701,
+          37708.5119765234,
+          39016.0514956186,
+          50553.7915361284,
+          32674.3172921684,
+          39472.61603475441,
+          49412.3619069038,
+          2784
+        ],
+        "san_alloc_ts": [
+          402.3863480571,
+          446.037072843252,
+          507.51737152644,
+          589.504161236364,
+          652.055226771432,
+          2321.87956950774,
+          2958.9884580028,
+          1767.493949386572,
+          1624.933095377856,
+          1931.117570859708,
+          2441.0715898808,
+          2160.34002595606,
+          2609.82705736354,
+          3267.01674177106,
+          3469
+        ],
+        "ws_budget_ongoing": null,
+        "san_budget_ongoing": null
+      },
+      "technical": {
+        "ws_asset_life": 30,
+        "ws_non_hh_pct": 0.1,
+        "san_asset_life": 30,
+        "san_non_hh_pct": 0.1
+      },
+      "water_interventions": {
+        "fin_gdp_enabled": false,
+        "fin_gdp_start_year": null,
+        "fin_gdp_target_share": null,
+        "fin_growth_enabled": false,
+        "fin_growth_rate": null,
+        "fin_growth_start_year": null,
+        "fin_growth_end_year": null,
+        "fin_injection_enabled": false,
+        "fin_injection_mode": "one_time",
+        "fin_injection_amount": null,
+        "fin_injection_start_year": null,
+        "fin_injection_end_year": null,
+        "ce_start_year": null,
+        "ce_target_year": null,
+        "ce_current_ratio": null,
+        "ce_target_ratio": 0.7,
+        "ce_water_sold_mld": null,
+        "ce_current_tariff": null,
+        "nrw_start_year": null,
+        "nrw_target_year": null,
+        "nrw_current_pct": null,
+        "nrw_target_pct": null,
+        "nrw_treatment_cost_pct_capex": null,
+        "nrw_commercial_loss_pct": null,
+        "nrw_physical_loss_pct": null,
+        "nrw_capex_unit_cost_usd": null,
+        "nrw_lag_years": null,
+        "nrw_system_input_vol": null,
+        "nrw_water_per_upgrade": null,
+        "nrw_capex_unit_cost_local": null,
+        "nrw_value_basis": "tariff",
+        "nrw_tariff": null,
+        "nrw_production_cost": null,
+        "capeff_start_year": null,
+        "capeff_target_year": null,
+        "capeff_target_pct": null,
+        "capeff_current_pct": null,
+        "capeff_gains_pct": null,
+        "costeff_start_year": null,
+        "costeff_target_year": null,
+        "costeff_current_pct": null,
+        "costeff_target_pct": null,
+        "techmix_start_year": null,
+        "techmix_sm_tech_mix": [],
+        "techmix_basic_tech_mix": [],
+        "basic_share": null,
+        "tariff_start_year": null,
+        "tariff_target_year": null,
+        "tariff_volume_mld": null,
+        "tariff_current": null,
+        "tariff_target": 692.87,
+        "mf_connection_fee": null,
+        "mf_start_year": null,
+        "mf_end_year": null,
+        "mf_pct_income": null,
+        "mf_interest_rate": null,
+        "mf_tenor": null,
+        "mf_partial_share": null,
+        "mf_upfront_payable_ratio": null,
+        "mf_takeup_rate": null,
+        "mf_gap_shares": [],
+        "mf_selffinance_share": null,
+        "grant_total": null
+      },
+      "sanitation_interventions": {
+        "fin_gdp_enabled": false,
+        "fin_gdp_start_year": null,
+        "fin_gdp_target_share": null,
+        "fin_growth_enabled": false,
+        "fin_growth_rate": null,
+        "fin_growth_start_year": null,
+        "fin_growth_end_year": null,
+        "fin_injection_enabled": false,
+        "fin_injection_mode": "one_time",
+        "fin_injection_amount": null,
+        "fin_injection_start_year": null,
+        "fin_injection_end_year": null,
+        "ce_start_year": null,
+        "ce_target_year": null,
+        "ce_sewer_tariff_pct_water": null,
+        "capeff_start_year": null,
+        "capeff_target_year": null,
+        "capeff_target_pct": null,
+        "capeff_current_pct": null,
+        "capeff_gains_pct": null,
+        "costeff_start_year": null,
+        "costeff_target_year": null,
+        "costeff_current_pct": null,
+        "costeff_target_pct": null,
+        "techmix_start_year": null,
+        "techmix_sm_tech_mix": [],
+        "techmix_basic_tech_mix": [],
+        "basic_share": null,
+        "nrw_link_return_ratio": null,
+        "nrw_link_sewer_charge": null,
+        "nrw_link_collection_rate": null,
+        "tariff_start_year": null,
+        "tariff_target_year": null,
+        "tariff_volume_mld": null,
+        "tariff_current": null,
+        "tariff_target": 692.87,
+        "mf_connection_fee": null,
+        "mf_start_year": null,
+        "mf_end_year": null,
+        "mf_pct_income": null,
+        "mf_interest_rate": null,
+        "mf_tenor": null,
+        "mf_partial_share": null,
+        "mf_upfront_payable_ratio": null,
+        "mf_takeup_rate": null,
+        "mf_gap_shares": [],
+        "mf_selffinance_share": null,
+        "grant_total": null,
+        "ce_target_ratio": 0.7
+      },
+      "toggles": {
+        "ws_collection_efficiency_enabled": false,
+        "ws_nrw_enabled": false,
+        "ws_capital_efficiency_enabled": false,
+        "ws_tariff_enabled": false,
+        "ws_microfinance_enabled": false,
+        "ws_costeff_enabled": false,
+        "ws_techmix_enabled": false,
+        "ws_financial_commitment_enabled": false,
+        "ws_exogenous_injection_enabled": false,
+        "san_collection_efficiency_enabled": false,
+        "san_capital_efficiency_enabled": false,
+        "san_tariff_enabled": false,
+        "san_microfinance_enabled": false,
+        "san_costeff_enabled": false,
+        "san_techmix_enabled": false,
+        "san_nrw_link_enabled": false,
+        "san_financial_commitment_enabled": false,
+        "san_exogenous_injection_enabled": false
+      },
+      "income_distribution": {
+        "brackets": []
+      },
+      "custom_interventions": [],
+      "utility_debt": {
+        "schema_version": null,
+        "water": {
+          "enabled": false,
+          "allocation_share": null,
+          "annual_real_interest_rate": null,
+          "disbursement_year": null,
+          "principal_grace_years": null,
+          "maturity_year": null,
+          "repayment_structure": "annuity",
+          "loan_ceiling": null
+        },
+        "sanitation": {
+          "enabled": false,
+          "allocation_share": null,
+          "annual_real_interest_rate": null,
+          "disbursement_year": null,
+          "principal_grace_years": null,
+          "maturity_year": null,
+          "repayment_structure": "annuity",
+          "loan_ceiling": null
+        }
+      },
+      "revenue_bases": {
+        "water": {
+          "version": 1,
+          "reference_year": 2025,
+          "volume_mld": 465.1131,
+          "tariff": 692.87,
+          "collection_ratio": 0.7,
+          "growth_rate": null
+        },
+        "sanitation": {
+          "version": 1,
+          "reference_year": 2025,
+          "volume_mld": 223.2543,
+          "tariff": 692.87,
+          "collection_ratio": 0.7,
+          "growth_rate": null
+        }
+      },
+      "revenue_legacy": {},
+      "profile_metadata": {
+        "status": "mock_simulation",
+        "area": "rural",
+        "source_workbook": "wss_input_template_rural_1791162260126.xlsx",
+        "imported_cells": 273,
+        "notice": "Illustrative mock inputs for graph simulation only; not validated DRC costing or utility data.",
+        "mock_setup_revision": "drc-mock-inputs-2309.58-v1",
+        "mock_assumptions": [
+          {
+            "field": "network_cost_per_hh_serv1",
+            "value": 3464370,
+            "basis": "Illustrative technology mix; USD costs multiplied by the supplied 2,309.58 CDF/USD."
+          },
+          {
+            "field": "price_index_year",
+            "value": 2025,
+            "basis": "Mock nominal price year equals the baseline."
+          },
+          {
+            "field": "price_index",
+            "value": 100,
+            "basis": "Baseline price-index normalization; nominal equals real."
+          },
+          {
+            "field": "network_cost_per_hh_serv2",
+            "value": 1154790,
+            "basis": "Illustrative technology mix; USD costs multiplied by the supplied 2,309.58 CDF/USD."
+          },
+          {
+            "field": "sewer_cost_per_hh_sserv1",
+            "value": 2771496,
+            "basis": "Illustrative technology mix; USD costs multiplied by the supplied 2,309.58 CDF/USD."
+          },
+          {
+            "field": "price_index_year",
+            "value": 2025,
+            "basis": "Mock nominal price year equals the baseline."
+          },
+          {
+            "field": "price_index",
+            "value": 100,
+            "basis": "Baseline price-index normalization; nominal equals real."
+          },
+          {
+            "field": "sewer_cost_per_hh_sserv2",
+            "value": 577395,
+            "basis": "Illustrative technology mix; USD costs multiplied by the supplied 2,309.58 CDF/USD."
+          },
+          {
+            "field": "ws_asset_life",
+            "value": 30,
+            "basis": "Mock 30-year infrastructure life."
+          },
+          {
+            "field": "ws_non_hh_pct",
+            "value": 0.1,
+            "basis": "Mock 10% non-household share."
+          },
+          {
+            "field": "san_asset_life",
+            "value": 30,
+            "basis": "Mock 30-year infrastructure life."
+          },
+          {
+            "field": "san_non_hh_pct",
+            "value": 0.1,
+            "basis": "Mock 10% non-household share."
+          },
+          {
+            "field": "version",
+            "value": 1,
+            "basis": "Mock water billed-volume equivalent: 50 L/served person/day; mock tariff and collection, not observed utility data."
+          },
+          {
+            "field": "reference_year",
+            "value": 2025,
+            "basis": "Mock water billed-volume equivalent: 50 L/served person/day; mock tariff and collection, not observed utility data."
+          },
+          {
+            "field": "volume_mld",
+            "value": 465.1131,
+            "basis": "Mock water billed-volume equivalent: 50 L/served person/day; mock tariff and collection, not observed utility data."
+          },
+          {
+            "field": "tariff",
+            "value": 692.87,
+            "basis": "Mock water billed-volume equivalent: 50 L/served person/day; mock tariff and collection, not observed utility data."
+          },
+          {
+            "field": "collection_ratio",
+            "value": 0.7,
+            "basis": "Mock water billed-volume equivalent: 50 L/served person/day; mock tariff and collection, not observed utility data."
+          },
+          {
+            "field": "ce_target_ratio",
+            "value": 0.7,
+            "basis": "Neutral mock reform target equals the entered revenue baseline."
+          },
+          {
+            "field": "tariff_target",
+            "value": 692.87,
+            "basis": "Neutral mock reform target equals the entered revenue baseline."
+          },
+          {
+            "field": "version",
+            "value": 1,
+            "basis": "Mock sanitation billed-volume equivalent: 30 L/served person/day; mock tariff and collection, not observed utility data."
+          },
+          {
+            "field": "reference_year",
+            "value": 2025,
+            "basis": "Mock sanitation billed-volume equivalent: 30 L/served person/day; mock tariff and collection, not observed utility data."
+          },
+          {
+            "field": "volume_mld",
+            "value": 223.2543,
+            "basis": "Mock sanitation billed-volume equivalent: 30 L/served person/day; mock tariff and collection, not observed utility data."
+          },
+          {
+            "field": "tariff",
+            "value": 692.87,
+            "basis": "Mock sanitation billed-volume equivalent: 30 L/served person/day; mock tariff and collection, not observed utility data."
+          },
+          {
+            "field": "collection_ratio",
+            "value": 0.7,
+            "basis": "Mock sanitation billed-volume equivalent: 30 L/served person/day; mock tariff and collection, not observed utility data."
+          },
+          {
+            "field": "ce_target_ratio",
+            "value": 0.7,
+            "basis": "Neutral mock reform target equals the entered revenue baseline."
+          },
+          {
+            "field": "tariff_target",
+            "value": 692.87,
+            "basis": "Neutral mock reform target equals the entered revenue baseline."
+          }
+        ],
+        "cdf_per_usd": 2309.58
+      }
+    }
+  },
+  "scope": {
+    "scopeMode": "urban_rural",
+    "areaUrban": true,
+    "areaRural": true
+  },
+  "presentation": {
+    "contributionView": "individual",
+    "currencyDisplay": {
+      "mode": "local",
+      "sourceCurrency": "CDF",
+      "localPerUsd": 2309.58,
+      "rateReferenceYear": 2025,
+      "sourceNote": "User-supplied 2,309.58 CDF/USD; not independently verified."
+    }
+  }
+}

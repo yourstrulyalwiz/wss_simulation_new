@@ -2,5 +2,7 @@
 type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/wss-design-system/Current.tsx": () => import("../components/mockups/wss-design-system/Current.tsx"),
-  "./components/mockups/wss-design-system/WorldBank.tsx": () => import("../components/mockups/wss-design-system/WorldBank.tsx")
+  "./components/mockups/wss-design-system/WorldBank.tsx": () => import("../components/mockups/wss-design-system/WorldBank.tsx"),
+  "./components/mockups/wss-modern/Current.tsx": () => import("../components/mockups/wss-modern/Current.tsx"),
+  "./components/mockups/wss-modern/Modern.tsx": () => import("../components/mockups/wss-modern/Modern.tsx")
 };

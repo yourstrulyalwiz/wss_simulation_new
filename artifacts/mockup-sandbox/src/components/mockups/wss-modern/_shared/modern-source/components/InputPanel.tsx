@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { downloadTemplate, importTemplate, fetchCostMixTemplates } from '../api';
 import { displayedCostMix, summarizeCostMix, formatRealUnitCost, type CostMixTemplates } from '../costMix';
 import NumInput from './NumInput';
@@ -45,7 +45,7 @@ function SanServiceLevelExplainer() {
   );
 }
 
-function Section({ title, children, defaultOpen = false, cols = 3, sectionKey, onFocus, openSignal }: { title: string; children: React.ReactNode; defaultOpen?: boolean; cols?: number; sectionKey?: string; onFocus?: (key: string) => void; openSignal?: number }) {
+function Section({ title, children, defaultOpen = false, cols = 3, sectionKey, onFocus, openSignal, expanded = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean; cols?: number; sectionKey?: string; onFocus?: (key: string) => void; openSignal?: number; expanded?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   useEffect(() => { if (openSignal) setOpen(true); }, [openSignal]);
   // Responsive columns: fields size to a min track and the column count adapts to the available
@@ -59,21 +59,42 @@ function Section({ title, children, defaultOpen = false, cols = 3, sectionKey, o
     if (willOpen && sectionKey && onFocus) onFocus(sectionKey);
   };
   return (
-    <div data-section-key={sectionKey} className="wb-panel-section" style={{ marginBottom: 8 }}>
-      <button onClick={handleClick} className={`wb-section-trigger${open ? ' wb-section-trigger-open' : ''}`}>
-        <span>
-          <span className="wb-heading-strong">{titleParts?.[1] || title}</span>
-          {titleParts?.[2] && <> <span className="wb-heading-light">{titleParts[2]}</span></>}
-        </span>
-        <span aria-hidden="true">{open ? '▴' : '▾'}</span>
-      </button>
-      {open && <div onFocusCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} onClickCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} style={{ padding: '10px 14px 12px', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${colMin}px, 1fr))`, gap: '12px 16px', alignItems: 'start' }}>{children}</div>}
+    <div data-section-key={sectionKey} className={`wb-panel-section${expanded ? ' modern-input-section' : ''}`} style={{ marginBottom: 8 }}>
+      {expanded ? (
+        <h3 id={sectionKey ? `section-heading-${sectionKey}` : undefined} tabIndex={-1}
+          className="modern-input-section-heading">
+          {title.match(/^(\d+)\.\s*(.*)$/) ? (
+            <>
+              <span className="modern-input-section-heading__index">{title.match(/^(\d+)\.\s*(.*)$/)?.[1]}</span>
+              <span>{title.match(/^(\d+)\.\s*(.*)$/)?.[2]}</span>
+            </>
+          ) : <span>{titleParts?.[1] || title}</span>}
+        </h3>
+      ) : (
+        <button onClick={handleClick} className={`wb-section-trigger${open ? ' wb-section-trigger-open' : ''}`}>
+          <span>
+            <span className="wb-heading-strong">{titleParts?.[1] || title}</span>
+            {titleParts?.[2] && <> <span className="wb-heading-light">{titleParts[2]}</span></>}
+          </span>
+          <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+        </button>
+      )}
+      {(expanded || open) && <div onFocusCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} onClickCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} style={{ padding: '10px 14px 12px', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${colMin}px, 1fr))`, gap: '12px 16px', alignItems: 'start' }}>{children}</div>}
     </div>
   );
 }
 
 // Full-width span helper for grid layout
 const FULL = { gridColumn: '1 / -1' } as const;
+const INPUT_SECTIONS = [
+  { key: 'country', label: 'Country, Area of Focus & Currency' },
+  { key: 'period', label: 'Analysis Period' },
+  { key: 'service_levels', label: 'Service Levels' },
+  { key: 'econ_demo', label: 'Economic & Demographic Data' },
+  { key: 'budget', label: 'Budget' },
+  { key: 'revenue_inputs', label: 'Revenue Inputs' },
+  { key: 'unit_costs', label: 'Unit Costs & Technical Parameters' },
+] as const;
 
 function SubHead({ text }: { text: string }) {
   return <div className="wb-subhead" style={{ gridColumn: '1 / -1', margin: '6px 0 2px', paddingBottom: 3 }}>{text}</div>;
@@ -315,15 +336,34 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
   const [countries, setCountries] = useState<{name:string, currency:string}[]>([]);
   const [bauSectorLocal, setBauSectorLocal] = useState<'water' | 'sanitation'>('water');
   const rateInputRef = useRef<HTMLInputElement>(null);
+  const inputScrollRef = useRef<HTMLDivElement>(null);
+  const [activeInputSection, setActiveInputSection] = useState<string>('country');
+  const navigateInputSection = useCallback((key: string, focusHeading = true) => {
+    const container = inputScrollRef.current;
+    const section = container?.querySelector<HTMLElement>(`[data-section-key="${key}"]`);
+    if (!container || !section) return;
+    const compactNav = window.matchMedia?.('(max-width: 767px)').matches;
+    const navHeight = compactNav
+      ? container.querySelector<HTMLElement>('[data-input-section-navigation]')?.getBoundingClientRect().height || 0
+      : 0;
+    const targetTop = container.scrollTop + section.getBoundingClientRect().top - container.getBoundingClientRect().top - navHeight - 12;
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    container.scrollTo({ top: targetTop, behavior: reducedMotion ? 'auto' : 'smooth' });
+    setActiveInputSection(key);
+    if (focusHeading) {
+      window.setTimeout(() => {
+        container.querySelector<HTMLElement>(`#section-heading-${key}`)?.focus({ preventScroll: true });
+      }, reducedMotion ? 0 : 220);
+    }
+  }, []);
   useEffect(() => {
     if (!focusCurrencyRequest) return;
     const timer = setTimeout(() => {
-      const section = document.querySelector('[data-section-key="country"]');
-      section?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      navigateInputSection('country', false);
       rateInputRef.current?.focus();
     }, 80);
     return () => clearTimeout(timer);
-  }, [focusCurrencyRequest]);
+  }, [focusCurrencyRequest, navigateInputSection]);
   const bauSector = bauSectorProp || bauSectorLocal;
   // The sector toggle is rendered in two places: above the Budget section on Data Inputs (so the split
   // control below it follows the chosen sector) and above section 6 on the BAU tab. Defined once here.
@@ -483,6 +523,34 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
   const isInputs = showSection === 'inputs';
   const isBAU = showSection === 'bau';
   const isInterventions = showSection === 'interventions';
+  useEffect(() => {
+    if (!isInputs) return;
+    const container = inputScrollRef.current;
+    if (!container) return;
+    let frame = 0;
+    const updateActiveSection = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const containerTop = container.getBoundingClientRect().top;
+        const compactNav = window.matchMedia?.('(max-width: 767px)').matches;
+        const navHeight = compactNav
+          ? container.querySelector<HTMLElement>('[data-input-section-navigation]')?.getBoundingClientRect().height || 0
+          : 0;
+        let current: string = INPUT_SECTIONS[0].key;
+        for (const section of INPUT_SECTIONS) {
+          const node = container.querySelector<HTMLElement>(`[data-section-key="${section.key}"]`);
+          if (node && node.getBoundingClientRect().top <= containerTop + navHeight + 60) current = section.key;
+        }
+        setActiveInputSection(current);
+      });
+    };
+    container.addEventListener('scroll', updateActiveSection, { passive: true });
+    updateActiveSection();
+    return () => {
+      container.removeEventListener('scroll', updateActiveSection);
+      cancelAnimationFrame(frame);
+    };
+  }, [isInputs, bauSector]);
 
   // Dynamic labels from country config and provider lists
   const cc = inputs.country_config || {};
@@ -517,7 +585,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
   const hhSizeCagr = cagr(avgHHSizeStart, avgHHSizeBase, nYears);
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', fontSize: 12 }}>
+    <div ref={inputScrollRef} data-input-scroll-container className={`modern-input-panel${isInputs ? ' modern-input-panel--inputs' : ''}`} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', fontSize: 12 }}>
       {/* Content is capped to a consistent max width and centered, so section cards don't sprawl
           edge-to-edge on wide screens; the grey scroll container stays full-bleed behind it. */}
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
@@ -536,23 +604,32 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
           </div>
         </header>
       )}
+      <div className={isInputs ? 'modern-inputs-layout' : undefined}>
       {isInputs && (
-        <nav className="modern-section-jump" aria-label="Data Inputs sections">
-          <span className="modern-section-jump__label">JUMP TO</span>
-          {[
-            ['country', 'Country & currency'],
-            ['period', 'Analysis period'],
-            ['service_levels', 'Service levels'],
-            ['econ_demo', 'Economy & population'],
-            ['budget', 'Budget'],
-            ['revenue_inputs', 'Revenue'],
-          ].map(([key, label]) => (
-            <button key={key} type="button" onClick={() => {
-              document.querySelector(`[data-section-key="${key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}>{label}</button>
-          ))}
+        <nav className="modern-inputs-nav" aria-label="Data Inputs sections" data-input-section-navigation>
+          <span className="modern-inputs-nav__eyebrow">DATA INPUTS · 7 SECTIONS</span>
+          <div className="modern-inputs-nav__items">
+            {INPUT_SECTIONS.map((section, index) => (
+              <button key={section.key} type="button"
+                className="modern-inputs-nav__item"
+                data-input-section-link={section.key}
+                aria-current={activeInputSection === section.key ? 'location' : undefined}
+                onClick={() => navigateInputSection(section.key)}>
+                <span className="modern-inputs-nav__number">{index + 1}</span>
+                <span>{section.label}</span>
+              </button>
+            ))}
+          </div>
+          <select className="modern-inputs-nav__select" aria-label="Go to Data Inputs section"
+            data-input-section-select value={activeInputSection}
+            onChange={event => navigateInputSection(event.target.value)}>
+            {INPUT_SECTIONS.map((section, index) => (
+              <option key={section.key} value={section.key}>{index + 1}. {section.label}</option>
+            ))}
+          </select>
         </nav>
       )}
+      <div className={isInputs ? 'modern-inputs-content' : undefined}>
       <div style={{ display: 'flex', gap: 18, fontSize: 12, marginBottom: 12, color: '#3A4452', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid #F0D070', background: '#FFF9E6', display: 'inline-block' }} />
@@ -613,7 +690,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
       {isInputs && <>
 
       {/* ===== COUNTRY CONFIG ===== */}
-      <Section title="1. Country, Area of Focus & Currency" defaultOpen sectionKey="country" onFocus={onSectionFocus} openSignal={focusCurrencyRequest}>
+      <Section title="1. Country, Area of Focus & Currency" defaultOpen sectionKey="country" onFocus={onSectionFocus} openSignal={focusCurrencyRequest} expanded>
         {inputs.country_config && <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
             <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Country</label>
@@ -676,7 +753,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
       </Section>
 
       {/* ===== 2. ANALYSIS PERIOD (key dates) ===== */}
-      <Section title="2. Analysis Period" defaultOpen sectionKey="period" onFocus={onSectionFocus}>
+      <Section title="2. Analysis Period" defaultOpen sectionKey="period" onFocus={onSectionFocus} expanded>
         <SubHead text="Key dates" />
         <YearField label="Model start year" value={inputs.period.model_start_year} onCommit={setModelStartYear} min={1950} max={inputs.period.baseline_year - 1} tip="First year of historical data; must be at least 3 years before the last year of historical data. Existing data keeps its year — newly added earlier years come in blank for you to fill." />
         <F label="Last year of historical data" value={inputs.period.baseline_year} onChange={v => u('period','baseline_year',v)} min={2023} tip="Last year with complete actual data; must be within the last three years" />
@@ -955,14 +1032,14 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
           ];
           return (
             <>
-              <Section title="3. Service levels" sectionKey="service_levels" onFocus={onSectionFocus}>
+              <Section title="3. Service levels" sectionKey="service_levels" onFocus={onSectionFocus} expanded>
                 <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b', marginBottom: 4, padding: '4px 8px', background: '#f8fafc', borderRadius: 4 }}>
                   Enter the historical share of households at each service level in neutral-fill cells. The five rungs in each year must add up to 100%. Blank years fill in automatically from the yearly growth rate. In each sector's band below, the <b>"BAU rate from"</b> dropdown sets the first historical year used to work out the business-as-usual trend: the tool averages year-on-year growth from that year to the last historical year and projects it forward, so pick the year whose trend best reflects the pace you expect to continue (or leave the default if unsure). To set a <b style={{ color: '#009CA7' }}>target</b>, fill in a teal-tinted forecast column so its five rungs add up to 100%. You can set as many target years as you like.
                 </div>
                 <YearTable rows={serviceRows} years={years} baseYr2={baseYr2} markTargets colIsTarget={anyTarget} />
               </Section>
 
-              <Section title="4. Economic & demographic data" sectionKey="econ_demo" onFocus={onSectionFocus}>
+              <Section title="4. Economic & demographic data" sectionKey="econ_demo" onFocus={onSectionFocus} expanded>
                 {projectionError && <div role="alert" style={{ gridColumn: '1 / -1', color: '#b91c1c', fontSize: 11 }}>
                   Automatic economic projections could not run: {projectionError}
                 </div>}
@@ -992,7 +1069,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
                   instead of showing a pair. */}
               {sectorToggle}
 
-              <Section title="5. Budget" sectionKey="budget" onFocus={onSectionFocus}>
+              <Section title="5. Budget" sectionKey="budget" onFocus={onSectionFocus} expanded>
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 12px', marginBottom: 4 }}>
                   <b>Two independent budgets per sector.</b> Enter executed spending and allocated budgets. Each forecast starts with the mean annual budget/real-GDP share in its latest three-calendar-year observation window, then uses a two-year moving average of shares multiplied by forecast real GDP. Zero is an observation; blank means missing or calculated. Execution is executed ÷ allocated. Calculated values are not saved as observations.
                 </div>
@@ -1026,7 +1103,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
                   section={bauSector === 'water' ? 'water_interventions' : 'sanitation_interventions'}
                   sector={bauSector === 'water' ? 'water supply' : 'sanitation'} />
               </Section>
-              <Section title="6. Revenue Inputs" sectionKey="revenue_inputs" onFocus={onSectionFocus}>
+              <Section title="6. Revenue Inputs" sectionKey="revenue_inputs" onFocus={onSectionFocus} expanded>
                 {calculationError && inputs.revenue_bases?.water && inputs.revenue_bases?.sanitation &&
                   <div role="alert" style={{ gridColumn: '1 / -1', padding: '8px 10px', color: '#9f1239', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 5 }}>
                     {calculationError}
@@ -1048,7 +1125,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
 
       {/* ===== UNIT COSTS + TECHNICAL (merged, sector-dependent). Targets are now set in the §2 table. ===== */}
       {bauSector === 'water' && (
-      <Section title={`7. ${scopeLabel} Water Supply — Unit Costs & Technical Parameters`} cols={2} sectionKey="ws_unit_costs" onFocus={onSectionFocus}>
+      <Section title={`7. ${scopeLabel} Water Supply — Unit Costs & Technical Parameters`} cols={2} sectionKey="unit_costs" onFocus={onSectionFocus} expanded>
         <SubHead text="Unit costs (nominal → real)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ws[0]}</b> and <b>{ws[1]}</b> weighted costs, built from the technology mixes below.
@@ -1075,7 +1152,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
       )}
 
       {bauSector === 'sanitation' && (
-      <Section title={`7. ${scopeLabel} Sanitation — Unit Costs & Technical Parameters`} cols={2} sectionKey="san_unit_costs" onFocus={onSectionFocus}>
+      <Section title={`7. ${scopeLabel} Sanitation — Unit Costs & Technical Parameters`} cols={2} sectionKey="unit_costs" onFocus={onSectionFocus} expanded>
         <SubHead text="Unit costs (nominal → real)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ss[0]}</b> and <b>{ss[1]}</b> weighted costs, built from the technology mixes below.
@@ -1266,6 +1343,8 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
         </button>
       </Section>
       </>}
+      </div>
+      </div>
       </div>
     </div>
   );

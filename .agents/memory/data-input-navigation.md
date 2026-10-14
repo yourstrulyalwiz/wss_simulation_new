@@ -13,3 +13,15 @@ top-level sections.
 **How to apply:** Keep unit costs and technical parameters as one sector-adaptive
 section. Preserve this grouping when adding or reorganizing input details; ask
 before changing the number of top-level sections.
+
+The modern Data Inputs workspace should use a flush-left section panel spanning
+the available workspace height, with transparent, unboxed main sections and
+slightly larger headings.
+
+**Why:** The user requested this treatment to let the page fill show through the
+main body rather than enclosing the long form in white cards.
+
+**How to apply:** Preserve the navy/teal/slate scheme and Noto Sans. Keep field
+and table backgrounds that communicate input semantics; the surrounding section
+containers should not become white cards again. This design remains preview-only
+until the user approves applying it to the working app.

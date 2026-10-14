@@ -585,11 +585,11 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
   const hhSizeCagr = cagr(avgHHSizeStart, avgHHSizeBase, nYears);
 
   return (
-    <div ref={inputScrollRef} data-input-scroll-container className={`modern-input-panel${isInputs ? ' modern-input-panel--inputs' : ''}`} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', fontSize: 12 }}>
+    <div ref={isInputs ? undefined : inputScrollRef} className={`modern-input-panel${isInputs ? ' modern-input-panel--inputs' : ''}`} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', fontSize: 12 }}>
       {/* Content is capped to a consistent max width and centered, so section cards don't sprawl
           edge-to-edge on wide screens; the grey scroll container stays full-bleed behind it. */}
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-      {(isInputs || isBAU) && (
+      {isBAU && (
         <header className={`modern-page-intro ${isBAU ? 'modern-page-intro--bau' : ''}`}>
           <div className="modern-page-intro__copy">
             <span className="modern-page-intro__eyebrow">{isInputs ? 'WORKFLOW 01 · SET THE EVIDENCE BASE' : 'WORKFLOW 02 · ESTABLISH THE BASELINE'}</span>
@@ -629,7 +629,20 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
           </select>
         </nav>
       )}
-      <div className={isInputs ? 'modern-inputs-content' : undefined}>
+      <div ref={isInputs ? inputScrollRef : undefined} data-input-scroll-container={isInputs ? '' : undefined} className={isInputs ? 'modern-inputs-content' : undefined}>
+      {isInputs && (
+        <header className="modern-page-intro">
+          <div className="modern-page-intro__copy">
+            <span className="modern-page-intro__eyebrow">WORKFLOW 01 · SET THE EVIDENCE BASE</span>
+            <h2>Build the country baseline</h2>
+            <p>Set the shared analysis frame, then enter service, population, economic and budget evidence for the selected area. Historical and forecast cells stay visually distinct.</p>
+          </div>
+          <div className="modern-page-intro__context">
+            <span>Shared settings first</span>
+            <small>Country and period apply across areas.</small>
+          </div>
+        </header>
+      )}
       <div style={{ display: 'flex', gap: 18, fontSize: 12, marginBottom: 12, color: '#3A4452', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid #F0D070', background: '#FFF9E6', display: 'inline-block' }} />

@@ -46,6 +46,18 @@ export default function DebtServicingPanel({
       <DebtServicingControls inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} onChange={onChange} onSectionFocus={onSectionFocus}
         referenceSourceCash={Number(detail?.reference_year) === Number(debt.disbursement_year) ? detail?.reference_source_cash : undefined} />
       <main className="debt-results-pane">
+        <section className="debt-overview-strip modern-page-intro" aria-label="How to read the loan funding comparison">
+          <div className="debt-overview-strip__heading">
+            <span className="modern-page-intro__eyebrow">WORKFLOW 04 · FINANCING COMPARISON</span>
+            <h2>Trace a loan from eligible cash to service outcomes</h2>
+            <p>Indicative borrowing is a distinct financing case—not operating revenue, a feasibility assessment, or a promise of funds.</p>
+          </div>
+          <ol>
+            <li><b>Set the source pool</b><span>Select eligible reference-year intervention cash and pooled allocation.</span></li>
+            <li><b>Specify the terms</b><span>Choose injection year, real interest rate and loan term.</span></li>
+            <li><b>Compare the result</b><span>Review the repayment schedule, then compare access with and without borrowing.</span></li>
+          </ol>
+        </section>
         <div className="debt-results-toolbar">
           <div className="debt-sector-tabs" role="group" aria-label="Debt servicing sector">
             {(['water', 'sanitation'] as const).map(sector => (
@@ -73,6 +85,10 @@ export default function DebtServicingPanel({
           scenarioResult={results?.[sectorKey]}
           calculationError={results ? results.sector_errors?.[sectorKey] : calculationError} fresh={!!results?.[sectorKey]} onRetry={onRetry} />
         <div className="debt-chart-stack">
+          <div className="debt-chart-stack__label">
+            <span>MODEL OUTPUTS</span>
+            <p>Cash sources are shown separately from projected service coverage. Both charts retain their existing units and intervention definitions.</p>
+          </div>
           <RevenueSourceChart inputs={inputs} results={results} sector={sectorTab} currencyDisplay={currencyDisplay} />
           <LiveInterventionChart key={`${chartRunKey}:sm`} inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} rung={0} contributionView={contributionView} currencyDisplay={currencyDisplay} />
           <LiveInterventionChart key={`${chartRunKey}:basic`} inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} rung={1} contributionView={contributionView} currencyDisplay={currencyDisplay} />

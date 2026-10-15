@@ -23,5 +23,6 @@ main body rather than enclosing the long form in white cards.
 
 **How to apply:** Preserve the navy/teal/slate scheme and Noto Sans. Keep field
 and table backgrounds that communicate input semantics; the surrounding section
-containers should not become white cards again. This design remains preview-only
-until the user approves applying it to the working app.
+containers should not become white cards again. The user has explicitly approved
+production graduation; these requirements now apply to frontend/src. Preserve
+production data, callbacks, autosave and exports; do not copy preview runtime behavior.

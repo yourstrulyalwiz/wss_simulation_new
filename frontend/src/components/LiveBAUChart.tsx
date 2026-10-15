@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Area, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, ComposedChart, Line, Label, ReferenceLine, LabelList,
@@ -44,8 +45,12 @@ function sigB(vMillions: number): string {
   return sig3(vMillions / 1000);
 }
 
-export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, rung = 0, currencyDisplay }:
-  { inputs?: any; inputsList?: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: number; currencyDisplay: CurrencyDisplaySettings }) {
+export type BauCoverage = { baselineYear: number; endYear: number; baseline: number | null; bau: number | null; target: number | null };
+function TableLocation({ target, children }: { target?: HTMLElement | null; children: React.ReactNode }) {
+  return target ? createPortal(children, target) : <>{children}</>;
+}
+export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, rung = 0, currencyDisplay, tableTarget, onCoverage }:
+  { inputs?: any; inputsList?: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: number; currencyDisplay: CurrencyDisplaySettings; tableTarget?: HTMLElement | null; onCoverage?: (coverage: BauCoverage | null) => void }) {
   const datasets = ((inputsList && inputsList.length) ? inputsList : (inputs ? [inputs] : [])).filter(Boolean);
   // Which JMP rung this chart plots: 0 = Safely managed (the primary chart), 1 = Basic, … The Basic chart
   // gets the SAME elements as SM (BAU area, Target line, reference lines, target call-outs, endpoint labels).
@@ -99,7 +104,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
     return n;
   });
   // Y-axis unit: absolute household counts (millions) or share of total POPULATION (%).
-  const [unitMode, setUnitMode] = useState<'count' | 'share'>('count');
+  const [unitMode, setUnitMode] = useState<'count' | 'share'>(onCoverage ? 'share' : 'count');
   // Show/hide the per-year data-point dots on the chart.
   const [showDots, setShowDots] = useState(true);
   const chartRef = useRef<HTMLDivElement>(null);
@@ -185,6 +190,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   const depKey = JSON.stringify(datasets) + '|' + sector;
   useEffect(() => {
     if (!datasets.length) return;
+    onCoverage?.(null);
     let cancelled = false;
     const h = setTimeout(() => {
       Promise.all(datasets.map(inp => runCalculation(inp, sector))).then(resList => {
@@ -214,6 +220,12 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
 
         const per = datasets[0]?.period || {};
         const baseYr = per.baseline_year ?? years[0];
+        const baseIndex = years.indexOf(baseYr);
+        const endIndex = years.indexOf(per.forecast_end_year);
+        const share = (series: number[], index: number) => index >= 0 && total[index] > 0 && Number.isFinite(series[index])
+          ? Math.min(total[index], series[index]) / total[index] * 100 : null;
+        onCoverage?.({ baselineYear: baseYr, endYear: per.forecast_end_year,
+          baseline: share(bau, baseIndex), bau: share(bau, endIndex), target: share(tgt, endIndex) });
         setAccessRows(serviceAccessRows(resList, sector === 'water' ? 'water_supply' : 'sanitation', baseYr, ['BAU']));
         const rows = years.map((y: number, i: number) => {
           const tot = +total[i].toFixed(4);
@@ -721,8 +733,9 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
       </div>
 
       {/* ── Per-year data table (forecast years) ─────────────────────────────────────────────── */}
+      <TableLocation target={tableTarget}>
       {tableRows.length > 0 && (
-        <div style={{ marginTop: 14 }}>
+        <div data-bau-ledger={rung} style={{ marginTop: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#1e3a5f' }}>Forecast data (per year)</div>
             <TableExport filename={fileBase} sheetName="Forecast" headers={tableHeaders} rows={tableExportRows} compact currencyDisplay={currencyDisplay} />
@@ -763,6 +776,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           </div>
         </div>
       )}
+      </TableLocation>
     </div>
   );
 }

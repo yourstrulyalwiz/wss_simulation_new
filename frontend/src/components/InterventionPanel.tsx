@@ -421,6 +421,11 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
     <div className="intervention-workspace" style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'hidden' }}>
       {/* Left: intervention controls */}
       <div className="intervention-workspace__controls" style={{ flex: '0 1 598px', minWidth: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', borderRight: '1px solid #e0e0e0', fontSize: 12 }}>
+        <header className="modern-page-intro modern-page-intro--intervention">
+          <span className="modern-page-intro__eyebrow">WORKFLOW 03 · TEST POLICY LEVERS</span>
+          <h2>Design the intervention package</h2>
+          <p>Switch a lever on to include its impact, then open its parameters only when you need to adjust them. The preview to the right shows service and financing effects before loan funding.</p>
+        </header>
 
         {/* Area-scope banner */}
         <div style={{
@@ -442,6 +447,17 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           ))}
         </div>
 
+        <nav className="modern-category-jump" aria-label={`${sectorTab === 'water' ? 'Water supply' : 'Sanitation'} intervention categories`}>
+          <span>LEVER GROUPS</span>
+          {[['funding', 'Funding'], ['operations', 'Operations'], ['investment', 'Investment'],
+            ['tariff', 'Tariff'], ['household', 'Households']].map(([id, label]) => (
+            <button key={id} type="button" onClick={() => {
+              const target = document.getElementById(`${sectorTab}-${id}-header`);
+              target?.focus({ preventScroll: true });
+              target?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+            }}>{label}</button>
+          ))}
+        </nav>
         {/* ===== WATER SUPPLY INTERVENTIONS ===== */}
         {sectorTab === 'water' && <>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Water Supply Interventions</h3>
@@ -827,6 +843,11 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
       {/* Right: actual source-funded coverage for the area being edited. */}
       <div className="intervention-workspace__charts" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '24px 28px', background: '#fff', borderLeft: '1px solid #e2e8f0' }}>
+        <header className="modern-page-intro">
+          <span className="modern-page-intro__eyebrow">LIVE SCENARIO VIEW</span>
+          <h2>{sectorTab === 'water' ? 'Water supply' : 'Sanitation'} · {scopeLabel}</h2>
+          <p>Compare revenue sources and safely-managed / basic coverage. The separate loan-funding comparison is on the next workflow tab.</p>
+        </header>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
           <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={CUR}
             onModeChange={mode => onCurrencyDisplayChange({ ...currencyDisplay, mode, sourceCurrency: CUR })}

@@ -14,5 +14,6 @@ changes that structure.
 
 **How to apply:** Safely managed and Basic outputs belong within the graph/table
 sections, not additional top-level navigation sections. Baseline review should
-be expanded rather than a collection of collapsed accordions. Continue editing
-the modern canvas preview only unless the user approves production integration.
+be expanded rather than a collection of collapsed accordions. The user has
+explicitly approved production integration. Apply this structure in frontend/src
+using real engine data and React callbacks, not preview DOM observers or parsing.

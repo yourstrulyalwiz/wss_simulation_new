@@ -988,7 +988,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     });
     const distinctModes = [...new Set(modes.map((mode: any) => mode.label))];
     return (
-      <div key={secKey} data-results-sector={secKey} style={{ marginBottom: 26, minWidth: 0 }}>
+      <div key={secKey} className="modern-results-sector" data-results-sector={secKey} style={{ marginBottom: 26, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '2px solid #e2e8f0', paddingBottom: 4, marginBottom: 10 }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#1e3a5f' }}>{label}</span>
           <span style={{ fontSize: 11, color: '#64748b' }}>· {scopeName}</span>
@@ -1018,7 +1018,12 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <button type="button" aria-label={`${label} financing view table`}
             onClick={() => showLedger(secKey, { metric: 'gap', service: 'total', basis: 'closing' })}>View financing table</button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: 8 }}>
+        <div className="modern-results-chart-group">
+          <div className="modern-results-chart-group__heading">
+            <span>01 · SERVICE OUTCOMES</span>
+            <p>Coverage trajectories against business-as-usual and target.</p>
+          </div>
+          <div className="modern-results-chart-grid modern-results-chart-grid--coverage">
           <StackChart title={`${label} — safely-managed coverage`} subtitle={contributionView === 'category' ? 'Categories sum actual source-funded and physical coverage; pure BAU is a separate line.' : 'Opening/baseline-funded stock + actual source-funded and physical coverage'}
             data={covData} yLabel={isShare ? '% of population' : '# households (millions)'}
             base={covBase} bands={csBands} lines={covLines} fmt={covFmt} domain={coverageDomain}
@@ -1026,10 +1031,19 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <BasicCoverageChart title={`${label} — basic coverage`} rows={basicData} isShare={isShare} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_basic_coverage`}
             captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
+          </div>
+        </div>
+        <div className="modern-results-chart-group modern-results-chart-group--finance">
+          <div className="modern-results-chart-group__heading">
+            <span>02 · FINANCING REQUIREMENT</span>
+            <p>Advanced intervention-effects bridge for the reported endline requirement; read alongside remaining-need balances below.</p>
+          </div>
+          <div className="modern-results-chart-grid">
           <StackChart title={`${label} — advanced intervention-effects bridge (reported endline requirement)`} subtitle={!cs ? 'Combined safely managed + exclusive Basic financing. Advanced marginal effects on the existing endline-financing measure; attribution is pending or unavailable.' : 'Combined safely managed + exclusive Basic financing. Advanced view of the existing reported endline measure. Bands are signed reductions from BAU: positive reduces need, negative increases it. This is not the remaining-need balance; use the companion line below.'}
             data={gapData} yLabel={`Year-end requirement (B ${displayCur})`}
             bands={gapBands} lines={gapLines} fmt={gapFmt}
             filename={`${scopeName}_${secKey}_financing_gap_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} currencyDisplay={detailExportCurrency} />
+          </div>
         </div>
         <ResultsLedgerPanel data={ledgerData} sector={secKey} label={label} scope={scopeName}
           years={visibleLedgerYears}
@@ -1122,8 +1136,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   );
 
   return (
-    <div ref={dashboardRef} data-testid="results-dashboard" style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', padding: '18px 26px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+    <div ref={dashboardRef} className="modern-results-page" data-testid="results-dashboard" style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', padding: '18px 26px' }}>
+      <header className="modern-results-intro modern-page-intro">
+        <span className="modern-page-intro__eyebrow">WORKFLOW 05 · COMPARE SCENARIO OUTCOMES</span>
+        <h2>Results, by service and financing need</h2>
+        <p>Start with the executive coverage summary, then review each sector’s coverage and financing views. Use the controls below to change display scope, units and comparison settings.</p>
+      </header>
+      <div className="modern-results-toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
         <div>
           <h2 style={{ fontSize: 17, color: '#1e3a5f', margin: 0 }}>Results — intervention impact (live)</h2>
           <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
@@ -1211,7 +1230,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       </div>
       <p style={{ fontSize: 11, lineHeight: 1.5, color: '#64748b', margin: '-4px 0 12px' }}>{LOAN_FUNDING_QUALIFICATION}</p>
       {/* Optional edits stay available without pushing the standard graphs off-screen. */}
-      <details style={{ border: '1px solid #c7d2fe', background: '#f5f7ff', borderRadius: 8, padding: '10px 14px', marginBottom: 18 }}>
+      <details className="modern-results-advanced" style={{ border: '1px solid #c7d2fe', background: '#f5f7ff', borderRadius: 8, padding: '10px 14px', marginBottom: 18 }}>
         <summary style={{ cursor: 'pointer', fontSize: 12, color: '#312e81' }}>Adjust intervention switches</summary>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12.5, fontWeight: 700, color: '#312e81' }}>Interventions</span>
@@ -1233,7 +1252,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       {!both && !error && <div style={{ fontSize: 12, color: '#64748b', padding: '20px 0' }}>Computing…</div>}
 
       {/* Executive summary (table 9) — headline coverage, results-first. */}
-      <ExecSummary />
+      <div className="modern-results-executive-summary"><ExecSummary /></div>
 
       {sectorBlock('water')}
       {sectorBlock('sanitation')}

@@ -5,7 +5,7 @@ import InterventionPanel from './components/InterventionPanel';
 import DebtServicingPanel from './components/DebtServicingPanel';
 import RevenueReconciliation from './components/RevenueBase';
 import ResultsDashboard from './components/ResultsDashboard';
-import LiveBAUChart from './components/LiveBAUChart';
+import BAUWorkspace from './components/BAUWorkspace';
 import { fetchDefaults, runCalculation, runEconomicProjections } from './api';
 import { type ContributionView } from './contributionView';
 import { CurrencyDisplayControl, defaultCurrencyDisplay, type CurrencyDisplaySettings, validRate } from './currencyDisplay';
@@ -14,22 +14,6 @@ import { migrateNrwRevenueInputs } from './nrwRevenue';
 import { migrateConnectionRevenueInputs } from './connectionRevenueConfig';
 import { setInterventionEnabled } from './interventionRegistry';
 
-// The BAU view stacks two charts with identical elements: Safely managed (rung 0) then Basic (rung 1).
-function BAUChartPair(props: { inputsList: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; currencyDisplay: CurrencyDisplaySettings }) {
-  const currencies = [...new Set(props.inputsList.map(input => String(input?.country_config?.currency || 'LCU').toUpperCase()))];
-  const mixedCurrencies = currencies.length > 1;
-  const displaySettings = mixedCurrencies ? { ...props.currencyDisplay, mode: 'local' as const } : props.currencyDisplay;
-  return (
-    <>
-      {mixedCurrencies && <div style={{ fontSize: 11, color: '#b45309', marginBottom: 10 }}>
-        USD display is unavailable because this combined view contains different source currencies ({currencies.join(', ')}).
-      </div>}
-      <LiveBAUChart {...props} currencyDisplay={displaySettings} rung={0} />
-      <div style={{ height: 1, background: '#e2e8f0', margin: '28px 0 20px' }} />
-      <LiveBAUChart {...props} currencyDisplay={displaySettings} rung={1} />
-    </>
-  );
-}
 // Older saved sessions/profiles kept injection as an option under the financial master switch.
 // Give each area an independent switch without altering settings that already use the new one.
 function migrateInjectionToggle(area: any) {
@@ -62,7 +46,7 @@ function App() {
   const [altInputs, setAltInputs] = useState<Record<string, any>>({});
   const [sectorTab, setSectorTab] = useState<'water' | 'sanitation'>('water');
   // Which area the BAU graph shows when both Urban & Rural are entered (toggle instead of 3 stacked charts).
-  const [bauChartScope, setBauChartScope] = useState<'national' | 'urban' | 'rural'>('national');
+  const [bauChartScope, setBauChartScope] = useState<'urban' | 'rural'>('urban');
   const [showGuide, setShowGuide] = useState(false);
   const [guideSection, setGuideSection] = useState<string | null>(null);
   // Focusing a section points the contextual Guide at that section. If the user has MANUALLY closed the
@@ -550,7 +534,7 @@ function App() {
       <nav className="wb-tab-nav" aria-label="Scenario workflow">
         {tabs.map((tab, i) => {
           return (
-          <button key={tab} onClick={() => setActiveTab(i)}
+          <button key={tab} onClick={() => { setActiveTab(i); if (i === 1 && both) setBauChartScope(subArea); }}
             className={`wb-tab${activeTab === i ? ' wb-tab-active' : ''}`}>
             <span className="wb-tab-step">{i + 1}</span>
             <span className="wb-tab-label">
@@ -570,7 +554,7 @@ function App() {
       {/* Main Content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Scope bar. Full controls (mode + include) only on Data Inputs; BAU & Intervention get just the Editing switch. The dashboard has its own scope dropdown. */}
-        {activeTab <= 3 && (
+        {activeTab <= 3 && activeTab !== 1 && (
           <div className="wb-scope-bar">
             {activeTab === 0 ? (
               <div onClickCapture={dismissScopeHint} className="wb-scope-card" style={{
@@ -657,40 +641,15 @@ function App() {
           <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results || economicProjections} calculationError={calculationError} projectionError={projectionError} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
         )}
-        {activeTab === 1 && inputs && (<>
-          <div style={{ flex: '0 1 598px', display: 'flex', minWidth: 0 }}>
-            <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} geoScope={inputScope} showSection="bau" bauSector={sectorTab} onBauSectorChange={setSectorTab} onSectionFocus={focusGuideSection}
-              currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', minWidth: 0, background: '#fff', borderLeft: '1px solid #e2e8f0' }}>
-            {chartScope === 'urban_rural' ? (
-              // Both areas entered: one chart at a time, switched via a scope toggle (Urban / Rural / National).
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginRight: 4 }}>View:</span>
-                  {([['national', 'National (Urban + Rural)'], ['urban', 'Urban'], ['rural', 'Rural']] as const).map(([k, l]) => (
-                    <button key={k} onClick={() => setBauChartScope(k)} style={{
-                      padding: '6px 14px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12,
-                      fontWeight: bauChartScope === k ? 700 : 500,
-                      background: bauChartScope === k ? '#2563eb' : '#e5e7eb',
-                      color: bauChartScope === k ? '#fff' : '#374151',
-                    }}>{l}</button>
-                  ))}
-                </div>
-                {bauChartScope === 'national' ? (
-                  <BAUChartPair inputsList={[inputs, altInputs['rural'] ?? inputs]} sector={sectorTab} scopeLabel="National" currencyDisplay={currencyDisplay} />
-                ) : bauChartScope === 'urban' ? (
-                  <BAUChartPair inputsList={[inputs]} sector={sectorTab} scopeLabel="Urban" currencyDisplay={currencyDisplay} />
-                ) : (
-                  <BAUChartPair inputsList={[altInputs['rural'] ?? inputs]} sector={sectorTab} scopeLabel="Rural" currencyDisplay={currencyDisplay} />
-                )}
-              </>
-            ) : (
-              <BAUChartPair inputsList={[activeInputs]} sector={sectorTab} currencyDisplay={currencyDisplay}
-                scopeLabel={inputScope === 'national' ? 'National' : inputScope === 'rural' ? 'Rural' : 'Urban'} />
-            )}
-          </div>
-        </>)}
+        {activeTab === 1 && inputs && (
+          <BAUWorkspace inputs={activeInputs} onChange={handleSetActiveInputs} geoScope={inputScope}
+            inputsList={both ? [bauChartScope === 'urban' ? inputs : altInputs.rural ?? inputs] : [activeInputs]}
+            scopeLabel={both ? (bauChartScope === 'urban' ? 'Urban' : 'Rural') : inputScope[0].toUpperCase() + inputScope.slice(1)}
+            scopeChoices={both ? ['urban', 'rural'] : [inputScope]}
+            onScopeChange={value => { if (value === 'urban' || value === 'rural') { setBauChartScope(value); setSubArea(value); } }}
+            sector={sectorTab} onSectorChange={setSectorTab} onSectionFocus={focusGuideSection}
+            currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
+        )}
         {activeTab === 2 && inputs && (
           <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} calculationError={calculationError} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} contributionView={contributionView} onContributionViewChange={setContributionView}
             currencyDisplay={currencyDisplay} onEditCurrencyRate={editCurrencyRate} onCurrencyDisplayChange={updateCurrencyDisplay} />

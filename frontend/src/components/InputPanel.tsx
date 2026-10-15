@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import SectionWorkspace from './SectionWorkspace';
 import { downloadTemplate, importTemplate, fetchCostMixTemplates } from '../api';
 import { displayedCostMix, summarizeCostMix, formatRealUnitCost, type CostMixTemplates } from '../costMix';
 import NumInput from './NumInput';
@@ -45,29 +46,19 @@ function SanServiceLevelExplainer() {
   );
 }
 
-function Section({ title, children, defaultOpen = false, cols = 3, sectionKey, onFocus, openSignal }: { title: string; children: React.ReactNode; defaultOpen?: boolean; cols?: number; sectionKey?: string; onFocus?: (key: string) => void; openSignal?: number }) {
-  const [open, setOpen] = useState(defaultOpen);
-  useEffect(() => { if (openSignal) setOpen(true); }, [openSignal]);
+function Section({ title, children, cols = 3, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; cols?: number; sectionKey?: string; onFocus?: (key: string) => void; openSignal?: number }) {
   // Responsive columns: fields size to a min track and the column count adapts to the available
   // width (so the grid never stretches fields edge-to-edge on wide screens, nor cramps on a laptop).
   // The 2-col target/cost/technical sections keep a slightly wider min than the denser 3-col ones.
   const colMin = cols <= 2 ? 240 : 200;
-  const titleParts = title.match(/^(\d+\.\s+\S+)(?:\s+(.*))?$/) || title.match(/^(\S+)(?:\s+(.*))?$/);
-  const handleClick = () => {
-    const willOpen = !open;
-    setOpen(willOpen);
-    if (willOpen && sectionKey && onFocus) onFocus(sectionKey);
-  };
+  const titleParts = title.match(/^(\d+)\.\s*(.*)$/);
   return (
-    <div data-section-key={sectionKey} className="wb-panel-section" style={{ marginBottom: 8 }}>
-      <button onClick={handleClick} className={`wb-section-trigger${open ? ' wb-section-trigger-open' : ''}`}>
-        <span>
-          <span className="wb-heading-strong">{titleParts?.[1] || title}</span>
-          {titleParts?.[2] && <> <span className="wb-heading-light">{titleParts[2]}</span></>}
-        </span>
-        <span aria-hidden="true">{open ? '▴' : '▾'}</span>
-      </button>
-      {open && <div onFocusCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} onClickCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} style={{ padding: '10px 14px 12px', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${colMin}px, 1fr))`, gap: '12px 16px', alignItems: 'start' }}>{children}</div>}
+    <div data-section-key={sectionKey?.endsWith('_unit_costs') ? 'unit_costs' : sectionKey} className="wb-panel-section" style={{ marginBottom: 8 }}>
+      <h3 tabIndex={-1} className="modern-input-section-heading">
+        {titleParts && <span className="modern-input-section-heading__index">{titleParts[1]}</span>}
+        <span>{titleParts?.[2] || title}</span>
+      </h3>
+      <div onFocusCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} onClickCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} style={{ padding: '10px 14px 12px', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${colMin}px, 1fr))`, gap: '12px 16px', alignItems: 'start' }}>{children}</div>
     </div>
   );
 }
@@ -517,10 +508,23 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
   const hhSizeCagr = cagr(avgHHSizeStart, avgHHSizeBase, nYears);
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', fontSize: 12 }}>
+    <SectionWorkspace label="Data Inputs sections" sections={isInputs ? [
+      {key:'country', label:'Country, Area of Focus & Currency'},
+      {key:'period', label:'Analysis Period'},
+      {key:'service_levels', label:'Service Levels'},
+      {key:'econ_demo', label:'Economic & Demographic Data'},
+      {key:'budget', label:'Budget'},
+      {key:'revenue_inputs', label:'Revenue Inputs'},
+      {key:'unit_costs', label:'Unit Costs & Technical Parameters'},
+    ] : []}>
+    <div className="modern-input-panel" style={{ flex: 1, fontSize: 12, minWidth: 0 }}>
       {/* Content is capped to a consistent max width and centered, so section cards don't sprawl
           edge-to-edge on wide screens; the grey scroll container stays full-bleed behind it. */}
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+      <div>
+      <header className="modern-page-intro"><span className="modern-page-intro__eyebrow">{isInputs ? 'WORKFLOW 01 · SET THE EVIDENCE BASE' : 'BASELINE ASSUMPTIONS'}</span>
+        <h2>{isInputs ? 'Build the country baseline' : 'Review Baseline Information'}</h2>
+        <p>Set the shared analysis frame, then review the service, population, economic and budget evidence for the selected area.</p>
+      </header>
       <div style={{ display: 'flex', gap: 18, fontSize: 12, marginBottom: 12, color: '#3A4452', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid #F0D070', background: '#FFF9E6', display: 'inline-block' }} />
@@ -1236,5 +1240,6 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
       </>}
       </div>
     </div>
+    </SectionWorkspace>
   );
 }

@@ -14,12 +14,19 @@ transition, rather than the newest file or the current default session.
 **How to apply:** Follow the attached WSS Landing Page and Simulation Management
 brief dated 2026-10-15. Preserve source payloads and test lossless editor migration.
 
-Do not change the model itself for simulation management.
-**Why:** The user explicitly constrained this work to management, not modeling.
-**How to apply:** Preserve equations, assumptions, validation and outputs.
-Prefer external orchestration for scope. If sector-only execution cannot meet
-the brief without model-file changes, disclose the conflict and request explicit
-approval before editing those files; never substitute invented inactive inputs.
+Scope-aware dispatch and validation routing are approved, but underlying model
+calculations must not change. Either sector may run for one area or Urban + Rural.
+**Why:** After clarification, the user explicitly approved independent sector/area
+selection without unrelated inputs blocking it, while protecting the equations.
+**How to apply:** Skip inactive sectors and their validation without changing
+active formulas, assumptions, or outputs. Preserve dormant data and configured
+NRW linkage; deactivate linkage effectively while water is excluded. Missing
+active inputs still get accurate validation, not invented values.
+Legacy sanitation revenue can depend on shared billed-water anchors even when
+water delivery is excluded. Retain only the shared sanitation dependencies, not
+unrelated water interventions, until a canonical sanitation revenue base exists.
+**Why:** Removing all water-labeled fields changes legacy sanitation revenue,
+which violates the calculation-preservation requirement.
 
 Projects own drafts, versions, comparison scenarios and editable sector/area
 scope. Excluded data stays dormant; new areas must not inherit urban observations.

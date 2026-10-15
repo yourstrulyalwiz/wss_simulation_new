@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { areasOf as scenarioAreas, liveAreas } from '../areaBundle';
+import { useProjectScope } from '../projectScope';
+import { simulationHeaders } from '../simulationTransport';
+import { comparisonAreas, liveAreas } from '../areaBundle';
 import {
   Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ComposedChart, ResponsiveContainer, Label,
 } from 'recharts';
@@ -223,6 +225,8 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
 }
 
 export default function ResultsDashboard({ geoScope, scenarios, inputs, altInputs, onToggle, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
+  const { sectors, readOnly, projectId } = useProjectScope();
+  const scenarioAreas = (bundle: any) => comparisonAreas(bundle, { sectors, scopeMode: geoScope === 'national' ? 'national' : 'urban_rural', areaUrban: geoScope === 'urban' || geoScope === 'urban_rural', areaRural: geoScope === 'rural' || geoScope === 'urban_rural' });
   const [includeDebt, setIncludeDebt] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const dashboardRef = useRef<HTMLDivElement>(null);
@@ -260,11 +264,11 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // seed, so it has to be read explicitly — otherwise everything on this tab (charts, tables, the
   // intervention toggles and the whole-scenario exports) reports seed numbers the user never entered.
   const primaryRaw = useMemo(
-    () => (geoScope === 'national' ? (altInputs?.['national'] ?? inputs) : inputs),
+    () => (geoScope === 'national' ? (altInputs?.['national'] ?? inputs) : geoScope === 'rural' ? (altInputs?.rural ?? inputs) : inputs),
     [geoScope, inputs, altInputs]);
   // National entry has no urban/rural split to look at, so the Scope dropdown collapses to National
   // (below) and every view resolves to that single dataset.
-  const effScope = geoScope === 'national' ? 'national' : viewScope;
+  const effScope = geoScope === 'urban_rural' ? viewScope : geoScope;
 
   // Datasets for the chosen scope (national = urban + rural summed, when rural data exists).
   const rawDatasets = useMemo(() => {
@@ -279,7 +283,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   const primary = useMemo(() => resultsInputs(primaryRaw, includeDebt), [primaryRaw, includeDebt]);
   const datasets = useMemo(() => rawDatasets.map(data => resultsInputs(data, includeDebt)), [rawDatasets, includeDebt]);
   const hasConfiguredDebt = Object.values(liveAreas(geoScope, inputs, altInputs)).some(data =>
-    ['water', 'sanitation'].some(sector => !!data?.utility_debt?.[sector]?.enabled));
+    sectors.some(sector => !!data?.utility_debt?.[sector]?.enabled));
 
   const cur = datasets[0]?.country_config?.currency || 'LCU';
   const resultCurrencies = [...new Set(datasets.map((data: any) => String(data?.country_config?.currency || 'LCU').toUpperCase()))];
@@ -544,11 +548,10 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             gapBauCum: endRequirement('endline_financing_requirement'), gapScnCum: endRequirement('scenario_endline_financing_requirement'),
           } };
         };
-        setBoth({ water: build('water_supply'), sanitation: build('sanitation') });
+        setBoth({ water: sectors.includes('water') ? build('water_supply') : null, sanitation: sectors.includes('sanitation') ? build('sanitation') : null });
         const issues = resList.flatMap((res, i) => Object.values(res.sector_errors || {}).map(message =>
           `${datasets.length > 1 ? (i === 0 ? 'Urban: ' : 'Rural: ') : ''}${message}`));
-        if (issues.length) setError(`Incomplete sectors excluded; valid sector results remain below. ${issues.join(' ')}`);
-        setError(null);
+        setError(issues.length ? `Incomplete sectors excluded; valid sector results remain below. ${issues.join(' ')}` : null);
       }).catch(e => { if (!cancelled) { setBoth(null); setError(e instanceof Error ? e.message : String(e)); } });
     }, 350);
     return () => { cancelled = true; clearTimeout(h); };
@@ -653,7 +656,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           });
           return { gapRows, bands, ledgerContributions };
         };
-        setContrib({ water: buildContrib(WATER_INTV, 'water_supply'), sanitation: buildContrib(SAN_INTV, 'sanitation') });
+        setContrib({ water: sectors.includes('water') ? buildContrib(WATER_INTV, 'water_supply') : null, sanitation: sectors.includes('sanitation') ? buildContrib(SAN_INTV, 'sanitation') : null });
 
       }).catch(e => { if (!cancelled) setContributionError(e instanceof Error ? e.message : String(e)); });
     }, 400);
@@ -744,11 +747,11 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // ── Table 9: Executive summary — SM coverage now vs BAU / target / with-reforms at the endline ──
   const ExecSummary = () => {
     if (!both) return null;
-    if (!both.water || !both.sanitation) return <p role="alert">Combined summary unavailable: complete both sectors. Valid sector results are shown separately.</p>;
-    const end = both.water.sum.endline;
+    if (sectors.some(sector => !both[sector])) return <p role="alert">{sectors.length > 1 ? 'Combined summary unavailable: complete the selected sectors.' : 'Summary unavailable: the selected sector needs complete inputs.'} Valid sector results are shown separately.</p>;
+    const end = both[sectors[0]]!.sum.endline;
     const th: React.CSSProperties = { padding: '7px 12px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#0ea5e9', textAlign: 'right' };
     const td: React.CSSProperties = { padding: '6px 12px', fontSize: 11.5, borderBottom: '1px solid #eef2f7', textAlign: 'right' };
-    const rows: [string, any][] = [['Water Supply', both.water.sum], ['Sanitation', both.sanitation.sum]];
+    const rows: [string, any][] = sectors.map(sector => [sector === 'water' ? 'Water Supply' : 'Sanitation', both[sector]!.sum]);
     const exHeaders = [`Sector · ${scopeName}`, 'Current (%)', `BAU ${end} (%)`, `Target ${end} (%)`, `With reforms ${end} (%)`];
     const exRows = rows.map(([label, s]) => [label, +(s.curCov * 100).toFixed(2), +(s.bauCov * 100).toFixed(2), +(s.tgtCov * 100).toFixed(2), +(s.scnCov * 100).toFixed(2)]);
     return (
@@ -1125,7 +1128,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           return (
             <label key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, cursor: 'pointer',
               padding: '4px 8px', background: on ? '#eff6ff' : '#fff', border: `1px solid ${on ? '#bfdbfe' : '#e5e7eb'}`, borderRadius: 5 }}>
-              <input type="checkbox" checked={on} onChange={e => onToggle?.(d.key, e.target.checked)}
+              <input type="checkbox" disabled={readOnly || d.key === 'san_nrw_link_enabled' && !sectors.includes('water')} checked={on && (d.key !== 'san_nrw_link_enabled' || sectors.includes('water'))} onChange={e => onToggle?.(d.key, e.target.checked)}
                 style={{ width: 15, height: 15, accentColor: '#2563eb' }} />
               <span style={{ color: on ? '#1e3a5f' : '#475569', fontWeight: on ? 600 : 400 }}>{d.label}</span>
             </label>
@@ -1160,12 +1163,12 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             {/* National entry is one dataset with no urban/rural split, so the only honest view is National —
                 offering Urban/Rural there would label the same national numbers as an area's. */}
             <select value={effScope} onChange={e => setViewScope(e.target.value as any)}
-              disabled={geoScope === 'national'}
+              disabled={geoScope !== 'urban_rural'}
               title={geoScope === 'national' ? 'The data was entered as a single national dataset — there is no urban/rural breakdown to view.' : undefined}
               style={{ padding: '5px 26px 5px 8px', borderRadius: 5, border: '1px solid #94a3b8', fontSize: 12,
                 background: geoScope === 'national' ? '#f1f5f9' : '#fff', color: geoScope === 'national' ? '#64748b' : undefined,
                 cursor: geoScope === 'national' ? 'not-allowed' : 'pointer' }}>
-              {geoScope === 'national' ? <option value="national">National</option> : (<>
+              {geoScope !== 'urban_rural' ? <option value={geoScope}>{geoScope[0].toUpperCase() + geoScope.slice(1)}</option> : (<>
                 <option value="urban">Urban</option>
                 <option value="rural">Rural</option>
                 <option value="national">National</option>
@@ -1224,7 +1227,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           </select>
         </label>
         <span style={{ fontSize: 11, color: '#64748b' }}>Results exclude loan funding by default. Include it here without changing saved terms.</span>
-        {(['water', 'sanitation'] as const).map(sector => <button key={sector} type="button"
+        {sectors.map(sector => <button key={sector} type="button"
           onClick={() => dashboardRef.current?.querySelector(`[data-results-sector="${sector}"]`)?.scrollIntoView({ block: 'start' })}
           style={{ padding: '5px 8px', fontSize: 11 }}>{sector === 'water' ? 'Water supply graphs' : 'Sanitation graphs'}</button>)}
       </div>
@@ -1237,8 +1240,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           <span style={{ fontSize: 10.5, color: '#64748b' }}>Switch each on or off — set its parameters on the <b>Intervention Design</b> tab.</span>
         </div>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-          <ToggleColumn title="Water Supply" defs={WATER_INTV} />
-          <ToggleColumn title="Sanitation" defs={SAN_INTV} />
+          {sectors.includes('water') && <ToggleColumn title="Water Supply" defs={WATER_INTV} />}
+          {sectors.includes('sanitation') && <ToggleColumn title="Sanitation" defs={SAN_INTV} />}
         </div>
       </details>
 
@@ -1254,8 +1257,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       {/* Executive summary (table 9) — headline coverage, results-first. */}
       <div className="modern-results-executive-summary"><ExecSummary /></div>
 
-      {sectorBlock('water')}
-      {sectorBlock('sanitation')}
+      {sectors.includes('water') && sectorBlock('water')}
+      {sectors.includes('sanitation') && sectorBlock('sanitation')}
 
       <div style={{ fontSize: 10, color: '#94a3b8', marginTop: -6, marginBottom: 16 }}>
         Table: “Resources / financing” reports cash mobilised or loan principal accepted; utility borrowing is financing,
@@ -1270,10 +1273,10 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             {scenarios.map((sc, i) => (
               <div key={i} style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 14px', background: '#f8fafc' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#1e3a5f', marginBottom: 4 }}>{sc.name}</div>
-                <button onClick={() => {
+                <button disabled={!Object.keys(scenarioAreas(sc.inputs)).length} title="Exports matching active sectors and areas only. Restore the comparison's geography in setup if unavailable." onClick={() => {
                   // A saved scenario stores every area it was entered with, so export the full deck.
                   const presentation = sc.inputs?.presentation;
-                  fetch('/api/export/deck', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  fetch('/api/export/deck', { method: 'POST', credentials: 'include', headers: simulationHeaders(undefined, projectId),
                     body: JSON.stringify({ areas: scenarioAreas(sc.inputs), contribution_view: presentation?.contributionView || contributionView,
                       currency_display: presentation?.currencyDisplay || currencyDisplay }) })
                     .then(async r => {

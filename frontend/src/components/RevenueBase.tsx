@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useState } from 'react';
+import { useProjectScope } from '../projectScope';
 import ConnectionRevenue from './ConnectionRevenue';
 import { resolveRevenueBases } from '../api';
 
@@ -131,6 +132,7 @@ export function RevenueInputsSection({ inputs, onChange, sector, area }: {
 }
 
 export default function RevenueReconciliation({ inputs, onChange, area, silent = false }: { inputs: any; onChange: (v: any) => void; area: string; silent?: boolean }) {
+  const { sectors } = useProjectScope();
   const [status, setStatus] = useState<{ key: string; resolution: any; error: string } | null>(null);
   const key = JSON.stringify(inputs);
   useEffect(() => {
@@ -141,7 +143,7 @@ export default function RevenueReconciliation({ inputs, onChange, area, silent =
         const data = await resolveRevenueBases(inputs, controller.signal);
         if (controller.signal.aborted) return;
         let next = inputs;
-        for (const sector of ['water', 'sanitation']) {
+        for (const sector of sectors) {
           if (!inputs.revenue_bases?.[sector] && data?.[sector]?.base) next = save(next, sector, data[sector].base);
         }
         setStatus({ key, resolution: data, error: '' });

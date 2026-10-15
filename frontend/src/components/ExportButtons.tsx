@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { calculationPayload } from '../api';
+import { simulationHeaders } from '../simulationTransport';
+import { useProjectScope } from '../projectScope';
 import type { ContributionView } from '../contributionView';
 import type { CurrencyDisplaySettings } from '../currencyDisplay';
 import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
@@ -26,6 +29,7 @@ export default function ExportButtons({ inputs, label = 'Export', pptxCharts, ar
   currencyDisplay?: CurrencyDisplaySettings;
 }) {
   const formats = pptx ? FORMATS : FORMATS.filter(f => f.ext !== 'pptx');
+  const { projectId } = useProjectScope();
   const [busy, setBusy] = useState<string | null>(null);
   const download = async (fmt: typeof FORMATS[number]) => {
     setBusy(fmt.ext);
@@ -41,17 +45,17 @@ export default function ExportButtons({ inputs, label = 'Export', pptxCharts, ar
           throw new Error('USD export requires every selected area to use the same source currency.');
         }
       }
-      let body: any = { ...(inputs || {}), _export_options: options };
+      let body: any = { ...calculationPayload(inputs || {}), _export_options: options };
       let endpoint = fmt.endpoint;
       if (fmt.ext === 'pptx') {
         if (entered.length) {
           endpoint = '/api/export/deck';
-          body = { areas: Object.fromEntries(entered), contribution_view: contributionView, currency_display: options.currency_display, loan_funding_qualification: LOAN_FUNDING_QUALIFICATION };
+          body = { areas: Object.fromEntries(entered.map(([key, area]) => [key, calculationPayload(area)])), contribution_view: contributionView, currency_display: options.currency_display, loan_funding_qualification: LOAN_FUNDING_QUALIFICATION };
         } else if (pptxCharts) {
           try { body = { ...body, _charts: await pptxCharts() }; } catch { /* chart-less deck */ }
         }
       }
-      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await fetch(endpoint, { method: 'POST', credentials: 'include', headers: simulationHeaders(inputs || { areas }, projectId), body: JSON.stringify(body) });
       if (!r.ok) {
         const payload = await r.json().catch(() => ({}));
         throw new Error(payload.detail || payload.error || `Export failed (${r.status}).`);

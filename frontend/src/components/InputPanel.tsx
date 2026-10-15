@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useProjectScope } from '../projectScope';
 import SectionWorkspace from './SectionWorkspace';
 import { downloadTemplate, importTemplate, fetchCostMixTemplates } from '../api';
 import { displayedCostMix, summarizeCostMix, formatRealUnitCost, type CostMixTemplates } from '../costMix';
@@ -47,6 +48,7 @@ function SanServiceLevelExplainer() {
 }
 
 function Section({ title, children, cols = 3, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; cols?: number; sectionKey?: string; onFocus?: (key: string) => void; openSignal?: number }) {
+  const { readOnly } = useProjectScope();
   // Responsive columns: fields size to a min track and the column count adapts to the available
   // width (so the grid never stretches fields edge-to-edge on wide screens, nor cramps on a laptop).
   // The 2-col target/cost/technical sections keep a slightly wider min than the denser 3-col ones.
@@ -58,7 +60,7 @@ function Section({ title, children, cols = 3, sectionKey, onFocus }: { title: st
         {titleParts && <span className="modern-input-section-heading__index">{titleParts[1]}</span>}
         <span>{titleParts?.[2] || title}</span>
       </h3>
-      <div onFocusCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} onClickCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} style={{ padding: '10px 14px 12px', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${colMin}px, 1fr))`, gap: '12px 16px', alignItems: 'start' }}>{children}</div>
+      <fieldset disabled={readOnly} onFocusCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} onClickCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} style={{ margin: 0, border: 0, minWidth: 0, padding: '10px 14px 12px', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${colMin}px, 1fr))`, gap: '12px 16px', alignItems: 'start' }}>{children}</fieldset>
     </div>
   );
 }
@@ -295,6 +297,7 @@ function YearField({ label, value, onCommit, min, max, tip }: {
 interface Props { scopeControls?: React.ReactNode; inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; calculationError?: string; projectionError?: string; }
 
 export default function InputPanel({ scopeControls, inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate, calculationError, projectionError }: Props) {
+  const { sectors, readOnly, projectMode } = useProjectScope();
   const [costTemplates, setCostTemplates] = useState<CostMixTemplates>({});
   const [costTemplateError, setCostTemplateError] = useState('');
   useEffect(() => {
@@ -315,7 +318,8 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
     }, 80);
     return () => clearTimeout(timer);
   }, [focusCurrencyRequest]);
-  const bauSector = bauSectorProp || bauSectorLocal;
+  const selectedSector = bauSectorProp || bauSectorLocal;
+  const bauSector = sectors.includes(selectedSector) ? selectedSector : sectors[0];
   // The sector toggle is rendered in two places: above the Budget section on Data Inputs (so the split
   // control below it follows the chosen sector) and above section 6 on the BAU tab. Defined once here.
   // A compact segmented control in a card, so it reads as part of the section stack rather than two
@@ -327,7 +331,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       padding: '8px 14px', marginBottom: 10 }}>
       <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Sector</span>
       <div style={{ display: 'inline-flex', border: '1px solid #cbd5e1', borderRadius: 6, overflow: 'hidden' }}>
-        {(['water', 'sanitation'] as const).map(sct => (
+        {sectors.map(sct => (
           <button key={sct} onClick={() => setBauSector(sct)} style={{
             padding: '6px 22px', border: 'none', cursor: 'pointer',
             background: bauSector === sct ? '#2563eb' : '#fff',
@@ -462,6 +466,8 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
   };
 
   const setCountryConfig = (field: string, value: string) => {
+    if (readOnly) return;
+    if (projectMode && field === 'country') { window.alert('Country identity cannot be changed on an existing simulation. Create a new simulation for another country.'); return; }
     const updated = { ...inputs, country_config: { ...inputs.country_config, [field]: value } };
     // Auto-fill currency when country changes
     if (field === 'country') {
@@ -590,7 +596,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
         {inputs.country_config && <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
             <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Country</label>
-            <input type="text" list="country-list" value={inputs.country_config.country || ''}
+            <input type="text" readOnly={projectMode || readOnly} title={projectMode ? 'Create a new simulation to change country.' : undefined} list="country-list" value={inputs.country_config.country || ''}
               onChange={e => setCountryConfig('country', e.target.value)}
               style={{ width: '100%', padding: '7px 10px', border: '1px solid #F0D070', background: '#FFF9E6', borderRadius: 4, fontSize: 13, color: '#3A4452', boxSizing: 'border-box', outline: 'none' }}
               placeholder="Type to search..."
@@ -677,8 +683,8 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
           </div>
         </div>
         <button onClick={handleXlsxDownload} disabled={xlsxStatus.kind === 'busy'} style={{ padding: '6px 12px', fontSize: 12, border: '1px solid #2563eb', borderRadius: 6, background: '#fff', color: '#2563eb', cursor: 'pointer', fontWeight: 600 }}>⤓ Download template</button>
-        <button onClick={() => fileRef.current?.click()} disabled={xlsxStatus.kind === 'busy'} style={{ padding: '6px 12px', fontSize: 12, border: 'none', borderRadius: 6, background: '#2563eb', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>⤒ Upload filled template</button>
-        <input ref={fileRef} type="file" accept=".xlsx" onChange={handleXlsxUpload} style={{ display: 'none' }} />
+        <button onClick={() => fileRef.current?.click()} disabled={readOnly || xlsxStatus.kind === 'busy'} style={{ padding: '6px 12px', fontSize: 12, border: 'none', borderRadius: 6, background: '#2563eb', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>⤒ Upload filled template</button>
+        <input disabled={readOnly} ref={fileRef} type="file" accept=".xlsx" onChange={handleXlsxUpload} style={{ display: 'none' }} />
         {xlsxStatus.kind !== 'idle' && (
           <span style={{ gridColumn: '1 / -1', fontSize: 11, width: '100%',
             color: xlsxStatus.kind === 'err' ? '#b91c1c' : xlsxStatus.kind === 'ok' ? '#15803d' : '#64748b' }}>
@@ -882,20 +888,24 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
           };
 
           const hhLbl = `${scopeLabel} households`;
-          const anyTarget = (i: number) => colIsTarget('water_service', i) || colIsTarget('sanitation_service', i);
+          const anyTarget = (i: number) => sectors.includes('water') && colIsTarget('water_service', i) || sectors.includes('sanitation') && colIsTarget('sanitation_service', i);
           const serviceRows: YRow[] = [
+            ...(sectors.includes('water') ? [
             subRow(firstYearPicker('water_service', 'Water supply')),
             svcRow(`% ${ws[0]}`, 'water_service', 'serv1_ts'),
             svcRow(`% ${ws[1]}`, 'water_service', 'serv2_ts'),
             svcRow(`% ${ws[2]}`, 'water_service', 'serv3_ts'),
             svcRow(`% ${ws[3]}`, 'water_service', 'serv4_ts'),
             svcRow(`% ${ws[4]}`, 'water_service', 'serv5_ts'),
+            ] : []),
+            ...(sectors.includes('sanitation') ? [
             subRow(firstYearPicker('sanitation_service', 'Sanitation')),
             svcRow(`% ${ss[0]}`, 'sanitation_service', 'sserv1_ts'),
             svcRow(`% ${ss[1]}`, 'sanitation_service', 'sserv2_ts'),
             svcRow(`% ${ss[2]}`, 'sanitation_service', 'sserv3_ts'),
             svcRow(`% ${ss[3]}`, 'sanitation_service', 'sserv4_ts'),
             svcRow(`% ${ss[4]}`, 'sanitation_service', 'sserv5_ts'),
+            ] : []),
           ];
           const econRows: YRow[] = [
             { label: `Real GDP (${CUR} M)`, tip: `Real GDP in local currency (millions, base-year prices). Enter historical years; blank forecast years fill in from the yearly growth rate, or type your own. This drives the forecast budget.`, cells: years.map((_: number, i: number) => editCell('macro', 'gdp_real_local', i, false, years[i] > baseYr2, true)) },

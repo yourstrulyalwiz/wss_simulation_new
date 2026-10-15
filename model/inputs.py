@@ -671,6 +671,8 @@ class UtilityDebtInputs(BaseModel):
 # Top-level model inputs (one area)
 # ──────────────────────────────────────────────────────────────────────────
 class ModelInputs(BaseModel):
+    # Dispatch metadata only; absent on legacy requests means both sectors.
+    calculation_scope: List[Literal['water', 'sanitation']] = ['water', 'sanitation']
     revenue_bases: dict = {}
     connection_revenue: dict = {}
     revenue_legacy: dict = {}

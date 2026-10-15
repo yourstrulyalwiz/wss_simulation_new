@@ -402,17 +402,22 @@ def coerce_to_engine(inputs: dict) -> ModelInputs:
     (budget under macro.*, water_costs.network_cost_per_hh_*, water_service.serv1_ts,
     macro.inflation_nepal). Frontend markers are checked FIRST so demo-side additions (e.g. the
     tech-mix calculator fields) can never flip a demo payload into the engine path."""
+    from simulation_scope import effective_payload, sectors_of
+    from simulation_management.legacy import legacy_engine_payload
+    inputs = legacy_engine_payload(inputs)
+    selected_sectors = sectors_of(inputs)
+    inputs = effective_payload(inputs)
     inputs = {**inputs, 'toggles': financial_toggles(inputs),
               'revenue_legacy': inputs.get('revenue_legacy') or {
                   key: inputs.get(key, {}) for key in ('water_interventions', 'sanitation_interventions')}}
     macro = inputs.get('macro') or {}
     ws = inputs.get('water_service') or {}
     if 'inflation_nepal' in macro or 'serv1_ts' in ws:
-        return to_engine(inputs)                # frontend-shaped (demo) -> adapt
+        return to_engine(inputs).model_copy(update={'calculation_scope': selected_sectors})
     wc = inputs.get('water_costs') or {}
     if 'wss_budget' in inputs or 'sm_technologies' in wc or 'technologies' in wc or 'pct_serv1_start' in ws:
         return ModelInputs(**inputs)            # engine-shaped (standalone harness)
-    return to_engine(inputs)
+    return to_engine(inputs).model_copy(update={'calculation_scope': selected_sectors})
 
 
 def _afford_fields(d: dict) -> dict:
@@ -480,6 +485,9 @@ def _income_distribution(fe: dict) -> IncomeDistribution:
 
 def to_engine(fe: dict) -> ModelInputs:
     """Translate the frontend-shaped inputs into a ModelInputs for the validated engine (BAU)."""
+    from simulation_scope import effective_payload, sectors_of
+    selected_sectors = sectors_of(fe)
+    fe = effective_payload(fe)
     from calculation_setup import restore_automatic_inputs, validate_country_inputs
     fe = restore_automatic_inputs(fe)
     validate_country_inputs(fe)
@@ -701,6 +709,7 @@ def to_engine(fe: dict) -> ModelInputs:
     toggles = InterventionToggles(**tg_mapped)
 
     return ModelInputs(
+        calculation_scope=selected_sectors,
         revenue_bases=fe.get('revenue_bases', {}),
         connection_revenue=_connection_sources(fe),
         revenue_legacy=fe.get('revenue_legacy') or {key: fe.get(key, {}) for key in ('water_interventions', 'sanitation_interventions')},

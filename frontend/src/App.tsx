@@ -1,19 +1,21 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import GeographicalScope from './components/GeographicalScope';
-import { BUNDLE_KEY, isBundle, areasOf } from './areaBundle';
+import { BUNDLE_KEY, isBundle, areasOf, comparisonAreas } from './areaBundle';
 import InputPanel from './components/InputPanel';
 import InterventionPanel from './components/InterventionPanel';
 import DebtServicingPanel from './components/DebtServicingPanel';
 import RevenueReconciliation from './components/RevenueBase';
 import ResultsDashboard from './components/ResultsDashboard';
 import BAUWorkspace from './components/BAUWorkspace';
-import { fetchDefaults, runCalculation, runEconomicProjections } from './api';
+import { runCalculation, runEconomicProjections } from './api';
 import { type ContributionView } from './contributionView';
 import { CurrencyDisplayControl, defaultCurrencyDisplay, type CurrencyDisplaySettings, validRate } from './currencyDisplay';
-import { chooseDevelopmentPreview } from './developmentPreview';
+import { normalizeScope, scopedBundle, preserveDormantInputs, ProjectScopeContext } from './projectScope';
+import type { Draft } from './projectApi';
 import { migrateNrwRevenueInputs } from './nrwRevenue';
 import { migrateConnectionRevenueInputs } from './connectionRevenueConfig';
 import { setInterventionEnabled } from './interventionRegistry';
+import { simulationHeaders, stripSimulationId, withSimulationId } from './simulationTransport';
 
 // Older saved sessions/profiles kept injection as an option under the financial master switch.
 // Give each area an independent switch without altering settings that already use the new one.
@@ -29,23 +31,25 @@ function migrateInjectionToggle(area: any) {
   return migrateConnectionRevenueInputs(migrateNrwRevenueInputs({ ...area, toggles }));
 }
 
-function App() {
-  const [inputs, setInputs] = useState<any>(null);
-  const [mockSetupError, setMockSetupError] = useState('');
-  const [activeTab, setActiveTab] = useState(0);
-  const [contributionView, setContributionView] = useState<ContributionView>('individual');
-  const [currencyDisplay, setCurrencyDisplay] = useState<CurrencyDisplaySettings>(defaultCurrencyDisplay());
+type WorkspaceProps = { initialBundle: any; initialScenarios?: any[]; initialLocation?: any; readOnly?: boolean; projectId?: string; onDraftChange: (draft: Draft) => void; onSetup: () => void };
+function App({ initialBundle, initialScenarios = [], initialLocation = {}, readOnly = false, projectId, onDraftChange, onSetup }: WorkspaceProps) {
+  const initialScope = normalizeScope(initialBundle.scope);
+  const modified = useRef(false);
+  const notify = useRef(onDraftChange); notify.current = onDraftChange;
+  const [inputs, setInputs] = useState<any>(() => migrateInjectionToggle(withSimulationId(initialBundle.inputs, projectId)));
+  const [activeTab, setActiveTab] = useState(Number.isInteger(initialLocation.activeTab) && initialLocation.activeTab >= 0 && initialLocation.activeTab <= 4 ? initialLocation.activeTab : 0);
+  const [contributionView, setContributionView] = useState<ContributionView>(initialBundle.presentation?.contributionView || 'individual');
+  const [currencyDisplay, setCurrencyDisplay] = useState<CurrencyDisplaySettings>(initialBundle.presentation?.currencyDisplay || defaultCurrencyDisplay(initialBundle.inputs?.country_config?.currency));
   const [focusCurrencyRequest, setFocusCurrencyRequest] = useState(0);
-  const [showOnboarding, setShowOnboarding] = useState(true);
-  const [profileList, setProfileList] = useState<string[]>([]);
-  const [scenarios, setScenarios] = useState<{name: string, inputs: any}[]>([]);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [scenarios, setScenarios] = useState<{name: string, inputs: any}[]>(initialScenarios);
   // Two data-entry modes: 'urban_rural' (toggle Urban and/or Rural) or 'national' (single national dataset)
-  const [scopeMode, setScopeMode] = useState<'urban_rural' | 'national'>('urban_rural');
-  const [areaUrban, setAreaUrban] = useState(true);
-  const [areaRural, setAreaRural] = useState(true);
-  const [subArea, setSubArea] = useState<'urban' | 'rural'>('urban'); // which dataset is being edited when both are on
-  const [altInputs, setAltInputs] = useState<Record<string, any>>({});
-  const [sectorTab, setSectorTab] = useState<'water' | 'sanitation'>('water');
+  const [scopeMode, setScopeMode] = useState<'urban_rural' | 'national'>(initialScope.scopeMode);
+  const [areaUrban, setAreaUrban] = useState(initialScope.areaUrban);
+  const [areaRural, setAreaRural] = useState(initialScope.areaRural);
+  const [subArea, setSubArea] = useState<'urban' | 'rural'>(initialScope.areaUrban ? initialLocation.subArea === 'rural' && initialScope.areaRural ? 'rural' : 'urban' : 'rural');
+  const [altInputs, setAltInputs] = useState<Record<string, any>>(() => Object.fromEntries(Object.entries(initialBundle.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(withSimulationId(area, projectId))])));
+  const [sectorTab, setSectorTab] = useState<'water' | 'sanitation'>(initialScope.sectors.includes(initialLocation.sectorTab) ? initialLocation.sectorTab : initialScope.sectors[0]);
   // Which area the BAU graph shows when both Urban & Rural are entered (toggle instead of 3 stacked charts).
   const [bauChartScope, setBauChartScope] = useState<'urban' | 'rural'>('urban');
   const [showGuide, setShowGuide] = useState(false);
@@ -56,87 +60,6 @@ function App() {
     setShowGuide(prev => prev || key !== guideSection);
     setGuideSection(key);
   };
-
-  const refreshProfiles = () => {
-    fetch('/api/profiles').then(r => r.json()).then(setProfileList).catch(() => {});
-  };
-
-  // Restore the last working session (all areas + entry mode) before falling back to the defaults,
-  // so a refresh no longer silently drops whatever was entered for Rural or National.
-  useEffect(() => {
-    let cancelled = false;
-    const initialize = async () => {
-    let session: any = null;
-    try { session = JSON.parse(localStorage.getItem('wss_working_bundle') || 'null'); } catch { /* corrupt — ignore */ }
-    let savedScenarios: any[] = [];
-    try { savedScenarios = JSON.parse(localStorage.getItem('wss_demo_scenarios') || '[]'); } catch { /* corrupt — ignore */ }
-    try {
-      const response = await fetch('/api/development-preview');
-      if (!response.ok) throw new Error('Could not check the development preview profile.');
-      const preview = await response.json();
-      if (cancelled) return;
-      const selected = chooseDevelopmentPreview(session, savedScenarios, preview, localStorage.getItem('wss_development_preview_revision'));
-      if (selected.switched) {
-        // Back up work before switching. If storage fails, retain the original session.
-        localStorage.setItem('wss_demo_scenarios', JSON.stringify(selected.scenarios));
-        localStorage.setItem('wss_working_bundle', JSON.stringify(selected.session));
-        localStorage.setItem('wss_development_preview_revision', preview.revision);
-        session = selected.session;
-        savedScenarios = selected.scenarios;
-      }
-      if (preview.mock_setup_revision &&
-          localStorage.getItem('wss_mock_setup_revision') !== preview.mock_setup_revision &&
-          session?.inputs?.profile_metadata?.status === 'data_preview') {
-        const response = await fetch('/api/mock-drc-inputs', {
-          method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(session),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.detail || 'Mock inputs could not be applied.');
-        if (cancelled) return;
-        if (result.applied) {
-          const backup = [...savedScenarios,
-            {name: 'Original DRC inputs before mock setup', inputs: session},
-            {name: 'DRC mock simulation (2,309.58 CDF/USD)', inputs: result.bundle}];
-          // If the backup cannot be saved, do not replace the working inputs.
-          localStorage.setItem('wss_demo_scenarios', JSON.stringify(backup));
-          localStorage.setItem('wss_working_bundle', JSON.stringify(result.bundle));
-          localStorage.setItem('wss_mock_setup_revision', preview.mock_setup_revision);
-          session = result.bundle;
-          savedScenarios = backup;
-        }
-      }
-    } catch (error) {
-      console.warn('Development setup not applied; retaining the working session.', error);
-      if (!cancelled) setMockSetupError(error instanceof Error ? error.message : String(error));
-    }
-    if (cancelled) return;
-    if (session?.inputs) {
-      setAltInputs(Object.fromEntries(Object.entries(session.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])));
-      const sc = session.scope || {};
-      if (sc.scopeMode) setScopeMode(sc.scopeMode);
-      if (typeof sc.areaUrban === 'boolean') setAreaUrban(sc.areaUrban);
-      if (typeof sc.areaRural === 'boolean') setAreaRural(sc.areaRural);
-      setInputs(migrateInjectionToggle(session.inputs));
-      if (['data_preview', 'mock_simulation'].includes(session.inputs.profile_metadata?.status)) setShowOnboarding(false);
-      if (session.presentation?.currencyDisplay) setCurrencyDisplay(session.presentation.currencyDisplay);
-      if (session.presentation?.contributionView) setContributionView(session.presentation.contributionView);
-    } else {
-      const defaults = await fetchDefaults();
-      if (!cancelled) setInputs(migrateInjectionToggle(defaults));
-    }
-    refreshProfiles();
-    if (savedScenarios.length) {
-      setScenarios(savedScenarios.map((sc: any) => ({
-        ...sc, inputs: isBundle(sc.inputs) ? {
-          ...sc.inputs, inputs: migrateInjectionToggle(sc.inputs.inputs),
-          altInputs: Object.fromEntries(Object.entries(sc.inputs.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])),
-        } : migrateInjectionToggle(sc.inputs),
-      })));
-    }
-    };
-    initialize().catch(error => console.error('Could not load the initial simulation.', error));
-    return () => { cancelled = true; };
-  }, []);
 
   const resizeMacroArrays = useCallback((inp: any) => {
     // Macro series are HARD VALUES ONLY (historical + any forecast years with data): the engine
@@ -158,8 +81,10 @@ function App() {
   }, []);
 
   const handleSetInputs = useCallback((newInputs: any) => {
-    setInputs(resizeMacroArrays(migrateInjectionToggle(newInputs)));
-  }, [resizeMacroArrays]);
+    if (readOnly) return;
+    modified.current = true;
+    setInputs(resizeMacroArrays(migrateInjectionToggle(withSimulationId({ ...newInputs, calculation_scope: initialScope.sectors }, projectId))));
+  }, [resizeMacroArrays, readOnly]);
 
   // ── Area bundle ────────────────────────────────────────────────────────────────────────────────
   // `inputs` only ever holds the PRIMARY (urban, or the sole dataset); Rural and National live in
@@ -169,12 +94,13 @@ function App() {
   // into one versioned envelope instead; bare-inputs payloads (old profiles, /api/defaults) still
   // load, they just carry no extra areas.
   const packBundle = useCallback(() => ({
+    ...initialBundle,
     [BUNDLE_KEY]: 1,
-    inputs,
-    altInputs,
-    scope: { scopeMode, areaUrban, areaRural },
-    presentation: { contributionView, currencyDisplay },
-  }), [inputs, altInputs, scopeMode, areaUrban, areaRural, contributionView, currencyDisplay]);
+    inputs: stripSimulationId(inputs),
+    altInputs: Object.fromEntries(Object.entries(altInputs).map(([key, area]) => [key, stripSimulationId(area)])),
+    scope: { ...initialScope, scopeMode, areaUrban, areaRural },
+    presentation: { ...initialBundle.presentation, contributionView, currencyDisplay },
+  }), [inputs, altInputs, scopeMode, areaUrban, areaRural, contributionView, currencyDisplay, initialBundle]);
 
   const sourceCurrency = inputs?.country_config?.currency || 'LCU';
   useEffect(() => {
@@ -184,6 +110,7 @@ function App() {
   }, [sourceCurrency]);
 
   const updateCurrencyDisplay = (next: CurrencyDisplaySettings) => {
+    if (!readOnly) modified.current = true;
     const source = inputs?.country_config?.currency || 'LCU';
     setCurrencyDisplay({ ...next, sourceCurrency: source,
       mode: source.toUpperCase() === 'USD' || validRate(next, source) ? next.mode : 'local' });
@@ -193,37 +120,36 @@ function App() {
     setFocusCurrencyRequest(request => request + 1);
   };
 
-  // Autosave the working bundle (debounced) so a refresh keeps every area, not just the primary.
+  // The owning project controls persistence. Never read/write global legacy browser sessions.
   useEffect(() => {
-    if (!inputs) return;
-    const h = setTimeout(() => {
-      try { localStorage.setItem('wss_working_bundle', JSON.stringify(packBundle())); }
-      catch { /* quota exceeded — the session just won't be restorable */ }
-    }, 800);
-    return () => clearTimeout(h);
-  }, [packBundle, inputs]);
+    if (!inputs || readOnly || !modified.current) return;
+    const bundle = scopedBundle(packBundle(), { ...initialScope, scopeMode, areaUrban, areaRural });
+    notify.current({ bundle, scope: bundle.scope, scenarios, location: { ...initialLocation, activeTab, subArea, sectorTab } });
+  }, [packBundle, inputs, scenarios, activeTab, subArea, sectorTab, readOnly]);
 
   const applyBundle = useCallback((obj: any) => {
-    if (!obj) return;
+    if (!obj || readOnly) return;
+    modified.current = true;
     if ((isBundle(obj) ? obj.inputs : obj)?.profile_metadata?.status === 'data_preview') setActiveTab(0);
-    if (!isBundle(obj)) {                       // legacy / defaults: a bare inputs object
-      setAltInputs({});
-      handleSetInputs(obj);
-      setCurrencyDisplay(defaultCurrencyDisplay(obj?.country_config?.currency || 'LCU'));
-      return;
+    const sourceAreas = areasOf(obj);
+    // Only replace active, matching areas. Never erase or relabel dormant area observations.
+    const incomingUrban = sourceAreas.urban;
+    if (scopeMode === 'urban_rural' && areaUrban && incomingUrban) {
+      handleSetInputs(preserveDormantInputs(inputs, incomingUrban, initialScope.sectors));
     }
-    setAltInputs(Object.fromEntries(Object.entries(obj.altInputs || {}).map(([key, area]) => [key, migrateInjectionToggle(area)])));
-    const sc = obj.scope || {};
-    if (sc.scopeMode) setScopeMode(sc.scopeMode);
-    if (typeof sc.areaUrban === 'boolean') setAreaUrban(sc.areaUrban);
-    if (typeof sc.areaRural === 'boolean') setAreaRural(sc.areaRural);
-    if (sc.scopeMode === 'urban_rural' && sc.areaUrban === false) setSubArea('rural');
+    setAltInputs(previous => {
+      const next = { ...previous };
+      for (const area of scopeMode === 'national' ? ['national'] : areaRural ? ['rural'] : []) {
+        if (sourceAreas[area]) next[area] = migrateInjectionToggle(withSimulationId({ ...preserveDormantInputs(previous[area], sourceAreas[area], initialScope.sectors), calculation_scope: initialScope.sectors }, projectId));
+      }
+      return next;
+    });
+    // A comparison snapshot does not widen the project's authorized scope.
     const source = obj.inputs?.country_config?.currency || 'LCU';
     const savedCurrency = obj.presentation?.currencyDisplay;
     setCurrencyDisplay(savedCurrency?.sourceCurrency === source ? savedCurrency : defaultCurrencyDisplay(source));
     if (obj.presentation?.contributionView) setContributionView(obj.presentation.contributionView);
-    handleSetInputs(obj.inputs);
-  }, [handleSetInputs]);
+  }, [handleSetInputs, readOnly, scopeMode, areaUrban, areaRural, inputs]);
 
   // Resolve the scope into the concrete area being edited and what the graphs/outputs should show.
   const both = scopeMode === 'urban_rural' && areaUrban && areaRural;
@@ -239,24 +165,21 @@ function App() {
     : onlyRural ? 'rural'
     : 'urban';
 
-  // Materialise a secondary area's dataset the moment the user opens it for entry.
-  //
-  // The input forms fall back to `altInputs[scope] ?? inputs`, so the Rural tab renders Urban's
-  // numbers and reads as already filled — but until something is EDITED no rural dataset exists, and
-  // everything downstream (the national roll-up, the slide deck) correctly treats rural as absent.
-  // The result is an export that silently omits an area the user believes they entered. Seeding the
-  // dataset on first visit makes what is on screen and what is exported the same thing. Seeded from
-  // the primary, which is what the form was already showing, so nothing visibly changes.
-  // Seeding on SELECTION, not on first visit to the tab: choosing "Urban + Rural (national total)"
-  // is the statement that the analysis has two areas, and the deck has to match that choice whether
-  // or not the Rural tab was ever opened. Tying it to the visit meant a user who selected both areas
-  // and went straight to Results exported an urban-only deck.
+  // New areas come only from the intentional blank initializer. Copy shared identity and years,
+  // never another area's population, costs, service observations or financial assumptions.
   useEffect(() => {
     if (!inputs) return;
     const need = scopeMode === 'national' ? 'national' : (areaRural ? 'rural' : null);
-    if (!need) return;
-    setAltInputs(prev => prev[need] ? prev : { ...prev, [need]: JSON.parse(JSON.stringify(inputs)) });
-  }, [scopeMode, areaRural, inputs]);
+    if (!need || altInputs[need]) return;
+    let cancelled = false;
+    fetch('/api/defaults/blank', { credentials: 'include' }).then(async response => {
+      if (!response.ok) throw new Error('Blank area template unavailable. Please retry the setup.');
+      return response.json();
+    }).then(blank => {
+      if (!cancelled) setAltInputs(prev => prev[need] ? prev : { ...prev, [need]: withSimulationId({ ...(blank.inputs || blank), country_config: inputs.country_config, period: inputs.period, calculation_scope: initialScope.sectors }, projectId) });
+    }).catch(error => { if (!cancelled) setCalculationError(error.message); });
+    return () => { cancelled = true; };
+  }, [scopeMode, areaRural, !!inputs, !!altInputs.rural, !!altInputs.national]);
 
   // §2a start-year change re-anchors EVERY area's positional (index-by-year) series, so a SHARED
   // analysis period keeps urban & rural aligned. Mirrors InputPanel's shiftYearSeries.
@@ -274,11 +197,11 @@ function App() {
   // 'urban' is the primary dataset (held in `inputs`). §1 Country config and §2a Analysis Period are
   // SHARED across urban/rural: always sourced from the primary and overlaid onto the area being edited,
   // so editing them from either area keeps both in sync. (National is a separate single-dataset mode.)
-  const activeInputsRaw = inputScope === 'urban' ? inputs : (altInputs[inputScope] ?? inputs);
+  const activeInputsRaw = inputScope === 'urban' ? inputs : altInputs[inputScope];
   const activeInputs = React.useMemo(() =>
     (inputScope === 'rural' && inputs && activeInputsRaw)
-      ? { ...activeInputsRaw, country_config: inputs.country_config, period: inputs.period }
-      : activeInputsRaw,
+      ? { ...activeInputsRaw, calculation_scope: initialScope.sectors, country_config: inputs.country_config, period: inputs.period }
+      : activeInputsRaw ? { ...activeInputsRaw, calculation_scope: initialScope.sectors } : null,
     [inputScope, inputs, activeInputsRaw]);
   // Live engine results for the ACTIVE dataset (debounced), so the input table can show the engine's
   // computed forecast-year values (population, GDP, budget, allocated/actual capex, …).
@@ -317,6 +240,11 @@ function App() {
     setCalculationRevision(revision => revision + 1);
   }, []);
   const handleSetActiveInputs = useCallback((newInputs: any) => {
+    if (readOnly) return;
+    modified.current = true;
+    newInputs = preserveDormantInputs(activeInputsRaw, newInputs, initialScope.sectors);
+    // Country identity belongs to project setup; never relabel populated observations here.
+    newInputs = withSimulationId({ ...newInputs, country_config: { ...newInputs.country_config, country: inputs.country_config.country }, calculation_scope: initialScope.sectors }, projectId);
     const resized = resizeMacroArrays(newInputs);
     const oldStart = inputs?.period?.model_start_year, newStart = resized?.period?.model_start_year;
     const delta = (Number.isFinite(newStart) && Number.isFinite(oldStart)) ? newStart - oldStart : 0;
@@ -332,22 +260,26 @@ function App() {
     } else {
       setAltInputs(prev => ({ ...prev, [inputScope]: resized }));   // national — isolated single dataset
     }
-  }, [resizeMacroArrays, inputScope, inputs, shiftAreaArrays]);
+  }, [resizeMacroArrays, inputScope, inputs, shiftAreaArrays, readOnly, activeInputsRaw]);
 
   // Flip one intervention toggle on/off across EVERY area (interventions are on/off globally, applied per
   // area). Used by the Results dashboard's on/off toggles — the parameters still live on the Intervention tab.
   const setToggle = useCallback((key: string, value: boolean) => {
-    setInputs((prev: any) => prev ? setInterventionEnabled(prev, key, value) : prev);
+    if (readOnly || key.startsWith('ws_') && !initialScope.sectors.includes('water') || key.startsWith('san_') && !initialScope.sectors.includes('sanitation')) return;
+    modified.current = true;
+    if (scopeMode === 'urban_rural' && areaUrban) setInputs((prev: any) => prev ? setInterventionEnabled(prev, key, value) : prev);
     setAltInputs(prev => {
-      const n: Record<string, any> = {};
-      for (const k of Object.keys(prev)) n[k] = setInterventionEnabled(prev[k], key, value);
+      const n: Record<string, any> = { ...prev };
+      for (const k of Object.keys(prev)) if (scopeMode === 'national' ? k === 'national' : k === 'rural' && areaRural) n[k] = setInterventionEnabled(prev[k], key, value);
       return n;
     });
-  }, []);
+  }, [readOnly, scopeMode, areaUrban, areaRural]);
 
   // Geographical scope as ONE dropdown value: 'both' (Urban + Rural), 'urban', 'rural', 'national'.
   const scopeValue = scopeMode === 'national' ? 'national' : (areaUrban && areaRural) ? 'both' : areaRural ? 'rural' : 'urban';
   const setScopeValue = (v: string) => {
+    if (readOnly) return;
+    modified.current = true;
     if (v === 'national') { setScopeMode('national'); return; }
     setScopeMode('urban_rural');
     if (v === 'both') { setAreaUrban(true); setAreaRural(true); }
@@ -370,23 +302,26 @@ function App() {
   };
 
   const saveScenario = () => {
+    if (readOnly) return;
     const name = prompt('Name this scenario:');
     if (!name) return;
     // Store the whole area bundle so a saved scenario restores Rural/National too, not just urban.
     const updated = [...scenarios, { name, inputs: JSON.parse(JSON.stringify(packBundle())) }];
+    modified.current = true;
     setScenarios(updated);
-    localStorage.setItem('wss_demo_scenarios', JSON.stringify(updated));
   };
 
   const deleteScenario = (idx: number) => {
+    if (readOnly || !window.confirm('Delete this comparison scenario? The project and saved versions are not affected.')) return;
     const updated = scenarios.filter((_, i) => i !== idx);
     setScenarios(updated);
-    localStorage.setItem('wss_demo_scenarios', JSON.stringify(updated));
+    modified.current = true;
   };
 
   // Validation
   const warnings: string[] = [];
-  if (inputs) {
+  if (activeInputs) {
+    const inputs = activeInputs;
     const p = inputs.period;
     // Year sequencing: model start < baseline < forecast end, with the as-is window inside it.
     if (p.model_start_year >= p.baseline_year) warnings.push('Model start year must be before the last year of historical data');
@@ -409,8 +344,8 @@ function App() {
       }
       return count;
     };
-    if (checkTargets(inputs.water_service, 'serv', 'Water') === 0) warnings.push('No water target year set — fill a full forecast service-level column (Σ 100%) in the table.');
-    if (checkTargets(inputs.sanitation_service, 'sserv', 'Sanitation') === 0) warnings.push('No sanitation target year set — fill a full forecast service-level column (Σ 100%) in the table.');
+    if (initialScope.sectors.includes('water') && checkTargets(inputs.water_service, 'serv', 'Water') === 0) warnings.push('No water target year set — fill a full forecast service-level column (Σ 100%) in the table.');
+    if (initialScope.sectors.includes('sanitation') && checkTargets(inputs.sanitation_service, 'sserv', 'Sanitation') === 0) warnings.push('No sanitation target year set — fill a full forecast service-level column (Σ 100%) in the table.');
     // Technology-mix shares. A table summing to less than 100% quietly understates the unit cost, which
     // overstates how many households the budget reaches, so it is raised here rather than left to a
     // footnote under the table.
@@ -422,16 +357,20 @@ function App() {
         warnings.push(`${label} technology mix shares sum to ${(sum * 100).toFixed(1)}% — they must total 100%, or the unit cost will be wrong.`);
       }
     };
-    checkMix(inputs.water_costs?.sm_tech_mix, 'Water safely-managed');
-    checkMix(inputs.water_costs?.basic_tech_mix, 'Water basic');
-    checkMix(inputs.sanitation_costs?.sm_tech_mix, 'Sanitation safely-managed');
-    checkMix(inputs.sanitation_costs?.basic_tech_mix, 'Sanitation basic');
+    if (initialScope.sectors.includes('water')) {
+      checkMix(inputs.water_costs?.sm_tech_mix, 'Water safely-managed');
+      checkMix(inputs.water_costs?.basic_tech_mix, 'Water basic');
+    }
+    if (initialScope.sectors.includes('sanitation')) {
+      checkMix(inputs.sanitation_costs?.sm_tech_mix, 'Sanitation safely-managed');
+      checkMix(inputs.sanitation_costs?.basic_tech_mix, 'Sanitation basic');
+    }
     // The optimised-technology lever's own mixes, checked only where that lever is switched on.
-    if (inputs.toggles?.ws_techmix_enabled) {
+    if (initialScope.sectors.includes('water') && inputs.toggles?.ws_techmix_enabled) {
       checkMix(inputs.water_interventions?.techmix_sm_tech_mix, 'Water optimised-technology safely-managed');
       checkMix(inputs.water_interventions?.techmix_basic_tech_mix, 'Water optimised-technology basic');
     }
-    if (inputs.toggles?.san_techmix_enabled) {
+    if (initialScope.sectors.includes('sanitation') && inputs.toggles?.san_techmix_enabled) {
       checkMix(inputs.sanitation_interventions?.techmix_sm_tech_mix, 'Sanitation optimised-technology safely-managed');
       checkMix(inputs.sanitation_interventions?.techmix_basic_tech_mix, 'Sanitation optimised-technology basic');
     }
@@ -444,15 +383,12 @@ function App() {
   const isMockSimulation = inputs?.profile_metadata?.status === 'mock_simulation';
 
   return (
-    <div className="wb-app" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <RevenueReconciliation inputs={activeInputs} onChange={handleSetActiveInputs} area={inputScope} silent={true} />
-      {mockSetupError && <div role="alert" style={{padding:'8px 16px',background:'#fff1f2',color:'#9f1239'}}>
-        Mock setup could not be applied: {mockSetupError} Your original inputs were retained.
-      </div>}
+    <ProjectScopeContext.Provider value={{ sectors: initialScope.sectors, readOnly, projectMode: true, projectId }}>
+    <div className={`wb-app${readOnly ? ' workspace-view-only' : ''}`} style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      {!readOnly && <RevenueReconciliation inputs={activeInputs} onChange={value => { if (modified.current) handleSetActiveInputs(value); }} area={inputScope} silent={true} />}
       {isMockSimulation && <div role="note" style={{padding:'8px 16px',background:'#fff8e7',color:'#714b10',fontSize:12}}>
         <strong>DRC mock simulation — illustrative assumptions.</strong> Blank unit costs and remaining technical/revenue fields have been filled for testing.
         {' '}Conversion: <strong>2,309.58 CDF per US$1</strong> (user supplied). These are not validated DRC estimates.
-        {' '}Restore “Original DRC inputs before mock setup” from Saved scenarios to return to your prior inputs.
         <details><summary>View initial mock assumptions for this area (later field edits may differ)</summary>
           {(activeInputs?.profile_metadata?.mock_assumptions || []).map((item: any, index: number) =>
             <div key={`${item.field}-${index}`}><strong>{item.field}</strong>: {String(item.value)} — {item.basis}</div>)}
@@ -477,28 +413,8 @@ function App() {
           </div>
         </div>
         <div className="wb-header-actions">
-          <select onChange={async (e) => {
-            const val = e.target.value;
-            if (val === '__blank') { const res = await fetch('/api/defaults/blank'); applyBundle(await res.json()); }
-            else if (val === '__default') { const res = await fetch('/api/defaults'); applyBundle(await res.json()); }
-            else if (val) { const res = await fetch(`/api/profiles/${val}`); applyBundle(await res.json()); }
-            e.target.value = '';
-          }} className="wb-profile-select">
-            <option value="" style={{ background: '#fff', color: '#333' }}>Load Profile...</option>
-            <option value="__default" style={{ background: '#fff', color: '#333' }}>Nepal KV (Default)</option>
-            <option value="__blank" style={{ background: '#fff', color: '#333' }}>── New Blank Country ──</option>
-            {profileList.length > 0 && <option disabled style={{ background: '#f1f5f9', color: '#94a3b8' }}>── Saved Profiles ──</option>}
-            {profileList.map(name => (
-              <option key={name} value={name} style={{ background: '#fff', color: '#333' }}>{name.replace(/_/g, ' ')}</option>
-            ))}
-          </select>
-          <button onClick={async () => {
-            const name = prompt('Save profile as:');
-            if (!name) return;
-            await fetch(`/api/profiles/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(packBundle()) });
-            refreshProfiles(); alert(`Profile "${name}" saved!`);
-          }} className="wb-header-action">Save Profile</button>
-          <button onClick={saveScenario} className="wb-header-action">Save Scenario</button>
+          {!readOnly && <button onClick={onSetup} className="wb-header-action">Edit simulation setup</button>}
+          {!readOnly && <button onClick={saveScenario} className="wb-header-action">Save comparison</button>}
           <button id="tool-overview-btn" onClick={() => setShowOnboarding(true)} className="wb-header-action">Tool Overview</button>
         </div>
       </header>
@@ -509,21 +425,21 @@ function App() {
           <span className="wb-saved-label">Saved scenarios:</span>
           {scenarios.map((s, i) => (
             <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <button onClick={() => applyBundle(JSON.parse(JSON.stringify(s.inputs)))} className="wb-saved-scenario">
+              <button disabled={readOnly || !Object.keys(comparisonAreas(s.inputs, { ...initialScope, scopeMode, areaUrban, areaRural })).length} title="Restore the matching active areas and sectors from this comparison" onClick={() => applyBundle(JSON.parse(JSON.stringify(s.inputs)))} className="wb-saved-scenario">
                 {s.name}
               </button>
               <button onClick={() => {
                 // Export this scenario as the branded deck, covering every area it was saved with.
                 const presentation = s.inputs?.presentation;
-                fetch('/api/export/deck', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ areas: areasOf(s.inputs), contribution_view: presentation?.contributionView || contributionView,
+                fetch('/api/export/deck', { method: 'POST', credentials: 'include', headers: simulationHeaders(undefined, projectId),
+                  body: JSON.stringify({ areas: comparisonAreas(s.inputs, { ...initialScope, scopeMode, areaUrban, areaRural }), contribution_view: presentation?.contributionView || contributionView,
                     currency_display: presentation?.currencyDisplay || currencyDisplay }) })
                   .then(async r => {
                     if (!r.ok) { const payload = await r.json().catch(() => ({})); throw new Error(payload.detail || `Export failed (${r.status}).`); }
                     return r.blob();
                   }).then(b => { const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${s.name}_slides.pptx`; a.click(); URL.revokeObjectURL(u); })
                   .catch(error => alert(error.message));
-              }} className="wb-scenario-export" aria-label={`Export ${s.name} slides`}>PPTX</button>
+              }} disabled={!Object.keys(comparisonAreas(s.inputs, { ...initialScope, scopeMode, areaUrban, areaRural })).length} title="Export matching active areas and sectors. If unavailable, restore their scope in setup." className="wb-scenario-export" aria-label={`Export ${s.name} slides`}>PPTX</button>
               <button onClick={() => deleteScenario(i)}
                 className="wb-scenario-delete" aria-label={`Delete ${s.name}`}>×</button>
             </span>
@@ -535,7 +451,7 @@ function App() {
       <nav className="wb-tab-nav" aria-label="Scenario workflow">
         {tabs.map((tab, i) => {
           return (
-          <button key={tab} onClick={() => { setActiveTab(i); if (i === 1 && both) setBauChartScope(subArea); }}
+          <button key={tab} onClick={() => { if (!readOnly) modified.current = true; setActiveTab(i); if (i === 1 && both) setBauChartScope(subArea); }}
             className={`wb-tab${activeTab === i ? ' wb-tab-active' : ''}`}>
             <span className="wb-tab-step">{i + 1}</span>
             <span className="wb-tab-label">
@@ -577,12 +493,13 @@ function App() {
         )}
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-        {activeTab === 0 && inputs && (
+        {activeTab === 0 && activeInputs && (
           <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results || economicProjections} calculationError={calculationError} projectionError={projectionError} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
-            scopeControls={<GeographicalScope value={scopeValue} onChange={setScopeValue} area={subArea} onAreaChange={setSubArea} hint={scopeHint} dismissHint={dismissScopeHint} />}
+            scopeControls={<GeographicalScope value={scopeValue} onChange={readOnly ? () => {} : setScopeValue} area={subArea} onAreaChange={value => { if (!readOnly) modified.current = true; setSubArea(value); }} hint={scopeHint} dismissHint={dismissScopeHint} readOnly={readOnly} />}
+            bauSector={sectorTab} onBauSectorChange={value => { if (!readOnly) modified.current = true; setSectorTab(value); }}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
         )}
-        {activeTab === 1 && inputs && (
+        {activeTab === 1 && activeInputs && (
           <BAUWorkspace inputs={activeInputs} onChange={handleSetActiveInputs} geoScope={inputScope}
             inputsList={both ? [bauChartScope === 'urban' ? inputs : altInputs.rural ?? inputs] : [activeInputs]}
             scopeLabel={both ? (bauChartScope === 'urban' ? 'Urban' : 'Rural') : inputScope[0].toUpperCase() + inputScope.slice(1)}
@@ -591,11 +508,11 @@ function App() {
             sector={sectorTab} onSectorChange={setSectorTab} onSectionFocus={focusGuideSection}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
         )}
-        {activeTab === 2 && inputs && (
+        {activeTab === 2 && activeInputs && (
           <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} calculationError={calculationError} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} contributionView={contributionView} onContributionViewChange={setContributionView}
             currencyDisplay={currencyDisplay} onEditCurrencyRate={editCurrencyRate} onCurrencyDisplayChange={updateCurrencyDisplay} />
         )}
-        {activeTab === 3 && inputs && (
+        {activeTab === 3 && activeInputs && (
           <DebtServicingPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={resultInputs.current === activeInputs ? results : null} calculationError={calculationError}
             sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} contributionView={contributionView}
             onContributionViewChange={setContributionView} currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay}
@@ -631,6 +548,7 @@ function App() {
           "Start here" nudge pointing at the geographical-scope dropdown. */}
       {showOnboarding && <OnboardingModal onClose={() => { setShowOnboarding(false); triggerScopeHint(); }} />}
     </div>
+    </ProjectScopeContext.Provider>
   );
 }
 function OnboardingModal({ onClose }: { onClose: () => void }) {
@@ -727,18 +645,18 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
 
           {ovTab === 'saving' && <>
           <p style={{ fontSize: 13, color: '#475569', margin: '0 0 10px', lineHeight: 1.5 }}>
-            Two save options sit in the top-right of the header. A <strong>Profile</strong> is a complete, reloadable dataset for a place; a <strong>Scenario</strong> is a lightweight snapshot you compare against others.
+            A simulation project owns your working draft, version history and comparison scenarios. Saving progress and publishing are separate decisions.
           </p>
           <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 12, lineHeight: 1.5 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#014972', marginBottom: 4 }}>Save Profile</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#014972', marginBottom: 4 }}>Save progress &amp; Save version</div>
             <div style={{ fontSize: 13, color: '#475569' }}>
-              Stores everything you have entered — country settings, the year-by-year data, BAU inputs and interventions — under a name. Saved profiles reappear in the <strong>Load Profile…</strong> dropdown (top-left) so you can return later or keep several places side by side. Loading a profile replaces what is on screen, so save first if needed.
+              Your project autosaves to your verified account, including incomplete inputs. Use <strong>Save progress</strong> for an immediate save. Use <strong>Save version</strong> to keep a named, immutable input checkpoint. Restore or publish a selected version from <strong>History &amp; sharing</strong>. Publication never exposes later draft edits automatically.
             </div>
           </div>
           <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', lineHeight: 1.5 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#014972', marginBottom: 4 }}>Save Scenario</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#014972', marginBottom: 4 }}>Save comparison</div>
             <div style={{ fontSize: 13, color: '#475569' }}>
-              Captures a snapshot of the current inputs for comparison — e.g. save "Ambitious 2040", change assumptions, save "Conservative 2040". Saved scenarios appear on the Results Dashboard, where each can be downloaded as its own PowerPoint slide.
+              Captures a project-bound snapshot of the current inputs for comparison—for example, a baseline and a reform package. Comparison scenarios are saved with the project and can be exported separately. They are not independent projects and do not publish your work.
             </div>
           </div>
           </>}

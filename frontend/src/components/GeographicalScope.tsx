@@ -1,13 +1,14 @@
 import React from 'react';
 
-export default function GeographicalScope({ value, onChange, area, onAreaChange, hint, dismissHint }: {
+export default function GeographicalScope({ value, onChange, area, onAreaChange, hint, dismissHint, readOnly = false }: {
   value: string; onChange: (value: string) => void; area: string;
   onAreaChange: (area: 'urban' | 'rural') => void; hint: boolean; dismissHint: () => void;
+  readOnly?: boolean;
 }) {
   return <div className="modern-geographical-scope" onClickCapture={dismissHint}>
     <div className="modern-geographical-scope__row">
       <label htmlFor="input-geographical-scope">Select geographical scope</label>
-      <select id="input-geographical-scope" className="wb-scope-select" value={value}
+      <select disabled={readOnly} id="input-geographical-scope" className="wb-scope-select" value={value}
         onChange={event => { onChange(event.target.value); dismissHint(); }}>
         <option value="both">Urban + Rural (national total)</option>
         <option value="urban">Urban only</option>

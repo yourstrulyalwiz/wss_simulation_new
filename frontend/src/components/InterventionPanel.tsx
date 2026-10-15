@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useProjectScope } from '../projectScope';
 import PublicSpendingTargets from './PublicSpendingTargets';
 import InterventionCategories from './InterventionCategories';
 import LiveInterventionChart from './LiveInterventionChart';
@@ -86,9 +87,11 @@ function F({ label, value, onChange, unit, step, isPercent, tip, fieldType, plac
 
 // Toggle with a parameter panel that is opened/closed only by its own Show/Hide button.
 // The checkbox just enables/disables the intervention (drives the graph) and never opens or closes the panel.
-function InterventionToggle({ label, checked, onChange, children, onFocus }: {
+function InterventionToggle({ label, checked, onChange, children, onFocus, unavailable = false }: {
   label: string; checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode; onFocus?: () => void;
+  unavailable?: boolean;
 }) {
+  const { readOnly } = useProjectScope();
   const [expanded, setExpanded] = useState(false);
   return (
     <div style={{ marginBottom: 8, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
@@ -97,7 +100,7 @@ function InterventionToggle({ label, checked, onChange, children, onFocus }: {
         background: checked ? '#eef2ff' : '#fafbfc', borderBottom: expanded ? '1px solid #c7d2fe' : 'none',
       }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}>
-          <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)}
+          <input type="checkbox" disabled={readOnly || unavailable} checked={checked && !unavailable} onChange={e => onChange(e.target.checked)}
             style={{ width: 18, height: 18, accentColor: '#2563eb' }} />
           <span style={{ fontSize: 13, color: checked ? '#1e3a5f' : '#475569', fontWeight: checked ? 600 : 400 }}>{label}</span>
         </label>
@@ -106,10 +109,11 @@ function InterventionToggle({ label, checked, onChange, children, onFocus }: {
           {expanded ? '▴ Hide' : '▾ Show'}
         </button>
       </div>
+      {unavailable && <p style={{ margin: '8px 12px', fontSize: 11, color: '#587681' }}>Add Water supply to use this linkage. Saved settings are retained but inactive.</p>}
       {expanded && (
-        <div style={{ padding: '10px 14px', background: '#fff', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px', alignItems: 'start' }}>
+        <fieldset disabled={readOnly || unavailable} style={{ margin: 0, border: 0, minWidth: 0, padding: '10px 14px', background: '#fff', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px', alignItems: 'start' }}>
           {children}
-        </div>
+        </fieldset>
       )}
     </div>
   );
@@ -196,6 +200,7 @@ function TechMixEditor({ inputs, onChange, section, CUR }: {
 interface Props { inputs: any; onChange: (i: any) => void; results?: any; calculationError?: string; sectorTab?: 'water' | 'sanitation'; onSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (key: string) => void; geoScope?: string; chartScope?: string; contributionView: ContributionView; onContributionViewChange: (v: ContributionView) => void; currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void; onEditCurrencyRate: () => void; }
 
 export default function InterventionPanel({ inputs, onChange, results, calculationError = '', sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
+  const { sectors, readOnly } = useProjectScope();
   const [invalidNrwOverlapYear, setInvalidNrwOverlapYear] = useState<number | null>(null);
   // Budget execution (executed budget ÷ allocated budget) is COMPUTED by the live engine from the
   // historical budget rows — it is shown read-only as the current value in the Budget-execution
@@ -411,10 +416,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   React.useEffect(() => {
     if (prevSector.current === sectorTab) return;
     prevSector.current = sectorTab;
-    const ci = inputs.custom_interventions || [];
-    if (ci.some((c: any) => c.sector !== 'both' && c.sector !== sectorTab)) {
-      onChange({ ...inputs, custom_interventions: ci.map((c: any) => c.sector === 'both' ? c : { ...c, sector: sectorTab }) });
-    }
+    // A display tab must never reassign stored custom interventions to another sector.
   }, [sectorTab]);
 
   return (
@@ -438,7 +440,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
         {/* Sector toggle */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-          {(['water', 'sanitation'] as const).map(s => (
+          {sectors.map(s => (
             <button key={s} onClick={() => { onSectorChange?.(s); onSectionFocus?.(s === 'water' ? 'ws_interventions' : 'san_interventions'); }} style={{
               flex: 1, padding: '8px 16px', border: 'none', borderRadius: 6, cursor: 'pointer',
               background: sectorTab === s ? '#2563eb' : '#e5e7eb',
@@ -648,7 +650,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             <TechMixEditor inputs={inputs} onChange={onChange} section="sanitation_interventions" CUR={CUR} />
           </InterventionToggle>
 
-          <InterventionToggle label="NRW-linked sanitation revenue" checked={inputs.toggles?.san_nrw_link_enabled ?? false} onChange={v => toggleIntv('san_nrw_link_enabled', v)} onFocus={() => onSectionFocus?.('san_nrw_link')}>
+          <InterventionToggle label="NRW-linked sanitation revenue" unavailable={!sectors.includes('water')} checked={inputs.toggles?.san_nrw_link_enabled ?? false} onChange={v => toggleIntv('san_nrw_link_enabled', v)} onFocus={() => onSectionFocus?.('san_nrw_link')}>
             {(() => {
               const water = results?.water_supply || {};
               const recovery: number[] = water.scenario_nrw_physical_recovery || water.scenario_nrw_recovered_phys_vol || [];
@@ -736,11 +738,12 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         {/* ===== CUSTOM INTERVENTIONS (always visible, no dropdown) ===== */}
         <div style={{ marginTop: 16, border: '1px solid #ddd', borderRadius: 8, background: '#fff', padding: '12px 14px' }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', margin: '0 0 8px' }}>Custom Interventions</h3>
-          <div onClick={() => onSectionFocus?.('custom_interventions')}>
+          <fieldset disabled={readOnly} style={{ margin: 0, padding: 0, border: 0, minWidth: 0 }} onClick={() => onSectionFocus?.('custom_interventions')}>
             <div style={{ fontSize: 11, color: '#155e75', background: '#ecfeff', border: '1px solid #a5f3fc', padding: '6px 8px', borderRadius: 4, marginBottom: 8, lineHeight: 1.5 }}>
               You can add interventions not covered above as custom interventions. Two types are supported: <b>New revenue source</b> — invest to produce an output whose net value funds new safely-managed service — and <b>Cost reduction</b> — lower the per-household service cost. Pick each one's sector and tick its box to switch it on.
             </div>
             {(inputs.custom_interventions || []).map((ci: any, idx: number) => {
+              if (ci.sector !== 'both' && ci.sector !== sectorTab) return null;
               const updateCI = (field: string, val: any) => {
                 const arr = [...inputs.custom_interventions];
                 arr[idx] = { ...arr[idx], [field]: val };
@@ -837,7 +840,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             }} style={{ width: '100%', padding: '8px', border: '1px dashed #9333ea', borderRadius: 6, background: 'none', cursor: 'pointer', fontSize: 12, color: '#9333ea', fontWeight: 500 }}>
               + Add Custom Intervention
             </button>
-          </div>
+          </fieldset>
         </div>
       </div>
 

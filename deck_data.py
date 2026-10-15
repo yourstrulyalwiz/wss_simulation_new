@@ -487,6 +487,8 @@ def build(area_inputs: Dict[str, dict]) -> dict:
             continue
         passes, enabled, has_custom = cumulative_passes(fes)
         for sk in SECTORS:
+            if results[scope].get(sk) is None:
+                continue
             block = block_data(results[scope], primary, sk, passes, enabled, has_custom)
             debt = dict(block.get('utility_debt') or {})
             debt_areas = [dict(a) for a in (debt.get('areas') or [debt])]

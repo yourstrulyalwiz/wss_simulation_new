@@ -16,4 +16,4 @@
 - [Independent sectors](sector-independence.md) — invalid sanitation must not block water; missing sector/geography results remain incomplete, never zero.
 - [Data Inputs navigation](data-input-navigation.md) — keep seven top-level sections in one long form; sector choices do not add sections.
 - [BAU preview layout](bau-preview-navigation.md) — three primary navigation sections in a long form; preserve sector/area toggles and add baseline/target-year KPIs.
-- [Simulation management](simulation-management-policy.md) — preserve Oct 12/Nepal seeds; verified ownership, dormant scope data and version-specific public access.
+- [Simulation management](simulation-management-policy.md) — preserve Oct 12, Oct 13 and Nepal seeds; verified ownership, dormant scope data and version-specific public access.

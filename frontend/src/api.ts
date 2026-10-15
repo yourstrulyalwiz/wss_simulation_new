@@ -1,9 +1,15 @@
 import { withSpendingDrafts } from './publicSpendingSchedule';
+import { simulationHeaders, stripSimulationId } from './simulationTransport';
 const BASE_URL = '/api';
 
+export function calculationPayload(inputs: any) {
+  const sectors: string[] = Array.isArray(inputs?.calculation_scope) ? inputs.calculation_scope : ['water', 'sanitation'];
+  return { ...stripSimulationId(inputs), calculation_scope: sectors,
+    ...(!sectors.includes('water') ? { toggles: { ...inputs?.toggles, san_nrw_link_enabled: false } } : {}) };
+}
 export async function resolveRevenueBases(inputs: any, signal?: AbortSignal) {
   const response = await fetch(`${BASE_URL}/revenue-bases`, { method: 'POST', credentials: 'include',
-    cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inputs), signal });
+    cache: 'no-store', headers: simulationHeaders(inputs), body: JSON.stringify(calculationPayload(inputs)), signal });
   const data = await response.json();
   if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Revenue inputs could not be verified.');
   return data;
@@ -27,8 +33,8 @@ export async function runCalculation(inputs: any, required: 'water' | 'sanitatio
     method: 'POST',
     credentials: 'include',
     cache: 'no-store',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(withSpendingDrafts(inputs)),
+    headers: simulationHeaders(inputs),
+    body: JSON.stringify(calculationPayload(withSpendingDrafts(inputs))),
   });
   if (!res.ok) {
     const body = await res.json();
@@ -36,8 +42,9 @@ export async function runCalculation(inputs: any, required: 'water' | 'sanitatio
   }
   const result = await res.json();
   const errors = result.sector_errors || {};
-  const keys = required === 'partial' ? [] : required === 'water' ? ['water_supply'] :
-    required === 'sanitation' ? ['sanitation'] : ['water_supply', 'sanitation'];
+  const allowed = calculationPayload(inputs).calculation_scope.map((sector: string) => sector === 'water' ? 'water_supply' : sector);
+  const keys = (required === 'partial' ? [] : required === 'water' ? ['water_supply'] :
+    required === 'sanitation' ? ['sanitation'] : ['water_supply', 'sanitation']).filter(key => allowed.includes(key));
   const missing = keys.filter(key => errors[key] || !result[key]);
   if (missing.length) throw new Error(missing.map(key => errors[key] || `${key}: results unavailable`).join(' '));
   return result;
@@ -47,8 +54,9 @@ export async function runCalculation(inputs: any, required: 'water' | 'sanitatio
 export async function runEconomicProjections(inputs: any) {
   const res = await fetch(`${BASE_URL}/projections`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(inputs),
+    credentials: 'include',
+    headers: simulationHeaders(inputs),
+    body: JSON.stringify(calculationPayload(inputs)),
   });
   if (!res.ok) {
     const body = await res.json();
@@ -61,8 +69,9 @@ export async function runEconomicProjections(inputs: any) {
 export async function downloadTemplate(inputs: any) {
   const res = await fetch(`${BASE_URL}/template/xlsx`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(inputs),
+    credentials: 'include',
+    headers: simulationHeaders(inputs),
+    body: JSON.stringify(calculationPayload(inputs)),
   });
   if (!res.ok) throw new Error('Template download failed (' + res.status + ')');
   const blob = await res.blob();
@@ -83,10 +92,12 @@ export async function importTemplate(file: File, inputs: any): Promise<{ inputs:
   }
   const res = await fetch(`${BASE_URL}/import/xlsx`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ file_b64: btoa(binary), inputs }),
+    credentials: 'include',
+    headers: simulationHeaders(inputs),
+    body: JSON.stringify({ file_b64: btoa(binary), inputs: stripSimulationId(inputs) }),
   });
   const data = await res.json();
+  if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'The input template could not be imported.');
   if (data.error) throw new Error(data.error);
   return data;
 }

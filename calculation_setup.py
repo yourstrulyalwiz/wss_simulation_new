@@ -114,6 +114,11 @@ def validate_country_inputs(inputs):
     }
     for section, labels in fields.items():
         for key, label in labels.items():
+            from simulation_scope import sectors_of
+            sectors = sectors_of(inputs)
+            sector = 'water' if section.startswith('water') or key.startswith('ws_') else 'sanitation'
+            if sector not in sectors:
+                continue
             values = inputs.get(section) or {}
             if key in values and values[key] in (None, ""):
                 missing.append(label)

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useProjectScope } from '../projectScope';
 import LiveInterventionChart from './LiveInterventionChart';
 import UtilityDebtPreview from './UtilityDebtPreview';
 import DebtServicingControls from './DebtServicingControls';
@@ -35,6 +36,7 @@ export default function DebtServicingPanel({
   inputs, onChange, results, calculationError = '', sectorTab, onSectorChange, geoScope,
   contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate, onSectionFocus, onRetry,
 }: Props) {
+  const { sectors } = useProjectScope();
   const currency = inputs?.country_config?.currency || 'LCU';
   const sectorKey = sectorTab === 'water' ? 'water_supply' : 'sanitation';
   const debt = inputs.utility_debt?.[sectorTab] || { enabled: false };
@@ -60,7 +62,7 @@ export default function DebtServicingPanel({
         </section>
         <div className="debt-results-toolbar">
           <div className="debt-sector-tabs" role="group" aria-label="Debt servicing sector">
-            {(['water', 'sanitation'] as const).map(sector => (
+            {sectors.map(sector => (
             <button key={sector} type="button" aria-pressed={sectorTab === sector} onClick={() => onSectorChange(sector)}>
                 {sector === 'water' ? 'Water supply' : 'Sanitation'}
               </button>

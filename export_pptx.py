@@ -174,16 +174,14 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
     # === 2. EXECUTIVE SUMMARY ===
     s = prs.slides.add_slide(blank)
     slide_title(s, 'Executive summary', f'Safely-managed coverage and financing gap · {country} {area}')
-    ws, sn = _sector_summary(result, inputs, 'water_supply'), _sector_summary(result, inputs, 'sanitation')
+    summaries = [(name, _sector_summary(result, inputs, key)) for key, name in
+                 [('water_supply','Water Supply'),('sanitation','Sanitation')] if result.get(key) is not None]
     headers = ['Sector', 'Current', f'BAU {end}', f'Target {end}', f'With reforms {end}']
-    rows = [
-        ['Water Supply', _pct(ws['curCov']), _pct(ws['bauCov']), _pct(ws['tgtCov']), _pct(ws['scnCov'])],
-        ['Sanitation', _pct(sn['curCov']), _pct(sn['bauCov']), _pct(sn['tgtCov']), _pct(sn['scnCov'])],
-    ]
+    rows = [[name, _pct(d['curCov']), _pct(d['bauCov']), _pct(d['tgtCov']), _pct(d['scnCov'])] for name,d in summaries]
     add_table(s, 0.6, 1.4, 8.0, headers, rows)
     tf = textbox(s, 0.6, 3.2, 12.1, 3.6)
     set_p(tf.paragraphs[0], 'KEY TAKEAWAYS', 15, INK, bold=True)
-    for label, d in [('Water supply', ws), ('Sanitation', sn)]:
+    for label, d in summaries:
         red = (1 - d['gapScn'] / d['gapBau']) * 100 if d['gapBau'] else 0
         txt = (f"{label}: safely-managed coverage reaches {_pct(d['scnCov'])} with the current interventions by "
                f"{d['end']} (vs {_pct(d['bauCov'])} business-as-usual and a {_pct(d['tgtCov'])} target) — "
@@ -196,6 +194,8 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
         ('water_supply', 'Water Supply', WATER_INTV, 'water_coverage', 'water_gap'),
         ('sanitation', 'Sanitation', SAN_INTV, 'san_coverage', 'san_gap'),
     ]:
+        if result.get(sk) is None:
+            continue
         d = _sector_summary(result, inputs, sk)
         ledger_slide = prs.slides.add_slide(blank)
         slide_title(ledger_slide, f'{name} — funding flows and balances',
@@ -260,6 +260,8 @@ def create_pptx(result: dict, inputs: dict, charts: dict | None = None, contribu
     # Utility loans are annual debt schedules, not household microfinance. Keep assumptions,
     # annual service capacity, actual loan-funded investment, and restricted proceeds explicit.
     for sk, name in [('water_supply', 'Water Supply'), ('sanitation', 'Sanitation')]:
+        if result.get(sk) is None:
+            continue
         debt = result[sk].get('scenario_utility_debt') or {}
         if not debt.get('enabled'):
             continue

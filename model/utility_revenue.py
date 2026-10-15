@@ -77,6 +77,8 @@ def resolve_bases(inputs, ctx):
     s = raw.get('sanitation_interventions', {})
     out = {}
     for sector, iv in (('water', w), ('sanitation', s)):
+        if sector not in inputs.calculation_scope:
+            continue
         canonical = inputs.revenue_bases.get(sector)
         if canonical is not None:
             base = validate_base(canonical)

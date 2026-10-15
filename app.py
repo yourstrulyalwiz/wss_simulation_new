@@ -13,6 +13,47 @@ from calculation_setup import CountryCalibrationError
 from currency_export import validate_currency_display
 
 app = FastAPI(title="WSS Scenarios Model API")
+from simulation_management.routes import router as simulation_router
+app.include_router(simulation_router)
+
+
+@app.on_event('startup')
+def preserve_simulation_sources():
+    from simulation_management.seeds import import_seeds
+    import_seeds()
+
+
+@app.middleware('http')
+async def project_access_boundary(request, call_next):
+    from simulation_management.identity import identity
+    from simulation_management.store import connect
+    from simulation_management.service import get_record
+    path = request.url.path
+    if path.startswith('/api/profiles') or path in ('/api/development-preview', '/api/mock-drc-inputs'):
+        return JSONResponse(status_code=410, content={'detail':'Use simulation projects; legacy source files are preserved read-only.'})
+    public = path in ('/api/countries','/api/country-metadata','/api/defaults','/api/cost-mix/templates')
+    if path.startswith('/api/') and not path.startswith('/api/simulations') and path != '/api/me' and not public:
+        try:
+            user = identity(request, required=False)
+            if not user:
+                sid = request.headers.get('x-simulation-id')
+                # Anonymous readers may calculate/view the featured examples only.
+                if not sid or path not in ('/api/calculate','/api/projections','/api/revenue-bases') and not path.startswith('/api/export/'):
+                    identity(request)
+                with connect() as db:
+                    if not get_record(db,sid,None)['is_seed']:
+                        raise HTTPException(401,'Sign in to use simulation projects.')
+        except HTTPException as exc:
+            return JSONResponse(status_code=exc.status_code, content={'detail':exc.detail})
+    response = await call_next(request)
+    if path.startswith('/api/'):
+        response.headers['Cache-Control'] = 'private, no-store'
+    return response
+
+
+@app.exception_handler(ValueError)
+async def invalid_selection(request, exc):
+    return JSONResponse(status_code=422, content={'detail': str(exc)})
 from model.utility_revenue import RevenueInputError, resolve_bases
 from model.utility_debt import UtilityDebtInputError
 from model.engine import build_context
@@ -63,7 +104,7 @@ def revenue_bases(inputs: dict = Body(...)):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -90,21 +131,8 @@ def cost_mix_templates():
 
 @app.get("/api/defaults/blank")
 def get_blank():
-    """Blank template (frontend-shaped): zero the numeric data but keep structure and labels."""
-    import copy
-    blank = copy.deepcopy(frontend_defaults())
-    blank['country_config'].update(country='', area='', currency='USD')
-    for section in ['macro', 'population', 'water_service', 'sanitation_service',
-                    'water_costs', 'sanitation_costs', 'water_targets', 'sanitation_targets', 'technical']:
-        for key, val in list(blank.get(section, {}).items()):
-            if isinstance(val, (int, float)):
-                blank[section][key] = 0
-            elif isinstance(val, list):
-                blank[section][key] = [0] * len(val)
-    blank['bau'] = {'ws_budget_ts': [], 'san_budget_ts': [], 'ws_expend_ts': [], 'san_expend_ts': [],
-                    'period_mode': 'automatic', 'period_unit_years': 5, 'investment_periods': []}
-    blank['custom_interventions'] = []
-    return blank
+    from simulation_management.blank import blank_inputs
+    return blank_inputs()
 
 
 @app.get("/api/profiles")
@@ -398,6 +426,8 @@ if os.path.exists(static_dir):
     @app.get("/{full_path:path}")
     def serve_frontend(full_path: str):
         file_path = os.path.join(static_dir, full_path)
+        if not os.path.realpath(file_path).startswith(os.path.realpath(static_dir) + os.sep) and full_path:
+            raise HTTPException(404, 'Not found.')
         if full_path and os.path.isfile(file_path):
             headers = frontend_html_headers if file_path.endswith(".html") else None
             return FileResponse(file_path, headers=headers)

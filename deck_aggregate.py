@@ -164,6 +164,9 @@ def aggregate(results: List[dict]) -> dict:
     w = _weights(results)
 
     for sk in SECTORS:
+        if all(r.get(sk) is None for r in results):
+            out[sk] = None
+            continue
         secs = [r.get(sk) or {} for r in results]
         agg: Dict[str, object] = {}
         for key, val in (secs[0] or {}).items():

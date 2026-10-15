@@ -342,6 +342,10 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
 
 def calculate(inputs: ModelInputs, allow_partial=False) -> dict:
     import copy
+    from simulation_scope import sectors_of
+    selected_sectors = sectors_of({'calculation_scope': inputs.calculation_scope})
+    if 'water' not in selected_sectors:
+        inputs = inputs.model_copy(update={'toggles': inputs.toggles.model_copy(update={'san_nrw_link_enabled': False})})
     configs = copy.deepcopy(inputs.connection_revenue)
     for prefix, sector in [('ws', 'water'), ('san', 'sanitation')]:
         selected = getattr(inputs.toggles, prefix + '_connections_enabled', None)
@@ -353,6 +357,8 @@ def calculate(inputs: ModelInputs, allow_partial=False) -> dict:
     resolutions = resolve_bases(inputs, ctx)
     sector_errors = {}
     def independently(sector, run):
+        if sector not in selected_sectors:
+            return None
         try:
             if resolutions[sector]['base'] is None:
                 raise RevenueInputError(f'{sector.title()}: reconcile the shared billed-revenue base before calculating.')

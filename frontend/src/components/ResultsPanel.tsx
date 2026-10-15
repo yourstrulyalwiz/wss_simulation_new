@@ -1,4 +1,6 @@
 import React, { useState, useRef } from 'react';
+import { simulationHeaders } from '../simulationTransport';
+import { calculationPayload } from '../api';
 import { ServiceGapChart, FinancingGapChart, CumulativeChart, WaterfallChart, COLORS } from './Charts';
 
 interface Props {
@@ -89,11 +91,11 @@ export default function ResultsPanel({ results, inputs, compareResults, compareN
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
           <button onClick={onExportCSV} style={exportBtnStyle}>CSV</button>
           <button onClick={() => {
-            fetch('/api/export/xlsx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inputs) })
+            fetch('/api/export/xlsx', { method: 'POST', credentials: 'include', headers: simulationHeaders(inputs), body: JSON.stringify(calculationPayload(inputs)) })
               .then(r => r.blob()).then(b => { const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'wss_results.xlsx'; a.click(); });
           }} style={exportBtnStyle}>Excel</button>
           <button onClick={() => {
-            fetch('/api/export/pptx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inputs) })
+            fetch('/api/export/pptx', { method: 'POST', credentials: 'include', headers: simulationHeaders(inputs), body: JSON.stringify(calculationPayload(inputs)) })
               .then(r => r.blob()).then(b => { const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'wss_scenarios.pptx'; a.click(); });
           }} style={exportBtnStyle}>PowerPoint</button>
           <button onClick={() => {

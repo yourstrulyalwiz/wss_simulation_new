@@ -1,4 +1,5 @@
 import React from 'react';
+import { useProjectScope } from '../projectScope';
 import { FUNDING_RECALCULATION_NOTICE, migrateLoanFundingConfig, validateLoanFundingConfig } from '../loanFunding';
 
 const SOURCES = [
@@ -18,6 +19,7 @@ type Props = {
 };
 
 export default function DebtServicingControls({ inputs, sector, scopeLabel, onChange, onSectionFocus, referenceSourceCash }: Props) {
+  const { readOnly } = useProjectScope();
   const period = inputs.period || {};
   const start = Number(period.baseline_year || 2025) + 1;
   const end = Number(period.forecast_end_year || start);
@@ -67,7 +69,7 @@ export default function DebtServicingControls({ inputs, sector, scopeLabel, onCh
   );
 
   return (
-    <aside className="debt-controls">
+    <aside className="debt-controls"><fieldset disabled={readOnly} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <div className="debt-eyebrow">STEP 04 · LOAN FUNDING</div>
       <div className="debt-panel-heading">
         <div>
@@ -145,6 +147,6 @@ export default function DebtServicingControls({ inputs, sector, scopeLabel, onCh
       <div className="debt-control-footnote">
         {FUNDING_RECALCULATION_NOTICE} The model calculates the frozen reference pool, loan schedule and resulting funding ledger.
       </div>
-    </aside>
+    </fieldset></aside>
   );
 }

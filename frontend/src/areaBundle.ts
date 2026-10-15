@@ -9,6 +9,7 @@
 export const BUNDLE_KEY = '__wss_bundle';
 
 export type AreaScope = {
+  sectors?: ('water' | 'sanitation')[];
   scopeMode?: 'urban_rural' | 'national';
   areaUrban?: boolean;
   areaRural?: boolean;
@@ -27,6 +28,8 @@ export function isBundle(obj: any): boolean {
 
 /** The areas a bundle should export as a deck, following the ENTRY mode it was saved in. */
 export function areasOf(b: any): Record<string, any> {
+  if (b?.scope?.sectors) b = { ...b, inputs: { ...b.inputs, calculation_scope: b.scope.sectors },
+    altInputs: Object.fromEntries(Object.entries(b.altInputs || {}).map(([key, area]) => [key, { ...(area as any), calculation_scope: b.scope.sectors }])) };
   if (!b) return {};
   // A legacy scenario (or any bare inputs object) is a single unlabelled dataset — treat it as the
   // whole picture rather than guessing it was urban, so its deck carries one complete scope.
@@ -39,6 +42,17 @@ export function areasOf(b: any): Record<string, any> {
   }
   if (sc.areaRural && !sc.areaUrban) return { rural: alt.rural ?? b.inputs };
   return { urban: b.inputs };
+}
+
+/** Comparisons keep their original geography. Narrow the export, never invent missing areas. */
+export function comparisonAreas(b: any, allowed: AreaScope): Record<string, any> {
+  const sectors = (allowed.sectors || ['water', 'sanitation']).filter(sector =>
+    (b?.scope?.sectors || b?.calculation_scope || ['water', 'sanitation']).includes(sector));
+  if (!sectors.length) return {};
+  const keys = allowed.scopeMode === 'national' ? ['national']
+    : [...(allowed.areaUrban ? ['urban'] : []), ...(allowed.areaRural ? ['rural'] : [])];
+  return Object.fromEntries(Object.entries(areasOf(b)).filter(([key]) => keys.includes(key))
+    .map(([key, area]) => [key, { ...area, calculation_scope: sectors }]));
 }
 
 /** Areas for the LIVE export, from the dashboard's own props (nothing has been packed yet). */

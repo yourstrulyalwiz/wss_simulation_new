@@ -1,5 +1,6 @@
 // Shared download / capture helpers for the per-table and per-chart export buttons.
 import { currencyRateNote, priceBasisNote, type CurrencyDisplaySettings } from '../currencyDisplay';
+import { simulationHeaders } from '../simulationTransport';
 
 export function downloadBlob(blob: Blob, filename: string) {
   const u = URL.createObjectURL(blob);
@@ -8,8 +9,8 @@ export function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(u);
 }
 
-export async function postForBlob(endpoint: string, body: any, filename: string) {
-  const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+export async function postForBlob(endpoint: string, body: any, filename: string, projectId?: string) {
+  const r = await fetch(endpoint, { method: 'POST', credentials: 'include', headers: simulationHeaders(body, projectId), body: JSON.stringify(body) });
   if (!r.ok) {
     const payload = await r.json().catch(() => ({}));
     throw new Error(payload.detail || payload.error || 'Export failed (' + r.status + ').');

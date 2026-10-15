@@ -84,7 +84,17 @@ def _layout(fe):
         ('input', 'bau.san_alloc_ts', 'SAN allocated budget — override', 'bau', 'san_alloc_ts', 'ovr', '#,##0.00'),
         ('calc', '→ SAN allocated budget', 'san_budget_alloc', '#,##0'),
     ]
-    return items
+    sectors = fe.get('calculation_scope', ['water', 'sanitation'])
+    def selected(item):
+        if item[0] == 'section':
+            label = item[1].lower()
+            return not (('water supply' in label and 'water' not in sectors) or ('sanitation' in label and 'sanitation' not in sectors))
+        if item[0] != 'input':
+            return True
+        key = item[1]
+        return not ((key.startswith('water_') or '.ws_' in key) and 'water' not in sectors or
+                    (key.startswith('sanitation_') or '.san_' in key) and 'sanitation' not in sectors)
+    return [item for item in items if selected(item)]
 
 
 def _editable(kind, i, bi):

@@ -395,6 +395,8 @@ def scenario_csv(inputs, currency_display=None, contribution_view='individual'):
     w.writerow(['Conversion', 'USD = local amount ÷ localPerUsd; model inputs and calculations are unchanged.' if converted_usd else 'No currency conversion applied; model inputs and calculations are unchanged.'])
     w.writerow([])
     for sk, name in [('water_supply', 'WATER SUPPLY'), ('sanitation', 'SANITATION')]:
+        if ('water' if sk == 'water_supply' else 'sanitation') not in inputs.get('calculation_scope', ['water','sanitation']):
+            continue
         headers, rows = per_year_table(result, inputs, sk)
         local_headers, local_rows = headers, rows
         headers, rows, money_indexes = _currency_table(headers, rows, display)
@@ -497,6 +499,8 @@ def scenario_xlsx(inputs, contribution_view='individual', currency_display=None)
     assumptions = wb.create_sheet('Revenue assumptions')
     assumptions.append(['Sector', 'Requested mode', 'Effective mode', 'Configuration and provenance', 'Validation errors', 'Model limitations'])
     for sk, name in [('water_supply', 'Water'), ('sanitation', 'Sanitation')]:
+        if ('water' if sk == 'water_supply' else 'sanitation') not in inputs.get('calculation_scope', ['water','sanitation']):
+            continue
         import json
         status = result[sk].get('connection_revenue') or {}
         assumptions.append([name, 'Connection-based' if status.get('requested') else 'Exogenous',

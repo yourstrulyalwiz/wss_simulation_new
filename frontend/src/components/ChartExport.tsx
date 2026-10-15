@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useProjectScope } from '../projectScope';
 import { captureImage, downloadBlob, postForBlob } from './exportUtils';
 import type { CurrencyDisplaySettings } from '../currencyDisplay';
 
@@ -24,6 +25,7 @@ export default function ChartExport({ chartRef, filename, title, sheets, chartSp
   compact?: boolean;
   currencyDisplay?: CurrencyDisplaySettings;
 }) {
+  const { projectId } = useProjectScope();
   const [busy, setBusy] = useState<string | null>(null);
   const btn: React.CSSProperties = {
     padding: compact ? '2px 7px' : '4px 10px', fontSize: 11, border: '1px solid #cbd5e1',
@@ -47,7 +49,7 @@ export default function ChartExport({ chartRef, filename, title, sheets, chartSp
       if (!chartSpec && chartRef.current) {
         try { body.image = await captureImage(chartRef.current, 'png'); } catch { /* data-only workbook */ }
       }
-      await postForBlob('/api/export/chart', body, filename + '.xlsx');
+      await postForBlob('/api/export/chart', body, filename + '.xlsx', projectId);
     } catch (error) { alert(error instanceof Error ? error.message : 'Excel export failed. Please try again.'); }
     finally { setBusy(null); }
   };

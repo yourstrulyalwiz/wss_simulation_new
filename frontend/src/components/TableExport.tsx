@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useProjectScope } from '../projectScope';
 import { csvDownload, postForBlob } from './exportUtils';
 import type { CurrencyDisplaySettings } from '../currencyDisplay';
 
@@ -7,6 +8,7 @@ import type { CurrencyDisplaySettings } from '../currencyDisplay';
 export default function TableExport({ filename, sheetName, headers, rows, compact, currencyDisplay, freezeColumns = 0 }: {
   filename: string; sheetName?: string; headers: any[]; rows: any[][]; compact?: boolean; currencyDisplay?: CurrencyDisplaySettings; freezeColumns?: number;
 }) {
+  const { projectId } = useProjectScope();
   const [busy, setBusy] = useState<string | null>(null);
   if (!rows || !rows.length) return null;
   const btn: React.CSSProperties = {
@@ -15,7 +17,7 @@ export default function TableExport({ filename, sheetName, headers, rows, compac
   };
   const xlsx = async () => {
     setBusy('xlsx');
-    try { await postForBlob('/api/export/table', { filename, sheets: [{ name: sheetName || 'Table', headers, rows, freeze_columns: freezeColumns }], currency_display: currencyDisplay }, filename + '.xlsx'); }
+    try { await postForBlob('/api/export/table', { filename, sheets: [{ name: sheetName || 'Table', headers, rows, freeze_columns: freezeColumns }], currency_display: currencyDisplay }, filename + '.xlsx', projectId); }
     catch (error) { alert(error instanceof Error ? error.message : 'Excel export failed. Please try again.'); }
     finally { setBusy(null); }
   };

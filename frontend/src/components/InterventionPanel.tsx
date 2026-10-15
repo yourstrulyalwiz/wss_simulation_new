@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PublicSpendingTargets from './PublicSpendingTargets';
 import InterventionCategories from './InterventionCategories';
 import LiveInterventionChart from './LiveInterventionChart';
 import NumInput from './NumInput';
@@ -334,13 +335,13 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           A percentage increase on zero spending adds no funds. Enter a spending baseline in Data Inputs or use a GDP spending target.
         </div>}
         <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 4, lineHeight: 1.4 }}>
-          The target is evaluated at baseline budget execution. Public Spending supplies the difference above
+          The target is evaluated at baseline budget execution. Public Spending supplies the signed difference from
           that year's BAU executed spending, not this fixed reference. Improved budget execution increases spending
           from the entire expanded allocation; that additional effect is attributed to Budget Execution.
         </div>
       </div>
       {Number.isFinite(addedCapital) && <div data-financial-capital={section} style={{gridColumn:'1 / -1',fontSize:12,color:'#1e3a5f'}}>
-        Added effective capital over the forecast: <strong>{addedCapital.toLocaleString('en-US', {maximumFractionDigits:2})} {CUR} million (real)</strong>.
+        Net public-spending capital adjustment over the forecast: <strong>{addedCapital.toLocaleString('en-US', {maximumFractionDigits:2})} {CUR} million (real)</strong>.
         <div style={{fontSize:10.5,color:'#64748b',marginTop:4}}>
           The capital share has been applied once; the executed target is not reduced by baseline execution again.
           Additional execution benefits appear under Budget Execution. Funds may cover deficits and replacement before expansion.
@@ -349,12 +350,8 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
       <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b' }}>
         Select either or both options. Enabled options overlap additively and apply only to the intervention scenario.
       </div>
-      {option('fin_gdp_enabled', 'Target executed spending as a share of GDP', <>
-        <F label="Target executed spending share" value={iv.fin_gdp_target_share} onChange={v => u(section, 'fin_gdp_target_share', Math.max(0, v))} isPercent unit="% of GDP"
-          tip="Enter the target executed-spending GDP share on the selected capital/total basis, not the percentage increase. Only the positive difference above BAU executed spending is added." />
-        <F label="Start year" value={scheduleYear(iv, 'fin_gdp_start_year')} onChange={v => u(section, 'fin_gdp_start_year', v)}
-          tip="The executed-spending GDP target applies from this year onward on the selected capital/total spending basis." />
-      </>)}
+      {option('fin_gdp_enabled', 'Target executed spending as a share of GDP',
+        <PublicSpendingTargets inputs={inputs} section={section} onChange={onChange} />)}
       {option('fin_growth_enabled', 'Annual percentage increase in spending', <>
         <F label="Annual spending increase" value={iv.fin_growth_rate} onChange={v => u(section, 'fin_growth_rate', Math.max(0, v))} isPercent unit="% per year"
           tip="Compounded uplift over each year's BAU spending through the end year. Afterwards, the achieved executed-spending share of GDP is maintained, unless BAU exceeds it. The separate GDP-target option remains additive." />

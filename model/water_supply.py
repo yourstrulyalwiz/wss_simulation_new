@@ -24,6 +24,7 @@ from model.service_history import historical_households, historical_transition_c
 from model.connection_revenue import prepare_connection, annual_connection_cash, tagged_nrw_volume, DIAGNOSTIC_FIELDS
 from model.revenue_reconciliation import reconcile_revenue, RECONCILIATION_FIELDS, ATTRIBUTION
 from model.service_cohorts import EligibleCohorts
+from model.public_spending import resolve_schedule
 
 RUNGS = ["Safely managed", "Basic", "Limited", "Unimproved", "No Service"]
 LOWER = [2, 3, 4]   # Limited, Unimproved, No Service
@@ -389,13 +390,22 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         full_budget = np.asarray(full_budget_in, dtype=float)
         capex_pct_eff, exec_eff = capex_pct, float(exec_rate)
     # Financial commitments and exogenous injections have independent switches and cash ledgers.
-    # The GDP entry is a target TOTAL share: only max(target×GDP − BAU full spending, 0) counts.
+    # Legacy scalar targets are positive-only; explicit schedules use signed
+    # target×GDP minus BAU executed spending on the entered capital/total basis.
     financial_cash = np.zeros(n)
     additional_public_capital = np.zeros(n)
+    public_spending_adjustment = np.zeros(n)
     injection_cash = np.zeros(n)
     fs = financial_settings or {}
+    schedule = None
+    if financial_enabled and fs.get('gdp_enabled') and fs.get('gdp_targets') is not None:
+        if not entered_budget:
+            raise FinancialCommitmentInputError(f'{budget_label}: stepwise public spending requires the entered-budget basis.')
+        schedule = resolve_schedule(fs['gdp_targets'], by, int(years[-1]), budget_label)
     if entered_budget and financial_enabled:
         for key in ('gdp_target_share', 'growth_rate'):
+            if key == 'gdp_target_share' and schedule is not None:
+                continue
             value = fs.get(key) or 0.
             if not np.isfinite(value) or value < 0:
                 raise BudgetInputError(f'{budget_label}: {key} must be finite and nonnegative.')
@@ -420,7 +430,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         commitment_base = np.concatenate([commitment_base, np.zeros(n - commitment_base.shape[0])])
     if financial_enabled or injection_enabled:
         gdp = np.asarray(gdp_real if gdp_real is not None else ctx['gdp_real_local'], dtype=float)
-        if financial_enabled and fs.get('gdp_enabled') and int(fs.get('gdp_start_year') or 0) <= 0:
+        if financial_enabled and fs.get('gdp_enabled') and schedule is None and int(fs.get('gdp_start_year') or 0) <= 0:
             raise FinancialCommitmentInputError("Enter a positive start year for the GDP spending target.")
         if financial_enabled and fs.get('growth_enabled'):
             if not np.isfinite(float(fs.get('growth_rate') or 0.0)):
@@ -441,7 +451,13 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             if y <= by:
                 continue
             extra_full = 0.0
-            if financial_enabled and fs.get('gdp_enabled') and y >= int(fs.get('gdp_start_year') or 0):
+            if schedule is not None:
+                point = next((point for point in reversed(schedule) if point.year <= y), None)
+                if point is not None:
+                    if not np.isfinite(gdp[t]) or gdp[t] <= 0:
+                        raise FinancialCommitmentInputError(f'{budget_label}: public-spending target in {y} requires positive finite real GDP.')
+                    extra_full += point.target_share * gdp[t] - commitment_base[t]
+            elif financial_enabled and fs.get('gdp_enabled') and y >= int(fs.get('gdp_start_year') or 0):
                 target_total = max(0.0, float(fs.get('gdp_target_share') or 0.0)) * gdp[t]
                 extra_full += max(0.0, target_total - commitment_base[t])
             gs, ge = int(fs.get('growth_start_year') or 0), int(fs.get('growth_end_year') or years[-1])
@@ -461,6 +477,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                     injection_cash[t] = amt * financial_capex_factor
                 elif fs.get('injection_mode') != 'recurring' and y == iy:
                     injection_cash[t] = amt
+            public_spending_adjustment[t] = extra_full
             additional_public_capital[t] = extra_full * (
                 public_capital_share if entered_budget else max(0.0, float(capex_pct)))
             if entered_budget and extra_full > 0 and not raw_rates[t]:
@@ -536,6 +553,11 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     if entered_budget:
         baseline_capital = active * used_budget
         financial_cash = additional_public_capital
+        invalid_rate = (public_spending_adjustment != 0) & ((baseline_eff <= 0) | ~np.isfinite(baseline_eff))
+        if np.any(invalid_rate):
+            bad_year = years[int(np.flatnonzero(invalid_rate)[0])]
+            raise FinancialCommitmentInputError(
+                f'{budget_label}: nonzero public-spending adjustment in {bad_year} requires a positive baseline execution rate.')
         additional_allocation_capital = np.divide(
             financial_cash, baseline_eff, out=np.zeros(n), where=baseline_eff > 0)
         execution_interaction = additional_allocation_capital * (eff - baseline_eff)
@@ -1406,6 +1428,7 @@ def calculate_water_supply(inputs, ctx, utility_debt_execution=None):
         financial_settings={
             'gdp_enabled': nrw.fin_gdp_enabled, 'gdp_start_year': nrw.fin_gdp_start_year,
             'gdp_target_share': nrw.fin_gdp_target_share,
+            'gdp_targets': nrw.fin_gdp_targets,
             'growth_enabled': nrw.fin_growth_enabled, 'growth_rate': nrw.fin_growth_rate,
             'growth_start_year': nrw.fin_growth_start_year, 'growth_end_year': nrw.fin_growth_end_year,
             'injection_enabled': nrw.fin_injection_enabled, 'injection_mode': nrw.fin_injection_mode,

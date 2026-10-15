@@ -124,6 +124,7 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None, utility_debt_execu
         financial_settings={
             'gdp_enabled': si.fin_gdp_enabled, 'gdp_start_year': si.fin_gdp_start_year,
             'gdp_target_share': si.fin_gdp_target_share,
+            'gdp_targets': si.fin_gdp_targets,
             'growth_enabled': si.fin_growth_enabled, 'growth_rate': si.fin_growth_rate,
             'growth_start_year': si.fin_growth_start_year, 'growth_end_year': si.fin_growth_end_year,
             'injection_enabled': si.fin_injection_enabled, 'injection_mode': si.fin_injection_mode,

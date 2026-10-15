@@ -437,10 +437,26 @@ def _afford_fields(d: dict) -> dict:
 
 def _financial_fields(d: dict) -> dict:
     """Frontend commitment and separately switched injection settings shared by both sectors."""
+    targets = d.get('fin_gdp_targets')
+    # UI drafts are separate from the last valid saved schedule. Export/deck requests
+    # also pass through here, so an unfinished active draft cannot export stale results.
+    if isinstance(d.get('fin_gdp_target_draft'), list):
+        def draft_number(value, year=False):
+            try:
+                number = float(value) if isinstance(value, str) and value.strip() else None
+                return int(number) if year and number is not None and number.is_integer() else number
+            except (ValueError, OverflowError):
+                return None
+        targets = [
+            {'year': draft_number(row.get('year'), True),
+             'target_share': (draft_number(row.get('share')) / 100
+                              if draft_number(row.get('share')) is not None else None)}
+            if isinstance(row, dict) else row for row in d['fin_gdp_target_draft']]
     return dict(
         fin_gdp_enabled=bool(d.get('fin_gdp_enabled', False)),
-        fin_gdp_start_year=int(d.get('fin_gdp_start_year', 0) or 0),
-        fin_gdp_target_share=max(0.0, float(d.get('fin_gdp_target_share', 0.0) or 0.0)),
+        fin_gdp_targets=targets,
+        fin_gdp_start_year=0 if targets is not None else int(d.get('fin_gdp_start_year', 0) or 0),
+        fin_gdp_target_share=0. if targets is not None else max(0.0, float(d.get('fin_gdp_target_share', 0.0) or 0.0)),
         fin_growth_enabled=bool(d.get('fin_growth_enabled', False)),
         fin_growth_rate=max(0.0, float(d.get('fin_growth_rate', 0.0) or 0.0)),
         fin_growth_start_year=int(d.get('fin_growth_start_year', 0) or 0),

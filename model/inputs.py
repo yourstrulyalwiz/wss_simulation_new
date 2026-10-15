@@ -18,8 +18,9 @@ Structure notes:
     structure, not the numbers.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, SkipValidation
 from typing import List, Optional, Literal
+from model.public_spending import PublicSpendingTarget
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -325,10 +326,14 @@ class TechnicalInputs(BaseModel):
 class WaterInterventionInputs(BaseModel):
     # Financial commitments and injection share settings but have independent intervention switches.
     # The GDP value is
-    # the TARGET total sector-spending share (not an uplift); only the positive difference above BAU is added.
+    # the TARGET spending share (not an uplift). Legacy scalars are positive-only;
+    # explicit target lists replace BAU spending with signed differences.
     fin_gdp_enabled: bool = False
     fin_gdp_start_year: int = 2026
     fin_gdp_target_share: float = 0.0
+    # Validation belongs to the active sector run: disabled schedules and pure BAU
+    # must ignore unfinished settings. The resolver validates raw values before coercion.
+    fin_gdp_targets: Optional[SkipValidation[List[PublicSpendingTarget]]] = None
     fin_growth_enabled: bool = False
     fin_growth_rate: float = 0.0
     fin_growth_start_year: int = 2026
@@ -457,6 +462,7 @@ class SanitationInterventionInputs(BaseModel):
     fin_gdp_enabled: bool = False
     fin_gdp_start_year: int = 2026
     fin_gdp_target_share: float = 0.0
+    fin_gdp_targets: Optional[SkipValidation[List[PublicSpendingTarget]]] = None
     fin_growth_enabled: bool = False
     fin_growth_rate: float = 0.0
     fin_growth_start_year: int = 2026

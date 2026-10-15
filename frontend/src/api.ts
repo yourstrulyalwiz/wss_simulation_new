@@ -1,3 +1,4 @@
+import { withSpendingDrafts } from './publicSpendingSchedule';
 const BASE_URL = '/api';
 
 export async function resolveRevenueBases(inputs: any, signal?: AbortSignal) {
@@ -27,7 +28,7 @@ export async function runCalculation(inputs: any, required: 'water' | 'sanitatio
     credentials: 'include',
     cache: 'no-store',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(inputs),
+    body: JSON.stringify(withSpendingDrafts(inputs)),
   });
   if (!res.ok) {
     const body = await res.json();

@@ -3,6 +3,25 @@ name: Financial commitment semantics
 description: Product rules for financial commitments, recurring funding and one-time injections.
 ---
 
+## Stepwise executed-spending targets
+Explicitly edited public-spending GDP targets use a stepwise, signed schedule:
+each share replaces the preceding share from its effective forecast year and
+scales with that year's real GDP, including after the last target. A below-BAU
+or zero target reduces funding. Missing/null schedules retain legacy scalar
+positive-only behavior; loading, switching areas, and toggling must not adopt
+signed semantics. Only editing/adding GDP targets does so, and removing extra
+rows does not revert it.
+
+**Why:** The user's approved stepwise-spending brief distinguishes new intentional
+cuts from legacy targets that previously had no effect below BAU.
+
+**How to apply:** Keep schedules sector/area independent, validate active rows
+strictly, and reject unsupported non-entered budget bases rather than inventing
+an interpretation. Preserve the independent additive annual-growth floor,
+apply capital conversion once, and carry signed adjustments through the existing
+execution interaction and proportional-loss funding accounting. Draft rows must
+not silently calculate or export the last valid schedule.
+
 ## Approved public-spending execution policy
 
 The 2026-10-13 instruction maintains the standalone growth option's achieved

@@ -292,9 +292,9 @@ function YearField({ label, value, onCommit, min, max, tip }: {
   );
 }
 
-interface Props { inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; calculationError?: string; projectionError?: string; }
+interface Props { scopeControls?: React.ReactNode; inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; calculationError?: string; projectionError?: string; }
 
-export default function InputPanel({ inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate, calculationError, projectionError }: Props) {
+export default function InputPanel({ scopeControls, inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate, calculationError, projectionError }: Props) {
   const [costTemplates, setCostTemplates] = useState<CostMixTemplates>({});
   const [costTemplateError, setCostTemplateError] = useState('');
   useEffect(() => {
@@ -525,6 +525,7 @@ export default function InputPanel({ inputs, onChange, results, onCalculate, loa
         <h2>{isInputs ? 'Build the country baseline' : 'Review Baseline Information'}</h2>
         <p>Set the shared analysis frame, then review the service, population, economic and budget evidence for the selected area.</p>
       </header>
+      {isInputs && scopeControls}
       <div style={{ display: 'flex', gap: 18, fontSize: 12, marginBottom: 12, color: '#3A4452', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid #F0D070', background: '#FFF9E6', display: 'inline-block' }} />

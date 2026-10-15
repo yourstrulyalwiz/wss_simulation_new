@@ -13,6 +13,12 @@
 .wb-tab-active { color:#014972 !important; }
 .wb-tab-active .wb-tab-step { background:#014972; }
 .wb-scope-bar { background:#edf3f5; flex-shrink:0; }
+.modern-geographical-scope { margin:0 0 24px; color:#64748b; font-size:12px; }
+.modern-geographical-scope__row { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:10px; }
+.modern-geographical-scope label { font-size:13px; font-weight:700; color:#014972; }
+.modern-geographical-scope .wb-scope-select { max-width:100%; min-width:0; padding:8px 12px; }
+.modern-geographical-scope p { margin:8px 0 0; font-size:11px; }
+.modern-geographical-scope__hint { color:#014972; font-weight:700; }
 .wb-app button:focus-visible, .wb-app select:focus-visible, .modern-input-section-heading:focus-visible { outline:3px solid #009ca761; outline-offset:2px; }
 .modern-section-workspace { flex:1; min-width:0; min-height:0; display:grid; grid-template-columns:218px minmax(0,1fr); }
 .modern-inputs-nav { padding:24px 12px; border-right:1px solid #d5e2e6; background:#f6fafb; overflow-y:auto; }

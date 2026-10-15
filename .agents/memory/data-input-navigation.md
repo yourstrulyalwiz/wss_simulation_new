@@ -26,3 +26,10 @@ and table backgrounds that communicate input semantics; the surrounding section
 containers should not become white cards again. The user has explicitly approved
 production graduation; these requirements now apply to frontend/src. Preserve
 production data, callbacks, autosave and exports; do not copy preview runtime behavior.
+
+Place Tab 1 geographical scope controls in the main body immediately below
+the baseline heading and subtitle, without an enclosing banner.
+**Why:** The user requested the controls be integrated into the page rather than
+occupying a separate full-width banner.
+**How to apply:** Retain scope choices and urban/rural switching; do not apply
+this relocation to the other tabs.

@@ -41,6 +41,11 @@ try {
   await w(`document.querySelectorAll('${nav} button').length===7`, 'Seven input sections missing');
   await e(`document.querySelector('.wb-onboarding-overlay')?.click()`);
   await sleep(600);
+  assert.ok(await e(`!!document.querySelector('.modern-inputs-content .modern-page-intro + .modern-geographical-scope')`), 'Scope controls belong below the main heading/subtitle');
+  assert.equal(await e(`document.querySelectorAll('.wb-scope-bar, .wb-scope-card').length`), 0, 'Tab 1 must have no bounding scope banner');
+  await e(`document.querySelectorAll('.modern-geographical-scope button')[1].click()`);
+  await w(`document.querySelector('.modern-geographical-scope button[aria-pressed="true"]')?.textContent==='rural'`, 'Rural switch failed');
+  await e(`document.querySelectorAll('.modern-geographical-scope button')[0].click()`);
   assert.equal(await e(`document.querySelectorAll('.modern-input-panel .wb-panel-section').length`), 7);
   assert.equal(await e(`document.querySelectorAll('.modern-input-panel .wb-section-trigger').length`), 0);
   for (let index=0; index<7; index++) {

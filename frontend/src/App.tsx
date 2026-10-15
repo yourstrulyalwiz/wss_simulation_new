@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import GeographicalScope from './components/GeographicalScope';
 import { BUNDLE_KEY, isBundle, areasOf } from './areaBundle';
 import InputPanel from './components/InputPanel';
 import InterventionPanel from './components/InterventionPanel';
@@ -554,68 +555,8 @@ function App() {
       {/* Main Content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Scope bar. Full controls (mode + include) only on Data Inputs; BAU & Intervention get just the Editing switch. The dashboard has its own scope dropdown. */}
-        {activeTab <= 3 && activeTab !== 1 && (
+        {activeTab >= 2 && activeTab <= 3 && (
           <div className="wb-scope-bar">
-            {activeTab === 0 ? (
-              <div onClickCapture={dismissScopeHint} className="wb-scope-card" style={{
-                animation: scopeHint ? 'scopePulse 1.2s ease-in-out infinite' : undefined,
-              }}>
-                <style>{`
-                  @keyframes scopePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(0,156,167,0.35); } 50% { box-shadow: 0 0 0 7px rgba(0,156,167,0.12); } }
-                  @keyframes hintNudge { 0%,100% { transform: translateX(0); } 50% { transform: translateX(-9px); } }
-                `}</style>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', display: 'inline-flex', alignItems: 'center' }}>
-                    Select geographical scope
-                  </span>
-                  {/* Filled amber dropdown with an explicit ▼ so it's unmistakably a dropdown */}
-                  <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-                    <select value={scopeValue} onChange={e => { setScopeValue(e.target.value); dismissScopeHint(); }} className="wb-scope-select" style={{
-                      appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
-                      padding: '8px 38px 8px 14px', borderRadius: 6, border: '1px solid #94a3b8',
-                      background: '#fff', color: '#1e293b', fontSize: 13, fontWeight: 600,
-                      cursor: 'pointer', outline: 'none', boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-                    }}>
-                      <option value="both" style={{ background: '#fff', color: '#333' }}>Urban + Rural (national total)</option>
-                      <option value="urban" style={{ background: '#fff', color: '#333' }}>Urban only</option>
-                      <option value="rural" style={{ background: '#fff', color: '#333' }}>Rural only</option>
-                      <option value="national" style={{ background: '#fff', color: '#333' }}>National (no urban/rural breakdown)</option>
-                    </select>
-                    <span style={{ position: 'absolute', right: 10, pointerEvents: 'none', display: 'inline-flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
-                      <span style={{ fontSize: 8, color: '#64748b' }}>▲</span>
-                      <span style={{ fontSize: 8, color: '#64748b' }}>▼</span>
-                    </span>
-                  </span>
-                  <span style={{ fontSize: 10.5, color: '#64748b', fontStyle: 'italic' }}>▲▼ click to choose</span>
-                  {scopeHint && (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6, background: '#2563eb', color: '#fff',
-                      fontWeight: 700, fontSize: 12, padding: '6px 14px', borderRadius: 20, whiteSpace: 'nowrap',
-                      boxShadow: '0 2px 12px rgba(37,99,235,0.5)', animation: 'hintNudge 0.7s ease-in-out infinite',
-                    }}>Start here</span>
-                  )}
-                </div>
-                {scopeValue === 'national' && (
-                  <div style={{ fontSize: 10.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '4px 10px', marginTop: 8 }}>
-                    National should only be used if you do not have — and cannot estimate — urban/rural breakdowns for WSS data and access.
-                  </div>
-                )}
-                {(scopeValue === 'urban' || scopeValue === 'rural') && (
-                  <div style={{ fontSize: 10, color: '#64748b', fontStyle: 'italic', marginTop: 8 }}>
-                    Graphs &amp; outputs show {scopeValue === 'rural' ? 'Rural' : 'Urban'} only.
-                  </div>
-                )}
-                {scopeValue === 'both' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Entering data for:</span>
-                    {(['urban', 'rural'] as const).map(a => (
-                      <button key={a} onClick={() => setSubArea(a)}
-                        className={`wb-scope-option${subArea === a ? ' wb-scope-option-active' : ''}`}>{a}</button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {both ? (
                   <>
@@ -632,13 +573,13 @@ function App() {
                   </span>
                 )}
               </div>
-            )}
           </div>
         )}
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         {activeTab === 0 && inputs && (
           <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results || economicProjections} calculationError={calculationError} projectionError={projectionError} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
+            scopeControls={<GeographicalScope value={scopeValue} onChange={setScopeValue} area={subArea} onAreaChange={setSubArea} hint={scopeHint} dismissHint={dismissScopeHint} />}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
         )}
         {activeTab === 1 && inputs && (

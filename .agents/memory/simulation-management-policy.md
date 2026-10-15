@@ -2,9 +2,10 @@
 name: Simulation management product requirements
 description: Seed preservation, institutional identity, scope and publication rules for the requested landing page.
 ---
-Feature the saved DRC October 12 bundle and saved Nepal Kathmandu Valley profile
-as read-only examples, with private owned copies for editing. Do not substitute
-October 13 or Nepal frontend defaults; retain other legacy sources separately.
+Feature the saved DRC October 12 and October 13 bundles as TWO separate DRC
+simulations, alongside the saved Nepal Kathmandu Valley profile, as read-only
+examples with private owned copies for editing. Do not substitute one DRC
+version for the other or substitute Nepal frontend defaults; retain other legacy sources separately.
 Keep DRC's illustrative-data notice.
 
 **Why:** The user explicitly selected these sources for the simulation-management
@@ -12,6 +13,13 @@ transition, rather than the newest file or the current default session.
 
 **How to apply:** Follow the attached WSS Landing Page and Simulation Management
 brief dated 2026-10-15. Preserve source payloads and test lossless editor migration.
+
+Do not change the model itself for simulation management.
+**Why:** The user explicitly constrained this work to management, not modeling.
+**How to apply:** Preserve equations, assumptions, validation and outputs.
+Prefer external orchestration for scope. If sector-only execution cannot meet
+the brief without model-file changes, disclose the conflict and request explicit
+approval before editing those files; never substitute invented inactive inputs.
 
 Projects own drafts, versions, comparison scenarios and editable sector/area
 scope. Excluded data stays dormant; new areas must not inherit urban observations.

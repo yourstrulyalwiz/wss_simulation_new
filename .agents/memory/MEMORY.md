@@ -15,3 +15,4 @@
 - [Consolidated revenue policy](consolidated-revenue-policy.md) — after-cost NRW sizing, targets without delivery ceilings, one-off cohorts and explicit sales/sewer assumptions.
 - [Independent sectors](sector-independence.md) — invalid sanitation must not block water; missing sector/geography results remain incomplete, never zero.
 - [Data Inputs navigation](data-input-navigation.md) — keep seven top-level sections in one long form; sector choices do not add sections.
+- [BAU preview layout](bau-preview-navigation.md) — three primary navigation sections in a long form; preserve sector/area toggles and add baseline/target-year KPIs.

@@ -933,3 +933,332 @@
     animation-duration: .01ms !important;
   }
 }
+
+/* BAU: one navigable, full-height workspace with graph, ledger, and baseline review. */
+.wss-modern-frame.modern-bau-mode {
+  position: relative;
+}
+.wss-modern-frame.modern-bau-mode .wb-app {
+  height: 100dvh !important;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+.wss-modern-frame.modern-bau-mode .wb-scope-bar {
+  display: none;
+}
+.wss-modern-frame .modern-bau-workspace {
+  display: grid !important;
+  grid-template-columns: 226px minmax(0, 1fr);
+  grid-template-rows: max-content max-content;
+  align-content: start;
+  align-items: start;
+  gap: 0;
+  min-height: 0;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  background: #eef3f5;
+  scrollbar-color: #aac1cb #eef3f5;
+}
+.wss-modern-frame .modern-bau-baseline,
+.wss-modern-frame .modern-bau-graph {
+  grid-column: 2;
+  width: auto !important;
+  min-width: 0;
+  max-width: none !important;
+  flex: none !important;
+}
+.wss-modern-frame .modern-bau-graph {
+  grid-row: 1;
+  display: block !important;
+  overflow: visible !important;
+  padding: 20px 30px 26px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+.wss-modern-frame .modern-bau-baseline {
+  grid-row: 2;
+  display: block !important;
+  min-height: 0;
+  overflow: visible !important;
+  border-top: 1px solid #cfdee3;
+  background: transparent;
+}
+.wss-modern-frame .modern-bau-baseline .modern-input-panel {
+  min-height: 0;
+  overflow: visible !important;
+  padding: 24px 30px 44px !important;
+  background: transparent !important;
+}
+.wss-modern-frame .modern-bau-baseline .modern-input-panel > div {
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto !important;
+}
+.wss-modern-frame .modern-bau-baseline .wb-panel-section {
+  margin-bottom: 12px;
+  border-radius: 7px !important;
+}
+.wss-modern-frame .modern-bau-baseline .wb-section-trigger {
+  min-height: 46px;
+  justify-content: flex-start;
+  padding: 12px 0;
+  border: 0 !important;
+  border-bottom: 1px solid #d8e5e8 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--modern-navy) !important;
+  cursor: default;
+  pointer-events: none;
+  font-size: 12px;
+  letter-spacing: .045em;
+}
+.wss-modern-frame .modern-bau-baseline .wb-section-trigger > span:last-child {
+  display: none;
+}
+.wss-modern-frame .modern-bau-nav {
+  position: absolute;
+  z-index: 40;
+  top: var(--modern-bau-nav-top, 0px);
+  bottom: 0;
+  left: 0;
+  display: flex;
+  width: 226px;
+  flex-direction: column;
+  padding: 23px 12px 18px;
+  border-right: 1px solid #d0dfe4;
+  background: #f6fafb;
+  color: var(--modern-ink);
+}
+.wss-modern-frame .modern-bau-nav__eyebrow {
+  margin: 1px 9px 13px;
+  color: #66838d;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+.wss-modern-frame .modern-bau-nav__items {
+  display: grid;
+  gap: 5px;
+}
+.wss-modern-frame .modern-bau-nav__item {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #46616c;
+  text-align: left;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.wss-modern-frame .modern-bau-nav__item:hover {
+  border-color: #c9dfe2;
+  background: #edf6f6;
+  color: var(--modern-navy);
+}
+.wss-modern-frame .modern-bau-nav__item.is-active {
+  border-color: #c4dfe1;
+  background: #e6f2f3;
+  color: var(--modern-navy);
+}
+.wss-modern-frame .modern-bau-nav__item:focus-visible {
+  outline: 3px solid rgb(0 156 167 / 38%);
+  outline-offset: 2px;
+}
+.wss-modern-frame .modern-bau-nav__number {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  border: 1px solid #cbdbe0;
+  border-radius: 50%;
+  background: #fff;
+  color: #527684;
+  font-size: 9px;
+  font-weight: 800;
+}
+.wss-modern-frame .modern-bau-nav__item.is-active .modern-bau-nav__number {
+  border-color: var(--modern-teal);
+  background: var(--modern-teal);
+  color: #fff;
+}
+.wss-modern-frame .modern-bau-nav__hint {
+  margin: auto 9px 0;
+  padding-top: 14px;
+  border-top: 1px solid #dce7ea;
+  color: #718890;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.wss-modern-frame .modern-bau-nav__hint::after {
+  content: " · SM + Basic graphs and forecast tables";
+}
+.wss-modern-frame .modern-bau-graph .modern-chart-intro--bau {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 2px 0 0;
+  border: 0;
+}
+.wss-modern-frame .modern-bau-graph .modern-chart-intro--bau h2 { font-size: 23px; }
+.wss-modern-frame .modern-bau-graph .modern-chart-intro--bau p { max-width: 800px; }
+.wss-modern-frame .modern-bau-kpi-region {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 7px;
+  margin-top: 14px;
+}
+.wss-modern-frame .modern-bau-kpi-context {
+  color: #66808a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+.wss-modern-frame .modern-bau-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.wss-modern-frame .modern-bau-kpi {
+  display: grid;
+  min-height: 102px;
+  align-content: center;
+  gap: 5px;
+  padding: 13px 15px;
+  border: 1px solid #d5e2e6;
+  border-top: 3px solid #668da0;
+  border-radius: 5px;
+  background: #f8fbfc;
+}
+.wss-modern-frame .modern-bau-kpi--baseline {
+  border-top-color: var(--modern-navy);
+}
+.wss-modern-frame .modern-bau-kpi--target {
+  border-top-color: var(--modern-teal);
+  background: #f1f8f8;
+}
+.wss-modern-frame .modern-bau-kpi__eyebrow {
+  color: #66808a;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .09em;
+}
+.wss-modern-frame .modern-bau-kpi strong {
+  color: var(--modern-navy);
+  font-size: 23px;
+  font-weight: 750;
+  letter-spacing: -.035em;
+  line-height: 1.1;
+}
+.wss-modern-frame .modern-bau-kpi small {
+  color: #718087;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.wss-modern-frame .modern-bau-graph > div > h3 {
+  margin-top: 10px;
+  color: var(--modern-navy) !important;
+  font-size: 14px !important;
+}
+.wss-modern-frame .modern-bau-graph > div > div[style*="display: flex"] {
+  row-gap: 8px;
+}
+.wss-modern-frame .modern-bau-graph > div > div[style*="display: flex"] button {
+  min-height: 34px;
+  border: 1px solid #cfdee3 !important;
+  border-radius: 5px !important;
+  font-weight: 700 !important;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.wss-modern-frame .modern-bau-graph > div > div[style*="display: flex"] button:hover {
+  border-color: #8ab8be !important;
+}
+.wss-modern-frame .modern-bau-graph h3,
+.wss-modern-frame .modern-bau-baseline .wb-panel-section,
+.wss-modern-frame .modern-bau-graph table {
+  scroll-margin-top: 18px;
+}
+@media (max-width: 900px) {
+  .wss-modern-frame .modern-bau-workspace {
+    grid-template-columns: 194px minmax(0, 1fr);
+  }
+  .wss-modern-frame .modern-bau-nav { width: 194px; }
+  .wss-modern-frame .modern-bau-graph { padding-inline: 20px !important; }
+}
+@media (max-width: 767px) {
+  .wss-modern-frame.modern-bau-mode .wb-app {
+    height: 100dvh !important;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .wss-modern-frame.modern-bau-mode .wb-app > div[style*="position: relative"] {
+    min-height: 0;
+    overflow: hidden !important;
+  }
+  .wss-modern-frame .modern-bau-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: max-content max-content;
+    padding-top: 55px;
+  }
+  .wss-modern-frame .modern-bau-baseline,
+  .wss-modern-frame .modern-bau-graph {
+    grid-column: 1;
+  }
+  .wss-modern-frame .modern-bau-nav {
+    right: 0;
+    bottom: auto;
+    width: auto;
+    min-height: 55px;
+    padding: 7px 10px;
+    border-right: 0;
+    border-bottom: 1px solid #d0dfe4;
+    background: #f6fafb;
+  }
+  .wss-modern-frame .modern-bau-nav__eyebrow,
+  .wss-modern-frame .modern-bau-nav__hint {
+    display: none;
+  }
+  .wss-modern-frame .modern-bau-nav__items {
+    display: flex;
+    gap: 5px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .wss-modern-frame .modern-bau-nav__item {
+    display: flex;
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 39px;
+    gap: 6px;
+    padding: 6px 9px;
+    white-space: nowrap;
+    font-size: 10px;
+  }
+  .wss-modern-frame .modern-bau-nav__number {
+    width: 21px;
+    height: 21px;
+    flex: 0 0 21px;
+  }
+  .wss-modern-frame .modern-bau-graph { padding: 16px 14px 20px !important; }
+  .wss-modern-frame .modern-bau-baseline .modern-input-panel { padding: 18px 14px 32px !important; }
+  .wss-modern-frame .modern-bau-graph .modern-chart-intro--bau {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .wss-modern-frame .modern-bau-kpis { grid-template-columns: 1fr; gap: 7px; }
+  .wss-modern-frame .modern-bau-kpi { min-height: 80px; padding: 11px 13px; }
+  .wss-modern-frame .modern-bau-kpi strong { font-size: 21px; }
+}

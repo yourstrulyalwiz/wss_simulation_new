@@ -31,8 +31,8 @@ function migrateInjectionToggle(area: any) {
   return migrateConnectionRevenueInputs(migrateNrwRevenueInputs({ ...area, toggles }));
 }
 
-type WorkspaceProps = { initialBundle: any; initialScenarios?: any[]; initialLocation?: any; readOnly?: boolean; projectId?: string; onDraftChange: (draft: Draft) => void; onSetup: () => void };
-function App({ initialBundle, initialScenarios = [], initialLocation = {}, readOnly = false, projectId, onDraftChange, onSetup }: WorkspaceProps) {
+type WorkspaceProps = { initialBundle: any; initialScenarios?: any[]; initialLocation?: any; readOnly?: boolean; projectId?: string; onDraftChange: (draft: Draft) => void; onSetup: () => void; headerSlot?: (toolOverview: React.ReactNode, saveComparison: React.ReactNode) => React.ReactNode };
+function App({ initialBundle, initialScenarios = [], initialLocation = {}, readOnly = false, projectId, onDraftChange, onSetup, headerSlot }: WorkspaceProps) {
   const initialScope = normalizeScope(initialBundle.scope);
   const modified = useRef(false);
   const notify = useRef(onDraftChange); notify.current = onDraftChange;
@@ -385,7 +385,10 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
     <div className={`wb-app${readOnly ? ' workspace-view-only' : ''}`} style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {!readOnly && <RevenueReconciliation inputs={activeInputs} onChange={value => { if (modified.current) handleSetActiveInputs(value); }} area={inputScope} silent={true} />}
       {/* Header */}
-      <header className="wb-header">
+      {headerSlot ? headerSlot(
+        <button id="tool-overview-btn" onClick={() => setShowOnboarding(true)} className="wb-header-action">Tool Overview</button>,
+        !readOnly && <button onClick={saveScenario} className="wb-header-action">Save comparison</button>
+      ) : <header className="wb-header">
         <div className="wb-brand-lockup">
           <span className="wb-brand-mark" aria-hidden="true">WSS</span>
           <span className="wb-brand-divider" aria-hidden="true" />
@@ -402,7 +405,7 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
           {!readOnly && <button onClick={saveScenario} className="wb-header-action">Save comparison</button>}
           <button id="tool-overview-btn" onClick={() => setShowOnboarding(true)} className="wb-header-action">Tool Overview</button>
         </div>
-      </header>
+      </header>}
 
       {/* Saved scenarios bar */}
       {scenarios.length > 0 && (

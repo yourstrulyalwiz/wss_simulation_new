@@ -67,18 +67,33 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
   if (loading) return <PortalLayout identity={identity}><main className="portal-wrap portal-section"><span className="portal-eyebrow">Opening your simulation</span><h2>Loading the planning record…</h2><Skeletons /></main></PortalLayout>;
   if (error || !project) return <PortalLayout identity={identity}><main className="portal-wrap portal-section"><h1 style={{ fontSize: 35 }}>This simulation is not available.</h1><ErrorMessage message={error || 'The project could not be loaded.'} retry={() => void reload()} /><p>Private simulations are visible only to their owner and authorized administrators. Public viewers see only the selected published version.</p><Link href={user ? '/user-portal' : '/sign-in'} className="portal-btn">{user ? 'Back to simulations' : 'Sign in with your World Bank account'}</Link></main></PortalLayout>;
   return <div className="project-shell">
-    <header className="project-toolbar"><div><Link href={user ? '/user-portal' : '/'}>← {user ? 'All simulations' : 'Explore WSS'}</Link><h1>{project.name}</h1><small>{project.country_name || project.country_code}{project.area_label ? ` / ${project.area_label}` : ''} · {geography(normalizeScope(project.scope))} · {project.scope.sectors.map(value => value === 'water' ? 'Water' : 'Sanitation').join(' + ')}</small></div>
-      <div className="project-toolbar-actions"><small role="status" aria-live="polite">{owner ? saving ? 'Saving progress…' : conflict ? 'Conflict · Draft retained' : saveError ? 'Could not save' : dirty ? 'Unsaved changes' : `Saved ${new Date(project.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Read-only view'}</small>
-        {owner && <><button disabled={saving || conflict} className="primary" onClick={() => void act(async () => { await settled(); })}>Save progress</button><button disabled={saving || conflict} onClick={() => open('version')}>Save version</button><button onClick={() => open('setup')}>Edit setup</button></>}
-        {historyAllowed && <button onClick={() => open('history')}>{owner ? 'History & sharing' : 'Version history'}</button>}
-        {identity ? <button onClick={() => open('duplicate')}>{project.is_seed ? 'Use as starting point' : 'Duplicate'}</button> : <Link href="/sign-in">Sign in to make a private copy ↗</Link>}
-        {owner && project.visibility === 'public' && <button onClick={() => open('unpublish')}>Make private</button>}
-        {owner && <button onClick={() => open('archive')}>{project.archived_at ? 'Unarchive' : 'Archive'}</button>}
-      </div></header>
     {saveError && <div className="project-alert" role="alert">{saveError}<button onClick={state.download}>Download recoverable draft</button>{conflict ? <button onClick={() => { if (window.confirm('Reload the newer server revision? Your local draft will remain available for recovery. Download it first if needed.')) void reload(); }}>Reload newer revision</button> : <button onClick={() => void save().catch(() => {})}>Retry save</button>}</div>}
     {actionError && !dialog && <div className="project-alert" role="alert">{actionError}</div>}
     {recovery && owner && <div className="project-alert">This browser has a pending or failed save for this account and simulation.<button onClick={state.restoreRecovery}>Recover draft</button><button onClick={() => { if (window.confirm('Discard the browser recovery draft? The server record is unchanged.')) state.dismissRecovery(); }}>Discard recovery</button></div>}
-    <div className="project-workspace"><App key={`${id}:${editorEpoch}`} projectId={id} initialBundle={project.bundle} initialScenarios={project.scenarios} initialLocation={project.location} readOnly={!owner} onDraftChange={update} onSetup={() => open('setup')} /></div>
+    <div className="project-workspace"><App key={`${id}:${editorEpoch}`} projectId={id} initialBundle={project.bundle} initialScenarios={project.scenarios} initialLocation={project.location} readOnly={!owner} onDraftChange={update} onSetup={() => open('setup')} headerSlot={(toolOverview, saveComparison) => (
+      <header className="wb-header project-combined-header">
+        <div className="wb-brand-lockup project-brand-lockup">
+          <span className="wb-brand-mark" aria-hidden="true">WSS</span>
+          <span className="wb-brand-divider" aria-hidden="true" />
+          <div className="wb-brand-copy">
+            <h1 className="wb-brand-title"><span className="wb-heading-strong">WSS STRATEGIC SCENARIOS</span><span className="wb-heading-light">SIMULATION TOOL</span></h1>
+            <span className="wb-brand-meta"><strong>{project.name}</strong> · {project.country_name || project.country_code}{project.area_label ? ` / ${project.area_label}` : ''} · {geography(normalizeScope(project.scope))} · {project.scope.sectors.map(value => value === 'water' ? 'Water' : 'Sanitation').join(' + ')}</span>
+          </div>
+        </div>
+        <div className="wb-header-actions project-header-actions">
+          <small className="project-save-status" role="status" aria-live="polite">{owner ? saving ? 'Saving progress…' : conflict ? 'Conflict · Draft retained' : saveError ? 'Could not save' : dirty ? 'Unsaved changes' : `Saved ${new Date(project.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Read-only view'}</small>
+          <Link href="/" className="wb-header-action">Return</Link>
+          {user ? <Link href="/user-portal" className="wb-header-action">My simulations</Link> : <Link href="/sign-in" className="wb-header-action">Sign in</Link>}
+          {owner && <><button disabled={saving || conflict} className="wb-header-action" onClick={() => void act(async () => { await settled(); })}>Save progress</button><button disabled={saving || conflict} className="wb-header-action" onClick={() => open('version')}>Save version</button><button className="wb-header-action" onClick={() => open('setup')}>Edit setup</button></>}
+          {saveComparison}
+          {historyAllowed && <button className="wb-header-action" onClick={() => open('history')}>{owner ? 'History & sharing' : 'Version history'}</button>}
+          {identity ? <button className="wb-header-action" onClick={() => open('duplicate')}>{project.is_seed ? 'Use as starting point' : 'Duplicate'}</button> : <Link href="/sign-in" className="wb-header-action">Private copy</Link>}
+          {owner && project.visibility === 'public' && <button className="wb-header-action" onClick={() => open('unpublish')}>Make private</button>}
+          {owner && <button className="wb-header-action" onClick={() => open('archive')}>{project.archived_at ? 'Unarchive' : 'Archive'}</button>}
+          {toolOverview}
+        </div>
+      </header>
+    )} /></div>
     {dialog && <div className="project-modal" role="presentation" onClick={() => { if (!busy) setDialog(null); }}><section ref={dialogRef} tabIndex={-1} className="project-dialog" role="dialog" aria-modal="true" aria-labelledby="project-dialog-title" onClick={event => event.stopPropagation()} onKeyDown={event => {
       if (event.key === 'Escape' && !busy) { setDialog(null); return; }
       if (event.key !== 'Tab') return;

@@ -379,26 +379,11 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
   // Exports now live throughout the tool (per-table, per-chart, and the whole-scenario Export buttons on
   // the Intervention Design and Results tabs), so there is no separate Export tab.
   const tabs = ['Data Inputs', 'BAU Scenario', 'Intervention Design', 'Loan funding', 'Results Dashboard'];
-  const isDataPreview = inputs?.profile_metadata?.status === 'data_preview';
-  const isMockSimulation = inputs?.profile_metadata?.status === 'mock_simulation';
 
   return (
     <ProjectScopeContext.Provider value={{ sectors: initialScope.sectors, readOnly, projectMode: true, projectId }}>
     <div className={`wb-app${readOnly ? ' workspace-view-only' : ''}`} style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {!readOnly && <RevenueReconciliation inputs={activeInputs} onChange={value => { if (modified.current) handleSetActiveInputs(value); }} area={inputScope} silent={true} />}
-      {isMockSimulation && <div role="note" style={{padding:'8px 16px',background:'#fff8e7',color:'#714b10',fontSize:12}}>
-        <strong>DRC mock simulation — illustrative assumptions.</strong> Blank unit costs and remaining technical/revenue fields have been filled for testing.
-        {' '}Conversion: <strong>2,309.58 CDF per US$1</strong> (user supplied). These are not validated DRC estimates.
-        <details><summary>View initial mock assumptions for this area (later field edits may differ)</summary>
-          {(activeInputs?.profile_metadata?.mock_assumptions || []).map((item: any, index: number) =>
-            <div key={`${item.field}-${index}`}><strong>{item.field}</strong>: {String(item.value)} — {item.basis}</div>)}
-        </details>
-      </div>}
-      {isDataPreview && <div role="status" style={{ padding: '8px 16px', background: '#fff8e6', fontSize: 12 }}>
-        <strong>DRC spreadsheet data preview — settings pending.</strong> Urban and rural data are loaded.
-        {' '}All workflow tabs are available. Missing or invalid model settings may still prevent calculations.
-        {' '}The differing GDP forecasts have been retained as uploaded.
-      </div>}
       {/* Header */}
       <header className="wb-header">
         <div className="wb-brand-lockup">
@@ -461,12 +446,6 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
           </button>
         );})}
       </nav>
-
-      {warnings.length > 0 && (
-        <div className="wb-warning-banner">
-          {warnings.map((w, i) => <div key={i}>Warning: {w}</div>)}
-        </div>
-      )}
 
       {/* Main Content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

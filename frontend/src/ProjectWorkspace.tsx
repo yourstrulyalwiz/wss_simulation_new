@@ -75,8 +75,6 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
         {owner && project.visibility === 'public' && <button onClick={() => open('unpublish')}>Make private</button>}
         {owner && <button onClick={() => open('archive')}>{project.archived_at ? 'Unarchive' : 'Archive'}</button>}
       </div></header>
-    {project.notice && <div className="project-alert" role="note">{project.notice}</div>}
-    {!owner && <div className="project-read-only">{project.is_seed ? 'Preserved example. Original assumptions cannot be edited. Duplicate to create an owned, private simulation.' : 'Read-only planning record. Viewing does not change the stored simulation.'} Charts are recalculated with the current engine; saved inputs alone do not establish historical reproducibility.</div>}
     {saveError && <div className="project-alert" role="alert">{saveError}<button onClick={state.download}>Download recoverable draft</button>{conflict ? <button onClick={() => { if (window.confirm('Reload the newer server revision? Your local draft will remain available for recovery. Download it first if needed.')) void reload(); }}>Reload newer revision</button> : <button onClick={() => void save().catch(() => {})}>Retry save</button>}</div>}
     {actionError && !dialog && <div className="project-alert" role="alert">{actionError}</div>}
     {recovery && owner && <div className="project-alert">This browser has a pending or failed save for this account and simulation.<button onClick={state.restoreRecovery}>Recover draft</button><button onClick={() => { if (window.confirm('Discard the browser recovery draft? The server record is unchanged.')) state.dismissRecovery(); }}>Discard recovery</button></div>}

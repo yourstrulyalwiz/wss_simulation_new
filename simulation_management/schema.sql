@@ -32,3 +32,10 @@ CREATE TABLE IF NOT EXISTS wss_versions (
 );
 CREATE INDEX IF NOT EXISTS wss_simulation_owner ON wss_simulations(owner_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS wss_simulation_public ON wss_simulations(visibility, updated_at DESC);
+-- Server-side Replit Auth sessions; application startup never creates tables.
+CREATE TABLE IF NOT EXISTS wss_auth_sessions (
+ sid varchar PRIMARY KEY,
+ sess json NOT NULL,
+ expire timestamp(6) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS wss_auth_session_expiry ON wss_auth_sessions(expire);

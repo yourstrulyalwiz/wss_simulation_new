@@ -7,6 +7,7 @@ import { basePath, Gallery, Home, NewSimulation, PortalLayout, ErrorMessage } fr
 import { projectRequest, type Identity } from './projectApi';
 import { AccessContext, AuthenticatedAccess } from './accessMode';
 const ProjectWorkspace = lazy(() => import('./ProjectWorkspace'));
+const ReplitAccess = lazy(() => import('./ReplitAccess'));
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -102,19 +103,25 @@ function PublicRoutes() {
   </AccessContext.Provider>;
 }
 function Router() {
-  const [mode, setMode] = useState<boolean | null>(null);
+  const [mode, setMode] = useState<'public' | 'replit' | 'clerk' | null>(null);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true; setError('');
-    projectRequest<{ public_read_only: boolean }>('/access-mode')
-      .then(data => { if (live) setMode(data.public_read_only === true); })
+    projectRequest<{ public_read_only: boolean; auth_provider?: string }>('/access-mode')
+      .then(data => {
+        const provider = data.public_read_only ? 'public' : data.auth_provider || 'clerk';
+        if (!['public', 'replit', 'clerk'].includes(provider)) throw new Error('Unsupported sign-in configuration.');
+        if (live) setMode(provider as 'public' | 'replit' | 'clerk');
+      })
       .catch(err => { if (live) setError(err.message); });
     return () => { live = false; };
   }, [attempt]);
   return <WouterRouter base={basePath}>{error
     ? <main className="portal-wrap portal-section"><h1>Unable to load access settings</h1><ErrorMessage message={error} retry={() => setAttempt(n => n + 1)} /></main>
     : mode === null ? <main className="portal-wrap portal-section" role="status">Loading application…</main>
-    : mode ? <PublicRoutes /> : <ClerkProviderWithRoutes />}</WouterRouter>;
+    : mode === 'public' ? <PublicRoutes />
+    : mode === 'replit' ? <Suspense fallback={<main className="portal-wrap portal-section">Loading workspace…</main>}><ReplitAccess /></Suspense>
+    : <ClerkProviderWithRoutes />}</WouterRouter>;
 }
 export default Router;

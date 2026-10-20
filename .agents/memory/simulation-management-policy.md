@@ -34,9 +34,21 @@ Verified institutional identity owns private projects. Public access refers to a
 selected immutable version, never ongoing autosaves or excluded dormant data.
 Initially restrict public viewing to signed-in World Bank users. Administrators
 have read-all access, not automatic edit-all access.
-The intended application login is WB institutional SSO.
+The user clarified that the WB Replit workspace already has preset SSO, and
+approved viewers can access published tools. Build app login on those existing
+Replit accounts so people can create simulations and save progress, rather than
+requiring another app password or a separate WB SSO registration.
 
-Temporary rollout exception: login is deactivated, and everyone who can access
+**Why:** The user explicitly described the existing workspace SSO and requested
+a login system built on it, with creation and saving.
+
+**How to apply:** Replit Auth establishes account identity; it does not establish
+WB workspace membership. Keep publishing restricted to Workspace only or Invite
+only inside the WB workspace. Store private ownership by verified issuer/subject,
+never by a claimed email or a client-supplied identity header. Do not silently
+transfer previous Clerk-owned drafts based on matching email.
+
+Optional temporary rollout exception: when login is deactivated, everyone who can access
 the production application can select and view published simulations and featured
 examples. Do not expose private drafts, version history or anonymous write access.
 Keep the authentication implementation available to re-enable later.
@@ -45,10 +57,9 @@ Keep the authentication implementation available to re-enable later.
 simulation selection available to everyone accessing the production application.
 
 **Why:** These are explicit privacy and preservation requirements in the user's
-brief, not just gallery presentation choices. The user explicitly requested WB
-SSO login/identification.
+brief, not just gallery presentation choices.
 
 **How to apply:** Enforce permissions and effective calculation/export scope on
-the server. Confirm institutional SSO configuration before claiming it works;
+the server. Do not claim a successful WB SSO sign-in without verifying it;
 verified email fallback is not equivalent to institutional SSO. Country metadata
 selection must never silently calibrate costs, GDP, currency or service data.

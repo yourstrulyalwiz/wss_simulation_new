@@ -1,5 +1,6 @@
 import copy
 from uuid import uuid4
+import os
 from fastapi import APIRouter, Request, Body, HTTPException
 from psycopg.types.json import Jsonb
 from .identity import identity
@@ -15,7 +16,17 @@ router = APIRouter()
 
 @router.get('/api/access-mode')
 def access_mode():
-    return {'public_read_only': public_read_only()}
+    return {'public_read_only': public_read_only(),
+            'auth_provider': 'public' if public_read_only() else os.environ.get('WSS_AUTH_PROVIDER', 'clerk')}
+
+
+@router.get('/api/session')
+def session_identity(request: Request):
+    user = identity(request, required=False)
+    if user:
+        with connect() as db:
+            save_user(db, user)
+    return {'user': user}
 
 
 @router.get('/api/me')

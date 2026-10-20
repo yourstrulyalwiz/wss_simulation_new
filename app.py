@@ -31,7 +31,7 @@ async def project_access_boundary(request, call_next):
     path = request.url.path
     if path.startswith('/api/profiles') or path in ('/api/development-preview', '/api/mock-drc-inputs'):
         return JSONResponse(status_code=410, content={'detail':'Use simulation projects; legacy source files are preserved read-only.'})
-    public = path in ('/api/access-mode','/api/countries','/api/country-metadata','/api/defaults','/api/cost-mix/templates')
+    public = path in ('/api/access-mode','/api/session','/api/countries','/api/country-metadata','/api/defaults','/api/cost-mix/templates')
     if path.startswith('/api/') and not path.startswith('/api/simulations') and path != '/api/me' and not public:
         try:
             user = identity(request, required=False)

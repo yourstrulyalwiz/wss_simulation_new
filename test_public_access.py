@@ -33,7 +33,7 @@ class PublicAccessTests(unittest.TestCase):
 
                 with patch.dict(os.environ, {'WSS_PUBLIC_READ_ONLY': 'true',
                                               'SESSION_SECRET': 'test-public-boundary'}):
-                    self.assertEqual(client.get('/api/access-mode').json(), {'public_read_only': True})
+                    self.assertTrue(client.get('/api/access-mode').json()['public_read_only'])
                     cards = client.get('/api/simulations?collection=public')
                     self.assertEqual(cards.status_code, 200, cards.text)
                     items = {row['id']: row for row in cards.json()['items']}
@@ -80,7 +80,7 @@ class PublicAccessTests(unittest.TestCase):
                     self.assertNotIn(sid, [c['id'] for c in client.get(
                         '/api/simulations?collection=public').json()['items']])
                 with patch.dict(os.environ, {'WSS_PUBLIC_READ_ONLY': 'false'}):
-                    self.assertEqual(client.get('/api/access-mode').json(), {'public_read_only': False})
+                    self.assertFalse(client.get('/api/access-mode').json()['public_read_only'])
                     self.assertEqual(client.get('/api/simulations?collection=public').status_code, 401)
                     self.assertEqual(client.get('/api/simulations?collection=examples').status_code, 200)
             finally:

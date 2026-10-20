@@ -34,9 +34,11 @@ Verified institutional identity owns private projects. Public access refers to a
 selected immutable version, never ongoing autosaves or excluded dormant data.
 Initially restrict public viewing to signed-in World Bank users. Administrators
 have read-all access, not automatic edit-all access.
+The intended application login is WB institutional SSO.
 
 **Why:** These are explicit privacy and preservation requirements in the user's
-brief, not just gallery presentation choices.
+brief, not just gallery presentation choices. The user explicitly requested WB
+SSO login/identification.
 
 **How to apply:** Enforce permissions and effective calculation/export scope on
 the server. Confirm institutional SSO configuration before claiming it works;

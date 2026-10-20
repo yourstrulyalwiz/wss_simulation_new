@@ -19,3 +19,17 @@ browser confirmed it was old served code, not retained user-browser state.
 intended build and run the project's normal frontend build in the main workspace
 when they differ. Check the live UI before diagnosing a proxy-cache problem.
 Keep saved profiles and browser inputs intact.
+
+After a Git pull, verify the running entry point and installed dependencies separately
+from the branch and static build. A matching Git revision does not establish that
+the workspace is running that revision's server or has its authentication configured.
+
+**Why:** An imported workspace retained the older Python-only process after the
+project moved to an authentication gateway. Restarting exposed missing declared
+dependencies and missing Clerk configuration; Git synchronization alone did not
+make the new application runnable.
+
+**How to apply:** Inspect the actual process and startup logs, install declared
+dependencies, and resolve workspace-specific authentication setup without bypassing
+auth or replacing the database. Preserve saved work and distinguish successful
+source synchronization from verified runtime startup.

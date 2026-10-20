@@ -42,3 +42,9 @@ externalPort = 3000
 [deployment]
 deploymentTarget = "autoscale"
 run = ["npx", "tsx", "server/index.ts"]
+build = ["sh", "-c", "npm ci && npm --prefix frontend ci && npm --prefix frontend run build"]
+
+[userenv]
+
+[userenv.shared]
+WSS_PUBLIC_READ_ONLY = "true"

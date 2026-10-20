@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useUser } from '@clerk/react';
+import { useAppAccess } from './accessMode';
 import { Link, useLocation } from 'wouter';
 import App from './App';
 import { ErrorMessage, PortalLayout, ScopeFields, Skeletons } from './Portal';
@@ -8,7 +8,7 @@ import { geography, normalizeScope, scopedBundle, type ProjectScope } from './pr
 import { useSimulation } from './useSimulation';
 
 export default function ProjectWorkspace({ id, identity }: { id: string; identity?: Identity | null }) {
-  const { user } = useUser();
+  const { user, publicReadOnly } = useAppAccess();
   const state = useSimulation(id, identity?.id);
   const { project, loading, error, saving, dirty, conflict, saveError, recovery, editorEpoch, update, save, reload, acceptServer } = state;
   const [dialog, setDialog] = useState<'setup' | 'version' | 'history' | 'duplicate' | 'archive' | 'unpublish' | null>(new URLSearchParams(window.location.search).has('history') ? 'history' : null);
@@ -65,7 +65,7 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
     acceptServer(value); setDialog(null);
   };
   if (loading) return <PortalLayout identity={identity}><main className="portal-wrap portal-section"><span className="portal-eyebrow">Opening your simulation</span><h2>Loading the planning record…</h2><Skeletons /></main></PortalLayout>;
-  if (error || !project) return <PortalLayout identity={identity}><main className="portal-wrap portal-section"><h1 style={{ fontSize: 35 }}>This simulation is not available.</h1><ErrorMessage message={error || 'The project could not be loaded.'} retry={() => void reload()} /><p>Private simulations are visible only to their owner and authorized administrators. Public viewers see only the selected published version.</p><Link href={user ? '/user-portal' : '/sign-in'} className="portal-btn">{user ? 'Back to simulations' : 'Sign in with your World Bank account'}</Link></main></PortalLayout>;
+  if (error || !project) return <PortalLayout identity={identity}><main className="portal-wrap portal-section"><h1 style={{ fontSize: 35 }}>This simulation is not available.</h1><ErrorMessage message={error || 'The project could not be loaded.'} retry={() => void reload()} /><p>Private simulations are visible only to their owner and authorized administrators. Public viewers see only the selected published version.</p><Link href={user || publicReadOnly ? '/user-portal' : '/sign-in'} className="portal-btn">{user || publicReadOnly ? 'Back to simulations' : 'Sign in with your World Bank account'}</Link></main></PortalLayout>;
   return <div className="project-shell">
     {saveError && <div className="project-alert" role="alert">{saveError}<button onClick={state.download}>Download recoverable draft</button>{conflict ? <button onClick={() => { if (window.confirm('Reload the newer server revision? Your local draft will remain available for recovery. Download it first if needed.')) void reload(); }}>Reload newer revision</button> : <button onClick={() => void save().catch(() => {})}>Retry save</button>}</div>}
     {actionError && !dialog && <div className="project-alert" role="alert">{actionError}</div>}
@@ -83,11 +83,11 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
         <div className="wb-header-actions project-header-actions">
           <small className="project-save-status" role="status" aria-live="polite">{owner ? saving ? 'Saving progress…' : conflict ? 'Conflict · Draft retained' : saveError ? 'Could not save' : dirty ? 'Unsaved changes' : `Saved ${new Date(project.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Read-only view'}</small>
           <Link href="/" className="wb-header-action">Return</Link>
-          {user ? <Link href="/user-portal" className="wb-header-action">My simulations</Link> : <Link href="/sign-in" className="wb-header-action">Sign in</Link>}
+          {user || publicReadOnly ? <Link href="/user-portal" className="wb-header-action">{publicReadOnly ? 'Browse simulations' : 'My simulations'}</Link> : <Link href="/sign-in" className="wb-header-action">Sign in</Link>}
           {owner && <><button disabled={saving || conflict} className="wb-header-action" onClick={() => void act(async () => { await settled(); })}>Save progress</button><button disabled={saving || conflict} className="wb-header-action" onClick={() => open('version')}>Save version</button><button className="wb-header-action" onClick={() => open('setup')}>Edit setup</button></>}
           {saveComparison}
           {historyAllowed && <button className="wb-header-action" onClick={() => open('history')}>{owner ? 'History & sharing' : 'Version history'}</button>}
-          {identity ? <button className="wb-header-action" onClick={() => open('duplicate')}>{project.is_seed ? 'Use as starting point' : 'Duplicate'}</button> : <Link href="/sign-in" className="wb-header-action">Private copy</Link>}
+          {identity ? <button className="wb-header-action" onClick={() => open('duplicate')}>{project.is_seed ? 'Use as starting point' : 'Duplicate'}</button> : !publicReadOnly && <Link href="/sign-in" className="wb-header-action">Private copy</Link>}
           {owner && project.visibility === 'public' && <button className="wb-header-action" onClick={() => open('unpublish')}>Make private</button>}
           {owner && <button className="wb-header-action" onClick={() => open('archive')}>{project.archived_at ? 'Unarchive' : 'Archive'}</button>}
           {toolOverview}

@@ -5,6 +5,7 @@ import { shadcn } from '@clerk/themes';
 import { Switch, Route, Redirect, useLocation, Router as WouterRouter } from 'wouter';
 import { basePath, Gallery, Home, NewSimulation, PortalLayout, ErrorMessage } from './Portal';
 import { projectRequest, type Identity } from './projectApi';
+import { AccessContext, AuthenticatedAccess } from './accessMode';
 const ProjectWorkspace = lazy(() => import('./ProjectWorkspace'));
 
 const clerkPubKey = publishableKeyFromHost(
@@ -85,7 +86,35 @@ function ClerkProviderWithRoutes() {
     localization={{ signIn: { start: { title: 'Return to your workspace', subtitle: 'Sign in with your World Bank identity' } }, signUp: { start: { title: 'Your planning workspace', subtitle: 'Use your verified World Bank mailbox' } } }}
     routerPush={(to) => setLocation(stripBase(to))}
     routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
-  ><Routes /></ClerkProvider>;
+  ><AuthenticatedAccess><Routes /></AuthenticatedAccess></ClerkProvider>;
 }
-function Router() { return <WouterRouter base={basePath}><ClerkProviderWithRoutes /></WouterRouter>; }
+function PublicRoutes() {
+  return <AccessContext.Provider value={{ publicReadOnly: true, user: null, signOut: () => {} }}>
+    <Switch>
+      <Route path="/" component={Home} />
+      <Route path="/user-portal">{() => <Gallery />}</Route>
+      <Route path="/simulations/new">{() => <Redirect to="/user-portal" />}</Route>
+      <Route path="/simulations/:id">{params => <Suspense fallback={<div className="portal-wrap portal-section">Opening simulation…</div>}>
+        <ProjectWorkspace key={params.id} id={params.id} identity={null} />
+      </Suspense>}</Route>
+      <Route>{() => <Redirect to="/user-portal" />}</Route>
+    </Switch>
+  </AccessContext.Provider>;
+}
+function Router() {
+  const [mode, setMode] = useState<boolean | null>(null);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let live = true; setError('');
+    projectRequest<{ public_read_only: boolean }>('/access-mode')
+      .then(data => { if (live) setMode(data.public_read_only === true); })
+      .catch(err => { if (live) setError(err.message); });
+    return () => { live = false; };
+  }, [attempt]);
+  return <WouterRouter base={basePath}>{error
+    ? <main className="portal-wrap portal-section"><h1>Unable to load access settings</h1><ErrorMessage message={error} retry={() => setAttempt(n => n + 1)} /></main>
+    : mode === null ? <main className="portal-wrap portal-section" role="status">Loading application…</main>
+    : mode ? <PublicRoutes /> : <ClerkProviderWithRoutes />}</WouterRouter>;
+}
 export default Router;

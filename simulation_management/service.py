@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 from simulation_scope import normalize_scope, active_areas, public_bundle
 from .blank import blank_inputs
+from .access import public_read_only
 
 
 def digest(value):
@@ -34,7 +35,10 @@ def get_record(db, sid, user, write=False, lock=False):
     row = db.execute('SELECT * FROM wss_simulations WHERE id=%s' + (' FOR UPDATE' if lock else ''), (uuid(sid),)).fetchone()
     owner = bool(row and user and row['owner_id'] == user['id'])
     admin = bool(user and user['is_admin'])
-    can_read = row and (row['is_seed'] or owner or admin or (user and row['visibility'] == 'public' and row['published_version_id'] and not row['archived_at']))
+    published = bool(row and row['visibility'] == 'public' and row['published_version_id'] and not row['archived_at'])
+    can_read = row and (owner or admin or
+                       (row['is_seed'] and not row['archived_at'] and row['published_version_id']) or
+                       ((user or public_read_only()) and published))
     if not can_read:
         raise HTTPException(404, 'Simulation not found.')
     if write and (not owner or row['is_seed']):

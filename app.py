@@ -31,7 +31,7 @@ async def project_access_boundary(request, call_next):
     path = request.url.path
     if path.startswith('/api/profiles') or path in ('/api/development-preview', '/api/mock-drc-inputs'):
         return JSONResponse(status_code=410, content={'detail':'Use simulation projects; legacy source files are preserved read-only.'})
-    public = path in ('/api/countries','/api/country-metadata','/api/defaults','/api/cost-mix/templates')
+    public = path in ('/api/access-mode','/api/countries','/api/country-metadata','/api/defaults','/api/cost-mix/templates')
     if path.startswith('/api/') and not path.startswith('/api/simulations') and path != '/api/me' and not public:
         try:
             user = identity(request, required=False)
@@ -41,7 +41,8 @@ async def project_access_boundary(request, call_next):
                 if not sid or path not in ('/api/calculate','/api/projections','/api/revenue-bases') and not path.startswith('/api/export/'):
                     identity(request)
                 with connect() as db:
-                    if not get_record(db,sid,None)['is_seed']:
+                    from simulation_management.access import public_read_only
+                    if not get_record(db,sid,None)['is_seed'] and not public_read_only():
                         raise HTTPException(401,'Sign in to use simulation projects.')
         except HTTPException as exc:
             return JSONResponse(status_code=exc.status_code, content={'detail':exc.detail})

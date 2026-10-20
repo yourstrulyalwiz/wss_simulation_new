@@ -36,6 +36,14 @@ Initially restrict public viewing to signed-in World Bank users. Administrators
 have read-all access, not automatic edit-all access.
 The intended application login is WB institutional SSO.
 
+Temporary rollout exception: login is deactivated, and everyone who can access
+the production application can select and view published simulations and featured
+examples. Do not expose private drafts, version history or anonymous write access.
+Keep the authentication implementation available to re-enable later.
+
+**Why:** The user requested deployment without login for now while keeping
+simulation selection available to everyone accessing the production application.
+
 **Why:** These are explicit privacy and preservation requirements in the user's
 brief, not just gallery presentation choices. The user explicitly requested WB
 SSO login/identification.

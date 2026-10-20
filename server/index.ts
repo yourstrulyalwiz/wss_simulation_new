@@ -9,11 +9,14 @@ import { CLERK_PROXY_PATH, clerkProxyMiddleware, getClerkProxyHost } from './mid
 if (!process.env.SESSION_SECRET) throw new Error('SESSION_SECRET is required');
 const backend = spawn('python', ['-m', 'uvicorn', 'app:app', '--host', '127.0.0.1', '--port', '5001'], {stdio:'inherit'});
 const app = express();
+const publicReadOnly = process.env.WSS_PUBLIC_READ_ONLY?.toLowerCase() === 'true';
 app.set('trust proxy', 1);
-app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-app.use(clerkMiddleware(req => ({
-  publishableKey: publishableKeyFromHost(getClerkProxyHost(req) ?? '', process.env.CLERK_PUBLISHABLE_KEY),
-})));
+if (!publicReadOnly) {
+  app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+  app.use(clerkMiddleware(req => ({
+    publishableKey: publishableKeyFromHost(getClerkProxyHost(req) ?? '', process.env.CLERK_PUBLISHABLE_KEY),
+  })));
+}
 app.use(async (req, res, next) => {
   // Never trust identity supplied by the browser, including on anonymous routes.
   for (const key of ['x-wss-gateway', 'x-wss-user', 'x-wss-email']) delete req.headers[key];
@@ -26,7 +29,7 @@ app.use(async (req, res, next) => {
         res.status(403).json({detail:'Cross-origin writes are not allowed.'}); return;
       }
     }
-    const { userId } = getAuth(req);
+    const userId = publicReadOnly ? null : getAuth(req).userId;
     if (userId) {
       try {
         const user = await clerkClient.users.getUser(userId);

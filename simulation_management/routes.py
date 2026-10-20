@@ -3,6 +3,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Request, Body, HTTPException
 from psycopg.types.json import Jsonb
 from .identity import identity
+from .access import public_read_only
 from .store import connect
 from .countries import country_metadata
 from .blank import blank_inputs
@@ -11,6 +12,10 @@ from .service import get_record, view_record, check_revision, prepare_bundle, sa
 from simulation_scope import normalize_scope, active_areas, public_bundle
 
 router = APIRouter()
+
+@router.get('/api/access-mode')
+def access_mode():
+    return {'public_read_only': public_read_only()}
 
 
 @router.get('/api/me')
@@ -30,7 +35,8 @@ def countries():
 def list_simulations(request: Request, collection: str = 'examples', q: str = '', country: str = '',
                      region: str = '', income: str = '', lending: str = '', sector: str = '',
                      geography: str = '', visibility: str = '', status: str = '', page: int = 1):
-    user = identity(request, required=collection != 'examples')
+    user = identity(request, required=not (collection == 'examples' or
+                                         (public_read_only() and collection == 'public')))
     if collection not in ('examples','mine','public','archived','all'):
         raise HTTPException(422, 'Unknown simulation collection.')
     if collection == 'all' and not user['is_admin']:
@@ -41,9 +47,9 @@ def list_simulations(request: Request, collection: str = 'examples', q: str = ''
     with connect() as db:
         # Permissions precede searching, filtering, counts and pagination.
         rows = db.execute("""SELECT * FROM wss_simulations WHERE
-          is_seed OR owner_id=%s OR %s OR
+          (is_seed AND published_version_id IS NOT NULL AND archived_at IS NULL) OR owner_id=%s OR %s OR
           (%s AND visibility='public' AND published_version_id IS NOT NULL AND archived_at IS NULL)
-          ORDER BY updated_at DESC""", (subject,admin,bool(user))).fetchall()
+          ORDER BY updated_at DESC""", (subject,admin,bool(user) or public_read_only())).fetchall()
         cards = []
         for row in rows:
             if collection == 'examples' and not row['is_seed']:

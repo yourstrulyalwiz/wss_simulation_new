@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { useClerk, useUser } from '@clerk/react';
+import { useAppAccess } from './accessMode';
 import { Link, useLocation } from 'wouter';
 import { geography, normalizeScope, scopeWithGeography, type ProjectScope, type Sector } from './projectScope';
 import { projectMutation, projectRequest, type CountryMetadata, type Identity, type Simulation, type SimulationCard as SimulationCardData } from './projectApi';
@@ -9,11 +9,10 @@ export function Brand() {
   return <Link href="/" className="portal-brand"><img src={`${basePath}/logo.svg`} alt="WSS" /><span><b>WSS STRATEGIC SCENARIOS</b><small>Simulation tool</small></span></Link>;
 }
 export function PortalLayout({ children, identity }: { children: ReactNode; identity?: Identity | null }) {
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { user, signOut, publicReadOnly } = useAppAccess();
   return <div className="portal"><header className="portal-header"><Brand /><nav className="portal-nav" aria-label="Main navigation">
-    {user ? <><Link href="/user-portal">My workspace</Link><button className="portal-text-btn" onClick={() => {
-      if (window.confirm('Sign out? Any unsaved recovery drafts will remain protected under your account on this browser.')) void signOut({ redirectUrl: basePath || '/' });
+    {publicReadOnly ? <Link href="/user-portal" className="portal-btn">Browse simulations</Link> : user ? <><Link href="/user-portal">My workspace</Link><button className="portal-text-btn" onClick={() => {
+      if (window.confirm('Sign out? Any unsaved recovery drafts will remain protected under your account on this browser.')) signOut();
     }}>Sign out</button></> : <><a href="#examples">Explore examples</a><Link href="/sign-in" className="portal-btn">Sign in <span aria-hidden="true">↗</span></Link></>}
   </nav></header>{identity && <div className="portal-wrap" style={{ paddingTop: 14, fontSize: 10, color: '#66828f' }}>{identity.email}{identity.is_admin ? ' · Administrator · Read access to all simulations' : ' · Verified World Bank account'}</div>}{children}
     <footer className="portal-footer"><span>WSS STRATEGIC SCENARIOS · WATER GLOBAL PRACTICE</span><span>A planning model. Evidence and professional judgement remain essential.</span></footer></div>;
@@ -28,6 +27,7 @@ function periodLabel(period: any) {
   return `${period.model_start_year ?? '—'}–${period.forecast_end_year ?? '—'}`;
 }
 export function SimulationCard({ item }: { item: SimulationCardData }) {
+  const { publicReadOnly } = useAppAccess();
   const scope = normalizeScope(item.scope);
   return <article className={`simulation-card${item.is_seed ? ' is-seed' : ''}`}>
     <div className="card-status"><span>{item.is_seed ? 'Featured example · Read only' : item.status === 'calculated' ? 'Calculated' : 'Working draft'}</span><span>{item.visibility}</span></div>
@@ -36,10 +36,11 @@ export function SimulationCard({ item }: { item: SimulationCardData }) {
     {item.notice && <p className="card-notice">{item.notice}</p>}
     <div className="card-meta"><span>{periodLabel(item.period)}</span><span>Saved {new Date(item.updated_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
     <div className="card-actions"><Link className="portal-btn portal-btn--secondary" href={`/simulations/${item.id}`}>{item.is_owner && !item.read_only ? 'Resume simulation' : 'View simulation'} <span aria-hidden="true">↗</span></Link>
-      {item.is_owner && <Link className="portal-text-btn" href={`/simulations/${item.id}?history=1`}>Version history</Link>}{item.is_seed && <span style={{ color: '#68838d', fontSize: 10 }}>Duplicate to make it your own</span>}</div>
+      {item.is_owner && <Link className="portal-text-btn" href={`/simulations/${item.id}?history=1`}>Version history</Link>}{item.is_seed && !publicReadOnly && <span style={{ color: '#68838d', fontSize: 10 }}>Duplicate to make it your own</span>}</div>
   </article>;
 }
 export function Home() {
+  const { publicReadOnly } = useAppAccess();
   const [items, setItems] = useState<SimulationCardData[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -54,8 +55,8 @@ export function Home() {
     <div className="portal-wrap"><section className="portal-hero"><div><span className="portal-eyebrow">Water & sanitation · Strategic planning</span>
       <h1>Different choices.<br />A clearer path<br />to universal access.</h1>
       <p>Connect service ambitions with the financing behind them. Explore what business as usual delivers—and what a different set of decisions could change.</p>
-      <div className="portal-hero-actions"><Link href="/sign-in" className="portal-btn">Open your workspace <span aria-hidden="true">↗</span></Link><a href="#examples" className="portal-btn portal-btn--secondary">Explore the model</a></div>
-      <span className="portal-hero-note">For World Bank practitioners · Save drafts with your verified account</span>
+      <div className="portal-hero-actions"><Link href={publicReadOnly ? '/user-portal' : '/sign-in'} className="portal-btn">{publicReadOnly ? 'Browse simulations' : 'Open your workspace'} <span aria-hidden="true">↗</span></Link><a href="#examples" className="portal-btn portal-btn--secondary">Explore the model</a></div>
+      <span className="portal-hero-note">{publicReadOnly ? 'Open access · Published simulations · Read-only viewing' : 'For World Bank practitioners · Save drafts with your verified account'}</span>
     </div><div className="planning-figure" aria-label="Conceptual illustration comparing a designed service-access pathway with business as usual. Not calculated results.">
       <div className="planning-figure-title"><span>FROM BASELINE TO POSSIBILITY</span><span>01 / SCENARIO DESIGN</span></div>
       <svg viewBox="0 0 460 290" role="img" aria-label="Illustrative pathways, not simulation data"><defs><linearGradient id="path-fill" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#009ca7" stopOpacity=".23" /><stop offset="1" stopColor="#009ca7" stopOpacity=".02" /></linearGradient></defs>
@@ -67,8 +68,8 @@ export function Home() {
         <text x="136" y="164" fill="#014972" fontSize="10" fontFamily="sans-serif">DESIGN</text><text x="270" y="90" fill="#014972" fontSize="10" fontFamily="sans-serif">FINANCE</text>
         <text x="28" y="284" fill="#648391" fontSize="10" fontFamily="sans-serif">BASELINE</text><text x="353" y="284" fill="#648391" fontSize="10" fontFamily="sans-serif">PLANNING HORIZON</text>
       </svg><div className="planning-legend"><span>Designed pathway</span><span>Business as usual</span></div><div className="planning-foot"><span>Your evidence. Your assumptions.</span><span>Conceptual illustration</span></div>
-    </div></section><div className="portal-trust"><span>WATER + SANITATION</span><span>URBAN · RURAL · NATIONAL</span><span>REAL MODEL · EXPLICIT ASSUMPTIONS</span><span>PRIVATE BY DEFAULT</span></div></div>
-    <section id="examples" className="portal-section portal-wrap"><div className="portal-section-heading"><div><span className="portal-eyebrow">Start with a worked example</span><h2>A model you can explore.</h2></div><p>Open the preserved DRC Oct 12, DRC Oct 13 and Nepal Kathmandu Valley simulations. The originals stay read only; a private copy is yours to develop.</p></div>
+    </div></section><div className="portal-trust"><span>WATER + SANITATION</span><span>URBAN · RURAL · NATIONAL</span><span>REAL MODEL · EXPLICIT ASSUMPTIONS</span><span>{publicReadOnly ? 'PUBLISHED VERSIONS ONLY' : 'PRIVATE BY DEFAULT'}</span></div></div>
+    <section id="examples" className="portal-section portal-wrap"><div className="portal-section-heading"><div><span className="portal-eyebrow">Start with a worked example</span><h2>A model you can explore.</h2></div><p>Open the preserved DRC Oct 12, DRC Oct 13 and Nepal Kathmandu Valley simulations. {publicReadOnly ? 'The originals are read only. No sign-in is required.' : 'The originals stay read only; a private copy is yours to develop.'}</p></div>
       {loading ? <Skeletons /> : error ? <ErrorMessage message={error} retry={() => setRetry(value => value + 1)} /> : items.length ? <div className="portal-examples">{items.map(item => <SimulationCard key={item.id} item={item} />)}</div> : <div className="portal-empty"><h3>Examples are being prepared</h3><p>Try again shortly. No sample assumptions have been substituted.</p><button className="portal-text-btn" onClick={() => setRetry(value => value + 1)}>Check again</button></div>}
     </section>
     <section className="portal-method portal-section"><div className="portal-wrap portal-method-grid"><div><span className="portal-eyebrow">A connected planning workflow</span><h2>See the decision.<br />Trace the consequence.</h2><p>Move from an evidence base to an investment conversation, without losing sight of the assumptions in between.</p></div><ol>
@@ -78,7 +79,7 @@ export function Home() {
       <li><div><b>Keep the planning record</b><p>Save progress, mark meaningful versions and share one selected checkpoint for others to view.</p></div></li>
     </ol></div></section>
     <section className="portal-section portal-wrap portal-principles"><div><span className="portal-eyebrow">Evidence, not automatic answers</span><h3>Country selection is not calibration.</h3><p>New simulations start with blank area-specific assumptions. The tool does not invent local costs, exchange rates, demand or service data. Incomplete work can still be saved.</p></div><div><span className="portal-eyebrow">Your work stays yours</span><h3>A draft is not a publication.</h3><p>Working simulations are private by default and tied to a verified World Bank identity. Public viewing uses an explicitly selected saved version—not your unfinished edits.</p></div></section>
-    <div className="portal-wrap"><section className="portal-cta"><div><h2>Make room for a better scenario.</h2><p>Start a country simulation, or pick up where you left off.</p></div><Link href="/sign-in" className="portal-btn">Sign in to start <span aria-hidden="true">↗</span></Link></section></div>
+    <div className="portal-wrap"><section className="portal-cta"><div><h2>Make room for a better scenario.</h2><p>{publicReadOnly ? 'Explore the available published simulations. Private drafts remain protected.' : 'Start a country simulation, or pick up where you left off.'}</p></div><Link href={publicReadOnly ? '/user-portal' : '/sign-in'} className="portal-btn">{publicReadOnly ? 'Browse simulations' : 'Sign in to start'} <span aria-hidden="true">↗</span></Link></section></div>
   </main></PortalLayout>;
 }
 export function useCountryMetadata() {
@@ -88,8 +89,8 @@ export function useCountryMetadata() {
   useEffect(() => { let live = true; setError(''); projectRequest<CountryMetadata>('/country-metadata').then(data => { if (live) setMetadata(data); }).catch(err => { if (live) setError(err.message); }); return () => { live = false; }; }, [attempt]);
   return { metadata, error, retry: () => setAttempt(value => value + 1) };
 }
-export function Gallery({ identity }: { identity: Identity }) {
-  const [collection, setCollection] = useState('mine');
+export function Gallery({ identity = null }: { identity?: Identity | null }) {
+  const [collection, setCollection] = useState(identity ? 'mine' : 'public');
   const [q, setQ] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [expanded, setExpanded] = useState(false);
@@ -132,12 +133,12 @@ export function Gallery({ identity }: { identity: Identity }) {
     } catch (err) { setError((err as Error).message); } finally { setImporting(false); }
   };
   return <PortalLayout identity={identity}><main className="portal-wrap">
-    <div className="gallery-intro"><div><span className="portal-eyebrow">Your planning workspace</span><h1>Simulations</h1><p>Keep the evidence. Explore the alternatives. Return to your work.</p></div><Link href="/simulations/new" className="portal-btn">+ New simulation</Link></div>
-    {legacy && <div className="portal-message">A legacy workspace was found on this browser. Import it only if it belongs to you. Your original data will be retained. <button disabled={importing} className="portal-text-btn" onClick={() => void importLegacy()}>{importing ? 'Importing…' : 'Review and import'}</button> <button className="portal-text-btn" onClick={() => setLegacy(false)}>Not now</button></div>}
-    <div className="gallery-tabs" role="tablist" aria-label="Simulation collections">{[['mine', 'My simulations'], ['public', 'Public simulations'], ['examples', 'Featured examples'], ['archived', 'Archived'], ...(identity.is_admin ? [['all', 'All simulations']] : [])].map(([key, label]) => <button key={key} role="tab" aria-selected={collection === key} onClick={() => { setCollection(key); setPage(1); }}>{label}</button>)}</div>
+    <div className="gallery-intro"><div><span className="portal-eyebrow">{identity ? 'Your planning workspace' : 'Open simulation library'}</span><h1>Simulations</h1><p>{identity ? 'Keep the evidence. Explore the alternatives. Return to your work.' : 'Browse published simulations without signing in. Viewing is read only; private drafts are not shared.'}</p></div>{identity && <Link href="/simulations/new" className="portal-btn">+ New simulation</Link>}</div>
+    {legacy && identity && <div className="portal-message">A legacy workspace was found on this browser. Import it only if it belongs to you. Your original data will be retained. <button disabled={importing} className="portal-text-btn" onClick={() => void importLegacy()}>{importing ? 'Importing…' : 'Review and import'}</button> <button className="portal-text-btn" onClick={() => setLegacy(false)}>Not now</button></div>}
+    <div className="gallery-tabs" role="tablist" aria-label="Simulation collections">{(identity ? [['mine', 'My simulations'], ['public', 'Public simulations'], ['examples', 'Featured examples'], ['archived', 'Archived'], ...(identity.is_admin ? [['all', 'All simulations']] : [])] : [['public', 'Public simulations'], ['examples', 'Featured examples']]).map(([key, label]) => <button key={key} role="tab" aria-selected={collection === key} onClick={() => { setCollection(key); setPage(1); }}>{label}</button>)}</div>
     <div className="gallery-search"><input aria-label="Search simulations" placeholder="Search by name, country, code or area…" value={q} onChange={event => { setQ(event.target.value); setPage(1); }} /><button className="portal-btn portal-btn--secondary" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>Filters{Object.values(filters).filter(Boolean).length ? ` · ${Object.values(filters).filter(Boolean).length}` : ''}</button></div>
     {expanded && <><div className="gallery-filters">{fields.map(([key, label, options]) => <label key={key}>{label}<select value={filters[key] || ''} onChange={event => { setFilters(previous => ({ ...previous, [key]: event.target.value })); setPage(1); }}><option value="">All {label.toLowerCase()}s</option>{options.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>)}<button className="portal-text-btn" onClick={() => { setFilters({}); setQ(''); setPage(1); }}>Clear filters</button></div>{metadataError && <ErrorMessage message={`Country filter metadata is unavailable: ${metadataError}`} retry={retryMetadata} />}{metadata?.stale && <p className="gallery-count">{metadata.retrieved_at ? `Using cached World Bank classifications · retrieved ${new Date(metadata.retrieved_at).toLocaleDateString()}` : 'Country classifications are temporarily unavailable; no cached retrieval exists.'}</p>}</>}
-    {loading ? <Skeletons /> : error ? <ErrorMessage message={error} retry={() => setAttempt(value => value + 1)} /> : <><div className="gallery-count">{data?.total || 0} simulations · Most recently saved first</div>{data?.items.length ? <div className="gallery-grid">{data.items.map(item => <SimulationCard key={item.id} item={item} />)}</div> : <div className="portal-empty"><span className="portal-eyebrow">A clear starting point</span><h2>{q || Object.values(filters).some(Boolean) ? 'No simulations match this view.' : 'Your next scenario starts here.'}</h2><p>{collection === 'mine' ? 'Create a blank simulation or make a private copy of a featured example.' : 'Try another collection or adjust your search.'}</p><Link className="portal-btn" href="/simulations/new">New simulation</Link></div>}<div className="portal-pagination"><button disabled={page <= 1} className="portal-btn portal-btn--secondary" onClick={() => setPage(value => value - 1)}>Previous</button><span>Page {page}</span><button disabled={!data || !data.items.length || pageSize * page >= data.total} className="portal-btn portal-btn--secondary" onClick={() => setPage(value => value + 1)}>Next</button></div></>}
+    {loading ? <Skeletons /> : error ? <ErrorMessage message={error} retry={() => setAttempt(value => value + 1)} /> : <><div className="gallery-count">{data?.total || 0} simulations · Most recently saved first</div>{data?.items.length ? <div className="gallery-grid">{data.items.map(item => <SimulationCard key={item.id} item={item} />)}</div> : <div className="portal-empty"><span className="portal-eyebrow">A clear starting point</span><h2>{q || Object.values(filters).some(Boolean) ? 'No simulations match this view.' : identity ? 'Your next scenario starts here.' : 'No published simulations in this view.'}</h2><p>{collection === 'mine' ? 'Create a blank simulation or make a private copy of a featured example.' : 'Try another collection or adjust your search.'}</p>{identity && <Link className="portal-btn" href="/simulations/new">New simulation</Link>}</div>}<div className="portal-pagination"><button disabled={page <= 1} className="portal-btn portal-btn--secondary" onClick={() => setPage(value => value - 1)}>Previous</button><span>Page {page}</span><button disabled={!data || !data.items.length || pageSize * page >= data.total} className="portal-btn portal-btn--secondary" onClick={() => setPage(value => value + 1)}>Next</button></div></>}
   </main></PortalLayout>;
 }
 export function ScopeFields({ scope, onChange }: { scope: ProjectScope; onChange: (value: ProjectScope) => void }) {

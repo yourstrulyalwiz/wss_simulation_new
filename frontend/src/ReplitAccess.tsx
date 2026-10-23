@@ -44,7 +44,7 @@ export default function ReplitAccess() {
         <Route path="/sign-up">{() => <Redirect to="/sign-in" />}</Route>
         <Route path="/user-portal">{() => identity ? <Gallery identity={identity} /> : <ReplitSignIn />}</Route>
         <Route path="/simulations/new">{() => identity ? <NewSimulation identity={identity} /> : <ReplitSignIn next="/simulations/new" />}</Route>
-        <Route path="/simulations/:id">{params => <Suspense fallback={<PortalLayout><main className="portal-wrap portal-section"><Skeletons /></main></PortalLayout>}>
+        <Route path="/simulations/:id">{(params: { id: string }) => <Suspense fallback={<PortalLayout><main className="portal-wrap portal-section"><Skeletons /></main></PortalLayout>}>
           <ProjectWorkspace key={`${identity?.id || 'anonymous'}:${params.id}`} id={params.id} identity={identity} />
         </Suspense>}</Route>
         <Route>{() => <Redirect to="/" />}</Route>

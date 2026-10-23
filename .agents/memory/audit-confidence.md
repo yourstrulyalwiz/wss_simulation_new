@@ -1,0 +1,15 @@
+---
+name: Audit confidence
+description: Verification standard when automatic audits disagree with specific dependency findings.
+---
+
+For a specifically reported advisory, verify the upstream affected range and
+the resolved dependency version even if the ecosystem audit returns no findings.
+
+**Why:** A Python requirements audit returned no vulnerabilities while the
+installed versions were still affected by the advisories supplied with the
+request. Audit services can differ in coverage and freshness.
+
+**How to apply:** Check every project manifest and lockfile, verify the actual
+installed versions, and distinguish active advisories from withdrawn ones.
+Do not equate an empty result from one service with a clean workspace.

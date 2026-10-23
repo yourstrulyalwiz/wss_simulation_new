@@ -18,3 +18,4 @@
 - [BAU preview layout](bau-preview-navigation.md) — three primary navigation sections in a long form; preserve sector/area toggles and add baseline/target-year KPIs.
 - [Simulation management](simulation-management-policy.md) — preserve Oct 12, Oct 13 and Nepal seeds; verified ownership, dormant scope data and version-specific public access.
 - [Browser verification](browser-verification.md) — local CDP startup can fail while managed screenshots work; do not mistake runner failure for app failure.
+- [Audit confidence](audit-confidence.md) — a negative ecosystem audit alone does not establish that specifically reported advisories are resolved.

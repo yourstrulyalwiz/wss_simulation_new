@@ -72,7 +72,7 @@ function Routes() {
     <Route path="/sign-up/*?">{() => <AuthPage mode="up" />}</Route>
     <Route path="/user-portal">{() => <Verified>{identity => identity && <Gallery identity={identity} />}</Verified>}</Route>
     <Route path="/simulations/new">{() => <Verified>{identity => identity && <NewSimulation identity={identity} />}</Verified>}</Route>
-    <Route path="/simulations/:id">{params => <Verified optional>{identity => <Suspense fallback={<div className="portal"><div className="portal-wrap portal-section"><div className="portal-skeleton" aria-label="Loading simulation workspace" /></div></div>}><ProjectWorkspace key={`${identity?.id || 'anonymous'}:${params.id}`} id={params.id} identity={identity} /></Suspense>}</Verified>}</Route>
+    <Route path="/simulations/:id">{(params: { id: string }) => <Verified optional>{identity => <Suspense fallback={<div className="portal"><div className="portal-wrap portal-section"><div className="portal-skeleton" aria-label="Loading simulation workspace" /></div></div>}><ProjectWorkspace key={`${identity?.id || 'anonymous'}:${params.id}`} id={params.id} identity={identity} /></Suspense>}</Verified>}</Route>
     <Route>{() => <PortalLayout><main className="portal-wrap portal-section"><h1>That page is not here.</h1><p>Your simulations are still in your workspace.</p><button className="portal-btn" onClick={() => setLocation('/')}>Return home</button></main></PortalLayout>}</Route>
   </Switch></div>;
 }
@@ -95,7 +95,7 @@ function PublicRoutes() {
       <Route path="/" component={Home} />
       <Route path="/user-portal">{() => <Gallery />}</Route>
       <Route path="/simulations/new">{() => <Redirect to="/user-portal" />}</Route>
-      <Route path="/simulations/:id">{params => <Suspense fallback={<div className="portal-wrap portal-section">Opening simulation…</div>}>
+      <Route path="/simulations/:id">{(params: { id: string }) => <Suspense fallback={<div className="portal-wrap portal-section">Opening simulation…</div>}>
         <ProjectWorkspace key={params.id} id={params.id} identity={null} />
       </Suspense>}</Route>
       <Route>{() => <Redirect to="/user-portal" />}</Route>

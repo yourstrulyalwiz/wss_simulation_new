@@ -57,14 +57,14 @@
     "reselect": "^5.1.1",
     "rolldown": "^1.0.0-rc.15",
     "scheduler": "^0.27.0",
-    "source-map-js": "^1.2.1",
+    "source-map-js": "^1.2.2",
     "tiny-invariant": "^1.3.3",
     "tinyglobby": "^0.2.17",
     "tsx": "^4.23.15",
     "typescript": "^6.0.2",
     "use-sync-external-store": "^1.7.0",
     "victory-vendor": "^37.3.6",
-    "vite": "^8.0.8",
+    "vite": "^8.3.5",
     "wouter": "^3.13.0"
   },
   "scripts": {

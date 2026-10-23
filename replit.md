@@ -17,6 +17,15 @@ npx tsx server/index.ts
 After changing files under `frontend/`, install the dependencies from
 `frontend/package-lock.json`, run the frontend `build` script, and restart the workflow.
 
+## After task merges
+
+The configured `scripts/post-merge.sh` installs all four npm projects from their
+lockfiles, installs `requirements.txt` into Replit's managed Python user directory,
+checks Python dependency compatibility, and rebuilds the main frontend and
+component preview sandbox. The platform then reconciles running workflows.
+The hook does not change database schemas or saved simulations, and does not
+publish the application.
+
 ## Sign-in and saved simulations
 
 The active setup is `WSS_AUTH_PROVIDER=replit` with

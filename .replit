@@ -49,3 +49,7 @@ build = ["sh", "-c", "npm ci && npm --prefix frontend ci && npm --prefix fronten
 [userenv.shared]
 WSS_PUBLIC_READ_ONLY = "false"
 WSS_AUTH_PROVIDER = "replit"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 300000

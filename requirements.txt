@@ -8,3 +8,8 @@ python-pptx==1.0.2
 openpyxl==3.1.5
 httpx
 psycopg[binary]
+# Security pins for transitive image-processing and HTTP dependencies.
+anyio==4.15.1
+h11==0.16.0
+idna==3.20
+Pillow==13.0.0

@@ -11,6 +11,7 @@ row-by-row mapping and the OPEN QUESTIONS / assumptions list.
 
 import numpy as np
 from .inputs import ModelInputs, InterventionToggles
+from .forecast_policy import effective_forecast_macro
 from .water_supply import calculate_water_supply
 from .sanitation import calculate_sanitation
 from .service_gaps import SERVICE_GAP_FIELDS
@@ -165,9 +166,10 @@ def build_context(inputs: ModelInputs) -> dict:
     with np.errstate(divide='ignore', invalid='ignore'):
         hh_size = np.where(total_hh > 0, population / total_hh, 0.0)
 
-    infl_local = _series_with_ongoing(inputs.macro.inflation_local, n, inputs.macro.inflation_local_ongoing)
-    us_infl = _series_with_ongoing(inputs.macro.inflation_us, n, inputs.macro.inflation_us_ongoing)
-    g_fcst = inputs.macro.gdp_growth_forecast   # fallback real growth if <2 historical points to average
+    forecast_macro = effective_forecast_macro(inputs.macro)
+    infl_local = _series_with_ongoing(forecast_macro.inflation_local, n, forecast_macro.inflation_local_ongoing)
+    us_infl = _series_with_ongoing(forecast_macro.inflation_us, n, forecast_macro.inflation_us_ongoing)
+    g_fcst = forecast_macro.gdp_growth_forecast   # fallback real growth if <2 historical points to average
 
     real_gdp_input = list(inputs.macro.gdp_real_local or [])
     if any((v or 0) > 0 for v in real_gdp_input):

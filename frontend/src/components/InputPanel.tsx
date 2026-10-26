@@ -7,6 +7,10 @@ import NumInput from './NumInput';
 import { RevenueInputsSection } from './RevenueBase';
 import { CurrencyDisplayControl, currencyRateNote, defaultCurrencyDisplay, type CurrencyDisplaySettings } from '../currencyDisplay';
 
+// Keep the controls available for re-enabling; the engine independently ignores
+// these scalar overrides while the feature is paused. Never clear saved values.
+const OPTIONAL_FORECAST_ASSUMPTIONS_ENABLED = false;
+
 // Explains why sanitation's safely-managed and basic rungs share ONE technology mix: the JMP service
 // level is set by service attributes (sharing, emptying, treatment), not the technology. Shown under
 // the sanitation technology mix — the same identical flush/pour-flush to septic tank lands at four
@@ -953,6 +957,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
                   Enter historical values in neutral-fill cells. Teal-tinted forecast cells are optional. Blank cells fill in from the yearly growth rate, shown in the muted "used" row. GDP growth, population growth, and average household size are auto-calculated.
                 </div>
                 <YearTable rows={econRows} years={years} baseYr2={baseYr2} />
+                {OPTIONAL_FORECAST_ASSUMPTIONS_ENABLED ? <>
                 <SubHead text="Optional forecast assumptions" />
                 <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
                   GDP, population and households continue to project automatically from entered data.
@@ -969,6 +974,10 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
                 <F label="Ongoing US inflation" value={inputs.macro.inflation_us_ongoing ?? 0.022}
                   onChange={v => u('macro','inflation_us_ongoing',v)} isPercent unit="%" min={-0.99}
                   tip="Existing model default: 2.2%. Override when relevant to the legacy USD conversion workflow." />
+                </> : <div role="note" style={{ gridColumn: '1 / -1', fontSize: 11, color: '#64748b' }}>
+                  Optional forecast assumptions are temporarily disabled. Automatic projections remain
+                  active using the model defaults. Previously saved assumptions are retained but not applied.
+                </div>}
               </Section>
 
               {/* Sector choice ahead of the budget, so the split control below follows one sector

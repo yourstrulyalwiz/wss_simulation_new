@@ -26,6 +26,14 @@ component preview sandbox. The platform then reconciles running workflows.
 The hook does not change database schemas or saved simulations, and does not
 publish the application.
 
+## Optional forecast assumptions
+
+The three optional scalar overrides (GDP growth fallback, ongoing local
+inflation, and ongoing US inflation) are temporarily disabled in both the editor
+and calculation engine. Calculations use the established model defaults for
+these settings. Saved override values are retained unchanged, while entered
+year-by-year values and automatic projections remain available.
+
 ## Sign-in and saved simulations
 
 The active setup is `WSS_AUTH_PROVIDER=replit` with

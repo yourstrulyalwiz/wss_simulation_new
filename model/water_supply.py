@@ -445,7 +445,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # The financial levers are defined against TOTAL sector spending even when the BAU connection
         # budget itself is derived from historical service costs. `full_budget_in` preserves that total
         # spending series when supplied, otherwise the explicitly estimated equivalent above.
-        # New commitments then pass through the sector's ordinary
+        # Public-spending commitments then pass through the sector's ordinary
         # capex share and execution rate before becoming capital available for connections.
         for t, y in enumerate(years):
             if y <= by:
@@ -473,8 +473,10 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             iy, ie = int(fs.get('injection_start_year') or 0), int(fs.get('injection_end_year') or 0)
             amt = max(0.0, float(fs.get('injection_amount') or 0.0))
             if injection_enabled:
+                # External funding is already available capital in both modes;
+                # neither capital shares nor budget execution discount it.
                 if fs.get('injection_mode') == 'recurring' and iy <= y <= ie:
-                    injection_cash[t] = amt * financial_capex_factor
+                    injection_cash[t] = amt
                 elif fs.get('injection_mode') != 'recurring' and y == iy:
                     injection_cash[t] = amt
             public_spending_adjustment[t] = extra_full

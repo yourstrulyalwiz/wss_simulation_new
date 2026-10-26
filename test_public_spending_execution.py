@@ -67,7 +67,7 @@ class PublicSpendingExecutionTests(unittest.TestCase):
                     np.testing.assert_allclose(attr['reconciliation_error'][rung], 0, atol=1e-10)
 
     def test_external_excluded_and_signed_execution(self):
-        for mode, amount in [('one_time', 100), ('recurring', 10)]:
+        for mode, amount in [('one_time', 100), ('recurring', 100)]:
             baseline = None
             for reform in [False, True]:
                 m = self.model(execution=reform)

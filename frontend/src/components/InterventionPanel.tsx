@@ -373,10 +373,10 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
     return (<>
         <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b' }}>
           {recurring
-            ? 'Recurring funding is adjusted by the capital spending share and execution rate in each selected year.'
+            ? `Annual available funding (${CUR} millions). The full amount enters available funds each year from the start year through the end year; capital spending share and execution rate are not applied.`
             : `One-time available funding (${CUR} millions). The full amount enters available funds in the selected year; capital spending share and execution rate are not applied.`}
         </div>
-        <F label="Funding amount" value={iv.fin_injection_amount} onChange={v => u(section, 'fin_injection_amount', Math.max(0, v))}
+        <F label={recurring ? 'Annual funding amount' : 'Funding amount'} value={iv.fin_injection_amount} onChange={v => u(section, 'fin_injection_amount', Math.max(0, v))}
           unit={`${CUR} mn`} tip="Absolute additional funding in local-currency millions." />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
           <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Schedule</label>

@@ -199,6 +199,22 @@ flows remain distinct from additive obligations. Do not sum subtotals together
 with their children or closing balances across years. A subperiod summary uses
 **Outstanding at [closing year]**, preserving all earlier carried shortfalls.
 
+## External funding injections
+
+Both one-time and recurring external funding enter ordinary available funds in
+full, in millions of local currency. Neither legacy nor current capital shares,
+the total-spending toggle, nor budget execution scales either mode. Recurring
+amounts are annual, constant amounts over the inclusive start/end forecast years;
+one-time amounts enter only in the selected forecast year. Disabled or zero
+injections contribute zero. External funding remains separately attributed and
+does not become an eligible operating-revenue source for loan sizing.
+
+Ordinary debt-service and replacement priorities still apply before expansion,
+along with existing service-allocation and household eligibility rules. Full
+funding receipts do not imply that all receipts purchase new connections.
+Saved amounts are not rescaled; previously discounted recurring scenarios can
+show higher funding and coverage when recalculated.
+
 ## Controlled comparison
 
 ### Indicative loan funding

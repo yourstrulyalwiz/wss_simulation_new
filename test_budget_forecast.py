@@ -147,25 +147,33 @@ class BudgetForecastTests(unittest.TestCase):
         self.assertEqual(path.read_bytes(),original)
 
     def test_external_funding_isolated_and_signed_execution(self):
-        for mode in ['one_time','recurring']:
-            values=[]
-            for total,k,target in [(False,1,.4),(True,.3,.4),(True,0,.1)]:
+        from itertools import product
+        for sector, prefix, key in [('water', 'ws', 'water_supply'),
+                                    ('sanitation', 'san', 'sanitation')]:
+            for mode, total, k, target, reform, spending in product(
+                    ['one_time', 'recurring'], [False, True], [0, .3, .8, 1],
+                    [.1, .4], [False, True], [False, True]):
                 m=self.fixture()
-                m.wss_budget.ws_budget_is_total_spending=total
-                m.wss_budget.ws_budget_capital_share=k
-                m.toggles.ws_exogenous_injection_enabled=True
-                m.toggles.ws_capital_efficiency_enabled=True
-                m.toggles.ws_financial_commitment_enabled=True
-                iv=m.water_interventions
+                setattr(m.wss_budget, prefix+'_budget_is_total_spending', total)
+                setattr(m.wss_budget, prefix+'_budget_capital_share', k)
+                setattr(m.toggles, prefix+'_exogenous_injection_enabled', True)
+                setattr(m.toggles, prefix+'_capital_efficiency_enabled', reform)
+                setattr(m.toggles, prefix+'_financial_commitment_enabled', spending)
+                iv=getattr(m, sector+'_interventions')
                 iv.capeff_target_pct=target
                 iv.fin_injection_mode=mode
                 iv.fin_injection_amount=100
                 iv.fin_injection_start_year=2026
                 iv.fin_injection_end_year=2027
                 r=calculate(m)
-                values.append(r['water_supply']['scenario_exogenous_injection_cash'])
-            self.assertEqual(values[0],values[1])
-            self.assertEqual(values[1],values[2])
+                expected = [100 if y == 2026 or (mode == 'recurring' and y == 2027)
+                            else 0 for y in r['years']]
+                self.assertEqual(r[key]['scenario_exogenous_injection_cash'], expected)
+                sources = r[key]['scenario_source_funding']['signed_contribution']
+                self.assertEqual(sources['injection'], expected)
+                np.testing.assert_allclose(
+                    np.sum(list(sources.values()), axis=0),
+                    r[key]['scenario_available_total'], atol=1e-8)
         m=self.fixture()
         m.toggles.ws_capital_efficiency_enabled=True
         m.toggles.ws_financial_commitment_enabled=True

@@ -40,18 +40,22 @@ class FundingRepaymentTests(unittest.TestCase):
             self.assertEqual(plan['schedule'],[])
             self.assertEqual(sum(plan['debt_service']),0)
 
-    def test_full_one_time_independent_of_factors(self):
-        for share, execution in ((.2,.8),(0,.8),(.2,0),(1,1)):
-            args = dict(capex_pct=share,execution_rate=execution,
-                        financial_settings=dict(injection_amount=100,injection_start_year=2028,
-                                                injection_end_year=2028,injection_mode='one_time'))
-            sec = project(n=5,injection_enabled=True,**args)
-            self.assertEqual(sec['exogenous_injection_cash'],[0,0,0,100,0])
-            off = project(n=5,injection_enabled=False,**args)
-            self.assertEqual(sum(off['exogenous_injection_cash']),0)
-            args['financial_settings']['injection_mode']='recurring'
-            recurring = project(n=5,injection_enabled=True,**args)
-            self.assertAlmostEqual(recurring['exogenous_injection_cash'][3],100*share*execution)
+    def test_full_injections_independent_of_factors(self):
+        from itertools import product
+        for share, execution, mode, enabled, amount in product(
+                (0, .2, .21, 1), (0, .2, .8, 1),
+                ('one_time', 'recurring'), (False, True), (0, 100)):
+            with self.subTest(share=share, execution=execution, mode=mode,
+                              enabled=enabled, amount=amount):
+                sec = project(n=5, injection_enabled=enabled, capex_pct=share,
+                    execution_rate=execution, financial_settings=dict(
+                        injection_amount=amount, injection_start_year=2027,
+                        injection_end_year=2028, injection_mode=mode))
+                expected = ([0, 0, amount, amount if mode == 'recurring' else 0, 0]
+                            if enabled else [0] * 5)
+                self.assertEqual(sec['exogenous_injection_cash'], expected)
+                self.assertEqual(sec['available_total'], expected)
+                self.assertEqual(sec['source_funding']['signed_contribution']['injection'], expected)
 
     def test_both_service_injections(self):
         d = frontend_defaults()

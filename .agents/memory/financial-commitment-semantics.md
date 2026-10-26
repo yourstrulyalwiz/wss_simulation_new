@@ -92,16 +92,17 @@ keep internal identifiers and saved inputs unchanged.
 
 ## External funding and spending reference
 
-The full one-time ordinary injection enters available funds in its selected
-year, without spending-share/execution adjustments. Recurring injections retain
-the configured capital/execution conversion. Public spending follows the approved
-baseline execution policy above. Do not compensate saved amounts.
+Both one-time and recurring external injections enter available funds in full,
+without any capital-share or execution adjustment. Recurring amounts are annual
+over inclusive forecast start/end years; one-time amounts enter once. Public
+spending follows the approved policy above. Do not compensate saved amounts.
 
-**Why:** The user's 2026-10-08 funding/repayment follow-on explicitly narrows this
-exception to one-time injections, not financial commitments in general.
+**Why:** The user's 2026-10-26 instructions supersede the earlier one-time-only
+exception: external funding is already available capital, not public spending.
 
-**How to apply:** Separate mode-specific calculations and UI helper descriptions;
-the downstream ordinary priorities still include debt service and replacement.
+**How to apply:** Preserve independent switches, source attribution and saved
+values across both sectors and areas. Ordinary debt-service and replacement
+priorities still apply; this does not add an operating-revenue loan-sizing source.
 The GDP target and annual growth are additive commitment options; exogenous injection is a separate intervention, independently switched and separately attributed. The GDP entry is a target total sector-spending share, not an uplift; add only the positive difference above BAU. Annual growth compounds over its inclusive range, and absolute injections may be one-time or recurring.
 
 All added public commitments are full-spending amounts: apply the sector capital share once, then baseline_eff for Public Spending and the signed execution improvement separately for Budget Execution. In cost-derived budget mode, compare GDP targets and growth with the preserved total-spending BAU series, not the derived capital budget.

@@ -34,6 +34,13 @@ Verified institutional identity owns private projects. Public access refers to a
 selected immutable version, never ongoing autosaves or excluded dormant data.
 Initially restrict public viewing to signed-in World Bank users. Administrators
 have read-all access, not automatic edit-all access.
+Administrator grants should use explicitly approved, authenticated account
+subjects; a requested email identifies the account to resolve, not an automatic
+email-based privilege fallback.
+**Why:** The user requested an allowlist of designated team members, rather than
+administrator rights for every workspace viewer. Do not infer grants for similar
+addresses or accounts that have not yet authenticated.
+
 The user clarified that the WB Replit workspace already has preset SSO, and
 approved viewers can access published tools. Build app login on those existing
 Replit accounts so people can create simulations and save progress, rather than

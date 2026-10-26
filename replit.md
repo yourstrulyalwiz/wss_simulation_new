@@ -41,6 +41,14 @@ access gate enforces approved workspace viewers. Never treat a Replit account,
 a client-supplied identity header, or an email-domain guess as proof of membership.
 App sign-out ends only the app session, not the person's WB workspace session.
 
+Application administrators are explicitly allowlisted in the shared
+`WSS_ADMIN_SUBJECTS` environment variable using comma-separated authenticated
+account IDs. They can read all simulations and duplicate private drafts into
+their own accounts, but cannot edit or publish another owner's original.
+Only add a new account after its authenticated ID has been established; matching
+an email address is not enough. Publish the updated configuration for production
+to receive allowlist changes.
+
 The Clerk implementation remains available with `WSS_AUTH_PROVIDER=clerk`,
 but requires its own configuration. Do not remap old Clerk-owned drafts to Replit
 users by email; any ownership migration needs an explicit verified process.

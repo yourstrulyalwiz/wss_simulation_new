@@ -183,7 +183,8 @@ def intervention_breakdown(inputs, sector_key, defs):
     sector = 'water' if sector_key == 'water_supply' else 'sanitation'
     debt_cfg = ((inputs.get('utility_debt') or {}).get(sector) or {})
     debt_active = bool(debt_cfg.get('enabled')) and float(debt_cfg.get('allocation_share') or 0) > 0
-    has_custom = any(c.get('enabled', True) for c in inputs.get('custom_interventions', []))
+    from model.custom_policy import CUSTOM_INTERVENTIONS_ENABLED
+    has_custom = CUSTOM_INTERVENTIONS_ENABLED and any(c.get('enabled', True) for c in inputs.get('custom_interventions', []))
     if not enabled and not debt_active and not has_custom:
         return []
     # Same GLOBAL order as dashboard and branded deck, including intervening levers.

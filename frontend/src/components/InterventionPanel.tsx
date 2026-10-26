@@ -14,6 +14,8 @@ import ConnectionRevenue from './ConnectionRevenue';
 import RevenueSourceChart from './RevenueSourceChart';
 import { collectionBelowBaselineWarning } from '../collectionWarning';
 
+const CUSTOM_INTERVENTIONS_ENABLED = false;
+
 function Section({ title, children, defaultOpen = false, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; sectionKey?: string; onFocus?: (key: string) => void }) {
   const [open, setOpen] = useState(defaultOpen);
   const handleClick = () => { const willOpen = !open; setOpen(willOpen); if (willOpen && sectionKey && onFocus) onFocus(sectionKey); };
@@ -738,7 +740,12 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         {/* ===== CUSTOM INTERVENTIONS (always visible, no dropdown) ===== */}
         <div style={{ marginTop: 16, border: '1px solid #ddd', borderRadius: 8, background: '#fff', padding: '12px 14px' }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', margin: '0 0 8px' }}>Custom Interventions</h3>
-          <fieldset disabled={readOnly} style={{ margin: 0, padding: 0, border: 0, minWidth: 0 }} onClick={() => onSectionFocus?.('custom_interventions')}>
+          {!CUSTOM_INTERVENTIONS_ENABLED && (
+            <p style={{ margin: 0, fontSize: 12, color: '#475569' }}>
+              Custom funding and cost-reduction interventions are temporarily disabled for both water and sanitation. Saved settings are preserved but do not affect calculations.
+            </p>
+          )}
+          {CUSTOM_INTERVENTIONS_ENABLED && <fieldset disabled={readOnly} style={{ margin: 0, padding: 0, border: 0, minWidth: 0 }} onClick={() => onSectionFocus?.('custom_interventions')}>
             <div style={{ fontSize: 11, color: '#155e75', background: '#ecfeff', border: '1px solid #a5f3fc', padding: '6px 8px', borderRadius: 4, marginBottom: 8, lineHeight: 1.5 }}>
               You can add interventions not covered above as custom interventions. Two types are supported: <b>New revenue source</b> — invest to produce an output whose net value funds new safely-managed service — and <b>Cost reduction</b> — lower the per-household service cost. Pick each one's sector and tick its box to switch it on.
             </div>
@@ -840,7 +847,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             }} style={{ width: '100%', padding: '8px', border: '1px dashed #9333ea', borderRadius: 6, background: 'none', cursor: 'pointer', fontSize: 12, color: '#9333ea', fontWeight: 500 }}>
               + Add Custom Intervention
             </button>
-          </fieldset>
+          </fieldset>}
         </div>
       </div>
 
@@ -860,7 +867,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           <ExportButtons inputs={interventionChartInputs} pptx={false} contributionView={contributionView} currencyDisplay={currencyDisplay} />
         </div>
         <p data-testid="intervention-no-debt-note" style={{ fontSize: 12, color: '#475569', margin: '0 0 12px' }}>
-          Live intervention preview — includes selected interventions and custom interventions, without borrowing or debt servicing. Saved loan settings are applied separately in Debt servicing.
+          Live intervention preview — includes selected interventions, without borrowing or debt servicing. Custom interventions are temporarily disabled. Saved loan settings are applied separately in Debt servicing.
         </p>
         <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} />
         <LiveInterventionChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel} rung={0} contributionView={contributionView} currencyDisplay={currencyDisplay} />

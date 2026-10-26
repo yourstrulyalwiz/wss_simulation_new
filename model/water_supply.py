@@ -100,6 +100,9 @@ def custom_streams(ctx, period, base_sm_cost, customs, sector):
     n, years, by = ctx['n'], ctx['years'], period.baseline_year
     net_cash = np.zeros(n)
     cf = np.ones(n)
+    from model.custom_policy import CUSTOM_INTERVENTIONS_ENABLED
+    if not CUSTOM_INTERVENTIONS_ENABLED:
+        return net_cash, cf
     for c in (customs or []):
         if not bool(getattr(c, 'enabled', True)):
             continue

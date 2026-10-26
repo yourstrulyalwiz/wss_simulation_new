@@ -136,7 +136,8 @@ def cumulative_passes(area_fes: List[dict]) -> Tuple[List[dict], List[tuple], bo
     defs = [WATER_INTV[0], SAN_INTV[0], *WATER_INTV[1:], *SAN_INTV[1:]]
     original = [financial_toggles(fe) for fe in area_fes]
     enabled = [d for d in defs if any(tg.get(d[0]) for tg in original)]
-    has_custom = any(any((c or {}).get('enabled') for c in (fe.get('custom_interventions') or []))
+    from model.custom_policy import CUSTOM_INTERVENTIONS_ENABLED
+    has_custom = CUSTOM_INTERVENTIONS_ENABLED and any(any((c or {}).get('enabled') for c in (fe.get('custom_interventions') or []))
                      for fe in area_fes)
 
     # Each area keeps its own selections. This matters for a synthesized National roll-up where, for

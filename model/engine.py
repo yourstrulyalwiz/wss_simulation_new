@@ -344,6 +344,9 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
 
 def calculate(inputs: ModelInputs, allow_partial=False) -> dict:
     import copy
+    from model.custom_policy import CUSTOM_INTERVENTIONS_ENABLED
+    if not CUSTOM_INTERVENTIONS_ENABLED:
+        inputs = inputs.model_copy(update={'custom_interventions': []})
     from simulation_scope import sectors_of
     selected_sectors = sectors_of({'calculation_scope': inputs.calculation_scope})
     if 'water' not in selected_sectors:

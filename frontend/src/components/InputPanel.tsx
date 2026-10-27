@@ -965,6 +965,18 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
                 <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b', marginBottom: 4, padding: '4px 8px', background: '#f8fafc', borderRadius: 4 }}>
                   Enter the historical share of households at each service level in neutral-fill cells. The five rungs in each year must add up to 100%. Blank years fill in automatically from the yearly growth rate. In each sector's band below, the <b>"BAU rate from"</b> dropdown sets the first historical year used to work out the business-as-usual trend: the tool averages year-on-year growth from that year to the last historical year and projects it forward, so pick the year whose trend best reflects the pace you expect to continue (or leave the default if unsure). To set a <b style={{ color: '#009CA7' }}>target</b>, fill in a teal-tinted forecast column so its five rungs add up to 100%. You can set as many target years as you like.
                 </div>
+                <dl aria-label="Service level simulation years" style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, margin: '4px 0 12px' }}>
+                  {[
+                    { label: 'Baseline Year', value: inputs.period.baseline_year },
+                    { label: 'Simulation Start Year', value: Number.isFinite(inputs.period.baseline_year) ? inputs.period.baseline_year + 1 : null },
+                    { label: 'Simulation End Year', value: inputs.period.forecast_end_year },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{ padding: '14px 16px', border: '1px solid #dce9ed', borderRadius: 8, background: '#f4f9fa' }}>
+                      <dt style={{ fontSize: 11, fontWeight: 600, color: '#526b76' }}>{label}</dt>
+                      <dd style={{ margin: '6px 0 0', fontSize: 24, fontWeight: 700, color: '#005675' }}>{Number.isFinite(value) ? value : '—'}</dd>
+                    </div>
+                  ))}
+                </dl>
                 <YearTable rows={serviceRows} years={years} baseYr2={baseYr2} markTargets colIsTarget={anyTarget} />
               </Section>
 

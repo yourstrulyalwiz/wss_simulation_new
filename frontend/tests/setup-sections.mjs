@@ -23,7 +23,8 @@ const render = showSection => renderToStaticMarkup(React.createElement(ProjectSc
   setupNameControls: React.createElement('input', { 'aria-label': 'Simulation name', value: 'Test simulation', readOnly: true }),
 })));
 const setup = render('setup');
-const setupOrder = ['simulation_name', 'country', 'coverage', 'currency', 'period'];
+const setupOrder = ['simulation_name', 'country', 'coverage', 'currency'];
+assert.ok(!setup.includes('data-section-key="period"'));
 for (const [index, section] of setupOrder.entries()) {
   assert.ok(setup.includes(`data-section-key="${section}"`));
   if (index) assert.ok(setup.indexOf(`data-section-key="${setupOrder[index - 1]}"`) < setup.indexOf(`data-section-key="${section}"`));
@@ -37,6 +38,17 @@ assert.ok(setup.includes('fieldset disabled'));
 const inputs = render('inputs');
 for (const section of setupOrder) assert.ok(!inputs.includes(`data-section-key="${section}"`));
 for (const section of ['service_levels', 'budget', 'investment_split', 'revenue_inputs']) assert.ok(inputs.includes(`data-section-key="${section}"`));
+const dataOrder = ['period', 'geographical_selection', 'service_levels', 'econ_demo', 'budget', 'sector_selection', 'investment_split', 'revenue_inputs', 'unit_costs'];
+for (const [index, section] of dataOrder.entries()) {
+  assert.ok(inputs.includes(`data-section-key="${section}"`));
+  if (index) assert.ok(inputs.indexOf(`data-section-key="${dataOrder[index - 1]}"`) < inputs.indexOf(`data-section-key="${section}"`));
+}
+assert.ok(inputs.includes('>1</span><span>Analysis Period</span>'));
+assert.ok(inputs.includes('>2</span><span>Geographical Scope Selection</span>'));
+assert.ok(inputs.includes('>3</span><span>Service Levels (Urban)</span>'));
+const geoSection = inputs.slice(inputs.indexOf('data-section-key="geographical_selection"'), inputs.indexOf('data-section-key="service_levels"'));
+assert.ok(geoSection.includes('Coverage controls'));
+assert.ok(!geoSection.includes('fieldset disabled'));
 console.log('Setup/Data Inputs section separation and read-only checks passed.');
 const { findProfile } = require('../src/components/CountryProfileFields.tsx');
 const countries = [

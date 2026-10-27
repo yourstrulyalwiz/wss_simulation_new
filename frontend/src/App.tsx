@@ -770,7 +770,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     sources: [{ name: 'World Bank country classification', url: 'https://datahelpdesk.worldbank.org/knowledgebase/articles/906519' }],
   },
   period: {
-    title: '5. Analysis Period',
+    title: '1. Analysis Period',
     content: (
       <div>
         <p style={{ margin: '0 0 6px' }}>Define the analysis time frame for the tool. These dates apply to the whole analysis and are shared across the Urban and Rural datasets.</p>
@@ -797,7 +797,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     ),
   },
   service_levels: {
-    title: '1. Service levels',
+    title: '3. Service levels',
     content: (
       <div>
         <p style={{ margin: '0 0 6px' }}>The share of households at each of the 5 JMP service levels, for water supply and sanitation. Historical cells use a neutral fill; grey in-between years follow the engine's path; a full teal-tinted forecast column is an optional target.</p>
@@ -812,7 +812,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     sources: [{ name: 'WHO/UNICEF JMP', url: 'https://washdata.org/data/household' }],
   },
   econ_demo: {
-    title: '2. Economic & demographic data',
+    title: '4. Economic & demographic data',
     content: (
       <div>
         <p style={{ margin: '0 0 6px' }}>Real GDP, population and households, year by year. Historical cells use a neutral fill; teal-tinted forecast cells are optional (blank = auto-fill at the mean historical growth); grey “→ used” rows show the values the model applies.</p>
@@ -851,18 +851,22 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     title: '3. Simulation Coverage',
     content: <p>Choose the included sectors and geographical coverage, then Save setup. Excluded inputs remain stored; newly included areas start blank. Country identity stays fixed to protect existing observations.</p>,
   },
+  geographical_selection: {
+    title: '2. Geographical Scope Selection',
+    content: <p>Select Urban or Rural to view and enter that area's data. This selector does not change which areas are included in the simulation; manage coverage in Setup.</p>,
+  },
   sector_selection: {
-    title: '4. Sector Selection',
+    title: '6. Sector Selection',
     content: <p>Select Water Supply or Sanitation to view the sector-specific inputs. Switching sectors does not erase either sector’s saved inputs.</p>,
   },
   investment_split: {
-    title: '5. Investment Split by Service Level',
+    title: '7. Investment Split by Service Level',
     content: (
       <p>Choose how new investment is divided between basic and safely managed service after replacement is funded. The shares always total 100%. These settings apply to the selected area and sector and affect both BAU and intervention scenarios.</p>
     ),
   },
   budget: {
-    title: '3. Budget',
+    title: '5. Budget',
     content: (
       <div>
         <p style={{ margin: '0 0 6px' }}>Executed and allocated budgets are forecast independently as shares of real GDP. Each forecast starts with a three-year observation window, then uses two-year moving averages multiplied by forecast GDP.</p>
@@ -1069,8 +1073,8 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
 const guideKeysByTab: Record<number, string[]> = {
   // Data Inputs — includes the BAU data entry duplicated onto this tab. test2: targets & technical
   // params are folded into the table / the merged unit-cost section.
-  [-1]: ['simulation_name', 'country', 'coverage', 'currency', 'period'],
-  0: ['how_model_works', 'service_levels', 'econ_demo', 'budget', 'sector_selection', 'investment_split', 'ws_unit_costs', 'san_unit_costs'],
+  [-1]: ['simulation_name', 'country', 'coverage', 'currency'],
+  0: ['period', 'geographical_selection', 'how_model_works', 'service_levels', 'econ_demo', 'budget', 'sector_selection', 'investment_split', 'ws_unit_costs', 'san_unit_costs'],
   // BAU Scenario
   1: ['how_model_works', 'ws_unit_costs', 'san_unit_costs'],
   // Intervention Design — one card per intervention, grouped by sector. DataGuide filters this list to

@@ -522,6 +522,8 @@ export default function InputPanel({ setupNameControls, scopeControls, inputs, o
 
   return (
     <SectionWorkspace key={showSection} label={isSetup ? 'Setup sections' : 'Data Inputs sections'} sections={isInputs ? [
+      {key:'period', label:'Analysis Period'},
+      {key:'geographical_selection', label:'Geographical Scope Selection'},
       {key:'service_levels', label:'Service Levels'},
       {key:'econ_demo', label:'Economic & Demographic Data'},
       {key:'budget', label:'Budget'},
@@ -534,7 +536,6 @@ export default function InputPanel({ setupNameControls, scopeControls, inputs, o
       {key:'country', label:'Country Profile'},
       {key:'coverage', label:'Simulation Coverage'},
       {key:'currency', label:'Currency'},
-      {key:'period', label:'Analysis Period'},
     ] : []}>
     <div className="modern-input-panel" style={{ flex: 1, fontSize: 12, minWidth: 0 }}>
       {/* Content is capped to a consistent max width and centered, so section cards don't sprawl
@@ -542,9 +543,8 @@ export default function InputPanel({ setupNameControls, scopeControls, inputs, o
       <div>
       <header className="modern-page-intro"><span className="modern-page-intro__eyebrow">{isSetup ? 'WORKFLOW 00 · SET UP THE SIMULATION' : isInputs ? 'WORKFLOW 01 · SET THE EVIDENCE BASE' : 'BASELINE ASSUMPTIONS'}</span>
         <h2>{isSetup ? 'Simulation setup' : isInputs ? 'Build the country baseline' : 'Review Baseline Information'}</h2>
-        <p>{isSetup ? 'Set the country, area of focus, currency, analysis period and coverage for this simulation.' : 'Review service, population, economic and budget evidence for the selected area. Shared analysis settings are in Setup.'}</p>
+        <p>{isSetup ? 'Set the name, country, area of focus, currency and coverage for this simulation.' : 'Set the analysis period, select the area to view, then review service, population, economic and budget evidence. Country, currency and simulation coverage are in Setup.'}</p>
       </header>
-      {isInputs && scopeControls}
       <div style={{ display: 'flex', gap: 18, fontSize: 12, marginBottom: 12, color: '#3A4452', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid #F0D070', background: '#FFF9E6', display: 'inline-block' }} />
@@ -675,25 +675,25 @@ export default function InputPanel({ setupNameControls, scopeControls, inputs, o
         </>}
       </Section>
 
-      {/* ===== 2. ANALYSIS PERIOD (key dates) ===== */}
-      <Section title="5. Analysis Period" sectionKey="period" onFocus={onSectionFocus}>
+      </>}
+      {isInputs && <>
+      <Section title="1. Analysis Period" sectionKey="period" onFocus={onSectionFocus}>
         <SubHead text="Key dates" />
         <YearField label="Model start year" value={inputs.period.model_start_year} onCommit={setModelStartYear} min={1950} max={inputs.period.baseline_year - 1} tip="First year of historical data; must be at least 3 years before the last year of historical data. Existing data keeps its year — newly added earlier years come in blank for you to fill." />
         <F label="Last year of historical data" value={inputs.period.baseline_year} onChange={v => u('period','baseline_year',v)} min={2023} tip="Last year with complete actual data; must be within the last three years" />
         <F label="Forecast end year" value={inputs.period.forecast_end_year} onChange={v => u('period','forecast_end_year',v)} min={inputs.period.baseline_year + 5} tip="Last year of projection" />
       </Section>
 
-      {/* ===== SCOPE-SPECIFICITY FLAG. §1 and §2a above apply to the whole analysis; every section below
-              (the year-by-year table and the cost/technical sections) is entered per the selected scope. ===== */}
-      </>}
-      {isInputs && <>
+      <Section title="2. Geographical Scope Selection" sectionKey="geographical_selection" onFocus={onSectionFocus} navigationOnly>
+        <div style={{ gridColumn: '1 / -1' }}>{scopeControls}</div>
+      </Section>
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8, textAlign: 'left',
         padding: '8px 14px', borderRadius: 6, fontSize: 12.5,
         background: '#EBF6FB', border: '1px solid #9fd3ec', borderLeft: '4px solid #0073A8', color: '#0073A8',
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontWeight: 600 }}>
-          <span>Every section below is <span style={{ display: 'inline-block', background: '#0073A8', color: '#fff', fontWeight: 700, padding: '1px 10px', borderRadius: 12, fontSize: 12, textTransform: 'capitalize', verticalAlign: 'baseline' }}>{scopeLabel}</span>-specific — enter {scopeLower} figures here. Country, currency, analysis period and coverage are managed in Setup.</span>
+          <span>Every section below is <span style={{ display: 'inline-block', background: '#0073A8', color: '#fff', fontWeight: 700, padding: '1px 10px', borderRadius: 12, fontSize: 12, textTransform: 'capitalize', verticalAlign: 'baseline' }}>{scopeLabel}</span>-specific — enter {scopeLower} figures here. The analysis period above is shared across areas. Country, currency and coverage are managed in Setup.</span>
         </div>
       </div>
 
@@ -978,7 +978,7 @@ export default function InputPanel({ setupNameControls, scopeControls, inputs, o
           ];
           return (
             <>
-              <Section title={`1. Service Levels (${scopeLabel})`} sectionKey="service_levels" onFocus={onSectionFocus}>
+              <Section title={`3. Service Levels (${scopeLabel})`} sectionKey="service_levels" onFocus={onSectionFocus}>
                 <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b', marginBottom: 4, padding: '4px 8px', background: '#f8fafc', borderRadius: 4 }}>
                   Enter the historical share of households at each service level in neutral-fill cells. The five rungs in each year must add up to 100%. Blank years fill in automatically from the yearly growth rate. In each sector's band below, the <b>"BAU rate from"</b> dropdown sets the first historical year used to work out the business-as-usual trend: the tool averages year-on-year growth from that year to the last historical year and projects it forward, so pick the year whose trend best reflects the pace you expect to continue (or leave the default if unsure). To set a <b style={{ color: '#009CA7' }}>target</b>, fill in a teal-tinted forecast column so its five rungs add up to 100%. You can set as many target years as you like.
                 </div>
@@ -997,7 +997,7 @@ export default function InputPanel({ setupNameControls, scopeControls, inputs, o
                 <YearTable rows={serviceRows} years={years} baseYr2={baseYr2} markTargets colIsTarget={anyTarget} />
               </Section>
 
-              <Section title={`2. Economic & demographic data (${scopeLabel})`} sectionKey="econ_demo" onFocus={onSectionFocus}>
+              <Section title={`4. Economic & demographic data (${scopeLabel})`} sectionKey="econ_demo" onFocus={onSectionFocus}>
                 {projectionError && <div role="alert" style={{ gridColumn: '1 / -1', color: '#b91c1c', fontSize: 11 }}>
                   Automatic economic projections could not run: {projectionError}
                 </div>}
@@ -1028,7 +1028,7 @@ export default function InputPanel({ setupNameControls, scopeControls, inputs, o
                 </div>}
               </Section>
 
-              <Section title={`3. Budget (${scopeLabel})`} sectionKey="budget" onFocus={onSectionFocus}>
+              <Section title={`5. Budget (${scopeLabel})`} sectionKey="budget" onFocus={onSectionFocus}>
                 <BudgetBaselineCards results={results} baselineYear={inputs.period.baseline_year} sectors={sectors} />
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 12px', marginBottom: 4 }}>
                   <b>Two independent budgets per sector.</b> Enter executed spending and allocated budgets. Each forecast starts with the mean annual budget/real-GDP share in its latest three-calendar-year observation window, then uses a two-year moving average of shares multiplied by forecast real GDP. Zero is an observation; blank means missing or calculated. Execution is executed ÷ allocated. Calculated values are not saved as observations.
@@ -1065,15 +1065,15 @@ export default function InputPanel({ setupNameControls, scopeControls, inputs, o
                 ))}
                 <YearTable rows={budgetRows} years={years} baseYr2={baseYr2} />
               </Section>
-              <Section title={`4. Sector Selection (${scopeLabel})`} sectionKey="sector_selection" onFocus={onSectionFocus} navigationOnly>
+              <Section title={`6. Sector Selection (${scopeLabel})`} sectionKey="sector_selection" onFocus={onSectionFocus} navigationOnly>
                 <div style={{ gridColumn: '1 / -1' }}>{sectorToggle}</div>
               </Section>
-              <Section title={`5. Investment Split by Service Level (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="investment_split" onFocus={onSectionFocus}>
+              <Section title={`7. Investment Split by Service Level (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="investment_split" onFocus={onSectionFocus}>
                 <SplitControl inputs={inputs} onChange={onChange}
                   section={bauSector === 'water' ? 'water_interventions' : 'sanitation_interventions'}
                   sector={bauSector === 'water' ? 'water supply' : 'sanitation'} />
               </Section>
-              <Section title={`6. Revenue Inputs (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="revenue_inputs" onFocus={onSectionFocus}>
+              <Section title={`8. Revenue Inputs (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="revenue_inputs" onFocus={onSectionFocus}>
                 {calculationError && inputs.revenue_bases?.water && inputs.revenue_bases?.sanitation &&
                   <div role="alert" style={{ gridColumn: '1 / -1', padding: '8px 10px', color: '#9f1239', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 5 }}>
                     {calculationError}
@@ -1095,7 +1095,7 @@ export default function InputPanel({ setupNameControls, scopeControls, inputs, o
 
       {/* ===== UNIT COSTS + TECHNICAL (merged, sector-dependent). Targets are now set in the §2 table. ===== */}
       {bauSector === 'water' && (
-      <Section title={`7. Unit Costs & Technical Parameters (${scopeLabel} Water Supply)`} cols={2} sectionKey="ws_unit_costs" onFocus={onSectionFocus}>
+      <Section title={`9. Unit Costs & Technical Parameters (${scopeLabel} Water Supply)`} cols={2} sectionKey="ws_unit_costs" onFocus={onSectionFocus}>
         <SubHead text="Unit costs (nominal → real)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ws[0]}</b> and <b>{ws[1]}</b> weighted costs, built from the technology mixes below.
@@ -1122,7 +1122,7 @@ export default function InputPanel({ setupNameControls, scopeControls, inputs, o
       )}
 
       {bauSector === 'sanitation' && (
-      <Section title={`7. Unit Costs & Technical Parameters (${scopeLabel} Sanitation)`} cols={2} sectionKey="san_unit_costs" onFocus={onSectionFocus}>
+      <Section title={`9. Unit Costs & Technical Parameters (${scopeLabel} Sanitation)`} cols={2} sectionKey="san_unit_costs" onFocus={onSectionFocus}>
         <SubHead text="Unit costs (nominal → real)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ss[0]}</b> and <b>{ss[1]}</b> weighted costs, built from the technology mixes below.

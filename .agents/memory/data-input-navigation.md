@@ -2,8 +2,8 @@
 name: Data Inputs navigation scope
 description: Continuous Data Inputs form, standalone investment split and sector grouping.
 ---
-The Data Inputs design has seven top-level sections, with left-hand
-navigation that scrolls to headings in one continuous expanded form, not seven
+The Data Inputs design has nine top-level sections, with left-hand
+navigation that scrolls to headings in one continuous expanded form, not separate
 separate screens or top-level accordions.
 
 **Why:** The user originally requested seven sections and a single long form,
@@ -15,12 +15,15 @@ workflow step 0, Setup, together with simulation sector and geographical coverag
 Edit setup must open that tab, not a modal. Data Inputs retains area/sector
 view selectors, while inclusion settings live in Setup.
 
-Setup has five sections in order: Simulation Name; Country Profile (country name,
-ISO, income group, region and area of focus); Simulation Coverage; Currency;
-Analysis Period.
+Setup has four sections in order: Simulation Name; Country Profile (country name,
+ISO, income group, region and area of focus); Simulation Coverage; Currency.
+Analysis Period is now Data Inputs section 1, followed by Geographical Scope
+Selection at 2. The seven detailed sections start at 3, with area suffixes only
+from section 3 onward.
 **Why:** The user requested a separate Currency section and retrospective country
 profiles for existing DRC and Nepal simulations, then a standalone name section
-first and coverage before currency.
+first and coverage before currency, then moved Analysis Period back to Data Inputs
+and made the Urban/Rural viewing toggle its own second section.
 **How to apply:** Resolve descriptive country classifications from the same
 World Bank catalogue used at creation, using stable country identity. These are
 current descriptive metadata, not historical simulation assumptions; do not
@@ -51,7 +54,7 @@ containers should not become white cards again. The user has explicitly approved
 production graduation; these requirements now apply to frontend/src. Preserve
 production data, callbacks, autosave and exports; do not copy preview runtime behavior.
 
-Keep Urban/Rural viewing controls in the Data Inputs main body below the heading.
+Keep Urban/Rural viewing controls in Data Inputs section 2.
 **Why:** The user moved geographical coverage configuration to Setup, but area-specific
 data still needs an area selector.
 **How to apply:** Do not duplicate editable coverage controls outside Setup.

@@ -4,7 +4,8 @@ description: Seed preservation, institutional identity, scope and publication ru
 ---
 ## Temporary header actions
 
-Save comparison and Archive are temporarily disabled in the simulation header.
+Save comparison and Archive are temporarily hidden from the simulation header,
+not shown as disabled buttons.
 Save version is labelled Save as, without changing its checkpoint behavior.
 The action order is Edit setup, Save progress, Save as, Duplicate.
 

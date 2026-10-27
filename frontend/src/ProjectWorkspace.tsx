@@ -89,7 +89,6 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
           {saveComparison}
           {historyAllowed && <button className="wb-header-action" onClick={() => open('history')}>{owner ? 'History & sharing' : 'Version history'}</button>}
           {owner && project.visibility === 'public' && <button className="wb-header-action" onClick={() => open('unpublish')}>Make private</button>}
-          {owner && <button className="wb-header-action" disabled title="Temporarily disabled">{project.archived_at ? 'Unarchive' : 'Archive'}</button>}
           {toolOverview}
         </div>
       </header>

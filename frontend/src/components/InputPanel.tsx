@@ -54,7 +54,7 @@ function SanServiceLevelExplainer() {
   );
 }
 
-function Section({ title, children, cols = 3, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; cols?: number; sectionKey?: string; onFocus?: (key: string) => void; openSignal?: number }) {
+function Section({ title, children, cols = 3, sectionKey, onFocus, navigationOnly = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean; cols?: number; sectionKey?: string; onFocus?: (key: string) => void; openSignal?: number; navigationOnly?: boolean }) {
   const { readOnly } = useProjectScope();
   // Responsive columns: fields size to a min track and the column count adapts to the available
   // width (so the grid never stretches fields edge-to-edge on wide screens, nor cramps on a laptop).
@@ -67,7 +67,7 @@ function Section({ title, children, cols = 3, sectionKey, onFocus }: { title: st
         {titleParts && <span className="modern-input-section-heading__index">{titleParts[1]}</span>}
         <span>{titleParts?.[2] || title}</span>
       </h3>
-      <fieldset disabled={readOnly} onFocusCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} onClickCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} style={{ margin: 0, border: 0, minWidth: 0, padding: '10px 14px 12px', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${colMin}px, 1fr))`, gap: '12px 16px', alignItems: 'start' }}>{children}</fieldset>
+      <fieldset disabled={readOnly && !navigationOnly} onFocusCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} onClickCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} style={{ margin: 0, border: 0, minWidth: 0, padding: '10px 14px 12px', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${colMin}px, 1fr))`, gap: '12px 16px', alignItems: 'start' }}>{children}</fieldset>
     </div>
   );
 }
@@ -324,8 +324,8 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
   }, [focusCurrencyRequest]);
   const selectedSector = bauSectorProp || bauSectorLocal;
   const bauSector = sectors.includes(selectedSector) ? selectedSector : sectors[0];
-  // The sector toggle is rendered in two places: above the Budget section on Data Inputs (so the split
-  // control below it follows the chosen sector) and above section 6 on the BAU tab. Defined once here.
+  // Data Inputs has a standalone sector-navigation section after Budget.
+  // The BAU placement remains unchanged.
   // A compact segmented control in a card, so it reads as part of the section stack rather than two
   // full-width slabs. Sized to its content, so it looks the same in the wide Data-Inputs column and
   // the narrow BAU panel.
@@ -524,6 +524,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       {key:'service_levels', label:'Service Levels'},
       {key:'econ_demo', label:'Economic & Demographic Data'},
       {key:'budget', label:'Budget'},
+      {key:'sector_selection', label:'Sector Selection'},
       {key:'investment_split', label:'Investment Split by Service Level'},
       {key:'revenue_inputs', label:'Revenue Inputs'},
       {key:'unit_costs', label:'Unit Costs & Technical Parameters'},
@@ -1010,10 +1011,6 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
                 </div>}
               </Section>
 
-              {/* Sector choice ahead of the budget, so the split control below follows one sector
-                  instead of showing a pair. */}
-              {sectorToggle}
-
               <Section title={`5. Budget (${scopeLabel})`} sectionKey="budget" onFocus={onSectionFocus}>
                 <BudgetBaselineCards results={results} baselineYear={inputs.period.baseline_year} sectors={sectors} />
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 12px', marginBottom: 4 }}>
@@ -1051,12 +1048,15 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
                 ))}
                 <YearTable rows={budgetRows} years={years} baseYr2={baseYr2} />
               </Section>
-              <Section title={`6. Investment Split by Service Level (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="investment_split" onFocus={onSectionFocus}>
+              <Section title={`6. Sector Selection (${scopeLabel})`} sectionKey="sector_selection" onFocus={onSectionFocus} navigationOnly>
+                <div style={{ gridColumn: '1 / -1' }}>{sectorToggle}</div>
+              </Section>
+              <Section title={`7. Investment Split by Service Level (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="investment_split" onFocus={onSectionFocus}>
                 <SplitControl inputs={inputs} onChange={onChange}
                   section={bauSector === 'water' ? 'water_interventions' : 'sanitation_interventions'}
                   sector={bauSector === 'water' ? 'water supply' : 'sanitation'} />
               </Section>
-              <Section title={`7. Revenue Inputs (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="revenue_inputs" onFocus={onSectionFocus}>
+              <Section title={`8. Revenue Inputs (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="revenue_inputs" onFocus={onSectionFocus}>
                 {calculationError && inputs.revenue_bases?.water && inputs.revenue_bases?.sanitation &&
                   <div role="alert" style={{ gridColumn: '1 / -1', padding: '8px 10px', color: '#9f1239', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 5 }}>
                     {calculationError}
@@ -1078,7 +1078,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
 
       {/* ===== UNIT COSTS + TECHNICAL (merged, sector-dependent). Targets are now set in the §2 table. ===== */}
       {bauSector === 'water' && (
-      <Section title={`8. Unit Costs & Technical Parameters (${scopeLabel} Water Supply)`} cols={2} sectionKey="ws_unit_costs" onFocus={onSectionFocus}>
+      <Section title={`9. Unit Costs & Technical Parameters (${scopeLabel} Water Supply)`} cols={2} sectionKey="ws_unit_costs" onFocus={onSectionFocus}>
         <SubHead text="Unit costs (nominal → real)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ws[0]}</b> and <b>{ws[1]}</b> weighted costs, built from the technology mixes below.
@@ -1105,7 +1105,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       )}
 
       {bauSector === 'sanitation' && (
-      <Section title={`8. Unit Costs & Technical Parameters (${scopeLabel} Sanitation)`} cols={2} sectionKey="san_unit_costs" onFocus={onSectionFocus}>
+      <Section title={`9. Unit Costs & Technical Parameters (${scopeLabel} Sanitation)`} cols={2} sectionKey="san_unit_costs" onFocus={onSectionFocus}>
         <SubHead text="Unit costs (nominal → real)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ss[0]}</b> and <b>{ss[1]}</b> weighted costs, built from the technology mixes below.

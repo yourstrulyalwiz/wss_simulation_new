@@ -14,7 +14,7 @@
 - [Transition pricing boundary](transition-pricing-boundary.md) — SM incremental-versus-full upgrade pricing remains deferred; do not resolve it through transition-count fixes.
 - [Consolidated revenue policy](consolidated-revenue-policy.md) — after-cost NRW sizing, targets without delivery ceilings, one-off cohorts and explicit sales/sewer assumptions.
 - [Independent sectors](sector-independence.md) — invalid sanitation must not block water; missing sector/geography results remain incomplete, never zero.
-- [Data Inputs navigation](data-input-navigation.md) — eight sections in one long form, including standalone investment split; sector choices do not add sections.
+- [Data Inputs navigation](data-input-navigation.md) — nine sections in one long form; Sector Selection is section 6 after Budget, followed by investment split.
 - [BAU preview layout](bau-preview-navigation.md) — three primary navigation sections in a long form; preserve sector/area toggles and add baseline/target-year KPIs.
 - [Simulation management](simulation-management-policy.md) — preserve Oct 12, Oct 13 and Nepal seeds; verified ownership, dormant scope data and version-specific public access.
 - [Browser verification](browser-verification.md) — local CDP startup can fail while managed screenshots work; do not mistake runner failure for app failure.

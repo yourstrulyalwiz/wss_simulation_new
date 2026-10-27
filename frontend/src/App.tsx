@@ -826,8 +826,12 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
       </div>
     ),
   },
+  sector_selection: {
+    title: '6. Sector Selection',
+    content: <p>Select Water Supply or Sanitation to view the sector-specific inputs. Switching sectors does not erase either sector’s saved inputs.</p>,
+  },
   investment_split: {
-    title: '6. Investment Split by Service Level',
+    title: '7. Investment Split by Service Level',
     content: (
       <p>Choose how new investment is divided between basic and safely managed service after replacement is funded. The shares always total 100%. These settings apply to the selected area and sector and affect both BAU and intervention scenarios.</p>
     ),

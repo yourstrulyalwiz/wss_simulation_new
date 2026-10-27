@@ -2,13 +2,14 @@
 name: Data Inputs navigation scope
 description: Continuous Data Inputs form, standalone investment split and sector grouping.
 ---
-The Data Inputs design has eight top-level sections, with left-hand
-navigation that scrolls to headings in one continuous expanded form, not eight
+The Data Inputs design has nine top-level sections, with left-hand
+navigation that scrolls to headings in one continuous expanded form, not nine
 separate screens or top-level accordions.
 
 **Why:** The user originally requested seven sections and a single long form,
 then requested Investment Split by Service Level as a standalone section styled
-like Revenue Inputs. It follows Budget and precedes Revenue Inputs.
+like Revenue Inputs. The user subsequently requested Sector Selection as section
+6 immediately after Budget, followed by Investment Split, Revenue Inputs, and Unit Costs.
 Water and Sanitation are sector choices within that structure, not additional
 top-level sections.
 

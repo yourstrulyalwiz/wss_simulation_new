@@ -476,7 +476,11 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         {activeTab === 0 && activeInputs && (
-          <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results || economicProjections} calculationError={calculationError} projectionError={projectionError} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
+          <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={{
+            ...results, ...economicProjections,
+            water_supply: { ...results?.water_supply, ...economicProjections?.water_supply },
+            sanitation: { ...results?.sanitation, ...economicProjections?.sanitation },
+          }} calculationError={calculationError} projectionError={projectionError} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
             scopeControls={<GeographicalScope value={scopeValue} onChange={readOnly ? () => {} : setScopeValue} area={subArea} onAreaChange={value => { if (!readOnly) modified.current = true; setSubArea(value); }} hint={scopeHint} dismissHint={dismissScopeHint} readOnly={readOnly} />}
             bauSector={sectorTab} onBauSectorChange={value => { if (!readOnly) modified.current = true; setSectorTab(value); }}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />

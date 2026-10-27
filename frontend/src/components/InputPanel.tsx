@@ -1032,6 +1032,11 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
                     {calculationError && <div role="alert" style={{ color: '#9f1239' }}>{calculationError}</div>}
                   </div>;
                 })()}
+                {Object.entries(results?.budget_errors || {}).map(([sector, message]) => (
+                  <div role="alert" key={sector} style={{ gridColumn: '1 / -1', color: '#9f1239', fontSize: 11 }}>
+                    {String(message)}
+                  </div>
+                ))}
                 <YearTable rows={budgetRows} years={years} baseYr2={baseYr2} />
                 <SplitControl inputs={inputs} onChange={onChange}
                   section={bauSector === 'water' ? 'water_interventions' : 'sanitation_interventions'}

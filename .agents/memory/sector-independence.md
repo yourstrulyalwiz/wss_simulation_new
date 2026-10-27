@@ -9,3 +9,10 @@ unavailable sector or geography as zero.
 previously hid valid water results behind unrelated sanitation calibration errors.
 **How to apply:** Preserve the optional one-way water-to-sanitation NRW dependency.
 Never infer water from sanitation or silently drop that link when water is invalid.
+
+Budget projections in Data Inputs must remain available even when revenue or
+service calibration blocks the full calculation.
+**Why:** The user requested independent budget forecasts after missing sanitation
+revenue assumptions hid valid allocated and executed projections.
+**How to apply:** Use the same budget forecasting rules with budget/GDP inputs
+only; report budget-specific failures independently without fabricating service results.

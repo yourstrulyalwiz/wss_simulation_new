@@ -9,6 +9,43 @@
   --portal-line: #ccdde2;
 }
 .dark { --portal-navy: #014972; --portal-teal: #008d98; --portal-paper: #f2f7f8; --portal-ink: #243f4c; --portal-muted: #5c7782; --portal-line: #ccdde2; }
+/* Workspace setup only: keep creation and other shared forms unchanged. */
+.project-setup-name, .project-setup-coverage { max-width: 880px; min-width: 0; color: #243f4c; font-size: 13px; line-height: 1.6; }
+.project-setup-name__heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; margin-bottom: 8px; }
+.project-setup-name__heading label, .project-setup-scope legend { color: #014972; font-size: 13px; font-weight: 700; }
+.project-setup-name__heading span { color: #526d79; font-size: 11px; font-variant-numeric: tabular-nums; }
+.project-setup-name input { display: block; box-sizing: border-box; width: 100%; min-height: 46px; padding: 11px 13px; border: 1px solid #a6bec8; border-radius: 5px; background: #fff9e6; color: #243f4c; font: inherit; font-size: 15px; }
+.project-setup-name input[aria-invalid="true"] { border-color: #b44336; }
+.project-setup-name p, .project-setup-coverage p { margin: 8px 0 0; font-size: 12px; color: #526d79; }
+.project-setup-name .project-setup-validation { color: #9c352b; }
+.project-setup-scope { min-width: 0; margin: 0 0 24px; padding: 0; border: 0; }
+.project-setup-scope legend { padding: 0; margin-bottom: 3px; }
+.project-setup-scope .project-setup-scope__hint { margin: 0 0 12px; }
+.project-setup-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.project-setup-option { display: flex; align-items: flex-start; gap: 11px; min-width: 0; min-height: 52px; padding: 13px 14px; border: 1px solid #b9cdd5; border-radius: 5px; background: #f8fbfc; cursor: pointer; }
+.project-setup-option input { flex: 0 0 17px; width: 17px; height: 17px; min-height: 0; margin: 3px 0 0; accent-color: #007d88; }
+.project-setup-option strong { display: block; color: #315969; font-size: 13px; font-weight: 600; }
+.project-setup-option small { display: block; margin-top: 3px; color: #526d79; font-size: 11px; font-weight: 400; line-height: 1.5; }
+.project-setup-option:has(input:checked) { border-color: #00818c; background: #e9f4f4; box-shadow: inset 3px 0 #00818c; }
+.project-setup-option:has(input:checked) strong { color: #014972; }
+.project-setup-option:hover:not(:has(input:disabled)) { border-color: #00818c; background: #edf6f7; }
+.project-setup-name input:focus-visible, .project-setup-option:has(input:focus-visible), .project-setup-save button:focus-visible { outline: 3px solid #007d88; outline-offset: 3px; }
+.project-setup-name input:disabled { background: #edf2f4; color: #526675; border-color: #c5d4da; cursor: not-allowed; opacity: 1; }
+.project-setup-option:has(input:disabled) { cursor: not-allowed; border-style: dashed; }
+.project-setup-option:has(input:disabled):not(:has(input:checked)) { background: #edf2f4; }
+.project-setup-option:has(input:disabled) strong { color: #526675; }
+.project-setup-coverage .project-setup-note { padding: 11px 14px; border-left: 3px solid #00818c; background: #eaf3f5; color: #315969; }
+.project-setup-save { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px 24px; margin-top: 22px; padding-top: 17px; border-top: 1px solid #c5d8df; }
+.project-setup-save__copy { flex: 1 1 320px; }
+.project-setup-save__copy strong { color: #014972; font-size: 12px; }
+.project-setup-save__copy p { margin-top: 3px; }
+.project-setup-save button { flex-shrink: 0; cursor: pointer; font-family: inherit; }
+.project-setup-save button:disabled { background: #e0e9ed; border-color: #b8cbd3; color: #526675 !important; cursor: not-allowed; }
+@media (max-width: 767px) {
+  .project-setup-options { grid-template-columns: minmax(0, 1fr); }
+  .project-setup-save { align-items: stretch; }
+  .project-setup-save button { width: 100%; }
+}
 .portal { min-height:100dvh; background:var(--portal-paper); color:var(--portal-ink); font-family:'DM Sans',sans-serif; font-size:14px; }
 .portal a { color:inherit; text-decoration:none; }
 .portal button, .project-dialog button { cursor:pointer; border-radius:5px; font-family:inherit; }

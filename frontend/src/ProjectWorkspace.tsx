@@ -57,6 +57,7 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
   // Explicit actions must save ALL edits, including edits made while a prior request was pending.
   const settled = async () => { let record = await save(); if (dirty) record = await save(); return record; };
   const saveSetup = async () => {
+    if (!setupName.trim()) return;
     const latest = await settled();
     const nextBundle = scopedBundle(latest.bundle, scope);
     const missing = scope.scopeMode === 'national' ? ['national'] : scope.areaRural ? ['rural'] : [];
@@ -76,15 +77,23 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
     {recovery && owner && <div className="project-alert">This browser has a pending or failed save for this account and simulation.<button onClick={state.restoreRecovery}>Recover draft</button><button onClick={() => { if (window.confirm('Discard the browser recovery draft? The server record is unchanged.')) state.dismissRecovery(); }}>Discard recovery</button></div>}
     <div className="project-workspace"><App key={`${id}:${editorEpoch}`} projectId={id} initialBundle={project.bundle} initialScenarios={project.scenarios} initialLocation={project.location} readOnly={!owner} onDraftChange={update} onSetup={() => open('setup')}
       countryCode={project.country_code} countryMetadata={project.country_metadata}
-      setupNameControls={<>
-        <label className="setup-field">Simulation name<input value={setupName} maxLength={160} onChange={event => setSetupName(event.target.value)} /></label>
-        <p>Apply name changes with Save setup in Simulation Coverage below.</p>
-      </>}
-      setupControls={<>
-        <ScopeFields scope={scope} onChange={setScope} />
-        <p>Country, currency and analysis-period edits use the normal progress saving. Apply the name and coverage choices with Save setup. Excluded area and sector data are retained.</p>
-        {owner && <button className="portal-btn" disabled={busy || saving || conflict || !setupName.trim()} onClick={() => void act(saveSetup)}>{busy ? 'Saving setup…' : 'Save setup'}</button>}
-      </>}
+      setupNameControls={<div className="project-setup-name">
+        <div className="project-setup-name__heading"><label htmlFor="setup-simulation-name">Simulation name</label><span id="setup-name-count">{setupName.length} / 160 characters</span></div>
+        <input id="setup-simulation-name" value={setupName} maxLength={160} disabled={!owner || busy} aria-required="true" aria-invalid={!setupName.trim()} aria-describedby={`setup-name-help setup-name-count${!setupName.trim() ? ' setup-name-error' : ''}`} onChange={event => setSetupName(event.target.value)} />
+        <p id="setup-name-help">{owner ? 'Use a name you can recognize in your workspace and version history. Apply it with Save setup in Simulation Coverage below.' : 'The name identifies this planning record. Only the owner can change the setup.'}</p>
+        {!setupName.trim() && <p className="project-setup-validation" id="setup-name-error">Enter a simulation name before saving setup.</p>}
+      </div>}
+      setupControls={<div className="project-setup-coverage" aria-busy={busy}>
+        <ScopeFields scope={scope} onChange={setScope} variant="setup" disabled={!owner || busy} />
+        <p className="project-setup-note">Excluded sector and area data are retained, not deleted. Include them again to resume working with those inputs.</p>
+        <div className="project-setup-save">
+          <div className="project-setup-save__copy"><strong>{owner ? 'Save the name and coverage together' : 'Read-only simulation setup'}</strong>
+            <p id="setup-save-help">{owner ? 'Save setup applies both choices above and the simulation name. Country Profile, currency and analysis-period edits use normal progress saving.' : 'Only the owner can change these choices. Excluded data remains part of the saved planning record.'}</p>
+            {owner && conflict && <p>Resolve the save conflict before applying setup changes.</p>}
+          </div>
+          {owner && <button className="portal-btn" aria-describedby="setup-save-help" disabled={busy || saving || conflict || !setupName.trim()} onClick={() => void act(saveSetup)}>{busy ? 'Saving setup…' : 'Save setup'}</button>}
+        </div>
+      </div>}
       headerSlot={(toolOverview, saveComparison) => (
       <header className="wb-header project-combined-header">
         <div className="wb-brand-lockup project-brand-lockup">

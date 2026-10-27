@@ -141,7 +141,34 @@ export function Gallery({ identity = null }: { identity?: Identity | null }) {
     {loading ? <Skeletons /> : error ? <ErrorMessage message={error} retry={() => setAttempt(value => value + 1)} /> : <><div className="gallery-count">{data?.total || 0} simulations · Most recently saved first</div>{data?.items.length ? <div className="gallery-grid">{data.items.map(item => <SimulationCard key={item.id} item={item} />)}</div> : <div className="portal-empty"><span className="portal-eyebrow">A clear starting point</span><h2>{q || Object.values(filters).some(Boolean) ? 'No simulations match this view.' : identity ? 'Your next scenario starts here.' : 'No published simulations in this view.'}</h2><p>{collection === 'mine' ? 'Create a blank simulation or make a private copy of a featured example.' : 'Try another collection or adjust your search.'}</p>{identity && <Link className="portal-btn" href="/simulations/new">New simulation</Link>}</div>}<div className="portal-pagination"><button disabled={page <= 1} className="portal-btn portal-btn--secondary" onClick={() => setPage(value => value - 1)}>Previous</button><span>Page {page}</span><button disabled={!data || !data.items.length || pageSize * page >= data.total} className="portal-btn portal-btn--secondary" onClick={() => setPage(value => value + 1)}>Next</button></div></>}
   </main></PortalLayout>;
 }
-export function ScopeFields({ scope, onChange }: { scope: ProjectScope; onChange: (value: ProjectScope) => void }) {
+export function ScopeFields({ scope, onChange, variant = 'creation', disabled = false }: { scope: ProjectScope; onChange: (value: ProjectScope) => void; variant?: 'creation' | 'setup'; disabled?: boolean }) {
+  if (variant === 'setup') return <>
+    <fieldset className="project-setup-scope" disabled={disabled} aria-describedby="setup-sectors-hint">
+      <legend>Sectors included in the simulation</legend>
+      <p className="project-setup-scope__hint" id="setup-sectors-hint">Select one or both sectors. At least one must remain selected.</p>
+      <div className="project-setup-options">{(['water', 'sanitation'] as Sector[]).map(sector => <label className="project-setup-option" key={sector}>
+        <input type="checkbox" checked={scope.sectors.includes(sector)} disabled={disabled || (scope.sectors.length === 1 && scope.sectors.includes(sector))} onChange={event => {
+          const sectors = event.target.checked ? [...scope.sectors, sector] : scope.sectors.filter(value => value !== sector);
+          if (sectors.length) onChange({ ...scope, sectors });
+        }} />
+        <span><strong>{sector === 'water' ? 'Water supply' : 'Sanitation'}</strong><small>{sector === 'water' ? 'Water service access and financing' : 'Sanitation service access and financing'}</small></span>
+      </label>)}</div>
+    </fieldset>
+    <fieldset className="project-setup-scope" disabled={disabled} aria-describedby="setup-geography-hint">
+      <legend>Geographic coverage</legend>
+      <p className="project-setup-scope__hint" id="setup-geography-hint">Choose the calculation geography, separate from the Country Profile area of focus.</p>
+      <div className="project-setup-options">{[
+        ['Urban', 'Urban area dataset only'],
+        ['Rural', 'Rural area dataset only'],
+        ['Urban + Rural', 'Two area datasets with a combined overview'],
+        ['National', 'Independently entered national dataset'],
+      ].map(([value, description]) => <label className="project-setup-option" key={value}>
+        <input type="radio" name="setup-geographic-coverage" value={value} checked={geography(scope) === value} disabled={disabled} onChange={() => onChange(scopeWithGeography(scope, value))} />
+        <span><strong>{value}</strong><small>{description}</small></span>
+      </label>)}</div>
+    </fieldset>
+    {!scope.sectors.includes('water') && <p className="project-setup-note">The sanitation NRW linkage requires Water supply. Previously configured linkage settings are retained but inactive in this scope.</p>}
+  </>;
   return <><div className="setup-field setup-divider"><span>Sectors</span><div className="setup-choices">{(['water', 'sanitation'] as Sector[]).map(sector => <label className="setup-choice" key={sector}><input type="checkbox" checked={scope.sectors.includes(sector)} onChange={event => {
     const sectors = event.target.checked ? [...scope.sectors, sector] : scope.sectors.filter(value => value !== sector);
     if (sectors.length) onChange({ ...scope, sectors });

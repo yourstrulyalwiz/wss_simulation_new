@@ -18,6 +18,7 @@ export default function BAUWorkspace({ inputs, onChange, geoScope, inputsList, s
   const [basic, setBasic] = useState<BauCoverage | null>(null);
   const [managedTable, setManagedTable] = useState<HTMLDivElement | null>(null);
   const [basicTable, setBasicTable] = useState<HTMLDivElement | null>(null);
+  const [expandedChart, setExpandedChart] = useState<number | null>(null);
   const format = (value: number | null | undefined) => value == null ? '—' : `${value.toFixed(1)}%`;
   return <SectionWorkspace label="Business-as-usual sections" sections={[
     {key:'graph', label:'BAU Graph'}, {key:'table', label:'BAU Table'}, {key:'baseline', label:'Review Baseline Information'},
@@ -42,8 +43,21 @@ export default function BAUWorkspace({ inputs, onChange, geoScope, inputsList, s
         </div>
         {!managed && <p role="status">Coverage pending. Calculation errors, if any, appear below.</p>}
       </div>
-      <LiveBAUChart inputsList={inputsList} sector={sector} scopeLabel={scopeLabel} currencyDisplay={currencyDisplay} rung={0} tableTarget={managedTable} onCoverage={setManaged} />
-      <LiveBAUChart inputsList={inputsList} sector={sector} scopeLabel={scopeLabel} currencyDisplay={currencyDisplay} rung={1} tableTarget={basicTable} onCoverage={setBasic} />
+      <div className="modern-bau-charts">
+        {([0, 1] as const).map(rung => <div key={rung}
+          className={`modern-bau-chart-card${expandedChart === rung ? ' modern-bau-chart-card--expanded' : ''}`}>
+          <div className="modern-bau-chart-actions">
+            <button type="button" aria-pressed={expandedChart === rung}
+              aria-label={`${expandedChart === rung ? 'Restore' : 'Expand'} ${rung === 0 ? 'safely managed' : 'basic'} chart`}
+              onClick={() => setExpandedChart(current => current === rung ? null : rung)}>
+              {expandedChart === rung ? 'Restore chart size' : 'Expand chart'}
+            </button>
+          </div>
+          <LiveBAUChart inputsList={inputsList} sector={sector} scopeLabel={scopeLabel}
+            currencyDisplay={currencyDisplay} rung={rung} chartHeight={expandedChart === rung ? 440 : 360}
+            tableTarget={rung === 0 ? managedTable : basicTable} onCoverage={rung === 0 ? setManaged : setBasic} />
+        </div>)}
+      </div>
     </section>
     <section className="modern-bau-section" data-section-key="table">
       <h2 className="modern-bau-heading" tabIndex={-1}>BAU Table</h2>

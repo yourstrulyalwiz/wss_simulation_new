@@ -40,11 +40,20 @@
 .modern-page-intro__eyebrow { display:block; margin-bottom:6px; color:#3f7786; font-size:9px; font-weight:800; letter-spacing:.13em; }
 .modern-page-intro h2, .modern-bau-heading { margin:0 0 5px; color:#014972; font-size:23px; font-weight:700; line-height:1.25; letter-spacing:-.035em; text-transform:none; }
 .modern-page-intro p { margin:0; max-width:760px; color:#596b73; font-size:11.5px; line-height:1.55; }
-.modern-bau-section { padding-bottom:30px; min-width:0; }
+.modern-bau-section { padding-bottom:30px; min-width:0; width:100%; max-width:1200px; margin-inline:auto; box-sizing:border-box; }
 .modern-bau-toggles { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
 .modern-bau-toggles button { padding:8px 18px; border:1px solid #c7d8df; border-radius:5px; color:#014972; background:white; cursor:pointer; }
 .modern-bau-toggles button[aria-pressed="true"] { background:#014972; color:white; }
-.modern-bau-kpis { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:18px 0; }
+.modern-bau-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); max-width:924px; gap:12px; margin:18px 0; }
+.modern-bau-kpi { min-width:0; max-width:300px; box-sizing:border-box; }
+/* Respond to the space left by navigation and the Guide, not the window width.
+   Each two-column card leaves at least 500px for the chart inside its padding. */
+.modern-bau-charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,526px),1fr)); gap:20px; align-items:start; }
+.modern-bau-chart-card { min-width:0; padding:12px; border:1px solid #d1e1e5; border-radius:6px; background:white; }
+.modern-bau-chart-card--expanded { grid-column:1 / -1; }
+.modern-bau-chart-actions { display:flex; justify-content:flex-end; margin-bottom:8px; }
+.modern-bau-chart-actions button { min-height:32px; padding:6px 10px; border:1px solid #c7d8df; border-radius:5px; background:#f8fcfc; color:#014972; font:inherit; font-size:12px; cursor:pointer; }
+.modern-bau-chart-actions button:hover, .modern-bau-chart-actions button[aria-pressed="true"] { background:#e6f2f3; border-color:#009ca7; }
 .modern-bau-kpi { padding:16px; border:1px solid #d1e1e5; border-top:3px solid #009ca7; border-radius:6px; background:#f8fcfc; }
 .modern-bau-kpi span { display:block; font-size:9px; color:#507580; font-weight:800; letter-spacing:.08em; }
 .modern-bau-kpi strong { display:block; margin:10px 0 6px; color:#014972; font-size:23px; }
@@ -97,6 +106,6 @@
   .modern-inputs-nav__select { display:block; width:100%; min-height:38px; padding:7px 10px; border:1px solid #c8dade; border-radius:5px; background:white; color:#014972; }
   .modern-inputs-content { padding:16px; }
   .modern-input-panel .wb-panel-section > div { grid-template-columns:repeat(auto-fill,minmax(min(190px,100%),1fr)) !important; }
-  .modern-bau-kpis, .debt-overview-strip ol { grid-template-columns:1fr; }
+  .debt-overview-strip ol { grid-template-columns:1fr; }
 }
 @media(prefers-reduced-motion:reduce) { .wb-app * { scroll-behavior:auto !important; transition:none !important; } }

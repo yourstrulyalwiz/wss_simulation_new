@@ -49,8 +49,8 @@ export type BauCoverage = { baselineYear: number; endYear: number; baseline: num
 function TableLocation({ target, children }: { target?: HTMLElement | null; children: React.ReactNode }) {
   return target ? createPortal(children, target) : <>{children}</>;
 }
-export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, rung = 0, currencyDisplay, tableTarget, onCoverage }:
-  { inputs?: any; inputsList?: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: number; currencyDisplay: CurrencyDisplaySettings; tableTarget?: HTMLElement | null; onCoverage?: (coverage: BauCoverage | null) => void }) {
+export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, rung = 0, currencyDisplay, tableTarget, onCoverage, chartHeight = 380 }:
+  { inputs?: any; inputsList?: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: number; currencyDisplay: CurrencyDisplaySettings; tableTarget?: HTMLElement | null; onCoverage?: (coverage: BauCoverage | null) => void; chartHeight?: number }) {
   const datasets = ((inputsList && inputsList.length) ? inputsList : (inputs ? [inputs] : [])).filter(Boolean);
   // Which JMP rung this chart plots: 0 = Safely managed (the primary chart), 1 = Basic, … The Basic chart
   // gets the SAME elements as SM (BAU area, Target line, reference lines, target call-outs, endpoint labels).
@@ -137,7 +137,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
   // overlay, so a "stop once stable" loop would quit early and leave the financing-gap bracket floating.
   // So on every such change we open a short window (below) and re-measure each frame until it settles.
   const settle = useRef(0);
-  useEffect(() => { settle.current = 32; setWinTick(t => t + 1); }, [data, unitMode, wrapW, chartWindow.start, chartWindow.end]);
+  useEffect(() => { settle.current = 32; setWinTick(t => t + 1); }, [data, unitMode, wrapW, chartHeight, chartWindow.start, chartWindow.end]);
   useLayoutEffect(() => {
     let raf = 0;
     const again = () => { raf = requestAnimationFrame(() => setWinTick(t => t + 1)); };
@@ -688,7 +688,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           sheets={[{ name: 'Chart data', headers: chartHeaders, rows: chartRows }]} chartSpec={chartSpec} />
       </div>
       <div ref={chartRef} style={{ position: 'relative' }}>
-        <ComposedChart width={Math.max(1, wrapW)} height={380} data={displayData} margin={{ top: 14, right: 70, bottom: 5, left: 10 }}>
+        <ComposedChart width={Math.max(1, wrapW)} height={chartHeight} data={displayData} margin={{ top: 14, right: 70, bottom: 5, left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="year" tick={{ fontSize: 10 }} interval={yearAxisInterval(displayData)} />
             <YAxis tick={{ fontSize: 10 }} domain={isShare ? [0, 1] : undefined}

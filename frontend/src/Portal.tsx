@@ -161,10 +161,10 @@ export function ScopeFields({ scope, onChange, variant = 'creation', disabled = 
         ['Urban', 'Urban area dataset only'],
         ['Rural', 'Rural area dataset only'],
         ['Urban + Rural', 'Two area datasets with a combined overview'],
-        ['National', 'Independently entered national dataset'],
+        ['National', 'Aggregated Data without Urban or Rural Segregation'],
       ].map(([value, description]) => <label className="project-setup-option" key={value}>
         <input type="radio" name="setup-geographic-coverage" value={value} checked={geography(scope) === value} disabled={disabled} onChange={() => onChange(scopeWithGeography(scope, value))} />
-        <span><strong>{value}</strong><small>{description}</small></span>
+        <span><strong>{value === 'National' ? 'Aggregate' : value}</strong><small>{description}</small></span>
       </label>)}</div>
     </fieldset>
     {!scope.sectors.includes('water') && <p className="project-setup-note">The sanitation NRW linkage requires Water supply. Previously configured linkage settings are retained but inactive in this scope.</p>}

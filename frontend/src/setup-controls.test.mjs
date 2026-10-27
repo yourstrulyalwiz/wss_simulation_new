@@ -80,7 +80,7 @@ test('read-only and pending setup disable all choices, retaining readable descri
   assert.ok(fields.inputs.every(input => input.props.disabled));
   const markup = renderToStaticMarkup(fields.element);
   assert.equal((markup.match(/<fieldset[^>]*disabled/g) || []).length, 2);
-  for (const text of ['Independently entered national dataset', 'Two area datasets with a combined overview', 'retained but inactive', 'Country Profile area of focus']) assert.ok(markup.includes(text));
+  for (const text of ['Aggregate', 'Aggregated Data without Urban or Rural Segregation', 'Two area datasets with a combined overview', 'retained but inactive', 'Country Profile area of focus']) assert.ok(markup.includes(text));
 });
 
 test('default creation controls keep their existing select and layout', () => {

@@ -24,11 +24,11 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
       <header className="modern-page-intro"><span className="modern-page-intro__eyebrow">WORKFLOW 02 · BUSINESS-AS-USUAL</span>
         <h2 tabIndex={-1}>BAU Graph</h2><p>Review the status quo before designing interventions. Coverage is calculated from the selected area's live engine results.</p>
       </header>
-      <div className="modern-bau-toggles" role="group" aria-label="BAU sector">
-        {sectors.map(value => <button key={value} aria-pressed={sector === value} onClick={() => onSectorChange(value)}>{value === 'water' ? 'Water Supply' : 'Sanitation'}</button>)}
-      </div>
       <div className="modern-bau-toggles" role="group" aria-label="BAU graph area">
         {scopeChoices.map(value => <button key={value} aria-pressed={scopeLabel.toLowerCase() === value} onClick={() => onScopeChange(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}
+      </div>
+      <div className="modern-bau-toggles" role="group" aria-label="BAU sector">
+        {sectors.map(value => <button key={value} aria-pressed={sector === value} onClick={() => onSectorChange(value)}>{value === 'water' ? 'Water Supply' : 'Sanitation'}</button>)}
       </div>
       <div aria-label="Baseline and forecast-end service coverage">
         <p>{scopeLabel} · {sector === 'water' ? 'Water supply' : 'Sanitation'} · share of households</p>

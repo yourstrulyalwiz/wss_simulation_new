@@ -4,7 +4,23 @@ import { readFileSync } from 'node:fs';
 import { normalizeScope, scopedBundle, scopeWithGeography, preserveDormantInputs } from '../src/projectScope';
 import { areasOf, comparisonAreas } from '../src/areaBundle';
 import { calculationPayload, resolveRevenueBases, runCalculation, runEconomicProjections } from '../src/api';
-import { projectMutation, ProjectError, recoveryKey } from '../src/projectApi';
+import { projectMutation, projectRequest, ProjectError, recoveryKey } from '../src/projectApi';
+
+test('HTML API fallbacks surface a service error instead of crashing the portal', async t => {
+  t.mock.method(globalThis, 'fetch', async () => new Response('<html>Application</html>', { status: 200 }));
+  await assert.rejects(projectRequest('/simulations?collection=examples'),
+    error => error instanceof ProjectError && error.status === 502 && /Unexpected response/.test(error.message));
+});
+
+test('invalid JSON values are rejected and valid simulation lists remain usable', async t => {
+  let value: unknown = null;
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(value), { status: 200 }));
+  for (value of [null, 'not an API response', 42]) {
+    await assert.rejects(projectRequest('/simulations?collection=examples'), ProjectError);
+  }
+  value = { items: [] };
+  assert.deepEqual(await projectRequest('/simulations?collection=examples'), { items: [] });
+});
 import { simulationHeaders, withSimulationId, stripSimulationId } from '../src/simulationTransport';
 
 test('scope round trips preserve unknown fields, inactive data and spending schedules', () => {

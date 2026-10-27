@@ -33,3 +33,19 @@ make the new application runnable.
 dependencies, and resolve workspace-specific authentication setup without bypassing
 auth or replacing the database. Preserve saved work and distinguish successful
 source synchronization from verified runtime startup.
+
+A gateway opening its public port does not establish that its Python child is
+ready. Verify the child's startup completion and real JSON service responses,
+not just the landing page or the workflow's initial ready status.
+
+**Why:** Missing Python database dependencies and an unapplied development schema
+caused the backend to exit after the gateway had opened its port. An older
+Python-only server also returned HTML with status 200 for newer API routes,
+which had been converted to an empty object and caused a misleading frontend
+undefined-length crash.
+
+**How to apply:** Check the example-list response structure and private-route
+authentication after environment reconciliation. Treat unexpected HTML as a
+service error rather than empty JSON. Resolve missing development tables using
+the existing schema without startup-time DDL, data resets, or authentication
+bypasses.

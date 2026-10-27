@@ -20,7 +20,10 @@ export class ProjectError extends Error {
 export async function projectRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api${path}`, { ...options, credentials: 'include', cache: 'no-store',
     headers: { 'Content-Type': 'application/json', ...options.headers } });
-  const data = await response.json().catch(() => ({}));
+  const invalidResponse = () => new ProjectError(
+    'Unexpected response from the simulation service. Reload the page or try again shortly.', 502);
+  const data = await response.json().catch(() => { throw invalidResponse(); });
+  if (data === null || typeof data !== 'object') throw invalidResponse();
   if (!response.ok) throw new ProjectError(typeof data.detail === 'string' ? data.detail : typeof data.detail?.message === 'string' ? data.detail.message : typeof data.error === 'string' ? data.error : response.status === 409 ? 'This simulation changed in another session. Your work has been kept for recovery.' : response.status === 403 ? 'Access is limited to verified World Bank accounts with permission to view this simulation.' : response.status === 401 ? 'Please sign in to continue.' : 'The request could not be completed. Please try again.', response.status);
   return data as T;
 }

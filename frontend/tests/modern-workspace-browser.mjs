@@ -54,24 +54,31 @@ try {
   }
   assert.ok(await e(`document.querySelector('.modern-inputs-content').scrollTop > 100`));
   await e(`document.querySelectorAll('.wb-tab')[1].click()`);
-  await w(`document.querySelectorAll('${nav} button').length===3`, 'Exactly three BAU sections required');
+  await w(`document.querySelectorAll('${nav} button').length===2`, 'Exactly two BAU sections required');
   assert.deepEqual(await e(`[...document.querySelectorAll('${nav} button')].map(n=>n.textContent.replace(/^\\d+/,''))`),
-    ['BAU Graph','BAU Table','Review Baseline Information']);
-  await w(`document.querySelector('[data-bau-kpi="baseline"] strong')?.textContent==='SM 30.0%'`, 'Urban water baseline KPI must come from the engine');
-  for (let index=0; index<3; index++) await navigate(index);
-  assert.equal(await e(`document.querySelectorAll('[data-section-key="table"] table').length`), 2);
+    ['BAU Graph','BAU Table']);
+  await w(`document.querySelector('[data-bau-kpi="baseline"] strong')?.textContent==='30.0%'`, 'Urban water baseline KPI must come from the engine');
+  for (let index=0; index<2; index++) await navigate(index);
+  assert.equal(await e(`document.querySelectorAll('[data-section-key="table"] table').length`), 1);
   assert.equal(await e(`document.querySelectorAll('[data-section-key="graph"] [data-bau-ledger]').length`), 0);
   await e(`document.querySelectorAll('[aria-label="BAU sector"] button')[1].click()`);
-  await w(`document.querySelector('[data-bau-kpi="baseline"] strong')?.textContent==='SM 20.0%'`, 'Sanitation KPI did not update');
+  await w(`document.querySelector('[data-bau-kpi="baseline"] strong')?.textContent==='20.0%'`, 'Sanitation KPI did not update');
   await e(`document.querySelectorAll('[aria-label="BAU graph area"] button')[1].click()`);
-  await w(`document.querySelector('[data-bau-kpi="baseline"] strong')?.textContent==='SM 10.0%'`, 'Rural KPI did not update');
+  await w(`document.querySelector('[data-bau-kpi="baseline"] strong')?.textContent==='10.0%'`, 'Rural KPI did not update');
   await sleep(950);
   const result = await e(`fetch('/api/calculate',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(JSON.parse(localStorage.getItem('wss_working_bundle')).altInputs.rural)}).then(r=>r.json())`);
   const last = result.years.indexOf(inputs.period.forecast_end_year);
-  const expected = series => `SM ${(Math.min(result.total_hh[last], series[0][last]) / result.total_hh[last] * 100).toFixed(1)}%`;
+  const expected = series => `${(Math.min(result.total_hh[last], series[0][last]) / result.total_hh[last] * 100).toFixed(1)}%`;
   assert.equal(await e(`document.querySelector('[data-bau-kpi="bau"] strong').textContent`), expected(result.sanitation.bau_hh));
   assert.equal(await e(`document.querySelector('[data-bau-kpi="target"] strong').textContent`), expected(result.sanitation.target_hh));
+  await e(`(()=>{const select=document.querySelector('[aria-label="BAU table service level"]'); select.value='at_least_basic';select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await w(`document.querySelector('[data-bau-ledger="at_least_basic"]') && document.querySelector('[data-bau-kpi="bau"] strong').textContent.endsWith('%')`, 'Combined table and KPIs must update');
+  assert.equal(await e(`document.querySelector('[aria-label="BAU graph service level"]').value`), 'at_least_basic');
+  const combined = result.sanitation.bau_hh[0].map((value, i) => value + result.sanitation.bau_hh[1][i]);
+  assert.equal(await e(`document.querySelector('[data-bau-kpi="bau"] strong').textContent`), expected([combined]));
+  assert.equal(await e(`document.querySelectorAll('[data-section-key="baseline"]').length`), 0);
+  assert.ok(await e(`(()=>{const frame=document.querySelector('.bau-ledger-frame'); return frame.scrollWidth<=frame.clientWidth+1;})()`), 'BAU table fits without horizontal scrolling');
   for (const [tab, selector] of [[2,'.modern-page-intro--intervention'],[3,'.debt-overview-strip'],[4,'.modern-results-intro']]) {
     await e(`document.querySelectorAll('.wb-tab')[${tab}].click()`);
     await w(`!!document.querySelector(${JSON.stringify(selector)})`, `Workflow ${tab + 1} presentation missing`);
@@ -94,5 +101,5 @@ try {
     assert.ok(await e(`document.documentElement.scrollWidth<=innerWidth+1`), 'Mobile page must not overflow horizontally');
   }
   assert.equal(b.errors.length, 0, 'No browser runtime exceptions');
-  console.log('PASS: seven expanded input sections, three BAU sections, focused scrolling, real sector/area KPIs and mobile selectors');
+  console.log('PASS: seven expanded input sections, two BAU sections, focused scrolling, real sector/area KPIs and mobile selectors');
 } finally { b.close(); }

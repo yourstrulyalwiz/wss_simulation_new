@@ -482,13 +482,13 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
         )}
         {activeTab === 1 && activeInputs && (
-          <BAUWorkspace inputs={activeInputs} onChange={handleSetActiveInputs} geoScope={inputScope}
+          <BAUWorkspace
             inputsList={both ? [bauChartScope === 'urban' ? inputs : altInputs.rural ?? inputs] : [activeInputs]}
             scopeLabel={both ? (bauChartScope === 'urban' ? 'Urban' : 'Rural') : inputScope[0].toUpperCase() + inputScope.slice(1)}
             scopeChoices={both ? ['urban', 'rural'] : [inputScope]}
             onScopeChange={value => { if (value === 'urban' || value === 'rural') { setBauChartScope(value); setSubArea(value); } }}
-            sector={sectorTab} onSectorChange={setSectorTab} onSectionFocus={focusGuideSection}
-            currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
+            sector={sectorTab} onSectorChange={setSectorTab}
+            currencyDisplay={currencyDisplay} />
         )}
         {activeTab === 2 && activeInputs && (
           <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} calculationError={calculationError} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} contributionView={contributionView} onContributionViewChange={setContributionView}

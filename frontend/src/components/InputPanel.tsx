@@ -140,8 +140,7 @@ function YearTable({ rows, years, baseYr2, colIsTarget, markTargets = false }: {
 // Color convention: blue text = editable input, green text = cross-linked, gray = computed/derived
 // Share of NEW investment (after replacement) directed at BASIC service. The remainder buys safely
 // managed service. Both fields edit the same underlying number, so they always total 100%.
-// It lives with the BUDGET inputs rather than the interventions because it drives the BAU projection,
-// not just the designed scenario.
+// This standalone Data Inputs section drives BAU as well as the designed scenario.
 function SplitControl({ inputs, onChange, section, sector }: {
   inputs: any; onChange: (i: any) => void; section: 'water_interventions' | 'sanitation_interventions'; sector: string;
 }) {
@@ -154,10 +153,8 @@ function SplitControl({ inputs, onChange, section, sector }: {
   };
   const cell: React.CSSProperties = { padding: '4px 6px', border: '1px solid #dce4e8', background: '#e5f4f5', borderRadius: 3, fontSize: 12, color: '#29343b', outline: 'none', width: 66 };
   return (
-    <div style={{ gridColumn: '1 / -1', border: '1px solid #bfdbfe', background: '#f8fbff',
-      borderRadius: 6, padding: '10px 14px', marginTop: 10 }}>
+    <div style={{ gridColumn: '1 / -1' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1e3a5f' }}>Investment split by service level</span>
         <span style={{ fontSize: 10.5, color: '#64748b' }}>
           How new {sector} investment is divided once replacement is funded. The safely-managed share
           upgrades households from basic and below; the basic share upgrades households from limited and
@@ -527,6 +524,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       {key:'service_levels', label:'Service Levels'},
       {key:'econ_demo', label:'Economic & Demographic Data'},
       {key:'budget', label:'Budget'},
+      {key:'investment_split', label:'Investment Split by Service Level'},
       {key:'revenue_inputs', label:'Revenue Inputs'},
       {key:'unit_costs', label:'Unit Costs & Technical Parameters'},
     ] : []}>
@@ -1052,11 +1050,13 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
                   </div>
                 ))}
                 <YearTable rows={budgetRows} years={years} baseYr2={baseYr2} />
+              </Section>
+              <Section title={`6. Investment Split by Service Level (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="investment_split" onFocus={onSectionFocus}>
                 <SplitControl inputs={inputs} onChange={onChange}
                   section={bauSector === 'water' ? 'water_interventions' : 'sanitation_interventions'}
                   sector={bauSector === 'water' ? 'water supply' : 'sanitation'} />
               </Section>
-              <Section title={`6. Revenue Inputs (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="revenue_inputs" onFocus={onSectionFocus}>
+              <Section title={`7. Revenue Inputs (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="revenue_inputs" onFocus={onSectionFocus}>
                 {calculationError && inputs.revenue_bases?.water && inputs.revenue_bases?.sanitation &&
                   <div role="alert" style={{ gridColumn: '1 / -1', padding: '8px 10px', color: '#9f1239', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 5 }}>
                     {calculationError}
@@ -1078,7 +1078,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
 
       {/* ===== UNIT COSTS + TECHNICAL (merged, sector-dependent). Targets are now set in the §2 table. ===== */}
       {bauSector === 'water' && (
-      <Section title={`7. Unit Costs & Technical Parameters (${scopeLabel} Water Supply)`} cols={2} sectionKey="ws_unit_costs" onFocus={onSectionFocus}>
+      <Section title={`8. Unit Costs & Technical Parameters (${scopeLabel} Water Supply)`} cols={2} sectionKey="ws_unit_costs" onFocus={onSectionFocus}>
         <SubHead text="Unit costs (nominal → real)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ws[0]}</b> and <b>{ws[1]}</b> weighted costs, built from the technology mixes below.
@@ -1105,7 +1105,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       )}
 
       {bauSector === 'sanitation' && (
-      <Section title={`7. Unit Costs & Technical Parameters (${scopeLabel} Sanitation)`} cols={2} sectionKey="san_unit_costs" onFocus={onSectionFocus}>
+      <Section title={`8. Unit Costs & Technical Parameters (${scopeLabel} Sanitation)`} cols={2} sectionKey="san_unit_costs" onFocus={onSectionFocus}>
         <SubHead text="Unit costs (nominal → real)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ss[0]}</b> and <b>{ss[1]}</b> weighted costs, built from the technology mixes below.

@@ -826,6 +826,12 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
       </div>
     ),
   },
+  investment_split: {
+    title: '6. Investment Split by Service Level',
+    content: (
+      <p>Choose how new investment is divided between basic and safely managed service after replacement is funded. The shares always total 100%. These settings apply to the selected area and sector and affect both BAU and intervention scenarios.</p>
+    ),
+  },
   budget: {
     title: '5. Budget',
     content: (

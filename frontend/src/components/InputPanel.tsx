@@ -9,6 +9,8 @@ import { CurrencyDisplayControl, currencyRateNote, defaultCurrencyDisplay, type 
 
 // Keep the controls available for re-enabling; the engine independently ignores
 // these scalar overrides while the feature is paused. Never clear saved values.
+import { budgetExecutionRate } from '../budgetExecutionRate';
+
 const OPTIONAL_FORECAST_ASSUMPTIONS_ENABLED = false;
 
 // Explains why sanitation's safely-managed and basic rungs share ONE technology mix: the JMP service
@@ -934,11 +936,28 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
               return <span style={{ fontSize: 10, color: '#94a3b8' }}>{sz > 0 ? sz.toFixed(2) : 'n/a'}</span>;
             }) },
           ];
+          const executionRateRow = (prefix: 'ws' | 'san', sector: 'water_supply' | 'sanitation'): YRow => ({
+            label: `${prefix.toUpperCase()} budget execution rate (%)`,
+            tip: 'Calculated as executed budget ÷ allocated budget. Uses entered amounts or the calculated budgets for blank years. Not available when either amount is missing or allocated budget is zero.',
+            computed: true,
+            cells: years.map((_, i) => {
+              const executed = inputs.bau?.[`${prefix}_expend_ts`]?.[i]
+                ?? secRes(sector, 'budget_executed_input_basis', i);
+              const allocated = inputs.bau?.[`${prefix}_alloc_ts`]?.[i]
+                ?? secRes(sector, 'budget_allocated_input_basis', i);
+              const rate = budgetExecutionRate(executed, allocated);
+              return rate == null
+                ? grey('n/a', 'Requires an executed budget and a positive allocated budget')
+                : grey(`${(rate * 100).toFixed(1)}%`, 'Executed budget ÷ allocated budget × 100');
+            }),
+          });
           const budgetRows: YRow[] = [
             { label: 'WS allocated budget', tip: 'Entered allocated budget on the same basis as executed spending. Independently forecast from allocation/GDP shares; execution = executed ÷ allocated.', cells: years.map((_: number, i: number) => budgetCostCell('ws_alloc_ts', 'water_supply', i, 'budget_allocated_input_basis')) },
             { label: 'WS executed budget', tip: 'Entered executed spending. Forecast independently from annual spending/GDP shares: three-year initialization, then a two-year moving average. Blank restores the calculated value; zero is an observation.', cells: years.map((_: number, i: number) => budgetCostCell('ws_expend_ts', 'water_supply', i, 'budget_executed_input_basis')) },
+            executionRateRow('ws', 'water_supply'),
             { label: 'SAN allocated budget', tip: 'Entered allocated budget on the same basis as executed spending. Independently forecast from allocation/GDP shares; execution = executed ÷ allocated.', cells: years.map((_: number, i: number) => budgetCostCell('san_alloc_ts', 'sanitation', i, 'budget_allocated_input_basis')) },
             { label: 'SAN executed budget', tip: 'Entered executed spending. Forecast independently from annual spending/GDP shares: three-year initialization, then a two-year moving average. Blank restores the calculated value; zero is an observation.', cells: years.map((_: number, i: number) => budgetCostCell('san_expend_ts', 'sanitation', i, 'budget_executed_input_basis')) },
+            executionRateRow('san', 'sanitation'),
           ];
           return (
             <>

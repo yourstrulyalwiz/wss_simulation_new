@@ -75,6 +75,7 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
     {actionError && !dialog && <div className="project-alert" role="alert">{actionError}</div>}
     {recovery && owner && <div className="project-alert">This browser has a pending or failed save for this account and simulation.<button onClick={state.restoreRecovery}>Recover draft</button><button onClick={() => { if (window.confirm('Discard the browser recovery draft? The server record is unchanged.')) state.dismissRecovery(); }}>Discard recovery</button></div>}
     <div className="project-workspace"><App key={`${id}:${editorEpoch}`} projectId={id} initialBundle={project.bundle} initialScenarios={project.scenarios} initialLocation={project.location} readOnly={!owner} onDraftChange={update} onSetup={() => open('setup')}
+      countryCode={project.country_code} countryMetadata={project.country_metadata}
       setupControls={<>
         <label className="setup-field">Simulation name<input value={setupName} maxLength={160} onChange={event => setSetupName(event.target.value)} /></label>
         <ScopeFields scope={scope} onChange={setScope} />

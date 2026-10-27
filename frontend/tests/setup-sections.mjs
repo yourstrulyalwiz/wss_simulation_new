@@ -22,11 +22,23 @@ const render = showSection => renderToStaticMarkup(React.createElement(ProjectSc
   scopeControls: React.createElement('div', null, 'Coverage controls'),
 })));
 const setup = render('setup');
-for (const section of ['country', 'period', 'coverage']) assert.ok(setup.includes(`data-section-key="${section}"`));
+for (const section of ['country', 'currency', 'period', 'coverage']) assert.ok(setup.includes(`data-section-key="${section}"`));
+for (const label of ['Country Profile', 'ISO country code (alpha-3)', 'Income group', 'Region']) assert.ok(setup.includes(label));
 assert.ok(!setup.includes('data-section-key="budget"'));
 assert.ok(setup.includes('Coverage controls'));
 assert.ok(setup.includes('fieldset disabled'));
 const inputs = render('inputs');
-for (const section of ['country', 'period', 'coverage']) assert.ok(!inputs.includes(`data-section-key="${section}"`));
+for (const section of ['country', 'currency', 'period', 'coverage']) assert.ok(!inputs.includes(`data-section-key="${section}"`));
 for (const section of ['service_levels', 'budget', 'investment_split', 'revenue_inputs']) assert.ok(inputs.includes(`data-section-key="${section}"`));
 console.log('Setup/Data Inputs section separation and read-only checks passed.');
+const { findProfile } = require('../src/components/CountryProfileFields.tsx');
+const countries = [
+  { id: 'COD', iso2Code: 'CD', name: 'Congo, Dem. Rep.' },
+  { id: 'NPL', iso2Code: 'NP', name: 'Nepal' },
+];
+assert.equal(findProfile(countries, 'COD', 'DRC')?.id, 'COD');
+assert.equal(findProfile(countries, undefined, 'DRC')?.id, 'COD');
+assert.equal(findProfile(countries, undefined, 'Nepal')?.id, 'NPL');
+assert.equal(findProfile(countries, 'NP')?.id, 'NPL');
+assert.equal(findProfile(countries, 'COG', 'Congo, Dem. Rep.'), undefined);
+console.log('Legacy DRC/Nepal country matching checks passed.');

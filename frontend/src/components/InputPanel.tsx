@@ -11,6 +11,7 @@ import { CurrencyDisplayControl, currencyRateNote, defaultCurrencyDisplay, type 
 // these scalar overrides while the feature is paused. Never clear saved values.
 import { budgetExecutionRate } from '../budgetExecutionRate';
 import BudgetBaselineCards from './BudgetBaselineCards';
+import CountryProfileFields from './CountryProfileFields';
 
 const OPTIONAL_FORECAST_ASSUMPTIONS_ENABLED = false;
 
@@ -316,7 +317,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
   useEffect(() => {
     if (!focusCurrencyRequest) return;
     const timer = setTimeout(() => {
-      const section = document.querySelector('[data-section-key="country"]');
+      const section = document.querySelector('[data-section-key="currency"]');
       section?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       rateInputRef.current?.focus();
     }, 80);
@@ -528,7 +529,8 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       {key:'revenue_inputs', label:'Revenue Inputs'},
       {key:'unit_costs', label:'Unit Costs & Technical Parameters'},
     ] : isSetup ? [
-      {key:'country', label:'Country, Area of Focus & Currency'},
+      {key:'country', label:'Country Profile'},
+      {key:'currency', label:'Currency'},
       {key:'period', label:'Analysis Period'},
       {key:'coverage', label:'Simulation Coverage'},
     ] : []}>
@@ -601,7 +603,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       {isSetup && <>
 
       {/* ===== COUNTRY CONFIG ===== */}
-      <Section title={`1. Country, Area of Focus & Currency (${scopeLabel})`} sectionKey="country" onFocus={onSectionFocus} openSignal={focusCurrencyRequest}>
+      <Section title="1. Country Profile" sectionKey="country" onFocus={onSectionFocus}>
         {inputs.country_config && <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
             <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Country</label>
@@ -614,6 +616,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
               {countries.map(c => <option key={c.name} value={c.name} />)}
             </datalist>
           </div>
+          <CountryProfileFields countryName={inputs.country_config.country || ''} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
             <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Area of focus</label>
             <input type="text" value={inputs.country_config.area || ''}
@@ -621,6 +624,10 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
               style={{ width: '100%', padding: '7px 10px', border: '1px solid #F0D070', background: '#FFF9E6', borderRadius: 4, fontSize: 13, color: '#3A4452', boxSizing: 'border-box', outline: 'none' }}
               placeholder="e.g. Kathmandu Valley" />
           </div>
+        </>}
+      </Section>
+      <Section title="2. Currency" sectionKey="currency" onFocus={onSectionFocus} openSignal={focusCurrencyRequest}>
+        {inputs.country_config && <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
             <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Currency code</label>
             <input type="text" value={inputs.country_config.currency || ''}
@@ -664,7 +671,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       </Section>
 
       {/* ===== 2. ANALYSIS PERIOD (key dates) ===== */}
-      <Section title={`2. Analysis Period (${scopeLabel})`} sectionKey="period" onFocus={onSectionFocus}>
+      <Section title="3. Analysis Period" sectionKey="period" onFocus={onSectionFocus}>
         <SubHead text="Key dates" />
         <YearField label="Model start year" value={inputs.period.model_start_year} onCommit={setModelStartYear} min={1950} max={inputs.period.baseline_year - 1} tip="First year of historical data; must be at least 3 years before the last year of historical data. Existing data keeps its year — newly added earlier years come in blank for you to fill." />
         <F label="Last year of historical data" value={inputs.period.baseline_year} onChange={v => u('period','baseline_year',v)} min={2023} tip="Last year with complete actual data; must be within the last three years" />
@@ -673,7 +680,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
 
       {/* ===== SCOPE-SPECIFICITY FLAG. §1 and §2a above apply to the whole analysis; every section below
               (the year-by-year table and the cost/technical sections) is entered per the selected scope. ===== */}
-      <Section title="3. Simulation Coverage" sectionKey="coverage" onFocus={onSectionFocus}>
+      <Section title="4. Simulation Coverage" sectionKey="coverage" onFocus={onSectionFocus}>
         <div style={{ gridColumn: '1 / -1' }}>{scopeControls}</div>
       </Section>
       </>}

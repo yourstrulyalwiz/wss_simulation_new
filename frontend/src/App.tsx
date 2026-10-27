@@ -31,8 +31,8 @@ function migrateInjectionToggle(area: any) {
   return migrateConnectionRevenueInputs(migrateNrwRevenueInputs({ ...area, toggles }));
 }
 
-type WorkspaceProps = { initialBundle: any; initialScenarios?: any[]; initialLocation?: any; readOnly?: boolean; projectId?: string; onDraftChange: (draft: Draft) => void; onSetup: () => void; setupControls?: React.ReactNode; headerSlot?: (toolOverview: React.ReactNode, saveComparison: React.ReactNode) => React.ReactNode };
-function App({ initialBundle, initialScenarios = [], initialLocation = {}, readOnly = false, projectId, onDraftChange, onSetup, setupControls, headerSlot }: WorkspaceProps) {
+type WorkspaceProps = { initialBundle: any; initialScenarios?: any[]; initialLocation?: any; readOnly?: boolean; projectId?: string; countryCode?: string; countryMetadata?: any; onDraftChange: (draft: Draft) => void; onSetup: () => void; setupControls?: React.ReactNode; headerSlot?: (toolOverview: React.ReactNode, saveComparison: React.ReactNode) => React.ReactNode };
+function App({ initialBundle, initialScenarios = [], initialLocation = {}, readOnly = false, projectId, countryCode, countryMetadata, onDraftChange, onSetup, setupControls, headerSlot }: WorkspaceProps) {
   const initialScope = normalizeScope(initialBundle.scope);
   const modified = useRef(false);
   const notify = useRef(onDraftChange); notify.current = onDraftChange;
@@ -402,7 +402,7 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
   const tabs = ['Setup', 'Data Inputs', 'BAU Scenario', 'Intervention Design', 'Loan funding', 'Results Dashboard'];
 
   return (
-    <ProjectScopeContext.Provider value={{ sectors: initialScope.sectors, readOnly, projectMode: true, projectId,
+    <ProjectScopeContext.Provider value={{ sectors: initialScope.sectors, readOnly, projectMode: true, projectId, countryCode, countryMetadata,
       validationInputs: scopeMode === 'urban_rural' && areaUrban && areaRural
         ? { urban: inputs, rural: { ...altInputs.rural, country_config: inputs.country_config, period: inputs.period, calculation_scope: initialScope.sectors } }
         : { [inputScope]: activeInputs } }}>
@@ -761,12 +761,12 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     ),
   },
   country: {
-    title: 'Country & Area of focus',
+    title: '1. Country Profile',
     content: 'Select the country and the area of focus for the analysis. The currency code sets the unit for all monetary inputs. Choosing a country will auto-fill its currency, but you can change it manually if needed. This section applies to the whole analysis and is shared across the Urban and Rural datasets.',
     sources: [{ name: 'World Bank country classification', url: 'https://datahelpdesk.worldbank.org/knowledgebase/articles/906519' }],
   },
   period: {
-    title: '2. Analysis Period',
+    title: '3. Analysis Period',
     content: (
       <div>
         <p style={{ margin: '0 0 6px' }}>Define the analysis time frame for the tool. These dates apply to the whole analysis and are shared across the Urban and Rural datasets.</p>
@@ -839,8 +839,12 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
       </div>
     ),
   },
+  currency: {
+    title: '2. Currency',
+    content: <p>Set the source currency and optional USD display conversion. Display conversion does not change the model inputs or coverage results.</p>,
+  },
   coverage: {
-    title: '3. Simulation Coverage',
+    title: '4. Simulation Coverage',
     content: <p>Choose the included sectors and geographical coverage, then Save setup. Excluded inputs remain stored; newly included areas start blank. Country identity stays fixed to protect existing observations.</p>,
   },
   sector_selection: {
@@ -1061,7 +1065,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
 const guideKeysByTab: Record<number, string[]> = {
   // Data Inputs — includes the BAU data entry duplicated onto this tab. test2: targets & technical
   // params are folded into the table / the merged unit-cost section.
-  [-1]: ['country', 'period', 'coverage'],
+  [-1]: ['country', 'currency', 'period', 'coverage'],
   0: ['how_model_works', 'service_levels', 'econ_demo', 'budget', 'sector_selection', 'investment_split', 'ws_unit_costs', 'san_unit_costs'],
   // BAU Scenario
   1: ['how_model_works', 'ws_unit_costs', 'san_unit_costs'],

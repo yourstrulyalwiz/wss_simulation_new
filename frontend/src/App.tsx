@@ -516,13 +516,13 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
         )}
         {activeTab === 1 && activeInputs && (
-          <BAUWorkspace inputs={activeInputs} onChange={handleSetActiveInputs} geoScope={inputScope}
+          <BAUWorkspace
             inputsList={both ? [bauChartScope === 'urban' ? inputs : altInputs.rural ?? inputs] : [activeInputs]}
             scopeLabel={both ? (bauChartScope === 'urban' ? 'Urban' : 'Rural') : inputScope[0].toUpperCase() + inputScope.slice(1)}
             scopeChoices={both ? ['urban', 'rural'] : [inputScope]}
             onScopeChange={value => { if (value === 'urban' || value === 'rural') { setBauChartScope(value); setSubArea(value); } }}
-            sector={sectorTab} onSectorChange={setSectorTab} onSectionFocus={focusGuideSection}
-            currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
+            sector={sectorTab} onSectorChange={setSectorTab}
+            currencyDisplay={currencyDisplay} />
         )}
         {activeTab === 2 && activeInputs && (
           <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} calculationError={calculationError} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} contributionView={contributionView} onContributionViewChange={setContributionView}
@@ -639,7 +639,7 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
               <strong>Data Inputs</strong> — In <em>Country, Area of Focus &amp; Currency</em>, select your country and the currency fills in automatically. In <em>2. Analysis Period</em>, set the key dates; then complete the year-by-year sections — <em>3. Service levels</em> (water &amp; sanitation), <em>4. Economic &amp; demographic data</em> (real GDP, population, households) and <em>5. Budget</em>. <em>Country</em> and the <em>Analysis Period</em> are shared across Urban and Rural; the year-by-year sections are entered separately per area. Historical cells use a light neutral fill; forecast cells use a teal tint and are optional (leave them blank to fill in from the yearly growth rate, or type your own projection). To set a <strong>target</strong>, fill a whole future service-level column so it totals 100%; you can set as many target years as you like. The budget is derived from the cost of new service, and any cell can be overridden.
             </li>
             <li style={{ marginBottom: 6 }}>
-              <strong>BAU Scenario</strong> — Pick Water Supply or Sanitation, then work down the sections: <em>Unit Costs &amp; Technical Parameters</em> (enter technology prices as nominal, with a price index that converts them to real). These fields are shared with the Data Inputs tab. The BAU graph on the right updates live as you type.
+              <strong>BAU Scenario</strong> — Pick Water Supply or Sanitation and the geographical area, then review the <em>BAU Graph</em> and <em>BAU Table</em>. Edit baseline assumptions, unit costs and technical parameters in Data Inputs; the BAU projections use those inputs.
             </li>
             <li style={{ marginBottom: 6 }}>
               <strong>Intervention Design</strong> — Pick Water Supply or Sanitation, switch each intervention on or off with its toggle, and set its parameters, which include collection efficiency, NRW reduction, budget execution improvement, capex efficiency (a unit-cost discount), optimised technology selection, tariff reform, and microfinance (with a self-finance carve-out and a means-based grant inside it). Add your own under <em>Custom Interventions</em> at the bottom. The impact graph updates live.

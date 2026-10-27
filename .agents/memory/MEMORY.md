@@ -15,7 +15,7 @@
 - [Consolidated revenue policy](consolidated-revenue-policy.md) — after-cost NRW sizing, targets without delivery ceilings, one-off cohorts and explicit sales/sewer assumptions.
 - [Independent sectors](sector-independence.md) — invalid sanitation must not block water; missing sector/geography results remain incomplete, never zero.
 - [Data Inputs navigation](data-input-navigation.md) — Setup holds identity and coverage; Data Inputs starts with period and area selection, then seven area-specific sections.
-- [BAU preview layout](bau-preview-navigation.md) — three primary navigation sections in a long form; preserve sector/area toggles and add baseline/target-year KPIs.
+- [BAU preview layout](bau-preview-navigation.md) — graph and table only; baseline editing stays in Data Inputs; preserve sector/area toggles and coverage KPIs.
 - [Simulation management](simulation-management-policy.md) — preserve Oct 12, Oct 13 and Nepal seeds; verified ownership, dormant scope data and version-specific public access.
 - [Browser verification](browser-verification.md) — local CDP startup can fail while managed screenshots work; do not mistake runner failure for app failure.
 - [Audit confidence](audit-confidence.md) — a negative ecosystem audit alone does not establish that specifically reported advisories are resolved.

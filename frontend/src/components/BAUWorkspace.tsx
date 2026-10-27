@@ -1,17 +1,15 @@
 import React, { useState } from 'react';
 import { useProjectScope } from '../projectScope';
-import InputPanel from './InputPanel';
 import LiveBAUChart, { type BauCoverage } from './LiveBAUChart';
 import SectionWorkspace from './SectionWorkspace';
 import type { CurrencyDisplaySettings } from '../currencyDisplay';
 
-export default function BAUWorkspace({ inputs, onChange, geoScope, inputsList, scopeLabel, sector,
-  onSectorChange, scopeChoices, onScopeChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate, onSectionFocus }: {
-  inputs: any; onChange: (inputs: any) => void; geoScope: string; inputsList: any[]; scopeLabel: string;
+export default function BAUWorkspace({ inputsList, scopeLabel, sector,
+  onSectorChange, scopeChoices, onScopeChange, currencyDisplay }: {
+  inputsList: any[]; scopeLabel: string;
   sector: 'water' | 'sanitation'; onSectorChange: (sector: 'water' | 'sanitation') => void;
   scopeChoices: string[]; onScopeChange: (scope: string) => void;
-  currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (settings: CurrencyDisplaySettings) => void;
-  onEditCurrencyRate: () => void; onSectionFocus: (section: string) => void;
+  currencyDisplay: CurrencyDisplaySettings;
 }) {
   const { sectors } = useProjectScope();
   const [managed, setManaged] = useState<BauCoverage | null>(null);
@@ -20,7 +18,7 @@ export default function BAUWorkspace({ inputs, onChange, geoScope, inputsList, s
   const [basicTable, setBasicTable] = useState<HTMLDivElement | null>(null);
   const format = (value: number | null | undefined) => value == null ? '—' : `${value.toFixed(1)}%`;
   return <SectionWorkspace label="Business-as-usual sections" sections={[
-    {key:'graph', label:'BAU Graph'}, {key:'table', label:'BAU Table'}, {key:'baseline', label:'Review Baseline Information'},
+    {key:'graph', label:'BAU Graph'}, {key:'table', label:'BAU Table'},
   ]}>
     <section className="modern-bau-section" data-section-key="graph">
       <header className="modern-page-intro"><span className="modern-page-intro__eyebrow">WORKFLOW 02 · BUSINESS-AS-USUAL</span>
@@ -49,12 +47,6 @@ export default function BAUWorkspace({ inputs, onChange, geoScope, inputsList, s
       <h2 className="modern-bau-heading" tabIndex={-1}>BAU Table</h2>
       <h3>Safely managed</h3><div ref={setManagedTable} />
       <h3>Basic</h3><div ref={setBasicTable} />
-    </section>
-    <section className="modern-bau-section" data-section-key="baseline">
-      <h2 className="modern-bau-heading" tabIndex={-1}>Review Baseline Information</h2>
-      <InputPanel inputs={inputs} onChange={onChange} geoScope={geoScope} showSection="bau"
-        bauSector={sector} onBauSectorChange={onSectorChange} onSectionFocus={onSectionFocus}
-        currencyDisplay={currencyDisplay} onCurrencyDisplayChange={onCurrencyDisplayChange} onEditCurrencyRate={onEditCurrencyRate} />
     </section>
   </SectionWorkspace>;
 }

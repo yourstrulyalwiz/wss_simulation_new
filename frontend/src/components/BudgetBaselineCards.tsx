@@ -4,8 +4,8 @@ export default function BudgetBaselineCards({ results, baselineYear, sectors }: 
   results: any; baselineYear: number; sectors: string[];
 }) {
   const index = results?.years?.indexOf(baselineYear) ?? -1;
-  const percent = (value: unknown) => typeof value === 'number' && Number.isFinite(value)
-    ? `${(value * 100).toFixed(2)}%` : 'Unavailable';
+  const percent = (value: unknown, decimals = 2) => typeof value === 'number' && Number.isFinite(value)
+    ? `${(value * 100).toFixed(decimals)}%` : 'Unavailable';
   const calibration = (meta: any) => {
     const years = meta?.initialization_years;
     if (!Array.isArray(years) || !years.length) return 'Unavailable';
@@ -30,7 +30,7 @@ export default function BudgetBaselineCards({ results, baselineYear, sectors }: 
           <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, margin: 0 }}>
             {[
               ['Baseline budget execution', percent(data?.budget_execution_baseline?.[index])],
-              ['Baseline executed budget / GDP', percent(share)],
+              ['Baseline executed budget / GDP', percent(share, 3)],
             ].map(([title, value]) => <div key={title}>
               <dt style={{ fontSize: 11, color: '#526b76' }}>{title}</dt>
               <dd style={{ margin: '6px 0 0', fontSize: 22, fontWeight: 700, color: '#005675' }}>{value}</dd>

@@ -28,7 +28,7 @@ const html = render({
   },
   sanitation: { budget_execution_baseline: [0.5, 0], budget_executed_input_basis: [20, 0] },
 });
-for (const value of ['75.00%', '2.00%', '0.00%', '2023, 2024, 2025', '2 of 3 years available']) assert.ok(html.includes(value), value);
+for (const value of ['75.00%', '2.000%', '0.00%', '0.000%', '2023, 2024, 2025', '2 of 3 years available']) assert.ok(html.includes(value), value);
 assert.ok(render(null).includes('Unavailable'));
 assert.ok(!render(null, ['water']).includes('Sanitation'));
 console.log('Budget baseline card checks passed.');

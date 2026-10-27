@@ -26,6 +26,12 @@ rewrite preserved inputs or immutable results to fill these display fields.
 Water and Sanitation are sector choices within that structure, not additional
 top-level sections.
 
+Area of focus offers National or Subnational, with a free-text area name only
+for Subnational. Keep this separate from Urban/Rural calculation geography.
+**Why:** The user requested this country-profile selection while retaining named areas.
+**How to apply:** Preserve legacy area names as subnational descriptions; do not
+reinterpret this descriptive choice as a change to sector/geographical coverage.
+
 **How to apply:** Keep unit costs and technical parameters as one sector-adaptive
 section. Preserve this grouping when adding or reorganizing input details; ask
 before changing the number of top-level sections.

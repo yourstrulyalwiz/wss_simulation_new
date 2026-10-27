@@ -38,6 +38,7 @@ class Constants(BaseModel):
 class CountryConfig(BaseModel):
     country: str = "Nepal"                 # #6
     area: str = "Kathmandu Valley"
+    focus_scope: Optional[Literal["national", "subnational"]] = None
     area_type: str = "Urban"               # #7  — "Urban" | "Rural" | "National"
     currency: str = "NPR"                  # #8
     currency_usd: str = "USD"

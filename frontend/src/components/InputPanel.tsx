@@ -12,6 +12,7 @@ import { CurrencyDisplayControl, currencyRateNote, defaultCurrencyDisplay, type 
 import { budgetExecutionRate } from '../budgetExecutionRate';
 import BudgetBaselineCards from './BudgetBaselineCards';
 import CountryProfileFields from './CountryProfileFields';
+import AreaFocusFields from './AreaFocusFields';
 
 const OPTIONAL_FORECAST_ASSUMPTIONS_ENABLED = false;
 
@@ -617,13 +618,10 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
             </datalist>
           </div>
           <CountryProfileFields countryName={inputs.country_config.country || ''} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-            <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Area of focus</label>
-            <input type="text" value={inputs.country_config.area || ''}
-              onChange={e => setCountryConfig('area', e.target.value)}
-              style={{ width: '100%', padding: '7px 10px', border: '1px solid #F0D070', background: '#FFF9E6', borderRadius: 4, fontSize: 13, color: '#3A4452', boxSizing: 'border-box', outline: 'none' }}
-              placeholder="e.g. Kathmandu Valley" />
-          </div>
+          <AreaFocusFields config={inputs.country_config} readOnly={readOnly}
+            onChange={patch => {
+              if (!readOnly) onChange({ ...inputs, country_config: { ...inputs.country_config, ...patch } });
+            }} />
         </>}
       </Section>
       <Section title="2. Currency" sectionKey="currency" onFocus={onSectionFocus} openSignal={focusCurrencyRequest}>

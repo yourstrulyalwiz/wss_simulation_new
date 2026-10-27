@@ -31,8 +31,8 @@ function migrateInjectionToggle(area: any) {
   return migrateConnectionRevenueInputs(migrateNrwRevenueInputs({ ...area, toggles }));
 }
 
-type WorkspaceProps = { initialBundle: any; initialScenarios?: any[]; initialLocation?: any; readOnly?: boolean; projectId?: string; countryCode?: string; countryMetadata?: any; onDraftChange: (draft: Draft) => void; onSetup: () => void; setupControls?: React.ReactNode; headerSlot?: (toolOverview: React.ReactNode, saveComparison: React.ReactNode) => React.ReactNode };
-function App({ initialBundle, initialScenarios = [], initialLocation = {}, readOnly = false, projectId, countryCode, countryMetadata, onDraftChange, onSetup, setupControls, headerSlot }: WorkspaceProps) {
+type WorkspaceProps = { initialBundle: any; initialScenarios?: any[]; initialLocation?: any; readOnly?: boolean; projectId?: string; countryCode?: string; countryMetadata?: any; onDraftChange: (draft: Draft) => void; onSetup: () => void; setupControls?: React.ReactNode; setupNameControls?: React.ReactNode; headerSlot?: (toolOverview: React.ReactNode, saveComparison: React.ReactNode) => React.ReactNode };
+function App({ initialBundle, initialScenarios = [], initialLocation = {}, readOnly = false, projectId, countryCode, countryMetadata, onDraftChange, onSetup, setupControls, setupNameControls, headerSlot }: WorkspaceProps) {
   const initialScope = normalizeScope(initialBundle.scope);
   const modified = useRef(false);
   const notify = useRef(onDraftChange); notify.current = onDraftChange;
@@ -501,7 +501,7 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         {activeTab === -1 && activeInputs && (
           <InputPanel key="setup" inputs={activeInputs} onChange={handleSetActiveInputs}
-            showSection="setup" geoScope={inputScope} scopeControls={setupControls}
+            showSection="setup" geoScope={inputScope} scopeControls={setupControls} setupNameControls={setupNameControls}
             onSectionFocus={focusGuideSection} currencyDisplay={currencyDisplay}
             onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
         )}
@@ -760,13 +760,17 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
       </div>
     ),
   },
+  simulation_name: {
+    title: '1. Simulation Name',
+    content: <p>Name this simulation, then apply the change with Save setup in Simulation Coverage.</p>,
+  },
   country: {
-    title: '1. Country Profile',
+    title: '2. Country Profile',
     content: 'Select the country and the area of focus for the analysis. The currency code sets the unit for all monetary inputs. Choosing a country will auto-fill its currency, but you can change it manually if needed. This section applies to the whole analysis and is shared across the Urban and Rural datasets.',
     sources: [{ name: 'World Bank country classification', url: 'https://datahelpdesk.worldbank.org/knowledgebase/articles/906519' }],
   },
   period: {
-    title: '3. Analysis Period',
+    title: '5. Analysis Period',
     content: (
       <div>
         <p style={{ margin: '0 0 6px' }}>Define the analysis time frame for the tool. These dates apply to the whole analysis and are shared across the Urban and Rural datasets.</p>
@@ -840,11 +844,11 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     ),
   },
   currency: {
-    title: '2. Currency',
+    title: '4. Currency',
     content: <p>Set the source currency and optional USD display conversion. Display conversion does not change the model inputs or coverage results.</p>,
   },
   coverage: {
-    title: '4. Simulation Coverage',
+    title: '3. Simulation Coverage',
     content: <p>Choose the included sectors and geographical coverage, then Save setup. Excluded inputs remain stored; newly included areas start blank. Country identity stays fixed to protect existing observations.</p>,
   },
   sector_selection: {
@@ -1065,7 +1069,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
 const guideKeysByTab: Record<number, string[]> = {
   // Data Inputs — includes the BAU data entry duplicated onto this tab. test2: targets & technical
   // params are folded into the table / the merged unit-cost section.
-  [-1]: ['country', 'currency', 'period', 'coverage'],
+  [-1]: ['simulation_name', 'country', 'coverage', 'currency', 'period'],
   0: ['how_model_works', 'service_levels', 'econ_demo', 'budget', 'sector_selection', 'investment_split', 'ws_unit_costs', 'san_unit_costs'],
   // BAU Scenario
   1: ['how_model_works', 'ws_unit_costs', 'san_unit_costs'],

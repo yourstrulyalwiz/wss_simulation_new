@@ -76,10 +76,13 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
     {recovery && owner && <div className="project-alert">This browser has a pending or failed save for this account and simulation.<button onClick={state.restoreRecovery}>Recover draft</button><button onClick={() => { if (window.confirm('Discard the browser recovery draft? The server record is unchanged.')) state.dismissRecovery(); }}>Discard recovery</button></div>}
     <div className="project-workspace"><App key={`${id}:${editorEpoch}`} projectId={id} initialBundle={project.bundle} initialScenarios={project.scenarios} initialLocation={project.location} readOnly={!owner} onDraftChange={update} onSetup={() => open('setup')}
       countryCode={project.country_code} countryMetadata={project.country_metadata}
-      setupControls={<>
+      setupNameControls={<>
         <label className="setup-field">Simulation name<input value={setupName} maxLength={160} onChange={event => setSetupName(event.target.value)} /></label>
+        <p>Apply name changes with Save setup in Simulation Coverage below.</p>
+      </>}
+      setupControls={<>
         <ScopeFields scope={scope} onChange={setScope} />
-        <p>Country, currency and analysis-period edits use the normal progress saving. Apply the name and coverage choices below with Save setup. Excluded area and sector data are retained.</p>
+        <p>Country, currency and analysis-period edits use the normal progress saving. Apply the name and coverage choices with Save setup. Excluded area and sector data are retained.</p>
         {owner && <button className="portal-btn" disabled={busy || saving || conflict || !setupName.trim()} onClick={() => void act(saveSetup)}>{busy ? 'Saving setup…' : 'Save setup'}</button>}
       </>}
       headerSlot={(toolOverview, saveComparison) => (

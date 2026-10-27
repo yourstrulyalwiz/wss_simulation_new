@@ -300,9 +300,9 @@ function YearField({ label, value, onCommit, min, max, tip }: {
   );
 }
 
-interface Props { scopeControls?: React.ReactNode; inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; calculationError?: string; projectionError?: string; }
+interface Props { setupNameControls?: React.ReactNode; scopeControls?: React.ReactNode; inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; calculationError?: string; projectionError?: string; }
 
-export default function InputPanel({ scopeControls, inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate, calculationError, projectionError }: Props) {
+export default function InputPanel({ setupNameControls, scopeControls, inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate, calculationError, projectionError }: Props) {
   const { sectors, readOnly, projectMode } = useProjectScope();
   const [costTemplates, setCostTemplates] = useState<CostMixTemplates>({});
   const [costTemplateError, setCostTemplateError] = useState('');
@@ -530,10 +530,11 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       {key:'revenue_inputs', label:'Revenue Inputs'},
       {key:'unit_costs', label:'Unit Costs & Technical Parameters'},
     ] : isSetup ? [
+      {key:'simulation_name', label:'Simulation Name'},
       {key:'country', label:'Country Profile'},
+      {key:'coverage', label:'Simulation Coverage'},
       {key:'currency', label:'Currency'},
       {key:'period', label:'Analysis Period'},
-      {key:'coverage', label:'Simulation Coverage'},
     ] : []}>
     <div className="modern-input-panel" style={{ flex: 1, fontSize: 12, minWidth: 0 }}>
       {/* Content is capped to a consistent max width and centered, so section cards don't sprawl
@@ -604,7 +605,10 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       {isSetup && <>
 
       {/* ===== COUNTRY CONFIG ===== */}
-      <Section title="1. Country Profile" sectionKey="country" onFocus={onSectionFocus}>
+      <Section title="1. Simulation Name" sectionKey="simulation_name" onFocus={onSectionFocus}>
+        <div style={{ gridColumn: '1 / -1' }}>{setupNameControls}</div>
+      </Section>
+      <Section title="2. Country Profile" sectionKey="country" onFocus={onSectionFocus}>
         {inputs.country_config && <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
             <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Country</label>
@@ -624,7 +628,10 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
             }} />
         </>}
       </Section>
-      <Section title="2. Currency" sectionKey="currency" onFocus={onSectionFocus} openSignal={focusCurrencyRequest}>
+      <Section title="3. Simulation Coverage" sectionKey="coverage" onFocus={onSectionFocus}>
+        <div style={{ gridColumn: '1 / -1' }}>{scopeControls}</div>
+      </Section>
+      <Section title="4. Currency" sectionKey="currency" onFocus={onSectionFocus} openSignal={focusCurrencyRequest}>
         {inputs.country_config && <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
             <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Currency code</label>
@@ -669,7 +676,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       </Section>
 
       {/* ===== 2. ANALYSIS PERIOD (key dates) ===== */}
-      <Section title="3. Analysis Period" sectionKey="period" onFocus={onSectionFocus}>
+      <Section title="5. Analysis Period" sectionKey="period" onFocus={onSectionFocus}>
         <SubHead text="Key dates" />
         <YearField label="Model start year" value={inputs.period.model_start_year} onCommit={setModelStartYear} min={1950} max={inputs.period.baseline_year - 1} tip="First year of historical data; must be at least 3 years before the last year of historical data. Existing data keeps its year — newly added earlier years come in blank for you to fill." />
         <F label="Last year of historical data" value={inputs.period.baseline_year} onChange={v => u('period','baseline_year',v)} min={2023} tip="Last year with complete actual data; must be within the last three years" />
@@ -678,9 +685,6 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
 
       {/* ===== SCOPE-SPECIFICITY FLAG. §1 and §2a above apply to the whole analysis; every section below
               (the year-by-year table and the cost/technical sections) is entered per the selected scope. ===== */}
-      <Section title="4. Simulation Coverage" sectionKey="coverage" onFocus={onSectionFocus}>
-        <div style={{ gridColumn: '1 / -1' }}>{scopeControls}</div>
-      </Section>
       </>}
       {isInputs && <>
       <div style={{

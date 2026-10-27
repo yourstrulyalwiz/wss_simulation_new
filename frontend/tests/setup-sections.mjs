@@ -20,15 +20,22 @@ const render = showSection => renderToStaticMarkup(React.createElement(ProjectSc
 }, React.createElement(InputPanel, {
   inputs: snapshot.bundle.inputs, onChange: () => {}, showSection,
   scopeControls: React.createElement('div', null, 'Coverage controls'),
+  setupNameControls: React.createElement('input', { 'aria-label': 'Simulation name', value: 'Test simulation', readOnly: true }),
 })));
 const setup = render('setup');
-for (const section of ['country', 'currency', 'period', 'coverage']) assert.ok(setup.includes(`data-section-key="${section}"`));
+const setupOrder = ['simulation_name', 'country', 'coverage', 'currency', 'period'];
+for (const [index, section] of setupOrder.entries()) {
+  assert.ok(setup.includes(`data-section-key="${section}"`));
+  if (index) assert.ok(setup.indexOf(`data-section-key="${setupOrder[index - 1]}"`) < setup.indexOf(`data-section-key="${section}"`));
+}
+assert.ok(setup.includes('Test simulation'));
+assert.ok(setup.indexOf('Test simulation') < setup.indexOf('data-section-key="country"'));
 for (const label of ['Country Profile', 'ISO country code (alpha-3)', 'Income group', 'Region']) assert.ok(setup.includes(label));
 assert.ok(!setup.includes('data-section-key="budget"'));
 assert.ok(setup.includes('Coverage controls'));
 assert.ok(setup.includes('fieldset disabled'));
 const inputs = render('inputs');
-for (const section of ['country', 'currency', 'period', 'coverage']) assert.ok(!inputs.includes(`data-section-key="${section}"`));
+for (const section of setupOrder) assert.ok(!inputs.includes(`data-section-key="${section}"`));
 for (const section of ['service_levels', 'budget', 'investment_split', 'revenue_inputs']) assert.ok(inputs.includes(`data-section-key="${section}"`));
 console.log('Setup/Data Inputs section separation and read-only checks passed.');
 const { findProfile } = require('../src/components/CountryProfileFields.tsx');

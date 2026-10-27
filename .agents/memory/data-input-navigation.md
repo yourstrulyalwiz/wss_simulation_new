@@ -15,10 +15,12 @@ workflow step 0, Setup, together with simulation sector and geographical coverag
 Edit setup must open that tab, not a modal. Data Inputs retains area/sector
 view selectors, while inclusion settings live in Setup.
 
-Setup has four sections: Country Profile (country name, ISO, income group,
-region and area of focus), Currency, Analysis Period, and Simulation Coverage.
+Setup has five sections in order: Simulation Name; Country Profile (country name,
+ISO, income group, region and area of focus); Simulation Coverage; Currency;
+Analysis Period.
 **Why:** The user requested a separate Currency section and retrospective country
-profiles for existing DRC and Nepal simulations.
+profiles for existing DRC and Nepal simulations, then a standalone name section
+first and coverage before currency.
 **How to apply:** Resolve descriptive country classifications from the same
 World Bank catalogue used at creation, using stable country identity. These are
 current descriptive metadata, not historical simulation assumptions; do not

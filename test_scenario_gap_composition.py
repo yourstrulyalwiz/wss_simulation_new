@@ -40,7 +40,7 @@ class ScenarioGapCompositionTests(unittest.TestCase):
             cases[4][section].update(fin_injection_amount=1e9, fin_injection_start_year=2028,
                                      fin_injection_mode='recurring')
             cases[5]['toggles'][f'{prefix}_microfinance_enabled'] = True
-            cases[5][section].update(mf_takeup_rate=1, grant_total=100000)
+            cases[5][section].update(mf_takeup_rate=1, grant_total=100000, mf_connection_fee=100000)
 
         for case_idx, case in enumerate(cases):
             result = calculate(coerce_to_engine(case))

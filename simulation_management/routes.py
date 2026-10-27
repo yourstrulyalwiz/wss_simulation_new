@@ -198,6 +198,10 @@ def version_detail(sid: str, vid: str, request: Request):
 
 
 def calculate_bundle(bundle):
+    from intervention_validation import require_valid_interventions
+    from simulation_scope import active_areas
+    for area_inputs in active_areas(bundle).values():
+        require_valid_interventions(area_inputs)
     from demo_adapter import coerce_to_engine
     from model.engine import calculate
     return {area:calculate(coerce_to_engine({**inputs,'calculation_scope':bundle['scope']['sectors']}),allow_partial=True)

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useProjectScope } from '../projectScope';
 import { captureImage, downloadBlob, postForBlob } from './exportUtils';
 import type { CurrencyDisplaySettings } from '../currencyDisplay';
+import { guardInterventionExport } from '../interventionValidation';
 
 // Describes how to draw a NATIVE, data-linked Excel chart from the exported data series: which columns are
 // stacked area bands vs reference lines (by their header name), plus colours and axis titles. The backend
@@ -25,7 +26,9 @@ export default function ChartExport({ chartRef, filename, title, sheets, chartSp
   compact?: boolean;
   currencyDisplay?: CurrencyDisplaySettings;
 }) {
-  const { projectId } = useProjectScope();
+  const { projectId, validationInputs } = useProjectScope();
+  const revision = React.useRef('');
+  revision.current = JSON.stringify({validationInputs, sheets, chartSpec});
   const [busy, setBusy] = useState<string | null>(null);
   const btn: React.CSSProperties = {
     padding: compact ? '2px 7px' : '4px 10px', fontSize: 11, border: '1px solid #cbd5e1',
@@ -35,21 +38,27 @@ export default function ChartExport({ chartRef, filename, title, sheets, chartSp
     if (!chartRef.current) return;
     setBusy(fmt);
     try {
+      if (!await guardInterventionExport(validationInputs)) return;
+      const started = revision.current;
       const url = await captureImage(chartRef.current, fmt);
+      if (revision.current !== started) return;
       downloadBlob(await (await fetch(url)).blob(), `${filename}.${fmt === 'jpeg' ? 'jpg' : 'png'}`);
     } catch { alert('Image export failed. Please try again.'); }
     finally { setBusy(null); }
   };
   const xlsx = async () => {
+    const started = revision.current;
     setBusy('xlsx');
     try {
       // Native data-linked chart from chartSpec (no picture). Only fall back to a captured PNG if a caller
       // hasn't supplied a spec, so the export still contains something.
-      const body: any = { filename, title, sheets, chartSpec, currency_display: currencyDisplay };
+      if (!await guardInterventionExport(validationInputs)) return;
+      const body: any = { _validation_inputs: validationInputs, filename, title, sheets, chartSpec, currency_display: currencyDisplay };
       if (!chartSpec && chartRef.current) {
         try { body.image = await captureImage(chartRef.current, 'png'); } catch { /* data-only workbook */ }
       }
-      await postForBlob('/api/export/chart', body, filename + '.xlsx', projectId);
+      if (revision.current !== started) return;
+      await postForBlob('/api/export/chart', body, filename + '.xlsx', projectId, () => revision.current === started);
     } catch (error) { alert(error instanceof Error ? error.message : 'Excel export failed. Please try again.'); }
     finally { setBusy(null); }
   };

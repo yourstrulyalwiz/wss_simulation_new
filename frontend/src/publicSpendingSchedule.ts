@@ -6,8 +6,8 @@ export function spendingRows(iv: any, firstYear: number): SpendingDraft[] {
   if (Array.isArray(iv.fin_gdp_targets)) return iv.fin_gdp_targets.map((p: SpendingPoint) => ({
     year: String(p.year ?? ''), share: p.target_share == null ? '' : String(Number((p.target_share * 100).toPrecision(12))),
   }));
-  return [{ year: String(iv.fin_gdp_start_year || firstYear),
-    share: String(Number(((iv.fin_gdp_target_share ?? 0) * 100).toPrecision(12))) }];
+  return [{ year: iv.fin_gdp_start_year == null ? '' : String(iv.fin_gdp_start_year),
+    share: iv.fin_gdp_target_share == null ? '' : String(Number((iv.fin_gdp_target_share * 100).toPrecision(12))) }];
 }
 
 export function validateSpendingRows(rows: SpendingDraft[], first: number, last: number): string {

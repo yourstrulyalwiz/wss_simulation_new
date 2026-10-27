@@ -435,8 +435,7 @@ class WaterInterventionInputs(BaseModel):
     # MEANS-BASED GRANT that buys the principal down to the affordable level; the one-time `grant_total` pool
     # (local-currency millions) funds the cheapest grants first. `mf_takeup_rate` is the annual take-up among
     # eligible gap HH. `mf_gap_shares` splits the SM gap across the 5 income brackets (low→high, Σ≈1).
-    mf_connection_fee: float = 0.0        # capital cost of a connection financed by the loan; 0 → use the SM
-                                          # new-service cost (cost_sm), the same capex the rest of the model uses
+    mf_connection_fee: float = 0.0        # Explicit fee; zero never borrows the SM cost.
     mf_start_year: int = 2028
     mf_end_year: int = 2040
     mf_pct_income: float = 0.05           # max share of monthly income this service's loan repayment may take

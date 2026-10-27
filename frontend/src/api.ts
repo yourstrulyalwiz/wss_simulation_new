@@ -41,6 +41,14 @@ export async function runCalculation(inputs: any, required: 'water' | 'sanitatio
     throw new Error(typeof body.detail === 'string' ? body.detail : 'Calculation inputs are invalid.');
   }
   const result = await res.json();
+  const interventionErrors = (result.intervention_issues || []).filter((issue: any) =>
+    issue.severity === 'error' && (required === 'both' || required === issue.sector));
+  if (interventionErrors.length) {
+    // Explanations belong to the consuming intervention, never the chart banner.
+    const error = new Error('');
+    Object.assign(error, { intervention_issues: interventionErrors });
+    throw error;
+  }
   const errors = result.sector_errors || {};
   const allowed = calculationPayload(inputs).calculation_scope.map((sector: string) => sector === 'water' ? 'water_supply' : sector);
   const keys = (required === 'partial' ? [] : required === 'water' ? ['water_supply'] :

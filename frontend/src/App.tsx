@@ -212,6 +212,21 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
   const [calculationError, setCalculationError] = useState('');
   const [calculationRevision, setCalculationRevision] = useState(0);
   useEffect(() => {
+    const source = () => setActiveTab(0);
+    const intervention = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      setActiveTab(2);
+      if (['urban', 'rural'].includes(detail?.area)) setSubArea(detail.area);
+      if (detail?.issues?.[0]?.sector) setSectorTab(detail.issues[0].sector);
+    };
+    window.addEventListener('intervention-source-navigation', source);
+    window.addEventListener('intervention-validation-navigation', intervention);
+    return () => {
+      window.removeEventListener('intervention-source-navigation', source);
+      window.removeEventListener('intervention-validation-navigation', intervention);
+    };
+  }, []);
+  useEffect(() => {
     if (!activeInputs) return;
     let cancelled = false;
     setResults(null);
@@ -381,7 +396,10 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
   const tabs = ['Data Inputs', 'BAU Scenario', 'Intervention Design', 'Loan funding', 'Results Dashboard'];
 
   return (
-    <ProjectScopeContext.Provider value={{ sectors: initialScope.sectors, readOnly, projectMode: true, projectId }}>
+    <ProjectScopeContext.Provider value={{ sectors: initialScope.sectors, readOnly, projectMode: true, projectId,
+      validationInputs: scopeMode === 'urban_rural' && areaUrban && areaRural
+        ? { urban: inputs, rural: { ...altInputs.rural, country_config: inputs.country_config, period: inputs.period, calculation_scope: initialScope.sectors } }
+        : { [inputScope]: activeInputs } }}>
     <div className={`wb-app${readOnly ? ' workspace-view-only' : ''}`} style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {!readOnly && <RevenueReconciliation inputs={activeInputs} onChange={value => { if (modified.current) handleSetActiveInputs(value); }} area={inputScope} silent={true} />}
       {/* Header */}

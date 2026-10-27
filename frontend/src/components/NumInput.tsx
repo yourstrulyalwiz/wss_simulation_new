@@ -17,9 +17,10 @@ type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChan
   value: number | null | undefined;          // display-unit value (NaN / null / undefined → shown blank)
   onValue: (v: number | undefined) => void;  // display-unit value; undefined when the cell is cleared
   commas?: boolean;                           // thousands separators when the field is NOT being edited
+  onInvalid?: (draft: string) => void;
 };
 
-export default function NumInput({ value, onValue, commas, onFocus, onBlur, ...rest }: Props) {
+export default function NumInput({ value, onValue, onInvalid, commas, onFocus, onBlur, ...rest }: Props) {
   const [buf, setBuf] = useState<string | null>(null);   // local edit buffer; null → show the model value
 
   const num = (value === undefined || value === null || (typeof value === 'number' && Number.isNaN(value)))
@@ -40,11 +41,15 @@ export default function NumInput({ value, onValue, commas, onFocus, onBlur, ...r
         setBuf(raw);
         const cleaned = raw.replace(/,/g, '').trim();
         if (cleaned === '' || cleaned === '-' || cleaned === '.' || cleaned === '-.' || cleaned === '+') {
-          onValue(undefined);   // empty or partial → cleared
+          if (cleaned && onInvalid) onInvalid(raw);
+          else onValue(undefined);
           return;
         }
-        const v = parseFloat(cleaned);
-        if (!Number.isNaN(v)) onValue(v);
+        const valid = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(cleaned);
+        const v = valid ? Number(cleaned) : NaN;
+        if (Number.isFinite(v)) onValue(v);
+        else if (onInvalid) onInvalid(raw);
+        else onValue(undefined);
       }}
       onBlur={e => { setBuf(null); onBlur?.(e); }}
     />

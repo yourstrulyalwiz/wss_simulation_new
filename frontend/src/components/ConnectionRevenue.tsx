@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
 import { migrateConnectionRevenueConfig, validateConnectionRevenueConfig, type ConnectionRevenueConfig } from '../connectionRevenueConfig';
 import { resolveRevenueBases } from '../api';
+import { ValidationContext, IssueMessages } from '../interventionValidation';
 
 export function revenueBasesRequestBody(inputs: any) { return JSON.stringify(inputs); }
 export function connectionRevenueStatus(data: any, sector: 'water' | 'sanitation') {
@@ -14,6 +15,8 @@ const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box'
 export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
   inputs: any; onChange: (value: any) => void; sector: 'water' | 'sanitation'; area: string; label?: string;
 }) {
+  const validationContext = React.useContext(ValidationContext);
+  const interventionIssues = validationContext.issues.filter(issue => issue.sector === sector && issue.intervention === 'connections');
   const id = useId();
   const [showSettings, setShowSettings] = useState(false);
   const stored = inputs.connection_revenue?.[sector];
@@ -63,7 +66,7 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
         <input id={`${id}-enabled`} type="checkbox" checked={config.enabled} onChange={e => update({ enabled: e.target.checked })} />
         {' '}Include revenue from new connections
       </label>
-      <span role="status" style={{ fontSize: 11 }}>{state}</span>
+      <span role="status" style={{ fontSize: 11 }}>{interventionIssues.some(issue => issue.severity === 'error') ? 'Missing required inputs' : state}</span>
       <button type="button" aria-expanded={settingsVisible} aria-controls={`${id}-settings`}
         onClick={() => setShowSettings(value => !value)}
         style={{ fontSize: 11, cursor: 'pointer', border: '1px solid #c2d3da', borderRadius: 4, padding: '4px 8px', background: '#fff', color: '#164e63' }}>
@@ -71,6 +74,7 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
       </button>
     </div>
     <div id={`${id}-settings`} hidden={!settingsVisible}>
+    <IssueMessages issues={interventionIssues} />
     {config.current_behavior_notice && !dismissed.includes(noticeKey) && <div role="status" style={{ fontSize: 11, padding: '8px 0' }}>
       {config.current_behavior_notice} <button type="button" onClick={() => {
         setDismissed([...dismissed, noticeKey]);

@@ -13,6 +13,7 @@ import { nrwLinkBillableVolume, nrwRevenueMetadata, nrwRevenueVersion, setNrwLin
 import ConnectionRevenue from './ConnectionRevenue';
 import RevenueSourceChart from './RevenueSourceChart';
 import { collectionBelowBaselineWarning } from '../collectionWarning';
+import { ValidationContext, FieldIssuesContext, IssueMessages, groupForLabel, useInterventionIssues } from '../interventionValidation';
 
 const CUSTOM_INTERVENTIONS_ENABLED = false;
 
@@ -40,6 +41,15 @@ function SubHead({ text }: { text: string }) {
 function F({ label, value, onChange, unit, step, isPercent, tip, fieldType, placeholder, min, max }: {
   label: string; value?: number; onChange: (v: number) => void; unit?: string; step?: number; isPercent?: boolean; tip?: string; fieldType?: 'input' | 'linked' | 'computed'; placeholder?: string; min?: number; max?: number;
 }) {
+  const issueId = React.useId();
+  const [editing, setEditing] = React.useState(false);
+  const previouslyShown = React.useRef(false);
+  const currentIssues = React.useContext(FieldIssuesContext).filter(issue =>
+    issue.label === label || label.startsWith(issue.label + ' (') ||
+    issue.field.endsWith('.capeff_target_pct') && label.includes('Target execution') ||
+    issue.field.endsWith('.tariff_target') && label.includes('Target') && label.includes('tariff'));
+  if (!editing) previouslyShown.current = currentIssues.length > 0;
+  const fieldIssues = !editing || previouslyShown.current ? currentIssues : [];
   const hasVal = typeof value === 'number' && !Number.isNaN(value);
   const rawPct = hasVal ? Math.round((value as number) * 1e4) / 1e2 : NaN;
   const displayVal = !hasVal ? NaN : (isPercent ? (fieldType === 'computed' ? Math.round(rawPct * 100) / 100 : rawPct) : Math.round((value as number) * 100) / 100);
@@ -52,7 +62,7 @@ function F({ label, value, onChange, unit, step, isPercent, tip, fieldType, plac
     <div style={{
       display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0,
     }}>
-      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: '#3A4452', lineHeight: 1.3, fontWeight: 500, minHeight: 32 }} title={tip || undefined}>
+      <label htmlFor={issueId} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: '#3A4452', lineHeight: 1.3, fontWeight: 500, minHeight: 32 }} title={tip || undefined}>
         {label}
         {tip && <span style={{
           width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
@@ -72,16 +82,21 @@ function F({ label, value, onChange, unit, step, isPercent, tip, fieldType, plac
           }} />
       ) : (
         <NumInput
-          value={Number.isNaN(displayVal) ? undefined : displayVal} commas={useCommas}
+          onFocus={() => setEditing(true)} onBlur={() => setEditing(false)}
+          id={issueId} aria-invalid={fieldIssues.some(issue => issue.severity === 'error') || undefined}
+          aria-describedby={fieldIssues.length ? issueId + '-messages' : undefined}
+          value={typeof value === 'string' ? value : Number.isNaN(displayVal) ? undefined : displayVal} commas={useCommas}
+          onInvalid={draft => onChange(draft as unknown as number)}
           placeholder={placeholder} min={min} max={max}
           // Empty cell → NaN in the model (JSON-serialises to null → engine reads 0 / uses the placeholder).
-          onValue={v => onChange(v === undefined ? (NaN as number) : (isPercent ? v / 100 : v))}
+          onValue={v => onChange(v === undefined ? (null as unknown as number) : (isPercent ? v / 100 : v))}
           style={{
             width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, textAlign: 'left',
             border: '1px solid #F0D070', background: '#FFF9E6', color: '#3A4452',
             cursor: 'text', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit',
           }} />
       )}
+      {!isDerived && <div id={issueId + '-messages'}><IssueMessages issues={fieldIssues} /></div>}
       {unit && <span style={{ fontSize: 11, color: '#6B7785' }}>{unit}</span>}
     </div>
   );
@@ -95,6 +110,21 @@ function InterventionToggle({ label, checked, onChange, children, onFocus, unava
 }) {
   const { readOnly } = useProjectScope();
   const [expanded, setExpanded] = useState(false);
+  const validation = React.useContext(ValidationContext);
+  const issues = checked && !unavailable ? validation.issues.filter(issue =>
+    issue.sector === validation.sector && issue.intervention === groupForLabel(label)) : [];
+  const labels: string[] = [];
+  const collect = (nodes: React.ReactNode) => React.Children.forEach(nodes, child => {
+    if (!React.isValidElement(child)) return;
+    const props = child.props as any;
+    if (child.type === F && props.fieldType !== 'computed' && props.fieldType !== 'linked') labels.push(props.label);
+    if (props.children) collect(props.children);
+  });
+  collect(children);
+  const remaining = issues.filter(issue => !labels.some(label => label === issue.label ||
+    label.startsWith(issue.label + ' (') ||
+    issue.field.endsWith('.capeff_target_pct') && label.includes('Target execution') ||
+    issue.field.endsWith('.tariff_target') && label.includes('Target') && label.includes('tariff')));
   return (
     <div style={{ marginBottom: 8, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
       <div style={{
@@ -105,6 +135,7 @@ function InterventionToggle({ label, checked, onChange, children, onFocus, unava
           <input type="checkbox" disabled={readOnly || unavailable} checked={checked && !unavailable} onChange={e => onChange(e.target.checked)}
             style={{ width: 18, height: 18, accentColor: '#2563eb' }} />
           <span style={{ fontSize: 13, color: checked ? '#1e3a5f' : '#475569', fontWeight: checked ? 600 : 400 }}>{label}</span>
+          {issues.some(issue => issue.severity === 'error') && <span style={{color:'#b91c1c',fontSize:11}}>Missing required inputs or invalid values</span>}
         </label>
         <button onClick={() => { const e = !expanded; setExpanded(e); if (e && onFocus) onFocus(); }}
           style={{ border: '1px solid #c7d2fe', background: '#fff', cursor: 'pointer', fontSize: 11, color: '#2563eb', fontWeight: 600, padding: '3px 10px', borderRadius: 12 }}>
@@ -114,7 +145,10 @@ function InterventionToggle({ label, checked, onChange, children, onFocus, unava
       {unavailable && <p style={{ margin: '8px 12px', fontSize: 11, color: '#587681' }}>Add Water supply to use this linkage. Saved settings are retained but inactive.</p>}
       {expanded && (
         <fieldset disabled={readOnly || unavailable} style={{ margin: 0, border: 0, minWidth: 0, padding: '10px 14px', background: '#fff', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px', alignItems: 'start' }}>
-          {children}
+          <FieldIssuesContext.Provider value={issues}>
+            {children}
+            <IssueMessages issues={remaining} />
+          </FieldIssuesContext.Provider>
         </fieldset>
       )}
     </div>
@@ -150,11 +184,13 @@ function MixTable({ mix, bauMix, setMix, CUR, rungLabel }: {
             <tr key={i}>
               <td><input type="text" style={{ ...cellStyle, width: 180 }} value={t.name || ''} onChange={e => upd(i, { name: e.target.value })} /></td>
               <td><NumInput style={{ ...shareCell, width: 60 }}
-                    value={(t.share == null || Number.isNaN(+t.share)) ? undefined : Math.round((+t.share) * 1e6) / 1e4}
-                    onValue={v => upd(i, { share: v === undefined ? undefined : v / 100 })} /></td>
+                    value={typeof t.share === 'string' ? t.share : t.share == null ? undefined : Math.round((+t.share) * 1e6) / 1e4}
+                    onInvalid={draft => upd(i, {share: draft})}
+                    onValue={v => upd(i, { share: v === undefined ? null : v / 100 })} /></td>
               <td><NumInput style={{ ...cellStyle, width: 92 }} commas
-                    value={(t.cost == null || Number.isNaN(+t.cost)) ? undefined : Math.round(+t.cost)}
-                    onValue={v => upd(i, { cost: v })} /></td>
+                    value={typeof t.cost === 'string' ? t.cost : t.cost == null ? undefined : Math.round(+t.cost)}
+                    onInvalid={draft => upd(i, {cost: draft})}
+                    onValue={v => upd(i, { cost: v ?? null })} /></td>
               <td><button onClick={() => { if (mix.length > 1) setMix(mix.filter((_: any, j: number) => j !== i)); }} style={{ border: 'none', background: '#fee2e2', color: '#dc2626', borderRadius: 3, padding: '2px 7px', cursor: 'pointer', fontSize: 10 }}>✕</button></td>
             </tr>
           ))}
@@ -202,6 +238,7 @@ function TechMixEditor({ inputs, onChange, section, CUR }: {
 interface Props { inputs: any; onChange: (i: any) => void; results?: any; calculationError?: string; sectorTab?: 'water' | 'sanitation'; onSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (key: string) => void; geoScope?: string; chartScope?: string; contributionView: ContributionView; onContributionViewChange: (v: ContributionView) => void; currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void; onEditCurrencyRate: () => void; }
 
 export default function InterventionPanel({ inputs, onChange, results, calculationError = '', sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
+  const validationIssues = useInterventionIssues(inputs);
   const { sectors, readOnly } = useProjectScope();
   const [invalidNrwOverlapYear, setInvalidNrwOverlapYear] = useState<number | null>(null);
   // Budget execution (executed budget ÷ allocated budget) is COMPUTED by the live engine from the
@@ -228,7 +265,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   const scopeLabel = geoScope === 'national' ? 'National' : geoScope === 'rural' ? 'Rural' : 'Urban';
   const scopeLower = scopeLabel.toLowerCase();
   const scheduleYear = (iv: any, field: string, end = false) =>
-    Number.isFinite(iv[field]) ? iv[field] : (end ? inputs.period.forecast_end_year : inputs.period.baseline_year + 1);
+    iv[field];
 
   // ── Affordability lever (microfinance + means-based grant) helpers ──────────────────────────────
   const miniInput: React.CSSProperties = { width: '100%', padding: '5px 7px', borderRadius: 4, fontSize: 12,
@@ -254,8 +291,8 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
       <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b', marginBottom: 2 }}>
         A loan offer is made to each eligible {svc} household cohort during the configured intervention window. Cohort eligibility is separate from the service target; target coverage is not an annual enrollment cap.
       </div>
-      <F label="Connection fee" value={iv.mf_connection_fee || undefined} onChange={v => u(section, 'mf_connection_fee', v)} step={1000} unit={CUR}
-         placeholder="per-household service cost"
+      <F label="Connection fee" value={iv.mf_connection_fee} onChange={v => u(section, 'mf_connection_fee', v)} step={1000} unit={CUR}
+         placeholder="Enter fee; 0 means zero fee"
          tip="Connection fee per household — the capital cost of providing one household with safely-managed service, financed by the loan. Starts blank; enter the amount." />
       <F label="Improvement start year" value={iv.mf_start_year} onChange={v => u(section, 'mf_start_year', v)} tip="Year the microfinance scheme begins." />
       <F label="End year" value={iv.mf_end_year} onChange={v => u(section, 'mf_end_year', v)} tip="Last year new microfinance-financed service is added." />
@@ -360,7 +397,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
       {option('fin_gdp_enabled', 'Target executed spending as a share of GDP',
         <PublicSpendingTargets inputs={inputs} section={section} onChange={onChange} />)}
       {option('fin_growth_enabled', 'Annual percentage increase in spending', <>
-        <F label="Annual spending increase" value={iv.fin_growth_rate} onChange={v => u(section, 'fin_growth_rate', Math.max(0, v))} isPercent unit="% per year"
+        <F label="Annual spending increase" value={iv.fin_growth_rate} onChange={v => u(section, 'fin_growth_rate', v)} isPercent unit="% per year"
           tip="Compounded uplift over each year's BAU spending through the end year. Afterwards, the achieved executed-spending share of GDP is maintained, unless BAU exceeds it. The separate GDP-target option remains additive." />
         <F label="Start year" value={scheduleYear(iv, 'fin_growth_start_year')} onChange={v => u(section, 'fin_growth_start_year', v)} />
         <F label="End year" value={scheduleYear(iv, 'fin_growth_end_year', true)} onChange={v => u(section, 'fin_growth_end_year', v)}
@@ -378,12 +415,13 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             ? `Annual available funding (${CUR} millions). The full amount enters available funds each year from the start year through the end year; capital spending share and execution rate are not applied.`
             : `One-time available funding (${CUR} millions). The full amount enters available funds in the selected year; capital spending share and execution rate are not applied.`}
         </div>
-        <F label={recurring ? 'Annual funding amount' : 'Funding amount'} value={iv.fin_injection_amount} onChange={v => u(section, 'fin_injection_amount', Math.max(0, v))}
+        <F label={recurring ? 'Annual funding amount' : 'Funding amount'} value={iv.fin_injection_amount} onChange={v => u(section, 'fin_injection_amount', v)}
           unit={`${CUR} mn`} tip="Absolute additional funding in local-currency millions." />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
           <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Schedule</label>
-          <select value={iv.fin_injection_mode || 'one_time'} onChange={e => u(section, 'fin_injection_mode', e.target.value)}
+          <select aria-label="Funding mode" value={iv.fin_injection_mode ?? ''} onChange={e => u(section, 'fin_injection_mode', e.target.value)}
             style={{ padding: '7px 10px', border: '1px solid #F0D070', background: '#FFF9E6', borderRadius: 4, fontSize: 13 }}>
+            <option value="">Select funding mode</option>
             <option value="one_time">One-time</option>
             <option value="recurring">Recurring annually</option>
           </select>
@@ -422,6 +460,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   }, [sectorTab]);
 
   return (
+    <ValidationContext.Provider value={{issues: validationIssues, sector: sectorTab, onNavigate: () => window.dispatchEvent(new CustomEvent('intervention-source-navigation'))}}>
     <div className="intervention-workspace" style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'hidden' }}>
       {/* Left: intervention controls */}
       <div className="intervention-workspace__controls" style={{ flex: '0 1 598px', minWidth: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', borderRight: '1px solid #e0e0e0', fontSize: 12 }}>
@@ -521,22 +560,23 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
               if (t > 0 && t < 0.15) return <div style={{ gridColumn: '1 / -1', fontSize: 10, fontWeight: 600, color: '#92400e', padding: '3px 8px', background: '#fef3c7', borderRadius: 4, marginBottom: 4 }}>Warning: Below ~15% is rarely economically optimal — reducing NRW further usually costs more than it saves (~20% is a typical benchmark).</div>;
               return null;
             })()}
-            <F label="Commercial losses % of NRW" value={inputs.water_interventions.nrw_commercial_loss_pct || 0} onChange={v => u('water_interventions','nrw_commercial_loss_pct',v)} isPercent unit="%" tip="Share of NRW from commercial losses (metering errors, theft, unbilled use). Commercial + physical must sum to 100%." />
-            <F label="Physical losses % of NRW" value={inputs.water_interventions.nrw_physical_loss_pct || 0} onChange={v => u('water_interventions','nrw_physical_loss_pct',v)} isPercent unit="%" tip="Share of NRW from physical leaks in the network. Only this physical (leak) portion frees up deliverable water for basic→SM upgrades; the commercial portion counts only toward revenue. Commercial + physical must sum to 100%." />
+            <F label="Commercial losses % of NRW" value={inputs.water_interventions.nrw_commercial_loss_pct} onChange={v => u('water_interventions','nrw_commercial_loss_pct',v)} isPercent unit="%" tip="Share of NRW from commercial losses (metering errors, theft, unbilled use). Commercial + physical must sum to 100%." />
+            <F label="Physical losses % of NRW" value={inputs.water_interventions.nrw_physical_loss_pct} onChange={v => u('water_interventions','nrw_physical_loss_pct',v)} isPercent unit="%" tip="Share of NRW from physical leaks in the network. Only this physical (leak) portion frees up deliverable water for basic→SM upgrades; the commercial portion counts only toward revenue. Commercial + physical must sum to 100%." />
             {(() => {
               const s = (inputs.water_interventions.nrw_commercial_loss_pct || 0) + (inputs.water_interventions.nrw_physical_loss_pct || 0);
               const bad = Math.abs(s - 1) > 0.005;
               return <div style={{ gridColumn: '1 / -1', fontSize: 10, fontWeight: 600, color: bad ? '#dc2626' : '#16a34a', padding: '3px 8px', background: bad ? '#fef2f2' : '#f0fdf4', borderRadius: 4, marginBottom: 4 }}>{bad ? `Commercial and physical losses add up to ${Math.round(s * 10000) / 100}% — they should total 100%.` : 'Commercial and physical losses add up to 100%. ✓'}</div>;
             })()}
-            <F label="System input volume (at start year)" value={inputs.water_interventions.nrw_system_input_vol || 0} onChange={v => u('water_interventions','nrw_system_input_vol',v)} step={1} unit="MLD" tip="Total water produced / put into the system at the start year, in million litres per day. It grows each forecast year — with population by default, or at the growth rate below if you set one." />
+            <F label="System input volume (at start year)" value={inputs.water_interventions.nrw_system_input_vol} onChange={v => u('water_interventions','nrw_system_input_vol',v)} step={1} unit="MLD" tip="Total water produced / put into the system at the start year, in million litres per day. It grows each forecast year — with population by default, or at the growth rate below if you set one." />
             <F label="Volume growth rate" value={inputs.water_interventions.nrw_vol_growth} onChange={v => u('water_interventions','nrw_vol_growth',v)} isPercent unit="%" placeholder="population" tip="Annual real growth of the system input volume from the start year. Leave blank to scale with population; enter a rate to override (e.g. 3%)." />
             <p style={{ fontSize: 11, gridColumn: '1 / -1' }}>Scenario system input also scales with coverage-driven billable expansion, excluding NRW’s own direct physical upgrades. This is a modeling proxy, not a hydraulic estimate. Zero or missing system input produces no recovered water.</p>
-            <F label="Water per basic→SM upgrade" value={inputs.water_interventions.nrw_water_per_upgrade || 0} onChange={v => u('water_interventions','nrw_water_per_upgrade',v)} step={5} unit="m³/HH/yr" tip="Extra water a basic household needs each year to become safely managed. Recovered physical water ÷ this = households upgraded." />
-            <F label="Cost of fixing" value={inputs.water_interventions.nrw_capex_unit_cost_local || 0} onChange={v => u('water_interventions','nrw_capex_unit_cost_local',v)} step={1000} unit={`${CUR}/m³/day`} tip="Existing implementation-cost input and timing are retained. This cost stays inside signed NRW net cash and is not added again as a separate financing requirement." />
+            <F label="Water per basic→SM upgrade" value={inputs.water_interventions.nrw_water_per_upgrade} onChange={v => u('water_interventions','nrw_water_per_upgrade',v)} step={5} unit="m³/HH/yr" tip="Extra water a basic household needs each year to become safely managed. Recovered physical water ÷ this = households upgraded." />
+            <F label="Cost of fixing" value={inputs.water_interventions.nrw_capex_unit_cost_local} onChange={v => u('water_interventions','nrw_capex_unit_cost_local',v)} step={1000} unit={`${CUR}/m³/day`} tip="Existing implementation-cost input and timing are retained. This cost stays inside signed NRW net cash and is not added again as a separate financing requirement." />
             <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
               <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }} title="How to value the recovered water: as tariff revenue from sales, or as the production cost you no longer have to spend.">Value recovered water at</label>
-              <select value={inputs.water_interventions.nrw_value_basis || 'tariff'} onChange={e => u('water_interventions','nrw_value_basis', e.target.value)}
+              <select aria-label="NRW valuation mode" value={inputs.water_interventions.nrw_value_basis ?? ''} onChange={e => u('water_interventions','nrw_value_basis', e.target.value)}
                 style={{ width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, border: '1px solid #F0D070', background: '#FFF9E6', color: '#3A4452', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }}>
+                <option value="">Select valuation mode</option>
                 <option value="tariff">Water tariff — revenue from sales</option>
                 <option value="production">Cost of production — cost avoided (separate from sales)</option>
               </select>
@@ -556,7 +596,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
               </span>}
             </label>}
             {['production', 'avoided_cost'].includes(inputs.water_interventions.nrw_value_basis)
-              ? <F label="Production cost" value={inputs.water_interventions.nrw_production_cost || 0} onChange={v => u('water_interventions','nrw_production_cost',v)} step={0.5} unit={`${CUR}/m³`} tip="Recovering water avoids producing this much fresh water, per cubic metre." />
+              ? <F label="Production cost" value={inputs.water_interventions.nrw_production_cost} onChange={v => u('water_interventions','nrw_production_cost',v)} step={0.5} unit={`${CUR}/m³`} tip="Recovering water avoids producing this much fresh water, per cubic metre." />
               : <div style={{ gridColumn: '1 / -1' }}>
                 <div style={{ fontSize: 11, color: '#64748b' }}>Shared baseline tariff (read-only): {inputs.revenue_bases?.water?.tariff ?? 'not set'} {CUR}/m³.
                   {' '}Shared baseline collection (read-only): {inputs.revenue_bases?.water?.collection_ratio == null ? 'not set' : `${inputs.revenue_bases.water.collection_ratio * 100}%`}.
@@ -567,7 +607,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
           <InterventionToggle label="Budget execution improvement" checked={inputs.toggles?.ws_capital_efficiency_enabled ?? false} onChange={v => toggleIntv('ws_capital_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('ws_budget_exec')}>
             <F label="Current budget execution" value={wsCurEff} onChange={() => {}} fieldType="computed" isPercent unit="%" tip="Resolved executed spending ÷ allocated budget at the service baseline year, before capital conversion. Each forecast year uses its own calculated baseline rate. Not editable here." />
-            <F label="Target budget execution" value={inputs.water_interventions.capeff_target_pct ?? 1} onChange={v => u('water_interventions','capeff_target_pct',v)} isPercent unit="%" tip="The budget execution rate to reach — at most 100% (spend the whole allocated budget). Raising it lets the same allocated budget build more service and shrinks the financing gap." />
+            <F label="Target budget execution" value={inputs.water_interventions.capeff_target_pct} onChange={v => u('water_interventions','capeff_target_pct',v)} isPercent unit="%" tip="The budget execution rate to reach — at most 100% (spend the whole allocated budget). Raising it lets the same allocated budget build more service and shrinks the financing gap." />
             <F label="Improvement start year" value={inputs.water_interventions.capeff_start_year} onChange={v => u('water_interventions','capeff_start_year',v)} tip="Year the budget-execution improvement begins" />
             <F label="Target year" value={inputs.water_interventions.capeff_target_year} onChange={v => u('water_interventions','capeff_target_year',v)} tip="Year the target execution rate is reached; it ramps linearly from the start year to here." />
             <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
@@ -619,7 +659,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             <F label="Improvement start year" value={inputs.sanitation_interventions.ce_start_year} onChange={v => u('sanitation_interventions','ce_start_year',v)} tip="Year the collection efficiency improvement begins" />
             <F label="Target year" value={inputs.sanitation_interventions.ce_target_year} onChange={v => u('sanitation_interventions','ce_target_year',v)} tip="Year the target is achieved" />
             <RevenueBaseEditor inputs={inputs} onChange={onChange} sector="sanitation" />
-            <F label="Target collection ratio" value={inputs.sanitation_interventions.ce_target_ratio ?? inputs.water_interventions.ce_target_ratio} onChange={v => u('sanitation_interventions','ce_target_ratio',v)} isPercent min={0} max={100} unit="%" tip="Sanitation's own collection target. Its legacy water-linked value is materialized when the revenue base is resolved." />
+            <F label="Target collection ratio" value={inputs.sanitation_interventions.ce_target_ratio} onChange={v => u('sanitation_interventions','ce_target_ratio',v)} isPercent min={0} max={100} unit="%" tip="Sanitation's own collection target." />
             <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b', marginTop: -7 }}>Enter 90 for 90%.</div>
             {inputs.toggles?.san_collection_efficiency_enabled && collectionBelowBaselineWarning(scopeLabel, 'sanitation', inputs.revenue_bases?.sanitation?.collection_ratio,
               inputs.sanitation_interventions?.ce_target_ratio ?? inputs.water_interventions?.ce_target_ratio) &&
@@ -631,7 +671,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
           <InterventionToggle label="Budget execution improvement" checked={inputs.toggles?.san_capital_efficiency_enabled ?? false} onChange={v => toggleIntv('san_capital_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('san_budget_exec')}>
             <F label="Current budget execution" value={sanCurEff} onChange={() => {}} fieldType="computed" isPercent unit="%" tip="Resolved executed spending ÷ allocated budget at the service baseline year, before capital conversion. Each forecast year uses its own calculated baseline rate. Not editable here." />
-            <F label="Target budget execution" value={inputs.sanitation_interventions.capeff_target_pct ?? 1} onChange={v => u('sanitation_interventions','capeff_target_pct',v)} isPercent unit="%" tip="The budget execution rate to reach — at most 100% (spend the whole allocated budget). Raising it lets the same allocated budget build more service." />
+            <F label="Target budget execution" value={inputs.sanitation_interventions.capeff_target_pct} onChange={v => u('sanitation_interventions','capeff_target_pct',v)} isPercent unit="%" tip="The budget execution rate to reach — at most 100% (spend the whole allocated budget). Raising it lets the same allocated budget build more service." />
             <F label="Improvement start year" value={inputs.sanitation_interventions.capeff_start_year} onChange={v => u('sanitation_interventions','capeff_start_year',v)} tip="Year the budget-execution improvement begins" />
             <F label="Target year" value={inputs.sanitation_interventions.capeff_target_year} onChange={v => u('sanitation_interventions','capeff_target_year',v)} tip="Year the target execution rate is reached; it ramps linearly from the start year to here." />
             <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
@@ -682,9 +722,9 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
                 .sort((a, b) => a - b);
               const invalidOverlap = Object.values(overlapSeries).some(value => value != null && (!Number.isFinite(Number(value)) || Number(value) < 0));
               const updateOverlap = (year: number, value: number | undefined) => {
-                if (value != null && value < 0) { setInvalidNrwOverlapYear(year); return; }
-                setInvalidNrwOverlapYear(null);
-                u('sanitation_interventions', 'nrw_link_overlap_m3_series', setNrwLinkOverlapYear(overlapSeries, year, value));
+                setInvalidNrwOverlapYear(value != null && value < 0 ? year : null);
+                u('sanitation_interventions', 'nrw_link_overlap_m3_series',
+                  { ...overlapSeries, [year]: value ?? null } as any);
               };
               return (<>
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, lineHeight: 1.5, borderRadius: 6, padding: '7px 10px',
@@ -694,8 +734,8 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
                     : <>Warning: This lever needs <b>NRW reduction</b> switched on under the <b>Water Supply</b> interventions — that is what recovers the water. While it is off there is no recovered volume, so this lever has no effect.</>}
                 </div>
                 <F label="Wastewater return ratio" value={iv.nrw_link_return_ratio} onChange={v => u('sanitation_interventions','nrw_link_return_ratio',v)} isPercent unit="%" tip="Share of the recovered water that returns to the sewer as wastewater the utility can charge for (the rest is consumptive use or not sewer-connected)." />
-                <F label="Explicit sewer-billable share" value={iv.nrw_link_eligible_share ?? 1}
-                  onChange={v => u('sanitation_interventions','nrw_link_eligible_share',Math.max(0, Math.min(1, v)))}
+                <F label="Explicit sewer-billable share" value={iv.nrw_link_eligible_share}
+                  onChange={v => u('sanitation_interventions','nrw_link_eligible_share',v)}
                   isPercent min={0} max={100} unit="%" tip="Share of returned recovered water eligible for sewer billing. The legacy default of 100% is retained as an explicit assumption, not a measured connection share." />
                 <div style={{ gridColumn: '1 / -1', fontSize: 11 }}>Shared baseline sanitation rates (read-only): {inputs.revenue_bases?.sanitation?.tariff ?? 'not set'} {CUR}/m³ ·
                   {' '}{inputs.revenue_bases?.sanitation?.collection_ratio == null ? 'not set' : `${inputs.revenue_bases.sanitation.collection_ratio * 100}%`} collection.</div>
@@ -875,5 +915,6 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         <LiveInterventionChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel} rung={1} contributionView={contributionView} currencyDisplay={currencyDisplay} />
       </div>
     </div>
+    </ValidationContext.Provider>
   );
 }

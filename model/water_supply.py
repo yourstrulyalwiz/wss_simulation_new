@@ -514,7 +514,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     allocated_capex = allocated                                          # the allocated capital budget (all years)
     actual_capex = used_budget                                          # what actually reaches service at baseline
     e0_auto = float(np.clip(1.0 / exec_ratio, 0.0, 1.0)) if exec_ratio > 0 else 1.0   # baseline efficiency = used÷allocated
-    tgt = float(np.clip(capeff_target_pct or 1.0, 0.0, 1.0))
+    tgt = float(np.clip(1.0 if capeff_target_pct is None else capeff_target_pct, 0.0, 1.0))
     override = float(np.clip(capeff_current_pct, 0.0, 1.0)) if (capeff_current_pct and capeff_current_pct > 0) else 0.0
     if entered_budget:
         # Preserve raw observations; a zero allocation with positive execution
@@ -1003,7 +1003,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         #     household connects if it can service the loan (MICROFINANCE); if it can only service a smaller one,
         #     the MEANS-BASED GRANT (`grant_total` pool) buys the principal down to what it can afford.
         # Gated by afford_enabled → no effect in the BAU pass, so the BAU counterfactual is untouched.
-        loan_fee = connection_fee if connection_fee > 0 else cost_sm_t[t]
+        loan_fee = connection_fee
         in_window = (not afford_start or afford_start <= years[t] <= afford_end)
         if ff > 0 and in_window and cohorts:
             cohort_offers[t] = float(cohorts.unoffered.sum())
@@ -1459,7 +1459,7 @@ def calculate_water_supply(inputs, ctx, utility_debt_execution=None):
         capeff_enabled=capeff_on,
         capeff_start=int(getattr(nrw, 'capeff_start_year', 0) or 0),
         capeff_target_year=int(getattr(nrw, 'capeff_target_year', 0) or 0),
-        capeff_target_pct=float(getattr(nrw, 'capeff_target_pct', 1.0) or 1.0),
+        capeff_target_pct=float(nrw.capeff_target_pct if nrw.capeff_target_pct is not None else 1.0),
         capeff_current_pct=float(getattr(nrw, 'capeff_current_pct', 0.0) or 0.0),
         allocated_series=getattr(b, 'ws_budget_allocated', None),
         # Collection efficiency: ramp collected-ratio current→target, recovered revenue → capex.

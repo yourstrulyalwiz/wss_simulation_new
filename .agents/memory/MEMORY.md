@@ -21,3 +21,4 @@
 - [Audit confidence](audit-confidence.md) — a negative ecosystem audit alone does not establish that specifically reported advisories are resolved.
 - [Forecast assumptions pause](forecast-assumptions-policy.md) — optional scalar overrides are paused without deleting saved values or disabling automatic forecasts.
 - [Custom interventions pause](custom-interventions-policy.md) — custom funding and cost reduction are paused in both sectors; preserve stored settings.
+- [Intervention validation](intervention-validation-policy.md) — active blanks block dependent calculations; explicit zeros persist; messages stay inside the consuming box.

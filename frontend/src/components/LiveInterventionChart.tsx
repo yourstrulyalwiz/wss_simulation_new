@@ -77,7 +77,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         setError(null);
       }).catch((err: any) => {
         if (cancelled) return;
-        setError(String(err)); setAccessRows([]); setSummary(null);
+        setError(err.intervention_issues ? null : String(err)); setAccessRows([]); setSummary(null);
         setRevenueModeLabel('Effective revenue mode could not be confirmed because calculation failed.');
       });
     }, 350);

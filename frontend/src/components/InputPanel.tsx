@@ -10,6 +10,7 @@ import { CurrencyDisplayControl, currencyRateNote, defaultCurrencyDisplay, type 
 // Keep the controls available for re-enabling; the engine independently ignores
 // these scalar overrides while the feature is paused. Never clear saved values.
 import { budgetExecutionRate } from '../budgetExecutionRate';
+import BudgetBaselineCards from './BudgetBaselineCards';
 
 const OPTIONAL_FORECAST_ASSUMPTIONS_ENABLED = false;
 
@@ -1016,6 +1017,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
               {sectorToggle}
 
               <Section title="5. Budget" sectionKey="budget" onFocus={onSectionFocus}>
+                <BudgetBaselineCards results={results} baselineYear={inputs.period.baseline_year} sectors={sectors} />
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 12px', marginBottom: 4 }}>
                   <b>Two independent budgets per sector.</b> Enter executed spending and allocated budgets. Each forecast starts with the mean annual budget/real-GDP share in its latest three-calendar-year observation window, then uses a two-year moving average of shares multiplied by forecast real GDP. Zero is an observation; blank means missing or calculated. Execution is executed ÷ allocated. Calculated values are not saved as observations.
                 </div>

@@ -31,13 +31,19 @@ function migrateInjectionToggle(area: any) {
   return migrateConnectionRevenueInputs(migrateNrwRevenueInputs({ ...area, toggles }));
 }
 
-type WorkspaceProps = { initialBundle: any; initialScenarios?: any[]; initialLocation?: any; readOnly?: boolean; projectId?: string; onDraftChange: (draft: Draft) => void; onSetup: () => void; headerSlot?: (toolOverview: React.ReactNode, saveComparison: React.ReactNode) => React.ReactNode };
-function App({ initialBundle, initialScenarios = [], initialLocation = {}, readOnly = false, projectId, onDraftChange, onSetup, headerSlot }: WorkspaceProps) {
+type WorkspaceProps = { initialBundle: any; initialScenarios?: any[]; initialLocation?: any; readOnly?: boolean; projectId?: string; onDraftChange: (draft: Draft) => void; onSetup: () => void; setupControls?: React.ReactNode; headerSlot?: (toolOverview: React.ReactNode, saveComparison: React.ReactNode) => React.ReactNode };
+function App({ initialBundle, initialScenarios = [], initialLocation = {}, readOnly = false, projectId, onDraftChange, onSetup, setupControls, headerSlot }: WorkspaceProps) {
   const initialScope = normalizeScope(initialBundle.scope);
   const modified = useRef(false);
   const notify = useRef(onDraftChange); notify.current = onDraftChange;
   const [inputs, setInputs] = useState<any>(() => migrateInjectionToggle(withSimulationId(initialBundle.inputs, projectId)));
-  const [activeTab, setActiveTab] = useState(Number.isInteger(initialLocation.activeTab) && initialLocation.activeTab >= 0 && initialLocation.activeTab <= 4 ? initialLocation.activeTab : 0);
+  // Keep existing saved tab IDs stable; Setup is -1 internally and step 0 visually.
+  const [activeTab, setActiveTab] = useState(Number.isInteger(initialLocation.activeTab) && initialLocation.activeTab >= -1 && initialLocation.activeTab <= 4 ? initialLocation.activeTab : 0);
+  useEffect(() => {
+    const openSetup = () => setActiveTab(-1);
+    window.addEventListener('simulation-setup-navigation', openSetup);
+    return () => window.removeEventListener('simulation-setup-navigation', openSetup);
+  }, []);
   const [contributionView, setContributionView] = useState<ContributionView>(initialBundle.presentation?.contributionView || 'individual');
   const [currencyDisplay, setCurrencyDisplay] = useState<CurrencyDisplaySettings>(initialBundle.presentation?.currencyDisplay || defaultCurrencyDisplay(initialBundle.inputs?.country_config?.currency));
   const [focusCurrencyRequest, setFocusCurrencyRequest] = useState(0);
@@ -116,7 +122,7 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
       mode: source.toUpperCase() === 'USD' || validRate(next, source) ? next.mode : 'local' });
   };
   const editCurrencyRate = () => {
-    setActiveTab(0);
+    setActiveTab(-1);
     setFocusCurrencyRequest(request => request + 1);
   };
 
@@ -393,7 +399,7 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
 
   // Exports now live throughout the tool (per-table, per-chart, and the whole-scenario Export buttons on
   // the Intervention Design and Results tabs), so there is no separate Export tab.
-  const tabs = ['Data Inputs', 'BAU Scenario', 'Intervention Design', 'Loan funding', 'Results Dashboard'];
+  const tabs = ['Setup', 'Data Inputs', 'BAU Scenario', 'Intervention Design', 'Loan funding', 'Results Dashboard'];
 
   return (
     <ProjectScopeContext.Provider value={{ sectors: initialScope.sectors, readOnly, projectMode: true, projectId,
@@ -454,14 +460,15 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
 
       {/* Tab Navigation */}
       <nav className="wb-tab-nav" aria-label="Scenario workflow">
-        {tabs.map((tab, i) => {
+        {tabs.map((tab, index) => {
+          const i = index - 1;
           return (
-          <button key={tab} onClick={() => { if (!readOnly) modified.current = true; setActiveTab(i); if (i === 1 && both) setBauChartScope(subArea); }}
+          <button key={tab} onClick={() => { if (!readOnly) modified.current = true; if (i === -1) onSetup(); setActiveTab(i); if (i === 1 && both) setBauChartScope(subArea); }}
             className={`wb-tab${activeTab === i ? ' wb-tab-active' : ''}`}>
             <span className="wb-tab-step">{i + 1}</span>
             <span className="wb-tab-label">
               <span className="wb-tab-first">{tab.split(' ')[0]}</span>
-              <span className="wb-tab-rest">{tab.slice(tab.indexOf(' ') + 1)}</span>
+              <span className="wb-tab-rest">{tab.includes(' ') ? tab.slice(tab.indexOf(' ') + 1) : ''}</span>
             </span>
           </button>
         );})}
@@ -492,13 +499,19 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
         )}
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        {activeTab === -1 && activeInputs && (
+          <InputPanel key="setup" inputs={activeInputs} onChange={handleSetActiveInputs}
+            showSection="setup" geoScope={inputScope} scopeControls={setupControls}
+            onSectionFocus={focusGuideSection} currencyDisplay={currencyDisplay}
+            onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
+        )}
         {activeTab === 0 && activeInputs && (
           <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={{
             ...results, ...economicProjections,
             water_supply: { ...results?.water_supply, ...economicProjections?.water_supply },
             sanitation: { ...results?.sanitation, ...economicProjections?.sanitation },
           }} calculationError={calculationError} projectionError={projectionError} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
-            scopeControls={<GeographicalScope value={scopeValue} onChange={readOnly ? () => {} : setScopeValue} area={subArea} onAreaChange={value => { if (!readOnly) modified.current = true; setSubArea(value); }} hint={scopeHint} dismissHint={dismissScopeHint} readOnly={readOnly} />}
+            scopeControls={<GeographicalScope navigationOnly value={scopeValue} onChange={readOnly ? () => {} : setScopeValue} area={subArea} onAreaChange={value => { if (!readOnly) modified.current = true; setSubArea(value); }} hint={scopeHint} dismissHint={dismissScopeHint} readOnly={readOnly} />}
             bauSector={sectorTab} onBauSectorChange={value => { if (!readOnly) modified.current = true; setSectorTab(value); }}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
         )}
@@ -780,7 +793,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     ),
   },
   service_levels: {
-    title: '3. Service levels',
+    title: '1. Service levels',
     content: (
       <div>
         <p style={{ margin: '0 0 6px' }}>The share of households at each of the 5 JMP service levels, for water supply and sanitation. Historical cells use a neutral fill; grey in-between years follow the engine's path; a full teal-tinted forecast column is an optional target.</p>
@@ -795,7 +808,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
     sources: [{ name: 'WHO/UNICEF JMP', url: 'https://washdata.org/data/household' }],
   },
   econ_demo: {
-    title: '4. Economic & demographic data',
+    title: '2. Economic & demographic data',
     content: (
       <div>
         <p style={{ margin: '0 0 6px' }}>Real GDP, population and households, year by year. Historical cells use a neutral fill; teal-tinted forecast cells are optional (blank = auto-fill at the mean historical growth); grey “→ used” rows show the values the model applies.</p>
@@ -826,18 +839,22 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
       </div>
     ),
   },
+  coverage: {
+    title: '3. Simulation Coverage',
+    content: <p>Choose the included sectors and geographical coverage, then Save setup. Excluded inputs remain stored; newly included areas start blank. Country identity stays fixed to protect existing observations.</p>,
+  },
   sector_selection: {
-    title: '6. Sector Selection',
+    title: '4. Sector Selection',
     content: <p>Select Water Supply or Sanitation to view the sector-specific inputs. Switching sectors does not erase either sector’s saved inputs.</p>,
   },
   investment_split: {
-    title: '7. Investment Split by Service Level',
+    title: '5. Investment Split by Service Level',
     content: (
       <p>Choose how new investment is divided between basic and safely managed service after replacement is funded. The shares always total 100%. These settings apply to the selected area and sector and affect both BAU and intervention scenarios.</p>
     ),
   },
   budget: {
-    title: '5. Budget',
+    title: '3. Budget',
     content: (
       <div>
         <p style={{ margin: '0 0 6px' }}>Executed and allocated budgets are forecast independently as shares of real GDP. Each forecast starts with a three-year observation window, then uses two-year moving averages multiplied by forecast GDP.</p>
@@ -1044,7 +1061,8 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
 const guideKeysByTab: Record<number, string[]> = {
   // Data Inputs — includes the BAU data entry duplicated onto this tab. test2: targets & technical
   // params are folded into the table / the merged unit-cost section.
-  0: ['how_model_works', 'country', 'period', 'service_levels', 'econ_demo', 'budget', 'ws_unit_costs', 'san_unit_costs'],
+  [-1]: ['country', 'period', 'coverage'],
+  0: ['how_model_works', 'service_levels', 'econ_demo', 'budget', 'sector_selection', 'investment_split', 'ws_unit_costs', 'san_unit_costs'],
   // BAU Scenario
   1: ['how_model_works', 'ws_unit_costs', 'san_unit_costs'],
   // Intervention Design — one card per intervention, grouped by sector. DataGuide filters this list to

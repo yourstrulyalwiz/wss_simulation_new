@@ -2,14 +2,18 @@
 name: Data Inputs navigation scope
 description: Continuous Data Inputs form, standalone investment split and sector grouping.
 ---
-The Data Inputs design has nine top-level sections, with left-hand
-navigation that scrolls to headings in one continuous expanded form, not nine
+The Data Inputs design has seven top-level sections, with left-hand
+navigation that scrolls to headings in one continuous expanded form, not seven
 separate screens or top-level accordions.
 
 **Why:** The user originally requested seven sections and a single long form,
 then requested Investment Split by Service Level as a standalone section styled
 like Revenue Inputs. The user subsequently requested Sector Selection as section
-6 immediately after Budget, followed by Investment Split, Revenue Inputs, and Unit Costs.
+immediately after Budget, followed by Investment Split, Revenue Inputs, and Unit Costs.
+The user subsequently moved Country/Area/Currency and Analysis Period into a new
+workflow step 0, Setup, together with simulation sector and geographical coverage.
+Edit setup must open that tab, not a modal. Data Inputs retains area/sector
+view selectors, while inclusion settings live in Setup.
 Water and Sanitation are sector choices within that structure, not additional
 top-level sections.
 
@@ -30,9 +34,7 @@ containers should not become white cards again. The user has explicitly approved
 production graduation; these requirements now apply to frontend/src. Preserve
 production data, callbacks, autosave and exports; do not copy preview runtime behavior.
 
-Place Tab 1 geographical scope controls in the main body immediately below
-the baseline heading and subtitle, without an enclosing banner.
-**Why:** The user requested the controls be integrated into the page rather than
-occupying a separate full-width banner.
-**How to apply:** Retain scope choices and urban/rural switching; do not apply
-this relocation to the other tabs.
+Keep Urban/Rural viewing controls in the Data Inputs main body below the heading.
+**Why:** The user moved geographical coverage configuration to Setup, but area-specific
+data still needs an area selector.
+**How to apply:** Do not duplicate editable coverage controls outside Setup.

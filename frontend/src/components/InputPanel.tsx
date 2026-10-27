@@ -935,10 +935,10 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
             }) },
           ];
           const budgetRows: YRow[] = [
-            { label: 'WS executed budget', tip: 'Entered executed spending. Forecast independently from annual spending/GDP shares: three-year initialization, then a two-year moving average. Blank restores the calculated value; zero is an observation.', cells: years.map((_: number, i: number) => budgetCostCell('ws_expend_ts', 'water_supply', i, 'budget_executed_input_basis')) },
             { label: 'WS allocated budget', tip: 'Entered allocated budget on the same basis as executed spending. Independently forecast from allocation/GDP shares; execution = executed ÷ allocated.', cells: years.map((_: number, i: number) => budgetCostCell('ws_alloc_ts', 'water_supply', i, 'budget_allocated_input_basis')) },
-            { label: 'SAN executed budget', tip: 'Entered executed spending. Forecast independently from annual spending/GDP shares: three-year initialization, then a two-year moving average. Blank restores the calculated value; zero is an observation.', cells: years.map((_: number, i: number) => budgetCostCell('san_expend_ts', 'sanitation', i, 'budget_executed_input_basis')) },
+            { label: 'WS executed budget', tip: 'Entered executed spending. Forecast independently from annual spending/GDP shares: three-year initialization, then a two-year moving average. Blank restores the calculated value; zero is an observation.', cells: years.map((_: number, i: number) => budgetCostCell('ws_expend_ts', 'water_supply', i, 'budget_executed_input_basis')) },
             { label: 'SAN allocated budget', tip: 'Entered allocated budget on the same basis as executed spending. Independently forecast from allocation/GDP shares; execution = executed ÷ allocated.', cells: years.map((_: number, i: number) => budgetCostCell('san_alloc_ts', 'sanitation', i, 'budget_allocated_input_basis')) },
+            { label: 'SAN executed budget', tip: 'Entered executed spending. Forecast independently from annual spending/GDP shares: three-year initialization, then a two-year moving average. Blank restores the calculated value; zero is an observation.', cells: years.map((_: number, i: number) => budgetCostCell('san_expend_ts', 'sanitation', i, 'budget_executed_input_basis')) },
           ];
           return (
             <>

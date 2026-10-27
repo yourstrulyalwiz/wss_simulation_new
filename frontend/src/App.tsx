@@ -405,7 +405,7 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
       {/* Header */}
       {headerSlot ? headerSlot(
         <button id="tool-overview-btn" onClick={() => setShowOnboarding(true)} className="wb-header-action">Tool Overview</button>,
-        !readOnly && <button onClick={saveScenario} className="wb-header-action">Save comparison</button>
+        !readOnly && <button disabled title="Temporarily disabled" className="wb-header-action">Save comparison</button>
       ) : <header className="wb-header">
         <div className="wb-brand-lockup">
           <span className="wb-brand-mark" aria-hidden="true">WSS</span>
@@ -420,7 +420,7 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
         </div>
         <div className="wb-header-actions">
           {!readOnly && <button onClick={onSetup} className="wb-header-action">Edit simulation setup</button>}
-          {!readOnly && <button onClick={saveScenario} className="wb-header-action">Save comparison</button>}
+          {!readOnly && <button disabled title="Temporarily disabled" className="wb-header-action">Save comparison</button>}
           <button id="tool-overview-btn" onClick={() => setShowOnboarding(true)} className="wb-header-action">Tool Overview</button>
         </div>
       </header>}

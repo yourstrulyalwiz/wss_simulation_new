@@ -15,7 +15,7 @@ export function reconciliationVersion(result: any, sector: 'water_supply' | 'san
 export function revenueSourceRows(results: any[], sector: 'water_supply' | 'sanitation', prefix = 'scenario_') {
   const years: number[] = results[0]?.years || [];
   return years.map((year, index) => {
-    const row: Record<string, number | null> = { year };
+    const row: { year: number } & Record<string, number | null> = { year };
     for (const source of REVENUE_SOURCES) {
       const values = results.map(result => {
         const sec = result?.[sector] ?? result;

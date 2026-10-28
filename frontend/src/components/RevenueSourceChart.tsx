@@ -6,8 +6,8 @@ import { convertMoney, displayCurrency, type CurrencyDisplaySettings } from '../
 import { interventionEnabled } from '../interventionRegistry';
 import TableExport from './TableExport';
 
-export default function RevenueSourceChart({ inputs, results, sector, currencyDisplay, startYear }: {
-  inputs: any | any[]; results?: any | any[]; startYear?: number; sector: 'water' | 'sanitation'; currencyDisplay: CurrencyDisplaySettings;
+export default function RevenueSourceChart({ inputs, results, sector, currencyDisplay }: {
+  inputs: any | any[]; results?: any | any[]; sector: 'water' | 'sanitation'; currencyDisplay: CurrencyDisplaySettings;
 }) {
   const datasets = Array.isArray(inputs) ? inputs : [inputs];
   const key = JSON.stringify(datasets) + sector;
@@ -33,8 +33,7 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
   </section>;
   const currentVersion = resultList.length > 0 && resultList.every(result => reconciliationVersion(result, sectorKey) === 4);
   const currency = datasets[0]?.country_config?.currency || 'LCU';
-  const allRows = revenueSourceRows(resultList, sectorKey);
-  const rows = allRows.filter(row => startYear === undefined || row.year >= startYear);
+  const rows = revenueSourceRows(resultList, sectorKey);
   const displayRows = rows.map(row => Object.fromEntries(Object.entries(row).map(([field, value]) =>
     [field, field === 'year' || value == null ? value : convertMoney(value, currencyDisplay, currency)])));
   const unit = `${displayCurrency(currencyDisplay, currency)} millions/year`;
@@ -55,12 +54,12 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
     </p>
     {current?.error && <div role="alert">{current.error} <button onClick={() => setAttempt(n => n + 1)}>Retry calculation</button></div>}
     {!resultList.length && !current?.error && <div aria-label="Loading revenue sources" style={{ height: 90, background: '#e8f0f4', borderRadius: 4 }} />}
-    {!!resultList.length && !rows.length && <p>{allRows.length ? 'No revenue data is available in the selected year range.' : 'No annual source series returned. Recalculate to load the ledger.'}</p>}
+    {!!resultList.length && !rows.length && <p>No annual source series returned. Recalculate to load the ledger.</p>}
     {rows.length > 0 && <>
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={displayRows} stackOffset="sign">
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="year" interval="preserveStartEnd" /><YAxis tickFormatter={value => fmt(value)} width={85} />
+          <XAxis dataKey="year" /><YAxis tickFormatter={value => fmt(value)} width={85} />
           <Tooltip formatter={(value: any, name: any) => [`${fmt(value)} ${unit}`, name]} />
           <Legend /><ReferenceLine y={0} stroke="#647b85" />
           {REVENUE_SOURCES.map(source => <Bar key={source.key} dataKey={source.key} name={source.label}

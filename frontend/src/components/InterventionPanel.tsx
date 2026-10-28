@@ -871,7 +871,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         <p data-testid="intervention-no-debt-note" style={{ fontSize: 12, color: '#475569', margin: '0 0 12px' }}>
           Live intervention preview — includes selected interventions, without borrowing or debt servicing. Custom interventions are temporarily disabled. Saved loan settings are applied separately in Debt servicing.
         </p>
-        <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} startYear={2027} />
+        <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} />
         <section className="modern-intervention-coverage">
           <div className="modern-bau-service-picker">
             <span>Service level</span>

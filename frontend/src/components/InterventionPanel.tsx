@@ -11,6 +11,7 @@ import { CurrencyDisplayControl, type CurrencyDisplaySettings } from '../currenc
 import NRWDiagnostics from './NRWDiagnostics';
 import { nrwLinkBillableVolume, nrwRevenueMetadata, nrwRevenueVersion, setNrwLinkOverlapYear } from '../nrwRevenue';
 import ConnectionRevenue from './ConnectionRevenue';
+import { BAU_SERVICE_LEVELS, type BauServiceLevel } from '../bauServiceView';
 import RevenueSourceChart from './RevenueSourceChart';
 import { collectionBelowBaselineWarning } from '../collectionWarning';
 
@@ -203,6 +204,7 @@ interface Props { inputs: any; onChange: (i: any) => void; results?: any; calcul
 
 export default function InterventionPanel({ inputs, onChange, results, calculationError = '', sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
   const { sectors, readOnly } = useProjectScope();
+  const [serviceLevel, setServiceLevel] = useState<BauServiceLevel>('safely_managed');
   const [invalidNrwOverlapYear, setInvalidNrwOverlapYear] = useState<number | null>(null);
   // Budget execution (executed budget ÷ allocated budget) is COMPUTED by the live engine from the
   // historical budget rows — it is shown read-only as the current value in the Budget-execution
@@ -856,7 +858,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         <header className="modern-page-intro">
           <span className="modern-page-intro__eyebrow">LIVE SCENARIO VIEW</span>
           <h2>{sectorTab === 'water' ? 'Water supply' : 'Sanitation'} · {scopeLabel}</h2>
-          <p>Compare revenue sources and safely-managed / basic coverage. The separate loan-funding comparison is on the next workflow tab.</p>
+          <p>Compare revenue sources and coverage at each service level. The separate loan-funding comparison is on the next workflow tab.</p>
         </header>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
           <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={CUR}
@@ -869,10 +871,21 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         <p data-testid="intervention-no-debt-note" style={{ fontSize: 12, color: '#475569', margin: '0 0 12px' }}>
           Live intervention preview — includes selected interventions, without borrowing or debt servicing. Custom interventions are temporarily disabled. Saved loan settings are applied separately in Debt servicing.
         </p>
-        <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} />
-        <LiveInterventionChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel} rung={0} contributionView={contributionView} currencyDisplay={currencyDisplay} />
-        <div style={{ height: 18 }} />
-        <LiveInterventionChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel} rung={1} contributionView={contributionView} currencyDisplay={currencyDisplay} />
+        <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} startYear={2027} />
+        <section className="modern-intervention-coverage">
+          <div className="modern-bau-service-picker">
+            <span>Service level</span>
+            <div className="modern-bau-service-switch" role="group" aria-label="Intervention service level">
+              {BAU_SERVICE_LEVELS.map(level => (
+                <button type="button" key={level.value} aria-pressed={serviceLevel === level.value}
+                  onClick={() => setServiceLevel(level.value)}>{level.label}</button>
+              ))}
+            </div>
+          </div>
+          <LiveInterventionChart key={sectorTab + serviceLevel} inputs={interventionChartInputs}
+            sector={sectorTab} scopeLabel={scopeLabel} serviceLevel={serviceLevel}
+            contributionView={contributionView} currencyDisplay={currencyDisplay} />
+        </section>
       </div>
     </div>
   );

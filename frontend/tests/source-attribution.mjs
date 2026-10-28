@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import ts from 'typescript';
+import { createRequire } from 'node:module';
+const ts = createRequire(import.meta.url)(process.env.TYPESCRIPT_PATH || 'typescript');
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const colors = read('../src/chartColors.ts');
@@ -217,3 +218,29 @@ for (const metric of ['coverage', 'funding']) {
   }
 }
 console.log('Source attribution and selected-only ledger regression tests passed.');
+
+
+// Combining exclusive levels preserves each source's stock and does not count upgrades twice.
+for (const sector of ['water', 'sanitation']) {
+  const combined = sourceCoverageRows(years, [24, 24, 24], a, sector, 'at_least_basic');
+  const basic = sourceCoverageRows(years, [24, 24, 24], a, sector, 'basic');
+  const sm = sourceCoverageRows(years, [24, 24, 24], a, sector, 'sm');
+  combined.rows.forEach((row, i) => {
+    for (const field of ['__baseline', '__bau', '__scenario', ...keys.filter(k => k !== 'baseline')]) {
+      close(row[field], sm.rows[i][field] + basic.rows[i][field]);
+    }
+    close(row.__total, 24);
+    close(row.__baseline + combined.bands.reduce((sum, band) => sum + row[band.key], 0), row.__scenario);
+  });
+}
+// A transfer from basic to safely managed does not increase at-least-basic coverage.
+const transfer = structuredClone(a);
+transfer.sm_stock.connections[2] += 0.1;
+transfer.basic_stock.connections[2] -= 0.1;
+transfer.combined_stock.sm[2] += 0.1;
+transfer.combined_stock.basic[2] -= 0.1;
+const beforeTransfer = sourceCoverageRows(years, [24, 24, 24], a, 'water', 'at_least_basic');
+const afterTransfer = sourceCoverageRows(years, [24, 24, 24], transfer, 'water', 'at_least_basic');
+close(beforeTransfer.rows[2].connections, afterTransfer.rows[2].connections);
+close(beforeTransfer.rows[2].__scenario, afterTransfer.rows[2].__scenario);
+console.log('Combined service coverage checks passed.');

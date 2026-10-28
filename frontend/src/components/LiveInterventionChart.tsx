@@ -17,18 +17,18 @@ import { aggregateContributionRows, type ContributionView, type ViewBand } from 
 import { convertMoney, currencyRateNote, type CurrencyDisplaySettings } from '../currencyDisplay';
 import { connectionRevenueAreaModes, connectionRevenueModeText } from '../connectionRevenueMode';
 import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
+import { BAU_SERVICE_LEVELS, type BauServiceLevel } from '../bauServiceView';
 import { useNarrowChart } from '../useNarrowChart';
 
 type Intv = [key: string, label: string, color: string];   // toggle key, legend label, band colour
 // Band palette excludes blue (BAU) and green (target) so those meanings stay reserved (see chartColors).
 const sig = (v: number) => (!isFinite(v) || v === 0) ? '0' : Number(v.toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
-export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung = 0, contributionView, currencyDisplay }: {
-  inputs: any; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: 0 | 1; contributionView: ContributionView; currencyDisplay: CurrencyDisplaySettings;
+export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung = 0, serviceLevel = rung === 0 ? 'safely_managed' : 'basic', contributionView, currencyDisplay }: {
+  inputs: any; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: 0 | 1; serviceLevel?: BauServiceLevel; contributionView: ContributionView; currencyDisplay: CurrencyDisplaySettings;
 }) {
-  // Investment can now be directed at either rung, so the chart is drawn per rung: 0 = safely managed,
-  // 1 = basic. The engine returns every rung, so only the row index and the labels change.
-  const rungName = rung === 0 ? 'safely-managed' : 'basic';
+  const rungName = BAU_SERVICE_LEVELS.find(level => level.value === serviceLevel)!.label.toLowerCase();
+  const coverageLevel = serviceLevel === 'safely_managed' ? 'sm' : serviceLevel;
   const baseKey = BASELINE_COVERAGE_LABEL;
   const bauKey = `Pure BAU (${rungName})`;
   const [data, setData] = useState<any[]>([]);
@@ -59,7 +59,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         )).text);
         const years: number[] = result.years;
         const attribution = aggregateCoverage([result], sector === 'water' ? 'water_supply' : 'sanitation');
-        const coverage = sourceCoverageRows(years, result.total_hh, attribution, sector, rung === 0 ? 'sm' : 'basic');
+        const coverage = sourceCoverageRows(years, result.total_hh, attribution, sector, coverageLevel);
         const rows = coverage.rows.map(row => ({ ...row, [baseKey]: row.__baseline, [bauKey]: row.__bau, 'Total households': row.__total }));
         setData(rows);
         setBands(coverage.bands.map(b => [b.key, b.label, b.color]));
@@ -70,7 +70,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
         const e = years.length - 1;
         setSummary({
           // Compare the full-scenario SM / gap against the PURE BAU (bau_hh / financing_gap).
-          endline: years[e], addHH: (+full.scenario_hh[rung][e]) - (+bau.bau_hh[rung][e]),
+          endline: years[e], addHH: coverage.rows[e].__scenario - coverage.rows[e].__bau,
           gapBau: bau.endline_financing_requirement[e], gapIntv: full.scenario_endline_financing_requirement[e],
           cur: inputs?.country_config?.currency || 'LCU',
         });
@@ -83,7 +83,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
     }, 350);
     return () => { cancelled = true; clearTimeout(h); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [depKey, rung]);
+  }, [depKey, serviceLevel]);
 
   const sectorLabel = sector === 'water' ? 'Water Supply' : 'Sanitation';
   const showLoanFunding = ['water', 'sanitation'].some((key: string) =>
@@ -133,7 +133,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
     lines: [{ name: bauKey, color: C.bau, dash: true }, { name: 'Total households', color: C.total, dash: true }],
     yTitle: isShare ? '% of population' : '# households (millions)', xTitle: 'Year',
   };
-  const fileBase = `${scopeLabel ? scopeLabel + '_' : ''}${sector}_${rung === 0 ? 'sm' : 'basic'}_intervention_impact_${contributionView === 'category' ? 'categories' : 'individual'}`;
+  const fileBase = `${scopeLabel ? scopeLabel + '_' : ''}${sector}_${coverageLevel}_intervention_impact_${contributionView === 'category' ? 'categories' : 'individual'}`;
   return (
     <div>
       <p title={SOURCE_COVERAGE_TEXT} style={{ fontSize: 11 }}>{SOURCE_COVERAGE_TEXT}</p>
@@ -196,7 +196,7 @@ export default function LiveInterventionChart({ inputs, sector, scopeLabel, rung
           {summary.gapBau > 0 && <> (a <b>{Math.round((1 - summary.gapIntv / summary.gapBau) * 100)}%</b> reduction)</>}. <span style={{ color: '#64748b' }}>{currencyRateNote(currencyDisplay, summary.cur)}</span>
         </div>
       )}
-      <ServiceAccessGaps rows={accessRows} filename={`${sector}_${rung}_intervention_service_access`} />
+      <ServiceAccessGaps rows={accessRows} filename={`${sector}_${coverageLevel}_intervention_service_access`} />
       <div ref={chartRef} style={{ background: '#fff' }}>
       <ResponsiveContainer width="100%" height={narrowChart ? 440 : 360}>
         <ComposedChart data={visibleData} margin={{ top: 14, right: 24, bottom: narrowChart ? 22 : 5, left: 10 }}>

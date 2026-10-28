@@ -72,9 +72,9 @@ try {
   const expected = series => `${(Math.min(result.total_hh[last], series[0][last]) / result.total_hh[last] * 100).toFixed(1)}%`;
   assert.equal(await e(`document.querySelector('[data-bau-kpi="bau"] strong').textContent`), expected(result.sanitation.bau_hh));
   assert.equal(await e(`document.querySelector('[data-bau-kpi="target"] strong').textContent`), expected(result.sanitation.target_hh));
-  await e(`(()=>{const select=document.querySelector('[aria-label="BAU table service level"]'); select.value='at_least_basic';select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await e(`document.querySelector('[aria-label="BAU table service level"] [data-service-level="at_least_basic"]').click()`);
   await w(`document.querySelector('[data-bau-ledger="at_least_basic"]') && document.querySelector('[data-bau-kpi="bau"] strong').textContent.endsWith('%')`, 'Combined table and KPIs must update');
-  assert.equal(await e(`document.querySelector('[aria-label="BAU graph service level"]').value`), 'at_least_basic');
+  assert.equal(await e(`document.querySelector('[aria-label="BAU graph service level"] [aria-pressed="true"]').dataset.serviceLevel`), 'at_least_basic');
   const combined = result.sanitation.bau_hh[0].map((value, i) => value + result.sanitation.bau_hh[1][i]);
   assert.equal(await e(`document.querySelector('[data-bau-kpi="bau"] strong').textContent`), expected([combined]));
   assert.equal(await e(`document.querySelectorAll('[data-section-key="baseline"]').length`), 0);

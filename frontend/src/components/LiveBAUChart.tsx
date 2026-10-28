@@ -51,8 +51,8 @@ export type BauCoverage = { baselineYear: number; endYear: number; baseline: num
 function TableLocation({ target, children }: { target?: HTMLElement | null; children: React.ReactNode }) {
   return target ? createPortal(children, target) : target === undefined ? <>{children}</> : null;
 }
-export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, rung = 0, serviceLevel = rung === 1 ? 'basic' : 'safely_managed', currencyDisplay, tableTarget, onCoverage, chartHeight = 380 }:
-  { inputs?: any; inputsList?: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: number; serviceLevel?: BauServiceLevel; currencyDisplay: CurrencyDisplaySettings; tableTarget?: HTMLElement | null; onCoverage?: (coverage: BauCoverage | null) => void; chartHeight?: number }) {
+export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, rung = 0, serviceLevel = rung === 1 ? 'basic' : 'safely_managed', currencyDisplay, tableTarget, onCoverage, chartHeight = 380, expanded = false }:
+  { inputs?: any; inputsList?: any[]; sector: 'water' | 'sanitation'; scopeLabel?: string; rung?: number; serviceLevel?: BauServiceLevel; currencyDisplay: CurrencyDisplaySettings; tableTarget?: HTMLElement | null; onCoverage?: (coverage: BauCoverage | null) => void; chartHeight?: number; expanded?: boolean }) {
   const datasets = ((inputsList && inputsList.length) ? inputsList : (inputs ? [inputs] : [])).filter(Boolean);
   // Which JMP rung this chart plots: 0 = Safely managed (the primary chart), 1 = Basic, … The Basic chart
   // gets the SAME elements as SM (BAU area, Target line, reference lines, target call-outs, endpoint labels).
@@ -600,39 +600,11 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
 
   return (
     <div>
+      <div className={`modern-bau-chart-pair${expanded ? ' modern-bau-chart-pair--expanded' : ''}`}>
+      <div className="modern-bau-plot-panel">
       <h3 style={{ fontSize: 14, marginBottom: 6, fontWeight: 600, color: '#1e3a5f' }}>
         {scopeLabel ? scopeLabel + ' ' : ''}{sectorLabel} — {rungNameRaw}: BAU vs Target (live calculation engine)
       </h3>
-      <div style={{ fontSize: 10, color: '#065f46', background: '#d1fae5', padding: '4px 8px', borderRadius: 4, marginBottom: 8 }}>
-        Live engine output. {revenueModeLabel}{datasets.length > 1 ? ' · National = Urban + Rural (summed).' : ' · Edits on the Data Inputs tab recompute this chart.'}
-      </div>
-      {constrained && (
-        <div style={{ fontSize: 11, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 4, padding: '6px 10px', marginBottom: 8, lineHeight: 1.5 }}>
-          Warning: <b>Budget-constrained BAU.</b> The BAU capex budget (~{sigB(constrained.avail * moneyFactor)} B {displayCur}/yr) is below the replacement need (~{sigB(constrained.repl * moneyFactor)} B {displayCur}/yr), so no new safely-managed service is built and <b>unit cost has no effect</b> on this curve. Raise the {sectorLabel.toLowerCase()} budget above the replacement need to move it.
-        </div>
-      )}
-      {error && <div style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>{error}</div>}
-      {summary && (() => {
-        const cur = summary.currency;
-        const pct = (f: number) => (f * 100).toFixed(1) + '%';
-        const money = (v: number | null) => v == null ? '—' : sigB((displayMoney(v) as number)) + ' B ' + displayCur;
-        return (
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '3px solid #2563eb', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55 }}>
-              <b>Summary.</b> {combined && <>Financing combines safely managed and basic, including safely managed upgrades. </>}Under business-as-usual, {summary.rungLabel} {sectorLabel.toLowerCase()} reaches <b>{pct(summary.bauPop)}</b> of the population by {summary.endline}, against an original target of <b>{pct(summary.tgtPop)}</b>. {householdGapLabel}: <b>{sig3(summary.gapEnd)} M households</b>. The attributed <b>{summary.rungLabel}</b> closing expansion plus current-year shortfall at {summary.endline} is <b>{money(summary.serviceGapEnd)}</b>; the <b>sector-wide</b> balance is <b>{money(summary.finGapEnd)}</b>. Total annual planned expansion and replacement flows are <b>{sigB(summary.cumNeed * moneyFactor)} B {displayCur}</b> ({summary.firstForecast}–{summary.endline}). Outstanding balances are not additive across years.
-              <ServiceAccessGaps rows={accessRows} filename={`${sector}_${serviceLevel}_bau_service_access`} />
-              {summary.costSM != null && <> Weighted {summary.rungLabel} cost per household: <b>{sig3(summary.costSM * moneyFactor)} {displayCur}</b>.</>}
-            </div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 5, lineHeight: 1.45 }}>
-              Remaining financing gap = residual new-service cost + replacement requirement − replacement credit + cash deficit.
-              New-service costs already reflect funded connections; expansion capital is not credited again.
-              Replacement credit follows each service’s replacement obligations. Cash deficits follow original need shares,
-              or the investment split if needs are zero. The two attributed gaps add up to the sector-wide gap.
-              {' '}{currencyRateNote(currencyDisplay, sourceCurrency)}
-            </div>
-          </div>
-        );
-      })()}
       {targetPoints.length > 0 && (
         <div style={{ fontSize: 10.5, color: '#64748b', marginBottom: 6 }}>
           Target call-outs and the financing-gap box are drawn on the chart. Click a box's × to close it, or click its marker to reopen; use Targets to choose which targets show.
@@ -700,7 +672,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         <ChartExport chartRef={chartRef} filename={fileBase} title={`${sectorLabel} — ${rungNameRaw}: BAU vs Target`}
           sheets={[{ name: 'Chart data', headers: chartHeaders, rows: chartRows }]} chartSpec={chartSpec} />
       </div>
-      <div ref={chartRef} style={{ position: 'relative' }}>
+      <div ref={chartRef} className="modern-bau-plot-canvas" style={{ position: 'relative' }}>
         <ComposedChart width={Math.max(1, wrapW)} height={chartHeight} data={displayData} margin={{ top: 14, right: 70, bottom: 5, left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="year" tick={{ fontSize: 10 }} interval={yearAxisInterval(displayData)} />
@@ -746,9 +718,43 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
       </div>
 
       {/* ── Per-year data table (forecast years) ─────────────────────────────────────────────── */}
+      </div>
       <BAUSpendingChart rows={spendingRows.filter(row => isYearVisible(row.year))}
         moneyFactor={moneyFactor} currency={displayCur} currencyDisplay={currencyDisplay}
         scopeLabel={scopeLabel} sectorLabel={sectorLabel} />
+      </div>
+      <div className="modern-bau-coverage-notes" aria-label="BAU coverage summary">
+      <div style={{ fontSize: 10, color: '#065f46', background: '#d1fae5', padding: '4px 8px', borderRadius: 4, marginBottom: 8 }}>
+        Live engine output. {revenueModeLabel}{datasets.length > 1 ? ' · National = Urban + Rural (summed).' : ' · Edits on the Data Inputs tab recompute this chart.'}
+      </div>
+      {constrained && (
+        <div style={{ fontSize: 11, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 4, padding: '6px 10px', marginBottom: 8, lineHeight: 1.5 }}>
+          Warning: <b>Budget-constrained BAU.</b> The BAU capex budget (~{sigB(constrained.avail * moneyFactor)} B {displayCur}/yr) is below the replacement need (~{sigB(constrained.repl * moneyFactor)} B {displayCur}/yr), so no new safely-managed service is built and <b>unit cost has no effect</b> on this curve. Raise the {sectorLabel.toLowerCase()} budget above the replacement need to move it.
+        </div>
+      )}
+      {error && <div style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>{error}</div>}
+      {summary && (() => {
+        const cur = summary.currency;
+        const pct = (f: number) => (f * 100).toFixed(1) + '%';
+        const money = (v: number | null) => v == null ? '—' : sigB((displayMoney(v) as number)) + ' B ' + displayCur;
+        return (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '3px solid #2563eb', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55 }}>
+              <b>Summary.</b> {combined && <>Financing combines safely managed and basic, including safely managed upgrades. </>}Under business-as-usual, {summary.rungLabel} {sectorLabel.toLowerCase()} reaches <b>{pct(summary.bauPop)}</b> of the population by {summary.endline}, against an original target of <b>{pct(summary.tgtPop)}</b>. {householdGapLabel}: <b>{sig3(summary.gapEnd)} M households</b>. The attributed <b>{summary.rungLabel}</b> closing expansion plus current-year shortfall at {summary.endline} is <b>{money(summary.serviceGapEnd)}</b>; the <b>sector-wide</b> balance is <b>{money(summary.finGapEnd)}</b>. Total annual planned expansion and replacement flows are <b>{sigB(summary.cumNeed * moneyFactor)} B {displayCur}</b> ({summary.firstForecast}–{summary.endline}). Outstanding balances are not additive across years.
+              <ServiceAccessGaps rows={accessRows} filename={`${sector}_${serviceLevel}_bau_service_access`} />
+              {summary.costSM != null && <> Weighted {summary.rungLabel} cost per household: <b>{sig3(summary.costSM * moneyFactor)} {displayCur}</b>.</>}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 5, lineHeight: 1.45 }}>
+              Remaining financing gap = residual new-service cost + replacement requirement − replacement credit + cash deficit.
+              New-service costs already reflect funded connections; expansion capital is not credited again.
+              Replacement credit follows each service’s replacement obligations. Cash deficits follow original need shares,
+              or the investment split if needs are zero. The two attributed gaps add up to the sector-wide gap.
+              {' '}{currencyRateNote(currencyDisplay, sourceCurrency)}
+            </div>
+          </div>
+        );
+      })()}
+      </div>
       <TableLocation target={tableTarget}>
       {tableRows.length > 0 && (
         <div data-bau-ledger={serviceLevel} style={{ marginTop: 14 }}>

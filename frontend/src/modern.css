@@ -107,7 +107,10 @@
 @media(prefers-reduced-motion:reduce) { .wb-app * { scroll-behavior:auto !important; transition:none !important; } }
 
 .modern-bau-service-picker { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:16px 0 8px; color:#014972; font-size:13px; font-weight:700; }
-.modern-bau-service-picker select { min-height:38px; max-width:100%; padding:8px 12px; border:1px solid #c7d8df; border-radius:5px; background:white; color:#014972; font:inherit; }
+.modern-bau-service-switch { display:flex; flex-wrap:wrap; gap:4px; padding:4px; max-width:100%; border:1px solid #c7d8df; border-radius:7px; background:#edf3f5; }
+.modern-bau-service-switch button { min-height:38px; padding:8px 14px; border:1px solid transparent; border-radius:5px; background:transparent; color:#014972; font:inherit; font-size:12px; cursor:pointer; }
+.modern-bau-service-switch button:hover { background:#dcebed; }
+.modern-bau-service-switch button[aria-pressed="true"] { background:#014972; color:white; border-color:#014972; }
 .modern-bau-service-note { color:#596b73; font-size:12px; line-height:1.5; }
 .bau-ledger-frame { container-type:inline-size; min-width:0; width:100%; }
 .bau-forecast-table { table-layout:fixed; width:100%; border-collapse:collapse; font-size:11px; color:#334155; }
@@ -135,3 +138,15 @@
 .modern-bau-spending-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
 .modern-bau-spending h3 { margin:0; font-size:15px; color:#014972; }
 .modern-bau-spending p { font-size:12px; line-height:1.5; color:#596b73; }
+
+/* Keep both chart canvases aligned; stack when the actual content area is narrow. */
+.modern-bau-analysis-container { container:bau-analysis / inline-size; }
+.modern-bau-chart-pair { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:stretch; }
+.modern-bau-plot-panel { display:flex; flex-direction:column; min-width:0; padding:12px; border:1px solid #d1e1e5; border-radius:6px; background:#fbfdfd; }
+.modern-bau-plot-canvas { margin-top:auto; min-width:0; }
+.modern-bau-chart-pair .modern-bau-spending { margin:0; padding:12px; border:1px solid #d1e1e5; }
+.modern-bau-coverage-notes { margin-top:20px; min-width:0; }
+@container bau-analysis (min-width:1076px) {
+  .modern-bau-chart-pair { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .modern-bau-chart-pair--expanded { grid-template-columns:minmax(0,1fr); }
+}

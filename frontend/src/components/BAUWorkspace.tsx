@@ -19,13 +19,27 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
   const [expandedChart, setExpandedChart] = useState(false);
   const serviceLabel = BAU_SERVICE_LEVELS.find(level => level.value === serviceLevel)!.label;
   const format = (value: number | null | undefined) => value == null ? '—' : `${value.toFixed(1)}%`;
-  const serviceSelector = (location: string) => <label className="modern-bau-service-picker">
-    Service level
-    <select aria-label={`BAU ${location} service level`} value={serviceLevel}
-      onChange={event => { setCoverage(null); setServiceLevel(event.target.value as BauServiceLevel); }}>
-      {BAU_SERVICE_LEVELS.map(level => <option key={level.value} value={level.value}>{level.label}</option>)}
-    </select>
-  </label>;
+  const serviceSelector = (location: string) => <div className="modern-bau-service-picker">
+    <span>Service level</span>
+    <div className="modern-bau-service-switch" role="group" aria-label={`BAU ${location} service level`}>
+      {BAU_SERVICE_LEVELS.map(level => <button key={level.value} type="button"
+        data-service-level={level.value} aria-pressed={serviceLevel === level.value}
+        onClick={() => { if (serviceLevel !== level.value) { setCoverage(null); setServiceLevel(level.value); } }}>
+        {level.label}
+      </button>)}
+    </div>
+  </div>;
+
+  const coverageSummary = (<div aria-label="Baseline and forecast-end service coverage">
+        <p>{scopeLabel} · {sector === 'water' ? 'Water supply' : 'Sanitation'} · {serviceLabel} · share of households</p>
+        <div className="modern-bau-kpis" aria-live="polite">
+          {(['baseline', 'bau', 'target'] as const).map(key => <div key={key} className="modern-bau-kpi" data-bau-kpi={key}>
+            <span>{key === 'baseline' ? 'BASELINE · LAST HISTORICAL YEAR' : key === 'bau' ? 'BUSINESS-AS-USUAL · FORECAST END' : 'ENTERED SERVICE TARGET · FORECAST END'} {key === 'baseline' ? coverage?.baselineYear : coverage?.endYear}</span>
+            <strong>{format(coverage?.[key])}</strong><small>{serviceLabel}</small>
+          </div>)}
+        </div>
+        {!coverage && <p role="status">Coverage pending. Calculation errors, if any, appear below.</p>}
+      </div>);
 
   return <SectionWorkspace label="Business-as-usual sections" sections={[
     {key:'graph', label:'BAU Graph'}, {key:'table', label:'BAU Table'},
@@ -42,17 +56,9 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
       </div>
       {serviceSelector('graph')}
       <p className="modern-bau-service-note">At least basic combines safely managed and basic-only households. Changing either selector updates both the graph and table.</p>
-      <div aria-label="Baseline and forecast-end service coverage">
-        <p>{scopeLabel} · {sector === 'water' ? 'Water supply' : 'Sanitation'} · {serviceLabel} · share of households</p>
-        <div className="modern-bau-kpis" aria-live="polite">
-          {(['baseline', 'bau', 'target'] as const).map(key => <div key={key} className="modern-bau-kpi" data-bau-kpi={key}>
-            <span>{key === 'baseline' ? 'BASELINE · LAST HISTORICAL YEAR' : key === 'bau' ? 'BUSINESS-AS-USUAL · FORECAST END' : 'ENTERED SERVICE TARGET · FORECAST END'} {key === 'baseline' ? coverage?.baselineYear : coverage?.endYear}</span>
-            <strong>{format(coverage?.[key])}</strong><small>{serviceLabel}</small>
-          </div>)}
-        </div>
-        {!coverage && <p role="status">Coverage pending. Calculation errors, if any, appear below.</p>}
-      </div>
-      <div className="modern-bau-chart-card">
+
+      {coverageSummary}
+      <div className="modern-bau-chart-card modern-bau-analysis-container">
         <div className="modern-bau-chart-actions">
           <button type="button" aria-pressed={expandedChart} onClick={() => setExpandedChart(current => !current)}>
             {expandedChart ? 'Restore chart size' : 'Expand chart'}
@@ -61,7 +67,7 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
         <LiveBAUChart key={`${sector}-${scopeLabel}-${serviceLevel}`} inputsList={inputsList}
           sector={sector} scopeLabel={scopeLabel} currencyDisplay={currencyDisplay}
           serviceLevel={serviceLevel} chartHeight={expandedChart ? 500 : 360}
-          tableTarget={tableTarget} onCoverage={setCoverage} />
+          tableTarget={tableTarget} onCoverage={setCoverage} expanded={expandedChart} />
       </div>
     </section>
     <section className="modern-bau-section" data-section-key="table">

@@ -17,8 +17,6 @@ import TableExport from './TableExport';
 import { convertMoney, currencyRateNote, type CurrencyDisplaySettings, validRate } from '../currencyDisplay';
 import { runCalculation } from '../api';
 import { connectionRevenueAreaModes, connectionRevenueModeText } from '../connectionRevenueMode';
-import { replacementWaterfallReports } from '../replacementWaterfall';
-import ReplacementWaterfallTable from './ReplacementWaterfallTable';
 
 /**
  * BAU vs Target chart driven by the LIVE calculation engine (validated cell-by-cell against the
@@ -85,7 +83,6 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
     chartWindow.end !== null && year >= chartWindow.start && year <= chartWindow.end;
   const [tableRows, setTableRows] = useState<any[]>([]);
   const [spendingRows, setSpendingRows] = useState<BauSpendingRow[]>([]);
-  const [waterfallReports, setWaterfallReports] = useState<ReturnType<typeof replacementWaterfallReports>>([]);
   const [endAnno, setEndAnno] = useState<{ year: number; bau: number; tgt: number; bauShare: number; tgtShare: number; gapHH: number; finGap: number | null; cur: string } | null>(null);
   const [summary, setSummary] = useState<any>(null);
   const [revenueModeLabel, setRevenueModeLabel] = useState('Effective revenue mode: awaiting calculation');
@@ -204,7 +201,6 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
     setData([]);
     setTableRows([]);
     setSpendingRows([]);
-    setWaterfallReports([]);
     setSummary(null);
     setEndAnno(null);
     setConstrained(null);
@@ -246,8 +242,6 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         const per = datasets[0]?.period || {};
         const baseYr = per.baseline_year ?? years[0];
         const annualSpending = bauSpendingRows(resList, sector === 'water' ? 'water_supply' : 'sanitation', baseYr);
-        setWaterfallReports(replacementWaterfallReports(resList, sector === 'water' ? 'water_supply' : 'sanitation', baseYr,
-          datasets.map((dataset: any) => dataset.country_config?.area || scopeLabel || 'Selected area')));
         setSpendingRows(annualSpending);
         const availableByYear = new Map(annualSpending.map(row => [row.year, row.available]));
         const baseIndex = years.indexOf(baseYr);
@@ -796,9 +790,6 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
       })()}
       </div>
       <TableLocation target={tableTarget}>
-      {waterfallReports.map((report, i) => <ReplacementWaterfallTable key={report.label}
-        label={report.label} rows={report.rows.filter(row => isYearVisible(row.year))}
-        moneyFactor={moneyFactor} currency={displayCur} filename={`${fileBase}_replacement_waterfall_${i}`} currencyDisplay={currencyDisplay} />)}
       {tableRows.length > 0 && (
         <div data-bau-ledger={serviceLevel} style={{ marginTop: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>

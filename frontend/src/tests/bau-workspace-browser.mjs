@@ -132,7 +132,7 @@ try {
         await select(level, level === 'at_least_basic' ? 'table' : 'graph');
         const result = await e(`window.__bauResponses.at(-1)`);
         const endIndex = result.years.indexOf(inputs.period.forecast_end_year);
-        assert.ok(await e(`[...document.querySelectorAll('summary')].some(el=>el.textContent.includes('Annual replacement and expansion reconciliation'))`));
+        assert.equal(await e(`[...document.querySelectorAll('[data-section-key="table"] summary')].some(el=>el.textContent.includes('Annual replacement and expansion reconciliation'))`), false);
         assert.equal(await e(`document.querySelectorAll('.bau-forecast-table thead th').length`), 12);
         assert.equal(await e(`/cash deficit/i.test(document.querySelector('.bau-forecast-table').textContent)`), false);
         const moneyText = value => Number((value / 1000).toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -246,11 +246,10 @@ try {
   await w(`document.querySelector('.bau-forecast-table caption').textContent.includes(${JSON.stringify(sourceCurrency)})`, 'Local currency restoration missing');
 
   // Missing engine series must clear coverage/table; retry uses the unchanged input payload.
-  await e(`[...document.querySelectorAll('details')].find(el=>el.querySelector('summary')?.textContent.includes('Annual replacement and expansion reconciliation')).open=true`);
-  await e(`[...document.querySelectorAll('summary')].find(el=>el.textContent.includes('Annual replacement and expansion reconciliation')).scrollIntoView()`);
+  await navigate(1);
   if (process.env.BAU_SCREENSHOT_DIR) {
     const capture = await b.call('Page.captureScreenshot', { format: 'png' });
-    writeFileSync(`${process.env.BAU_SCREENSHOT_DIR}/replacement-waterfall.png`, Buffer.from(capture.data, 'base64'));
+    writeFileSync(`${process.env.BAU_SCREENSHOT_DIR}/bau-desktop-table.png`, Buffer.from(capture.data, 'base64'));
   }
   await e(`window.__bauMode='missing'`);
   await e(`document.querySelector('[aria-label="BAU graph service level"] [data-service-level="basic"]').click()`);

@@ -134,6 +134,8 @@ try {
         const endIndex = result.years.indexOf(inputs.period.forecast_end_year);
         assert.equal(await e(`[...document.querySelectorAll('[data-section-key="table"] summary')].some(el=>el.textContent.includes('Annual replacement and expansion reconciliation'))`), false);
         assert.equal(await e(`document.querySelectorAll('.bau-forecast-table thead th').length`), 12);
+        assert.ok(await e(`document.querySelector('.bau-forecast-table thead th:nth-child(10)').textContent.startsWith('Service financing gaps')`));
+        assert.ok(await e(`document.querySelector('.bau-forecast-table thead th:nth-child(11)').textContent.startsWith('Sector financing gaps')`));
         assert.equal(await e(`/cash deficit/i.test(document.querySelector('.bau-forecast-table').textContent)`), false);
         const moneyText = value => Number((value / 1000).toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 });
         assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:nth-child(9)').textContent`),
@@ -205,6 +207,9 @@ try {
   assert.deepEqual(await e(`window.__bauDownloads.at(-1).slice(0,2).arrayBuffer().then(b=>[...new Uint8Array(b)])`), [80, 75]);
   const tableExport = await e(`window.__bauExportBodies.filter(item=>item.path==='/api/export/table').at(-1).body.sheets[0]`);
   assert.equal(tableExport.headers.length, 12);
+  assert.ok(tableExport.headers[9].includes('service financing gaps'));
+  assert.ok(tableExport.headers[10].startsWith('Sector financing gaps'));
+  assert.ok(csv.includes('service financing gaps') && csv.includes('Sector financing gaps'));
   assert.ok(tableExport.headers.every(header => !/cash deficit/i.test(header) || /closing expansion/.test(header)));
   assert.equal(tableExport.headers.at(-1), 'Sector available funding (USD M/yr)');
   assert.ok(tableExport.rows.every(row => row.length === 12));

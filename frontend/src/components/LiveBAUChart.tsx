@@ -441,15 +441,15 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
     `${rungLabel} replacement need (${displayCur} M/yr)`,
     `${rungLabel} replacement credit (${displayCur} M/yr)`,
     `${rungLabel} Residual replacement cost (Cumulative) (${displayCur} M)`,
-    `${rungLabel} closing expansion + replacement backlog + current cash deficit (${displayCur} M)`,
-    `Sector-wide closing expansion + replacement backlog + current cash deficit (${displayCur} M)`,
+    `${rungLabel} service financing gaps (${displayCur} M)`,
+    `Sector financing gaps (${displayCur} M)`,
     `Sector available funding (${displayCur} M/yr)`];
   const displayTableHeaders = ['Year', 'Total households (M)', 'BAU households (M)', 'Target households (M)',
     `${householdGapLabel} (M)`, `Residual new-service cost (B ${displayCur})`,
     `Replacement need (B ${displayCur}/yr)`, `Replacement credit (B ${displayCur}/yr)`,
     `Residual replacement cost (Cumulative) (B ${displayCur})`,
-    `Service closing balance (B ${displayCur})`,
-    `Sector closing balance (B ${displayCur})`, `Sector available funding (B ${displayCur}/yr)`];
+    `Service financing gaps (B ${displayCur})`,
+    `Sector financing gaps (B ${displayCur})`, `Sector available funding (B ${displayCur}/yr)`];
   const tableExportRows = tableRows.map((r: any) => [r.year, round3(r.total), round3(r.bau), round3(r.tgt), round3(r.gapHH),
     round3(r.newNeed * moneyFactor), round3(r.replacement * moneyFactor), round3(r.funded * moneyFactor), round3(r.replacementBacklog * moneyFactor), round3(r.serviceGap * moneyFactor),
     r.finGap == null ? '' : round3(r.finGap * moneyFactor), round3(r.available * moneyFactor)]);
@@ -799,11 +799,11 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           <div className="bau-ledger-frame">
             <table className="bau-forecast-table">
               <caption>{rungNameRaw} annual projections. Households in millions; money in billions of {displayCur}.
-                Financial columns are attributed to the selected service level except the sector balance and available funding.
+                Financial columns are attributed to the selected service level except the sector financing gaps and available funding.
                 Sector available funding is total annual available capital, not the amount left after replacement.
-                Replacement need, replacement credit and available funding are annual flows; closing balances are not additive across years.
+                Replacement need, replacement credit and available funding are annual flows; financing gaps are not additive across years.
                 Residual replacement cost (Cumulative) is opening backlog minus backlog repaid plus current unpaid replacement.
-                It is the net outstanding year-end balance, already included in the service and sector closing balances; do not add it again or sum it across years.
+                It is the net outstanding year-end balance, already included in the service and sector financing gaps; do not add it again or sum it across years.
               </caption>
               <colgroup><col style={{ width: '6%' }} />{Array.from({ length: 11 }, (_, i) => <col key={i} style={{ width: `${94 / 11}%` }} />)}</colgroup>
               <thead><tr>{displayTableHeaders.map((header, i) => <th key={i} scope="col">{header}</th>)}</tr></thead>

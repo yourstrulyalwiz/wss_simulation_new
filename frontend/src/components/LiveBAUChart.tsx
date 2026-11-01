@@ -240,7 +240,9 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
 
         const per = datasets[0]?.period || {};
         const baseYr = per.baseline_year ?? years[0];
-        setSpendingRows(bauSpendingRows(resList, sector === 'water' ? 'water_supply' : 'sanitation', baseYr));
+        const annualSpending = bauSpendingRows(resList, sector === 'water' ? 'water_supply' : 'sanitation', baseYr);
+        setSpendingRows(annualSpending);
+        const availableByYear = new Map(annualSpending.map(row => [row.year, row.available]));
         const baseIndex = years.indexOf(baseYr);
         const endIndex = years.indexOf(per.forecast_end_year);
         const share = (series: number[], index: number) => index >= 0 && total[index] > 0 && Number.isFinite(series[index])
@@ -273,7 +275,8 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           const gapHH = householdGap[i];
           return { year: y, total: tot, bau: b, tgt: t, gapHH,
             newNeed: serviceNewNeed[i], replacement: serviceReplacement[i],
-            funded: serviceFunded[i], deficit: serviceDeficit[i], serviceGap: serviceGap[i], finGap: finGapSeries[i] ?? null };
+            funded: serviceFunded[i], deficit: serviceDeficit[i], serviceGap: serviceGap[i], finGap: finGapSeries[i] ?? null,
+            available: availableByYear.get(y) };
         }).filter(Boolean) as any[];
         setTableRows(tblRows);
 
@@ -434,15 +437,16 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
     `${rungLabel} replacement credit (${displayCur} M/yr)`,
     `${rungLabel} cash deficit (${displayCur} M/yr)`,
     `${rungLabel} closing expansion + current shortfalls (${displayCur} M)`,
-    `Sector-wide closing expansion + current shortfalls (${displayCur} M)`];
+    `Sector-wide closing expansion + current shortfalls (${displayCur} M)`,
+    `Sector available funding (${displayCur} M/yr)`];
   const displayTableHeaders = ['Year', 'Total households (M)', 'BAU households (M)', 'Target households (M)',
     `${householdGapLabel} (M)`, `Residual new-service cost (B ${displayCur})`,
     `Replacement need (B ${displayCur}/yr)`, `Replacement credit (B ${displayCur}/yr)`,
     `Cash deficit (B ${displayCur}/yr)`, `Service closing balance (B ${displayCur})`,
-    `Sector closing balance (B ${displayCur})`];
+    `Sector closing balance (B ${displayCur})`, `Sector available funding (B ${displayCur}/yr)`];
   const tableExportRows = tableRows.map((r: any) => [r.year, round3(r.total), round3(r.bau), round3(r.tgt), round3(r.gapHH),
     round3(r.newNeed * moneyFactor), round3(r.replacement * moneyFactor), round3(r.funded * moneyFactor), round3(r.deficit * moneyFactor), round3(r.serviceGap * moneyFactor),
-    r.finGap == null ? '' : round3(r.finGap * moneyFactor)]);
+    r.finGap == null ? '' : round3(r.finGap * moneyFactor), round3(r.available * moneyFactor)]);
 
   const toolBtn: React.CSSProperties = {
     padding: '4px 10px', fontSize: 11, border: '1px solid #cbd5e1', borderRadius: 6,
@@ -788,16 +792,18 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           <div className="bau-ledger-frame">
             <table className="bau-forecast-table">
               <caption>{rungNameRaw} annual projections. Households in millions; money in billions of {displayCur}.
-                Financial columns are attributed to the selected service level except the sector balance.
-                Replacement need, replacement credit and cash deficit are annual flows; closing balances are not additive across years.
+                Financial columns are attributed to the selected service level except the sector balance and available funding.
+                Sector available funding is total annual available capital, not the amount left after replacement.
+                Replacement need, replacement credit, cash deficit and available funding are annual flows; closing balances are not additive across years.
               </caption>
-              <colgroup><col style={{ width: '6%' }} />{Array.from({ length: 10 }, (_, i) => <col key={i} style={{ width: '9.4%' }} />)}</colgroup>
+              <colgroup><col style={{ width: '6%' }} />{Array.from({ length: 11 }, (_, i) => <col key={i} style={{ width: `${94 / 11}%` }} />)}</colgroup>
               <thead><tr>{displayTableHeaders.map((header, i) => <th key={i} scope="col">{header}</th>)}</tr></thead>
               <tbody>{tableRows.map((row: any) => <tr key={row.year}>
                 {[String(row.year), sig3(row.total), sig3(row.bau), sig3(row.tgt), sig3(row.gapHH),
                   sigB(row.newNeed * moneyFactor), sigB(row.replacement * moneyFactor),
                   sigB(row.funded * moneyFactor), sigB(row.deficit * moneyFactor),
-                  sigB(row.serviceGap * moneyFactor), row.finGap == null ? 'n/a' : sigB(row.finGap * moneyFactor)]
+                  sigB(row.serviceGap * moneyFactor), row.finGap == null ? 'n/a' : sigB(row.finGap * moneyFactor),
+                  sigB(row.available * moneyFactor)]
                   .map((value, i) => <td key={i} data-label={displayTableHeaders[i]}>{value}</td>)}
               </tr>)}</tbody>
             </table>

@@ -131,6 +131,11 @@ try {
       for (const [level, rungs] of [['safely_managed', [0]], ['basic', [1]], ['at_least_basic', [0, 1]]]) {
         await select(level, level === 'at_least_basic' ? 'table' : 'graph');
         const result = await e(`window.__bauResponses.at(-1)`);
+        const endIndex = result.years.indexOf(inputs.period.forecast_end_year);
+        assert.equal(await e(`document.querySelectorAll('.bau-forecast-table thead th').length`), 12);
+        assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:last-child').textContent`),
+          Number((result[sectorKey].available_total[endIndex] / 1000).toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 }),
+          'Final column shows sector-wide annual funding in every service view');
         for (const [card, series, year] of [['baseline', 'bau_hh', inputs.period.baseline_year],
           ['bau', 'bau_hh', inputs.period.forecast_end_year], ['target', 'target_hh', inputs.period.forecast_end_year]]) {
           const i = result.years.indexOf(year);
@@ -170,8 +175,13 @@ try {
   const csv = await e(`window.__bauDownloads.at(-1).text()`);
   assert.ok(csv.includes('USD M'), 'CSV labels must identify millions rather than table billions');
   assert.ok(csv.includes('At least basic') || csv.includes('at least basic'));
+  assert.ok(csv.split('\r\n').find(line => line.startsWith('Year,'))?.endsWith('Sector available funding (USD M/yr)'));
   const rawResult = await e(`window.__bauResponses.at(-1)`);
   const last = rawResult.years.indexOf(inputs.period.forecast_end_year);
+  const availableUsd = rawResult.sanitation.available_total[last] / 137.42;
+  assert.equal(Number(csv.trim().split('\r\n').at(-1).split(',').at(-1)), Number(availableUsd.toPrecision(3)));
+  assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:last-child').textContent`),
+    Number((availableUsd / 1000).toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 }));
   const needUsd = (rawResult.sanitation.new_capex_by_service[0][last] +
     rawResult.sanitation.new_capex_by_service[1][last]) / 137.42;
   assert.equal(Number(csv.trim().split('\r\n').at(-1).split(',')[5]), Number(needUsd.toPrecision(3)),

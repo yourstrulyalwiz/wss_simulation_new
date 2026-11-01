@@ -41,6 +41,7 @@ for (const key of ['water_supply', 'sanitation']) {
   assert.deepEqual(bauSpendingRows(results, key, 2025), [{ year: 2026, expansion: 80, replacement: 24, available: 60 }]);
   assert.deepEqual(bauSpendingRows(results, key, 2026), []);
 }
+assert.equal(bauSpendingRows([{ years: [2026], water_supply: { ...sector, available_total: [0] } }], 'water_supply', 2025)[0].available, 0);
 for (const missing of [undefined, null, NaN, Infinity, '0']) {
   assert.throws(() => bauServiceValue({ bau_hh: [[1], [missing]] }, 'bau_hh', 0, 'at_least_basic'), /missing/);
   assert.throws(() => bauAccessGap({ at_least_basic_access_gap: [missing] }, 0, 'at_least_basic'), /missing/);

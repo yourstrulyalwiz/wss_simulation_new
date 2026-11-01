@@ -13,7 +13,7 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
   currencyDisplay: CurrencyDisplaySettings;
 }) {
   const { sectors } = useProjectScope();
-  const [serviceLevel, setServiceLevel] = useState<BauServiceLevel>('safely_managed');
+  const [serviceLevel, setServiceLevel] = useState<BauServiceLevel>('at_least_basic');
   const [coverage, setCoverage] = useState<BauCoverage | null>(null);
   const [tableTarget, setTableTarget] = useState<HTMLDivElement | null>(null);
   const [expandedChart, setExpandedChart] = useState(false);

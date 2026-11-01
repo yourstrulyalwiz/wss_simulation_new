@@ -118,7 +118,10 @@ try {
   assert.equal(await e(`document.querySelectorAll('${nav} button').length`), 9);
   for (let index = 0; index < 9; index++) await navigate(index);
   await tab('BAU Scenario');
-  await w(`document.querySelector('[data-bau-kpi="baseline"] strong')?.textContent==='30.0%'`, 'Urban baseline must come from engine');
+  await w(`document.querySelector('[data-bau-kpi="baseline"] strong')?.textContent==='60.0%'`, 'Combined urban baseline must come from engine');
+  for (const location of ['graph', 'table']) {
+    assert.equal(await e(`document.querySelector('[aria-label="BAU ${location} service level"] button[aria-pressed="true"]')?.dataset.serviceLevel`), 'at_least_basic', 'Graph and table default to At least basic');
+  }
   assert.ok(await e(`document.querySelector('[aria-label="BAU graph area"]').compareDocumentPosition(document.querySelector('[aria-label="BAU sector"]')) & Node.DOCUMENT_POSITION_FOLLOWING`));
   assert.deepEqual(await e(`[...document.querySelectorAll('${nav} button')].map(n=>n.textContent.replace(/^\\d+/,''))`), ['BAU Graph', 'BAU Table']);
   for (const [sectorIndex, sectorKey] of [[0, 'water_supply'], [1, 'sanitation']]) {

@@ -9,7 +9,8 @@ Keep Water Supply/Sanitation switching and Urban/Rural graph controls.
 Include baseline-year and target-year result KPI cards.
 
 Keep geography above sector selection. Graph and table share one service selection:
-Safely managed, Basic only, or At least basic. The combined view adds exclusive
+Safely managed, Basic only, or At least basic. Default both graph and table to
+At least basic, as requested by the user. The combined view adds exclusive
 categories once; access gaps remain assessed locally by the engine. Capital
 requirements show annual expansion and replacement against available capital,
 not accumulated need or the residual financing balance.

@@ -12,3 +12,4 @@ refernce/
 # the deployed app is served from the prebuilt bundle in static/
 node_modules/
 /frontend/dist/
+/frontend/src/tests/screenshots/

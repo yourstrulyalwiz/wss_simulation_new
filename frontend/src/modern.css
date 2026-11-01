@@ -40,11 +40,16 @@
 .modern-page-intro__eyebrow { display:block; margin-bottom:6px; color:#3f7786; font-size:9px; font-weight:800; letter-spacing:.13em; }
 .modern-page-intro h2, .modern-bau-heading { margin:0 0 5px; color:#014972; font-size:23px; font-weight:700; line-height:1.25; letter-spacing:-.035em; text-transform:none; }
 .modern-page-intro p { margin:0; max-width:760px; color:#596b73; font-size:11.5px; line-height:1.55; }
-.modern-bau-section { padding-bottom:30px; min-width:0; }
+.modern-bau-section { padding-bottom:30px; min-width:0; width:100%; max-width:1200px; margin-inline:auto; box-sizing:border-box; }
 .modern-bau-toggles { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
 .modern-bau-toggles button { padding:8px 18px; border:1px solid #c7d8df; border-radius:5px; color:#014972; background:white; cursor:pointer; }
 .modern-bau-toggles button[aria-pressed="true"] { background:#014972; color:white; }
-.modern-bau-kpis { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:18px 0; }
+.modern-bau-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); max-width:924px; gap:12px; margin:18px 0; }
+.modern-bau-kpi { min-width:0; max-width:300px; box-sizing:border-box; }
+.modern-bau-chart-card { min-width:0; padding:12px; border:1px solid #d1e1e5; border-radius:6px; background:white; }
+.modern-bau-chart-actions { display:flex; justify-content:flex-end; margin-bottom:8px; }
+.modern-bau-chart-actions button { min-height:32px; padding:6px 10px; border:1px solid #c7d8df; border-radius:5px; background:#f8fcfc; color:#014972; font:inherit; font-size:12px; cursor:pointer; }
+.modern-bau-chart-actions button:hover, .modern-bau-chart-actions button[aria-pressed="true"] { background:#e6f2f3; border-color:#009ca7; }
 .modern-bau-kpi { padding:16px; border:1px solid #d1e1e5; border-top:3px solid #009ca7; border-radius:6px; background:#f8fcfc; }
 .modern-bau-kpi span { display:block; font-size:9px; color:#507580; font-weight:800; letter-spacing:.08em; }
 .modern-bau-kpi strong { display:block; margin:10px 0 6px; color:#014972; font-size:23px; }
@@ -97,6 +102,50 @@
   .modern-inputs-nav__select { display:block; width:100%; min-height:38px; padding:7px 10px; border:1px solid #c8dade; border-radius:5px; background:white; color:#014972; }
   .modern-inputs-content { padding:16px; }
   .modern-input-panel .wb-panel-section > div { grid-template-columns:repeat(auto-fill,minmax(min(190px,100%),1fr)) !important; }
-  .modern-bau-kpis, .debt-overview-strip ol { grid-template-columns:1fr; }
+  .debt-overview-strip ol { grid-template-columns:1fr; }
 }
 @media(prefers-reduced-motion:reduce) { .wb-app * { scroll-behavior:auto !important; transition:none !important; } }
+
+.modern-bau-service-picker { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:16px 0 8px; color:#014972; font-size:13px; font-weight:700; }
+.modern-bau-service-switch { display:flex; flex-wrap:wrap; gap:4px; padding:4px; max-width:100%; border:1px solid #c7d8df; border-radius:7px; background:#edf3f5; }
+.modern-bau-service-switch button { min-height:38px; padding:8px 14px; border:1px solid transparent; border-radius:5px; background:transparent; color:#014972; font:inherit; font-size:12px; cursor:pointer; }
+.modern-bau-service-switch button:hover { background:#dcebed; }
+.modern-bau-service-switch button[aria-pressed="true"] { background:#014972; color:white; border-color:#014972; }
+.modern-bau-service-note { color:#596b73; font-size:12px; line-height:1.5; }
+.bau-ledger-frame { container-type:inline-size; min-width:0; width:100%; }
+.bau-forecast-table { table-layout:fixed; width:100%; border-collapse:collapse; font-size:11px; color:#334155; }
+.bau-forecast-table caption { text-align:left; padding:10px 0; color:#596b73; font-size:12px; line-height:1.5; }
+.bau-forecast-table th, .bau-forecast-table td { box-sizing:border-box; padding:9px 6px; border:1px solid #dce4e8; white-space:normal; overflow-wrap:anywhere; vertical-align:top; text-align:right; line-height:1.4; }
+.bau-forecast-table th { background:#edf3f5; color:#014972; font-weight:700; }
+.bau-forecast-table td { font-variant-numeric:tabular-nums; }
+.bau-forecast-table th:first-child, .bau-forecast-table td:first-child { text-align:left; font-weight:700; }
+.bau-forecast-table tbody tr:nth-child(even) { background:#f8fafb; }
+.bau-forecast-table td:nth-child(3) { color:#014972; font-weight:600; }
+.bau-forecast-table td:nth-child(4) { color:#15803d; }
+.bau-forecast-table td:nth-child(5), .bau-forecast-table td:nth-child(n+10) { color:#9a3412; font-weight:600; }
+/* Eleven columns are useful on desktop; retain every labeled value on narrow panels. */
+@container (max-width:700px) {
+  .bau-forecast-table, .bau-forecast-table caption, .bau-forecast-table tbody { display:block; }
+  .bau-forecast-table colgroup { display:none; }
+  .bau-forecast-table thead { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); }
+  .bau-forecast-table tbody tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin-bottom:14px; border:1px solid #dce4e8; border-radius:5px; }
+  .bau-forecast-table td { display:block; min-width:0; text-align:left; padding:10px; border:0; border-bottom:1px solid #e5ebee; font-size:12px; }
+  .bau-forecast-table td::before { content:attr(data-label); display:block; margin-bottom:4px; font-size:11px; font-weight:600; color:#596b73; }
+  .bau-forecast-table td:first-child { grid-column:1 / -1; background:#edf3f5; color:#014972; }
+}
+
+.modern-bau-spending { min-width:0; margin-top:24px; padding-top:18px; border-top:1px solid #d1e1e5; }
+.modern-bau-spending h3 { margin:0; font-size:15px; color:#014972; }
+.modern-bau-spending p { font-size:12px; line-height:1.5; color:#596b73; }
+/* Keep both chart canvases aligned; stack when the actual content area is narrow. */
+.modern-bau-analysis-container { container:bau-analysis / inline-size; }
+.modern-bau-chart-pair { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:stretch; }
+.modern-bau-plot-panel { display:flex; flex-direction:column; min-width:0; padding:12px; border:1px solid #d1e1e5; border-radius:6px; background:#fbfdfd; }
+.modern-bau-plot-canvas { margin-top:auto; min-width:0; }
+.modern-bau-chart-pair .modern-bau-spending { margin:0; padding:12px; border:1px solid #d1e1e5; }
+.modern-bau-coverage-notes { margin-top:20px; min-width:0; }
+.modern-bau-loading { margin-bottom:12px; padding:18px; border-radius:5px; color:#46616c; background:linear-gradient(100deg,#edf3f5,#e2eef1,#edf3f5); font-size:12px; }
+@container bau-analysis (min-width:1076px) {
+  .modern-bau-chart-pair { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .modern-bau-chart-pair--expanded { grid-template-columns:minmax(0,1fr); }
+}

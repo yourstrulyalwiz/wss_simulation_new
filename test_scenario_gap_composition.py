@@ -77,12 +77,12 @@ class ScenarioGapCompositionTests(unittest.TestCase):
                             self.assertAlmostEqual(paid, min(max(available, 0),
                                 max(sec['scenario_bau_replacement_capex'][i], 0),
                                 max(sec['scenario_replacement_capex'][i], 0)), places=5)
-                            self.assertAlmostEqual(need + max(0, -available),
-                                                   paid + sec['scenario_financing_gap'][i], places=5)
+                            self.assertAlmostEqual(need + sec['scenario_replacement_backlog_opening'][i] + max(0, -available),
+                                                   paid + sec['scenario_replacement_backlog_paid'][i] + sec['scenario_financing_gap'][i], places=5)
                             self.assertAlmostEqual(
                                 sec['scenario_financing_gap'][i],
                                 sec['scenario_new_capex_total'][i] +
-                                sec['scenario_unfunded_replacement'][i] +
+                                sec['scenario_replacement_backlog_closing'][i] +
                                 sec['scenario_cash_deficit'][i], places=5)
                             self.assertAlmostEqual(
                                 sec['scenario_available_total'][i],

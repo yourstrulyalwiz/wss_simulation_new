@@ -20,11 +20,11 @@ export default function BAUSpendingChart({ rows, moneyFactor, currency, scopeLab
   return <section className="modern-bau-spending modern-bau-plot-panel" aria-label="BAU capital requirements and available funds">
     <h3>BAU capital requirements and available funds</h3>
     <p>{scopeLabel} / {sectorLabel} / Both service levels. Annual target-path expansion and replacement requirements under BAU assumptions, compared with effective capital available. Operating costs are excluded.</p>
-    <p>All amounts: {units}. The bars show annual flows, not accumulated unmet obligations. The difference from available capital is not the model's closing financing balance; see the BAU table for that balance.</p>
+    <p>All amounts: {units}. Bars show annual new requirements excluding opening replacement backlog, not accumulated unmet obligations. The difference from available capital is not the model's closing financing balance; see the BAU reconciliation table for that balance. Restricted expansion funding cannot settle replacement backlog.</p>
     <div className="modern-bau-chart-actions">
       <ChartExport chartRef={chartRef} filename={`${scopeLabel || 'area'}_${sectorLabel}_bau_spending`}
         title="BAU capital requirements and available funds" currencyDisplay={currencyDisplay}
-        sheets={[{ name: 'Annual capital', headers: ['Year', `Planned expansion (${units})`, `Replacement need (${units})`, `Available capital (${units})`],
+        sheets={[{ name: 'Annual capital', headers: ['Year', `Planned expansion — excludes opening backlog (${units})`, `Current replacement need — excludes opening backlog (${units})`, `Available capital (${units})`],
           rows: data.map(row => [row.year, row.expansion, row.replacement, row.available]) }]} />
     </div>
     <div ref={chartRef} className="modern-bau-plot-canvas">

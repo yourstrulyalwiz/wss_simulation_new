@@ -5,7 +5,9 @@ description: Accounting precedence and unchanged-delivery boundary for actual fu
 
 Absorb signed cash losses proportionally from positive ordinary sources, pay
 contractual debt from originally selected sources only, then pay replacement
-from the whole remaining ordinary pool before allocating that payment to sources.
+from the whole remaining ordinary pool: current obligations first, then opening
+replacement backlog, then ordinary expansion. This backlog priority is explicitly
+authorized by the user's November 1, 2026 instructions and may reduce delivery.
 Attribute actual combined purchases proportionally, using ordinary cash before
 restricted loan proceeds. Retain signed revenue without negative purchase weights.
 

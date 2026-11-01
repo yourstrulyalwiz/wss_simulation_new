@@ -307,14 +307,21 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
         ('Annual planned expansion — sum of flows', 'annual_planned_expansion_cost'),
         ('Replacement requirement — sum of flows', 'replacement_capex'),
         ('Closing outstanding expansion — end balance', 'closing_outstanding_expansion'),
-        ('Catch-up before funding — end-year snapshot', 'catch_up_requirement'),
-        ('Replacement credit — sum of flows', 'replacement_credit'),
-        ('Unpaid replacement — sum of flows', 'unfunded_replacement'),
+        ('Catch-up incl. opening backlog, excl. historical cash — snapshot', 'catch_up_requirement'),
+        ('Current replacement credit — sum of flows', 'replacement_credit'),
+        ('Current unpaid replacement — sum of flows, not closing liability', 'unfunded_replacement'),
+        ('Opening replacement backlog — period opening snapshot', 'replacement_backlog_opening'),
+        ('Current replacement paid — sum of flows', 'replacement_current_paid'),
+        ('Opening backlog paid — sum of flows', 'replacement_backlog_paid'),
+        ('Total replacement paid — sum of flows (subtotal)', 'replacement_paid_total'),
+        ('Closing replacement backlog — end balance, not sum', 'replacement_backlog_closing'),
+        ('Eligible pooled capital after losses / debt service — sum', 'eligible_capital_after_losses_debt'),
+        ('Ordinary capital remaining for expansion — sum', 'ordinary_expansion_available'),
         ('Negative cash — sum of flows', 'cash_deficit'),
-        ('Endline requirement incl. all prior shortfalls', 'endline_financing_requirement'),
+        ('Endline: expansion + replacement backlog + accumulated cash', 'endline_financing_requirement'),
         ('Total available capital (reporting only)', 'available_total'),
         ('Coverage-stock replacement basis', 'bau_replacement_capex'),
-        ('Replacement funding reserved', 'replacement_reserved'),
+        ('Current replacement funding reserved — not total paid', 'replacement_reserved'),
         ('Funded expansion — sum of flows', 'sector_funded_expansion'),
         ('External expansion — sum of flows', 'externally_funded_expansion'),
         ('Gross funded stock — end balance', 'funded_asset_stock'),
@@ -322,9 +329,10 @@ def block_data(result: dict, inputs: dict, sk: str, passes, enabled, has_custom)
     ]
     investment = {
         'periods': [p[0] for p in periods],
-        'rows': [(lbl, [(_at(sec[f], _idx(years, hi)) if f in (
+        'rows': [(lbl, [(_at(sec.get(f), _idx(years, lo)) if f == 'replacement_backlog_opening' else
+            _at(sec.get(f), _idx(years, hi)) if f in (
             'closing_outstanding_expansion', 'catch_up_requirement',
-            'endline_financing_requirement', 'funded_asset_stock') else
+            'replacement_backlog_closing', 'endline_financing_requirement', 'funded_asset_stock') else
             _rng(sec.get(f), years, lo, hi)) for _, lo, hi in periods]) for lbl, f in inv_rows],
     }
 

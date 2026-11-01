@@ -132,6 +132,7 @@ try {
         await select(level, level === 'at_least_basic' ? 'table' : 'graph');
         const result = await e(`window.__bauResponses.at(-1)`);
         const endIndex = result.years.indexOf(inputs.period.forecast_end_year);
+        assert.ok(await e(`[...document.querySelectorAll('summary')].some(el=>el.textContent.includes('Annual replacement and expansion reconciliation'))`));
         assert.equal(await e(`document.querySelectorAll('.bau-forecast-table thead th').length`), 11);
         assert.equal(await e(`/cash deficit/i.test(document.querySelector('.bau-forecast-table').textContent)`), false);
         const moneyText = value => Number((value / 1000).toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -179,7 +180,7 @@ try {
   await e(`document.querySelector('[data-bau-ledger] button[title="Download this table as CSV"]').click()`);
   await w(`window.__bauDownloads.length>0`, 'CSV download missing');
   const csv = await e(`window.__bauDownloads.at(-1).text()`);
-  assert.ok(!/cash deficit/i.test(csv));
+  assert.ok(!csv.split('\r\n').find(line => line.startsWith('Year,')).split(',').some(header => /cash deficit/i.test(header) && !/closing expansion/.test(header)));
   assert.equal(csv.trim().split('\r\n').at(-1).split(',').length, 11);
   assert.ok(csv.includes('USD M'), 'CSV labels must identify millions rather than table billions');
   assert.ok(csv.includes('At least basic') || csv.includes('at least basic'));
@@ -202,7 +203,7 @@ try {
   assert.deepEqual(await e(`window.__bauDownloads.at(-1).slice(0,2).arrayBuffer().then(b=>[...new Uint8Array(b)])`), [80, 75]);
   const tableExport = await e(`window.__bauExportBodies.filter(item=>item.path==='/api/export/table').at(-1).body.sheets[0]`);
   assert.equal(tableExport.headers.length, 11);
-  assert.ok(tableExport.headers.every(header => !/cash deficit/i.test(header)));
+  assert.ok(tableExport.headers.every(header => !/cash deficit/i.test(header) || /closing expansion/.test(header)));
   assert.equal(tableExport.headers.at(-1), 'Sector available funding (USD M/yr)');
   assert.ok(tableExport.rows.every(row => row.length === 11));
   assert.equal(tableExport.rows.at(-1)[10], Number(availableUsd.toPrecision(3)));
@@ -239,6 +240,12 @@ try {
   await w(`document.querySelector('.bau-forecast-table caption').textContent.includes(${JSON.stringify(sourceCurrency)})`, 'Local currency restoration missing');
 
   // Missing engine series must clear coverage/table; retry uses the unchanged input payload.
+  await e(`[...document.querySelectorAll('details')].find(el=>el.querySelector('summary')?.textContent.includes('Annual replacement and expansion reconciliation')).open=true`);
+  await e(`[...document.querySelectorAll('summary')].find(el=>el.textContent.includes('Annual replacement and expansion reconciliation')).scrollIntoView()`);
+  if (process.env.BAU_SCREENSHOT_DIR) {
+    const capture = await b.call('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(`${process.env.BAU_SCREENSHOT_DIR}/replacement-waterfall.png`, Buffer.from(capture.data, 'base64'));
+  }
   await e(`window.__bauMode='missing'`);
   await e(`document.querySelector('[aria-label="BAU graph service level"] [data-service-level="basic"]').click()`);
   await w(`document.querySelector('[role="alert"]')?.textContent.includes('missing a valid')`, 'Missing series must be explicit');

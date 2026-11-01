@@ -23,14 +23,13 @@ class ResultsLedgerTests(unittest.TestCase):
         for service_key, total_key in identities:
             np.testing.assert_allclose(series(service_key).sum(axis=0), series(total_key), atol=1e-8)
         np.testing.assert_allclose(
-            series('prefunding_expansion_cost_by_service').sum(axis=0) + series('replacement_capex'),
+            series('prefunding_expansion_cost_by_service').sum(axis=0) + series('replacement_capex') + series('replacement_backlog_opening'),
             series('catch_up_requirement'), atol=1e-8)
         np.testing.assert_allclose(
             series('closing_outstanding_expansion_by_service') + series('accumulated_shortfalls_by_service'),
             series('endline_financing_requirement_by_service'), atol=1e-8)
         np.testing.assert_allclose(
-            series('new_capex_by_service') + series('replacement_by_service') -
-            series('funded_by_service') + series('cash_deficit_by_service'),
+            series('new_capex_by_service') + series('replacement_backlog_closing_by_service') + series('cash_deficit_by_service'),
             series('financing_gap_by_service'), atol=1e-8)
 
     def test_reporting_reconciles_under_deficits_surplus_and_both_sector_modes(self):

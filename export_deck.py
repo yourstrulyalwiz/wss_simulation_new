@@ -307,12 +307,11 @@ def _fill_investment(slide, b, cur, money_factor=1.0, usd_mode=False):
     note = find_shape(slide, 'T503')
     if note is not None:
         _set_full_text(note, (
-            f"Residual-ledger subtotal: {bn(b['total_need_m'] * money_factor)} billion {cur} to {b['last_target_year']}.\n"
-            f"Endline requirement (closing expansion + accumulated shortfalls): {bn(b['financing_gap_m'] * money_factor)} billion {cur}. Period-end balances are not additive.\n"
-            "Gap = residual new-service cost + replacement requirement − replacement credit + cash deficit.\n"
-            "Available capital has already financed modeled connections; no second credit applies.\n"
-            "Replacement reserve uses coverage stock; reported obligations use target-needs stock.\n"
-            "Connection purchases are pre-cap allocations, not actual delivery."))
+            f"Annual new expansion + current replacement: {bn(b['total_need_m'] * money_factor)} billion {cur} to {b['last_target_year']}; excludes opening backlog.\n"
+            f"Endline requirement: {bn(b['financing_gap_m'] * money_factor)} billion {cur} = closing expansion + closing replacement backlog + accumulated cash shortfalls.\n"
+            "Financing gap uses current cash deficit instead of accumulated cash shortfalls. Current unpaid replacement is already inside closing backlog.\n"
+            "Pooled funds pay current replacement, then opening backlog, before ordinary expansion. Restricted loans remain expansion-only.\n"
+            "Payments are flows; opening/closing backlogs are snapshots, never summed across years. Expansion receives no second payment credit."))
 
 
 def _fill_interventions(slide, b, cur, contribution_view='individual', money_factor=1.0):

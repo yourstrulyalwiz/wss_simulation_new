@@ -31,6 +31,8 @@ import { WATER_INTERVENTIONS as WATER_INTV, SANITATION_INTERVENTIONS as SAN_INTV
 import { selectedLedgerSources } from '../ledgerSelection';
 import { aggregateCoverage, aggregateSourceFunding, sourceCoverageRows, sourceDefinition, BASELINE_COVERAGE_LABEL, SOURCE_COVERAGE_TEXT, type CoverageAttribution, type SourceFunding } from '../sourceAttribution';
 import { useNarrowChart } from '../useNarrowChart';
+import { replacementWaterfallReports } from '../replacementWaterfall';
+import ReplacementWaterfallTable from './ReplacementWaterfallTable';
 
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
 function round3(v: number): number { return (!isFinite(v) || v === 0) ? 0 : Number(v.toPrecision(3)); }
@@ -69,7 +71,7 @@ interface Props {
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
 type DebtData = { summary: any; rows: any[]; areas: any[]; annualRows: any[] };
-type Series = { sum: any; attribution: CoverageAttribution; sourceFunding?: SourceFunding; sourceBands: ContribBand[]; impactRows: Row[]; inv: InvTable; unit: { sm: number; basic: number }; ledgerBase: LedgerSnapshot[]; ledgerScenario: LedgerSnapshot[]; ledgerAreas: LedgerData['areas']; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any; nrwResults: any[] };
+type Series = { waterfallReports: ReturnType<typeof replacementWaterfallReports>; sum: any; attribution: CoverageAttribution; sourceFunding?: SourceFunding; sourceBands: ContribBand[]; impactRows: Row[]; inv: InvTable; unit: { sm: number; basic: number }; ledgerBase: LedgerSnapshot[]; ledgerScenario: LedgerSnapshot[]; ledgerAreas: LedgerData['areas']; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any; nrwResults: any[] };
 type Both = { water: Series | null; sanitation: Series | null } | null;
 type Row = { key: string; label: string; addHH: number | null; resources: number | null };
 
@@ -458,15 +460,21 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             invRow('Closing outstanding expansion — end balance', ledger('closing_outstanding_expansion'), false, true),
             invRow('Catch-up before funding — end-year snapshot', ledger('catch_up_requirement'), false, true),
             invRow('Replacement credit — annual flows', ledger('replacement_credit')),
+            invRow('Current replacement paid — annual flows', ledger('replacement_current_paid')),
+            invRow('Opening backlog paid — annual flows', ledger('replacement_backlog_paid')),
+            invRow('Total replacement paid — annual flows (subtotal)', ledger('replacement_paid_total')),
+            invRow('Closing replacement backlog — end balance', ledger('replacement_backlog_closing'), false, true),
+            invRow('Eligible pooled capital after losses / debt service', ledger('eligible_capital_after_losses_debt')),
+            invRow('Ordinary capital remaining for expansion', ledger('ordinary_expansion_available')),
             invRow('Unpaid replacement — annual flows', ledger('unfunded_replacement')),
             invRow('Negative cash — annual flows', ledger('cash_deficit')),
-            invRow('Endline requirement incl. all prior shortfalls', ledger('endline_financing_requirement'), true, true),
+            invRow('Endline: expansion + replacement backlog + accumulated cash', ledger('endline_financing_requirement'), true, true),
             invRow('Gross funded asset stock — end balance', ledger('funded_asset_stock'), false, true),
             invRow('Sector-funded expansion — annual flows', ledger('sector_funded_expansion')),
             invRow('Externally funded expansion — annual flows', ledger('externally_funded_expansion')),
             invRow('Total available capital (reporting only)', bauInv),
             invRow('Coverage-stock replacement basis', ledger('bau_replacement_capex')),
-            invRow('Replacement funding reserved', ledger('replacement_reserved')),
+            invRow('Current replacement funding reserved — not total paid', ledger('replacement_reserved')),
             invRow('Actual funded connection purchases', ledger('connection_purchase_capital')),
             invRow('Unallocated positive expansion capital', ledger('unallocated_positive_capital')),
           ] };
@@ -530,6 +538,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
            return { inv, unit, attribution, sourceFunding, sourceBands: sourceCoverage.bands, impactRows,
             ledgerBase: ledgerSnapshots(resList, secKey, baseYr, false),
+            waterfallReports: replacementWaterfallReports(resList, secKey, baseYr,
+              datasets.map((dataset: any) => dataset.country_config?.area || 'Selected area'), true),
             ledgerScenario: ledgerSnapshots(resList, secKey, baseYr),
             ledgerAreas: geoScope === 'national' ? [] : resList.map((result, index) => {
               const key: 'urban' | 'rural' = effScope === 'rural' || (effScope === 'national' &&
@@ -1096,6 +1106,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         </section>
         <details style={{ marginTop: 12, marginBottom: 12 }}>
           <summary style={{ cursor: 'pointer', fontSize: 12, color: '#334155' }}>Full technical audit ledger and downloads</summary>
+          {s.waterfallReports.map((report, i) => <ReplacementWaterfallTable key={report.label} label={report.label}
+            rows={report.rows} moneyFactor={moneyFactor} currency={displayCur}
+            filename={`${scopeName}_${secKey}_replacement_waterfall_${i}`} currencyDisplay={detailExportCurrency} />)}
           <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={displayCur}
             moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency} />
         </details>

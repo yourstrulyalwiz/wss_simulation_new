@@ -933,22 +933,24 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         if not np.isclose(sum(sources.values()), avail, rtol=1e-10, atol=1e-8):
             raise ValueError('Ordinary source contributions do not reconcile to available funding')
         allocation = allocate_sources(sources, max(bau_replacement[t], 0.),
-                                      debt_service_arr[t], selected_sources)
-        cash_after_debt_service = max(0., avail) - allocation['debt_service_paid']
+                                      debt_service_arr[t], selected_sources,
+                                      replacement_backlog=float(ledger.replacement_shortfalls.sum()))
+        cash_after_debt_service = allocation['eligible_capital_after_losses_debt']
+        ordinary_expansion_cash = sum(allocation['expansion_available'].values())
         after_debt_series[t] = cash_after_debt_service
         replacement_reserved[t] = allocation['replacement_paid']
         if replacement[t] > 0:
             replacement_funding_applied_by_service[:, t] = (
                 replacement_reserved[t] * replacement_by_service[:, t] / replacement[t])
         expansion_capital_available[t] = (
-            max(0.0, cash_after_debt_service - replacement_reserved[t]) + debt_cash_available[t])
+            ordinary_expansion_cash + debt_cash_available[t])
         # ── Investment split (test2) ───────────────────────────────────────────────────────────────────
         # Replacement is funded first, then the remainder is split: `basic_share` buys BASIC service for
         # households at limited-and-below, the rest buys SAFELY MANAGED for households at basic-and-below.
         # Both flows are drawn from the PRIOR year's counts, so a household cannot climb two rungs and be
         # paid for twice in one year. Money whose source pool is exhausted rolls over to the other rung.
         # basic_share = 0 is the default and reproduces the pre-split single-purchase behaviour exactly.
-        invest = (max(0.0, cash_after_debt_service - bau_replacement[t]) + debt_cash_available[t]) * hh_share
+        invest = (ordinary_expansion_cash + debt_cash_available[t]) * hh_share
         bs = float(np.clip(basic_share, 0.0, 1.0))
         pool_basic = max(0.0, bau[1, t - 1])                            # eligible for a safely-managed upgrade
         pool_lower = sum(max(0.0, bau[r, t - 1]) for r in LOWER)        # eligible for a basic upgrade
@@ -1146,6 +1148,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         weights = due_cost + replacement_by_service[:, t]
         sm_share = weights[0] / weights.sum() if weights.sum() > 0 else 1.0 - bs
         cash_deficit_by_service[:, t] = cash_deficit[t] * np.array([sm_share, 1 - sm_share])
+        opening_backlog = ledger.replacement_shortfalls.copy()
+        backlog_paid_by_service = (opening_backlog * allocation['replacement_backlog_paid'] / opening_backlog.sum()
+                                   if opening_backlog.sum() > 0 else np.zeros(2))
         closing, ancillary_paid = ledger.step(
             t, tgt[:, t], np.array([cost_sm_t[t], cost_basic_t[t]]) * (1 + nonhh_mult),
             [new_sm, new_basic], [mf_flow[t] + grant_flow[t], 0], [nrw_upg, 0],
@@ -1153,13 +1158,17 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             deficit_by_service=cash_deficit_by_service[:, t],
             ancillary_cost=capex_adder * (1 + nonhh_mult),
             spare_capital=unallocated_positive_capital[t], asset_stock=stock[t],
-            sector_capital=connection_purchase_capital[t], external_capital=external_cost)
+            sector_capital=connection_purchase_capital[t], external_capital=external_cost,
+            replacement_settlement=dict(opening=opening_backlog,
+                backlog_paid=backlog_paid_by_service,
+                current_paid=replacement_funding_applied_by_service[:, t],
+                eligible_capital_after_losses_debt=cash_after_debt_service,
+                ordinary_expansion_available=ordinary_expansion_cash))
         stock[t] += ancillary_paid
         bau_stock[t] = stock[t]
         # The fixed shared ancillary asset retains its service attribution.
         need_stock_by_service[:, t] += ledger.series['ancillary_paid_by_service'][:, t]
         unallocated_positive_capital[t] -= ancillary_paid
-        ordinary_expansion_cash = max(0.0, cash_after_debt_service - bau_replacement[t])
         actual_sector_investment = connection_purchase_capital[t] + ancillary_paid
         debt_investment_used[t] = min(
             debt_cash_available[t], max(0.0, actual_sector_investment - ordinary_expansion_cash))
@@ -1180,7 +1189,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             replacement_credit[t] = min(replacement_reserved[t], max(replacement[t], 0.0))
             unfunded_replacement[t] = max(replacement[t] - replacement_credit[t], 0.0)
             cash_deficit[t] = allocation['loss_unfunded'] + allocation['debt_service_unfunded']
-            financing_gap[t] = max(0.0, nc_total + unfunded_replacement[t] + cash_deficit[t])
+            financing_gap[t] = max(0.0, nc_total + ledger.replacement_shortfalls.sum() + cash_deficit[t])
             sm_gap, basic_gap, sm_paid, basic_paid = attribute_gap(
                 new_capex_by_service[0, t], new_capex_by_service[1, t],
                 replacement_by_service[0, t], replacement_by_service[1, t],
@@ -1190,7 +1199,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             funded_by_service[0, t] = sm_paid
             funded_by_service[1, t] = basic_paid
             # Use the same cash attribution in annual and accumulated ledgers.
-            financing_gap_by_service[:, t] = closing + unpaid_by_service + cash_deficit_by_service[:, t]
+            financing_gap_by_service[:, t] = closing + ledger.replacement_shortfalls + cash_deficit_by_service[:, t]
 
     # Affordability lever running totals (cumulative over the forecast).
     selffin_upgrade_cum = np.cumsum(selffin_flow)

@@ -15,10 +15,12 @@ export type CoverageAttribution = {
   baseline_difference_from_bau: { sm: number[]; basic: number[] };
   reconciliation_error: { sm: number[]; basic: number[] };
 };
-export const SOURCE_FUNDING_FIELDS = ['signed_contribution', 'loss_charge', 'debt_charge', 'replacement_charge',
+export const SOURCE_FUNDING_FIELDS = ['signed_contribution', 'loss_charge', 'debt_charge',
+  'replacement_current_charge', 'replacement_backlog_charge', 'replacement_charge',
   'expansion_available', 'basic_capital_spent', 'sm_capital_spent', 'ancillary_spent', 'unused'] as const;
 export const SOURCE_FUNDING_TOTALS = ['loss_unfunded', 'debt_service_due', 'debt_service_paid', 'debt_service_unfunded',
-  'replacement_due', 'replacement_paid', 'replacement_unfunded'] as const;
+  'replacement_due', 'replacement_paid', 'replacement_unfunded', 'eligible_capital_after_losses_debt',
+  'replacement_backlog_opening', 'replacement_backlog_paid', 'replacement_backlog_closing', 'replacement_paid_total'] as const;
 export type SourceFunding = { version: number; method: string; source_keys: string[]; [field: string]: any };
 export function sourceDefinition(key: string, sector: 'water' | 'sanitation'): ViewBand {
   const prefix = sector === 'water' ? 'ws' : 'san';
@@ -68,11 +70,13 @@ export function aggregateCoverage(results: any[], sector: 'water_supply' | 'sani
 export function aggregateSourceFunding(results: any[], sector: 'water_supply' | 'sanitation', withoutDebt = false): SourceFunding | undefined {
   const field = withoutDebt ? 'scenario_without_utility_debt_source_funding' : 'scenario_source_funding';
   const sources = results.map(r => r[sector]?.[field]);
-  if (!sources.length || sources.some(s => s?.version !== 1 || s?.method !== 'actual_source_funding' ||
+  if (!sources.length || sources.some(s => ![1, 2].includes(s?.version) || s?.method !== 'actual_source_funding' ||
       !Array.isArray(s?.source_keys) || !s.source_keys.includes('baseline'))) return undefined;
   const source_keys = [...new Set<string>(sources.flatMap(s => s.source_keys))];
   const add = (values: any[]) => values.every(v => typeof v === 'number' && Number.isFinite(v)) ? values.reduce((a, v) => a + v, 0) : null;
-  const out: SourceFunding = { version: 1, method: 'actual_source_funding', source_keys };
+  // Never turn missing v2 data into zero, or silently mix incompatible charge semantics.
+  if (sources.some(s => s.version !== sources[0].version)) return undefined;
+  const out: SourceFunding = { version: sources[0].version, method: 'actual_source_funding', source_keys };
   for (const name of SOURCE_FUNDING_FIELDS) out[name] = Object.fromEntries(source_keys.map(key =>
     [key, results[0].years.map((_: number, i: number) => add(sources.map(s => s.source_keys.includes(key) ? s[name]?.[key]?.[i] : 0)))]));
   for (const name of SOURCE_FUNDING_TOTALS) out[name] = results[0].years.map((_: number, i: number) => add(sources.map(s => s[name]?.[i])));

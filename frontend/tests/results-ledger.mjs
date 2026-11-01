@@ -74,9 +74,10 @@ for (const sector of ['water_supply', 'sanitation']) {
         for (const isShare of [false,true]) {
           const options = {metric,service,basis,years,isShare,moneyFactor:.001,currency:'USD',view:'effects'};
           const rows = ledgerRows(data, options);
+          const first = rows.find(row=>row.kind!=='section');
           const categories = rows.filter(row=>row.kind==='category');
           assert.ok(categories.some(row=>row.key==='custom'));
-          assert.equal(rows[0].key, metric==='funding' ? 'funding-source-baseline'
+          assert.equal(first.key, metric==='funding' ? 'funding-source-baseline'
             : metric==='coverage' && basis==='annual' ? 'opening-baseline' : 'bau');
           const final = rows.find(row=>row.key==='scenario');
           if (metric==='requirements') {
@@ -95,7 +96,7 @@ for (const sector of ['water_supply', 'sanitation']) {
             assert.equal(rows.findIndex(row=>row.key==='expansionPaid'),rows.findIndex(row=>row.key==='plannedExpansion')+1);
           }
           for (let i=0;i<years.length;i++) {
-            if (rows[0].values[i] == null) {
+            if (first.values[i] == null) {
               assert.equal(final.values[i],null);
               if (metric !== 'coverage') assert.ok(years[i]<=fixture.baseline);
               continue;
@@ -140,13 +141,13 @@ for (const sector of ['water_supply', 'sanitation']) {
       const v = snap.values;
       close(v.funding[2],v.fundingApplied[2]+v.fundingShared[2]);
       for (let rung=0;rung<3;rung++) {
-        close(v.fundingApplied[rung],v.replacementPaid[rung]+v.expansionPaid[rung]);
+        close(v.fundingApplied[rung],v.replacementPaidTotal[rung]+v.expansionPaid[rung]);
         const actual = key => reports.reduce((sum,r)=>sum+r[sector][prefix+key]
           .reduce((amount,row,j)=>amount+(rung===2 || j===rung ? row[i] : 0),0),0);
         close(v.replacementPaid[rung],actual('replacement_funding_applied_by_service'));
         close(v.expansionPaid[rung],actual('sector_funded_expansion_by_service')+actual('externally_funded_expansion_by_service'));
         close(v.requirementsAnnual[rung],v.plannedExpansion[rung]+v.replacement[rung]+v.cashDeficit[rung]);
-        close(v.gapAnnual[rung],v.outstanding[rung]+v.replacement[rung]-v.replacementCredit[rung]+v.cashDeficit[rung]);
+        close(v.gapAnnual[rung],v.outstanding[rung]+v.replacementBacklogClosing[rung]+v.cashDeficit[rung]);
         close(v.gapClosing[rung],v.outstanding[rung]+v.accumulatedShortfalls[rung]);
       }
       for (const key of ['fundingApplied','replacementPaid','expansionPaid','requirementsAnnual','requirementsCatchUp','gapAnnual','gapClosing'])
@@ -196,8 +197,18 @@ for (const sector of ['water_supply', 'sanitation']) {
     close(value,basic.find(row=>row.key==='scenario').values[i]-basic.find(row=>row.key==='target').values[i]));
   const smEffects = contributions.flatMap(c=>c.after.map((row,i)=>row.values.coverage[0]-c.before[i].values.coverage[0]));
   const basicEffects = contributions.flatMap(c=>c.after.map((row,i)=>row.values.coverage[1]-c.before[i].values.coverage[1]));
-  assert.ok(smEffects.some(value=>value>0) || sector==='sanitation');
-  assert.ok(basicEffects.some(value=>value<0) || sector==='sanitation');
+  if (smEffects.some(value=>value>0)) {
+    assert.ok(basicEffects.some(value=>value<0) || sector==='sanitation');
+  } else if (sector === 'water_supply') {
+    // This low-capital fixture now pays replacement arrears before new expansion.
+    // Zero coverage effects are valid; verify the obligation consuming those funds.
+    assert.ok(scenario.some(row=>row.values.replacementBacklogClosing[2]>0));
+    for (const row of scenario.filter(row=>row.year>fixture.baseline)) {
+      if (row.values.replacementBacklogClosing[2]>1e-8)
+        close(row.values.ordinaryExpansionAvailable[2],0);
+    }
+    smEffects.forEach(value=>close(value,0));
+  }
   const fundingOptions={metric:'funding',service:'total',basis:'annual',years,isShare:false,moneyFactor:1,currency:'USD'};
   const ordinary=ledgerRows({...data,includesDebt:false},fundingOptions);
   assert.ok(!ordinary.some(r=>['debtFundingSection','fundingRestricted','repayments'].includes(r.key)));

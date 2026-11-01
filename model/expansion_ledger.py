@@ -16,8 +16,9 @@ class ExpansionLedger:
         self.ancillary_committed = False
         self.ancillary = np.zeros(2)
         self.shortfalls = np.zeros(2)
-        # Parallel reporting counters only. Keep the legacy combined accumulator
-        # and all model calculations unchanged, including their arithmetic order.
+        # Mutable financial balances. Replacement is settled annually; historical
+        # cash shortfalls accumulate without repayment. Combined shortfalls derive
+        # from these balances rather than accumulating independently.
         self.replacement_shortfalls = np.zeros(2)
         self.cash_shortfalls = np.zeros(2)
         self.last_costs = None
@@ -60,10 +61,17 @@ class ExpansionLedger:
             'funded_asset_stock', 'sector_funded_expansion', 'externally_funded_expansion',
             'ancillary_outstanding', 'ancillary_paid', 'capital_credited_to_due_expansion',
         )})
+        for key in ('replacement_backlog_opening', 'replacement_current_paid',
+                    'replacement_backlog_paid', 'replacement_paid_total', 'replacement_backlog_closing'):
+            self.series[key] = np.zeros(n)
+            self.series[key + '_by_service'] = np.zeros((2, n))
+        for key in ('eligible_capital_after_losses_debt', 'ordinary_expansion_available'):
+            self.series[key] = np.zeros(n)
 
     def step(self, t, target, costs, sector, external, physical, *,
              replacement, unpaid_by_service, deficit_by_service,
-             ancillary_cost, spare_capital, asset_stock, sector_capital, external_capital):
+             ancillary_cost, spare_capital, asset_stock, sector_capital, external_capital,
+             replacement_settlement=None):
         required = np.maximum(np.array([target[0], sum(target[:2])]) - self.base, 0)
         planned = np.maximum(required - self.required, 0)
         reductions = np.maximum(self.required - required, 0)
@@ -88,7 +96,7 @@ class ExpansionLedger:
         prefunding_ancillary = self.ancillary.copy()
         prior_replacement = self.replacement_shortfalls.copy()
         prior_cash = self.cash_shortfalls.copy()
-        catch_up = float(prefunding_cost_by_service.sum() + replacement)
+        catch_up = float(prefunding_cost_by_service.sum() + replacement + prior_replacement.sum())
         delivered = np.asarray(sector) + np.asarray(external) + np.asarray(physical)
         # Only actual capital purchases receive a capital credit; physical reuse is not cash.
         physical_credit = np.minimum(due, physical)
@@ -100,9 +108,18 @@ class ExpansionLedger:
         if self.ancillary.sum() > 0:
             self.ancillary *= 1 - paid / self.ancillary.sum()
         closing_by_service = self.outstanding * costs + self.ancillary
-        self.shortfalls += np.asarray(unpaid_by_service) + np.asarray(deficit_by_service)
-        self.replacement_shortfalls += np.asarray(unpaid_by_service)
+        backlog_paid = np.zeros(2)
+        current_paid = np.zeros(2)
+        if replacement_settlement is not None:
+            if not np.allclose(prior_replacement, replacement_settlement['opening'], rtol=1e-9, atol=1e-9):
+                raise ValueError('Replacement opening backlog does not match prior close')
+            backlog_paid = np.asarray(replacement_settlement['backlog_paid'])
+            current_paid = np.asarray(replacement_settlement['current_paid'])
+            if np.any(backlog_paid < 0) or np.any(backlog_paid > prior_replacement + 1e-8 * np.maximum(1., prior_replacement)):
+                raise ValueError('Invalid replacement backlog repayment')
+        self.replacement_shortfalls = np.maximum(prior_replacement - backlog_paid, 0) + np.asarray(unpaid_by_service)
         self.cash_shortfalls += np.asarray(deficit_by_service)
+        self.shortfalls = self.replacement_shortfalls + self.cash_shortfalls
         endline = closing_by_service + self.shortfalls
         sector_weights = np.asarray(sector) * costs
         external_weights = np.asarray(external) * costs
@@ -161,6 +178,17 @@ class ExpansionLedger:
         }
         for key, value in values.items():
             self.series[key][..., t] = value
+        for key, value in (
+            ('replacement_backlog_opening', prior_replacement),
+            ('replacement_current_paid', current_paid),
+            ('replacement_backlog_paid', backlog_paid),
+            ('replacement_paid_total', current_paid + backlog_paid),
+            ('replacement_backlog_closing', self.replacement_shortfalls)):
+            self.series[key + '_by_service'][:, t] = value
+            self.series[key][t] = value.sum()
+        if replacement_settlement is not None:
+            for key in ('eligible_capital_after_losses_debt', 'ordinary_expansion_available'):
+                self.series[key][t] = replacement_settlement[key]
         self.required = required
         self.last_costs = costs.copy()
         return closing_by_service, paid

@@ -40,7 +40,7 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
   // Monetary balances and within-year flows are explicitly distinguished.
   const summary: Column[] = [
     { title: `Planned expansion — annual flow (${b})`, value: r => r.planned, unit: 'money' },
-    { title: `Catch-up before funding — snapshot (${b})`, value: r => r.catchUp, unit: 'money' },
+    { title: `Catch-up incl. opening replacement backlog, excl. historical cash — snapshot (${b})`, value: r => r.catchUp, unit: 'money' },
     { title: `Outstanding expansion — closing balance (${b})`, value: r => r.outstanding, unit: 'money' },
     { title: `Endline requirement incl. accumulated shortfalls (${b})`, value: r => r.endlineRequirement, unit: 'money' },
     { title: `Gross funded asset stock — balance (${b})`, value: r => r.stock, unit: 'money' },
@@ -55,7 +55,7 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
     { title: `Additional effective sector capex (${b})`, value: r => r.scenarioAvailable - r.bauAvailable, unit: 'money' },
     { title: `Scenario sector capex available (${b})`, value: r => r.scenarioAvailable, unit: 'money' },
     { title: `Coverage-stock replacement basis (${b})`, value: r => r.coverageReplacement, unit: 'money' },
-    { title: `Replacement funding reserved (${b})`, value: r => r.replacementReserved, unit: 'money' },
+    { title: `Current replacement funding reserved — not total paid (${b})`, value: r => r.replacementReserved, unit: 'money' },
     { title: `Replacement credit (${b})`, value: r =>
       r.services[0].fundedScenario + r.services[1].fundedScenario, unit: 'money' },
     { title: `Expansion capital available (${b})`, value: r => r.expansionAvailable, unit: 'money' },
@@ -140,10 +140,12 @@ export default function ScenarioGapTables({ rows, sector, label, scope, currency
         headers={summaryHeaders} rows={summaryExport} compact currencyDisplay={currencyDisplay} />
     </div>
     <div style={{ fontSize: 10.5, color: '#475569', lineHeight: 1.5, marginBottom: 7 }}>
-      Remaining financing gap = residual new-service cost + replacement requirement − replacement credit + cash deficit.
+      Remaining financing gap = closing outstanding expansion + closing replacement backlog + current cash deficit.
+      Endline requirement uses accumulated cash shortfalls instead of current cash deficit.
+      Current unpaid replacement is already included in closing backlog; do not add it again.
       New-service costs already reflect funded connections and receive no second capital credit. Additional effective sector
       capex is scenario available minus BAU available (net of execution and cash effects); cost-saving interventions
-      instead lower residual costs. Replacement reserved uses the coverage-stock basis; credit is capped at the
+      instead lower residual costs. Replacement reserved and replacement credit refer only to current-year obligations, not backlog payments; credit is capped at the
       reported replacement obligation and allocated by service replacement shares. Expansion purchases include
       associated non-household capital and are reported before existing target caps, not as actual delivery.
       Unallocated positive expansion capital is not credited against residual needs.

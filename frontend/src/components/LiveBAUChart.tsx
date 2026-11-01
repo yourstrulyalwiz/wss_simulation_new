@@ -239,6 +239,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         const serviceNewNeed = rungSeries('new_capex_by_service');
         const serviceReplacement = rungSeries('replacement_by_service');
         const serviceFunded = rungSeries('funded_by_service');
+        const serviceBacklog = rungSeries('replacement_backlog_closing_by_service');
         const serviceDeficit = rungSeries('cash_deficit_by_service');
         const householdGap = sum((res, i) => bauAccessGap(secOf(res), i, serviceLevel));
 
@@ -281,6 +282,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           const gapHH = householdGap[i];
           return { year: y, total: tot, bau: b, tgt: t, gapHH,
             newNeed: serviceNewNeed[i], replacement: serviceReplacement[i],
+            replacementBacklog: serviceBacklog[i],
             funded: serviceFunded[i], deficit: serviceDeficit[i], serviceGap: serviceGap[i], finGap: finGapSeries[i] ?? null,
             available: availableByYear.get(y) };
         }).filter(Boolean) as any[];
@@ -444,16 +446,18 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
     `${rungLabel} residual new-service cost (${displayCur} M)`,
     `${rungLabel} replacement need (${displayCur} M/yr)`,
     `${rungLabel} replacement credit (${displayCur} M/yr)`,
+    `${rungLabel} Residual replacement cost (Cumulative) (${displayCur} M)`,
     `${rungLabel} closing expansion + replacement backlog + current cash deficit (${displayCur} M)`,
     `Sector-wide closing expansion + replacement backlog + current cash deficit (${displayCur} M)`,
     `Sector available funding (${displayCur} M/yr)`];
   const displayTableHeaders = ['Year', 'Total households (M)', 'BAU households (M)', 'Target households (M)',
     `${householdGapLabel} (M)`, `Residual new-service cost (B ${displayCur})`,
     `Replacement need (B ${displayCur}/yr)`, `Replacement credit (B ${displayCur}/yr)`,
+    `Residual replacement cost (Cumulative) (B ${displayCur})`,
     `Service closing balance (B ${displayCur})`,
     `Sector closing balance (B ${displayCur})`, `Sector available funding (B ${displayCur}/yr)`];
   const tableExportRows = tableRows.map((r: any) => [r.year, round3(r.total), round3(r.bau), round3(r.tgt), round3(r.gapHH),
-    round3(r.newNeed * moneyFactor), round3(r.replacement * moneyFactor), round3(r.funded * moneyFactor), round3(r.serviceGap * moneyFactor),
+    round3(r.newNeed * moneyFactor), round3(r.replacement * moneyFactor), round3(r.funded * moneyFactor), round3(r.replacementBacklog * moneyFactor), round3(r.serviceGap * moneyFactor),
     r.finGap == null ? '' : round3(r.finGap * moneyFactor), round3(r.available * moneyFactor)]);
 
   const toolBtn: React.CSSProperties = {
@@ -807,13 +811,16 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
                 Financial columns are attributed to the selected service level except the sector balance and available funding.
                 Sector available funding is total annual available capital, not the amount left after replacement.
                 Replacement need, replacement credit and available funding are annual flows; closing balances are not additive across years.
+                Residual replacement cost (Cumulative) is opening backlog minus backlog repaid plus current unpaid replacement.
+                It is the net outstanding year-end balance, already included in the service and sector closing balances; do not add it again or sum it across years.
               </caption>
-              <colgroup><col style={{ width: '6%' }} />{Array.from({ length: 10 }, (_, i) => <col key={i} style={{ width: '9.4%' }} />)}</colgroup>
+              <colgroup><col style={{ width: '6%' }} />{Array.from({ length: 11 }, (_, i) => <col key={i} style={{ width: `${94 / 11}%` }} />)}</colgroup>
               <thead><tr>{displayTableHeaders.map((header, i) => <th key={i} scope="col">{header}</th>)}</tr></thead>
               <tbody>{tableRows.map((row: any) => <tr key={row.year}>
                 {[String(row.year), sig3(row.total), sig3(row.bau), sig3(row.tgt), sig3(row.gapHH),
                   sigB(row.newNeed * moneyFactor), sigB(row.replacement * moneyFactor),
                   sigB(row.funded * moneyFactor),
+                  sigB(row.replacementBacklog * moneyFactor),
                   sigB(row.serviceGap * moneyFactor), row.finGap == null ? 'n/a' : sigB(row.finGap * moneyFactor),
                   sigB(row.available * moneyFactor)]
                   .map((value, i) => <td key={i} data-label={displayTableHeaders[i]}>{value}</td>)}

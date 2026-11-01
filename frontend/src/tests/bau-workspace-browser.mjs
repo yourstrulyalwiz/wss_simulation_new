@@ -99,8 +99,8 @@ try {
         const result = await response.clone().json();
         window.__bauResponses.push(result);
         if (window.__bauMode === 'missing') {
-          if (result.water_supply) delete result.water_supply.bau_hh;
-          if (result.sanitation) delete result.sanitation.bau_hh;
+          if (result.water_supply) delete result.water_supply.replacement_backlog_closing_by_service;
+          if (result.sanitation) delete result.sanitation.replacement_backlog_closing_by_service;
           return new Response(JSON.stringify(result), {status:200,headers:response.headers});
         }
       }
@@ -133,12 +133,14 @@ try {
         const result = await e(`window.__bauResponses.at(-1)`);
         const endIndex = result.years.indexOf(inputs.period.forecast_end_year);
         assert.ok(await e(`[...document.querySelectorAll('summary')].some(el=>el.textContent.includes('Annual replacement and expansion reconciliation'))`));
-        assert.equal(await e(`document.querySelectorAll('.bau-forecast-table thead th').length`), 11);
+        assert.equal(await e(`document.querySelectorAll('.bau-forecast-table thead th').length`), 12);
         assert.equal(await e(`/cash deficit/i.test(document.querySelector('.bau-forecast-table').textContent)`), false);
         const moneyText = value => Number((value / 1000).toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 });
         assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:nth-child(9)').textContent`),
-          moneyText(rungs.reduce((sum, rung) => sum + result[sectorKey].financing_gap_by_service[rung][endIndex], 0)));
+          moneyText(rungs.reduce((sum, rung) => sum + result[sectorKey].replacement_backlog_closing_by_service[rung][endIndex], 0)));
         assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:nth-child(10)').textContent`),
+          moneyText(rungs.reduce((sum, rung) => sum + result[sectorKey].financing_gap_by_service[rung][endIndex], 0)));
+        assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:nth-child(11)').textContent`),
           moneyText(result[sectorKey].financing_gap[endIndex]));
         assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:last-child').textContent`),
           Number((result[sectorKey].available_total[endIndex] / 1000).toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 }),
@@ -181,7 +183,7 @@ try {
   await w(`window.__bauDownloads.length>0`, 'CSV download missing');
   const csv = await e(`window.__bauDownloads.at(-1).text()`);
   assert.ok(!csv.split('\r\n').find(line => line.startsWith('Year,')).split(',').some(header => /cash deficit/i.test(header) && !/closing expansion/.test(header)));
-  assert.equal(csv.trim().split('\r\n').at(-1).split(',').length, 11);
+  assert.equal(csv.trim().split('\r\n').at(-1).split(',').length, 12);
   assert.ok(csv.includes('USD M'), 'CSV labels must identify millions rather than table billions');
   assert.ok(csv.includes('At least basic') || csv.includes('at least basic'));
   assert.ok(csv.split('\r\n').find(line => line.startsWith('Year,'))?.endsWith('Sector available funding (USD M/yr)'));
@@ -202,13 +204,17 @@ try {
   await w(`window.__bauDownloads.length>1`, 'Excel download missing');
   assert.deepEqual(await e(`window.__bauDownloads.at(-1).slice(0,2).arrayBuffer().then(b=>[...new Uint8Array(b)])`), [80, 75]);
   const tableExport = await e(`window.__bauExportBodies.filter(item=>item.path==='/api/export/table').at(-1).body.sheets[0]`);
-  assert.equal(tableExport.headers.length, 11);
+  assert.equal(tableExport.headers.length, 12);
   assert.ok(tableExport.headers.every(header => !/cash deficit/i.test(header) || /closing expansion/.test(header)));
   assert.equal(tableExport.headers.at(-1), 'Sector available funding (USD M/yr)');
-  assert.ok(tableExport.rows.every(row => row.length === 11));
-  assert.equal(tableExport.rows.at(-1)[10], Number(availableUsd.toPrecision(3)));
-  assert.equal(tableExport.rows.at(-1)[8], Number(((rawResult.sanitation.financing_gap_by_service[0][last] + rawResult.sanitation.financing_gap_by_service[1][last]) / 137.42).toPrecision(3)));
-  assert.equal(tableExport.rows.at(-1)[9], Number((rawResult.sanitation.financing_gap[last] / 137.42).toPrecision(3)));
+  assert.ok(tableExport.rows.every(row => row.length === 12));
+  const backlogUsd = rawResult.sanitation.replacement_backlog_closing[last] / 137.42;
+  assert.ok(tableExport.headers[8].includes('Residual replacement cost (Cumulative)'));
+  assert.equal(tableExport.rows.at(-1)[8], Number(backlogUsd.toPrecision(3)));
+  assert.equal(Number(csv.trim().split('\r\n').at(-1).split(',')[8]), Number(backlogUsd.toPrecision(3)));
+  assert.equal(tableExport.rows.at(-1)[11], Number(availableUsd.toPrecision(3)));
+  assert.equal(tableExport.rows.at(-1)[9], Number(((rawResult.sanitation.financing_gap_by_service[0][last] + rawResult.sanitation.financing_gap_by_service[1][last]) / 137.42).toPrecision(3)));
+  assert.equal(tableExport.rows.at(-1)[10], Number((rawResult.sanitation.financing_gap[last] / 137.42).toPrecision(3)));
   for (const panel of ['.modern-bau-plot-panel:not(.modern-bau-spending)', '.modern-bau-spending']) {
     for (const format of ['PNG', 'JPG', 'Excel']) {
       const downloads = await e(`window.__bauDownloads.length`);
@@ -270,6 +276,7 @@ try {
   assert.ok(await e(`(()=>{const y=document.querySelector('[data-section-key="table"] h2').getBoundingClientRect().top;return y>0 && y<innerHeight;})()`), 'Table heading must remain visible after layout settles');
   assert.ok(await e(`['H2','H3'].includes(document.activeElement.tagName)`), 'Mobile table heading receives focus');
   assert.ok(await e(`document.querySelector('.bau-ledger-frame').scrollWidth<=document.querySelector('.bau-ledger-frame').clientWidth+1`));
+  assert.ok(await e(`document.querySelector('.bau-forecast-table tbody td:nth-child(9)').dataset.label.includes('Residual replacement cost (Cumulative)')`));
   assert.equal(await e(`getComputedStyle(document.querySelector('.modern-bau-chart-pair')).gridTemplateColumns.split(' ').length`), 1);
   if (process.env.BAU_SCREENSHOT_DIR) {
     const image = await b.call('Page.captureScreenshot', { format: 'png' });

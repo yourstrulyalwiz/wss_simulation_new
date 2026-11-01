@@ -17,6 +17,7 @@ const sector = {
   financing_gap_by_service: [[12, 14], [8, 6]], new_capex_by_service: [[7, 9], [3, 2]],
   replacement_by_service: [[5, 6], [4, 3]], funded_by_service: [[2, 3], [1, 2]],
   cash_deficit_by_service: [[2, 2], [2, 3]],
+  replacement_backlog_closing_by_service: [[3, 4], [2, 1]],
   annual_planned_expansion_cost: [0, 40], replacement_capex: [0, 12], available_total: [0, 30],
   scenario_available_total: [0, 999], financing_gap: [20, 20], total_investment_need: [9999, 9999],
 };
@@ -24,7 +25,7 @@ const before = JSON.stringify(sector);
 assert.deepEqual(BAU_SERVICE_LEVELS.map(level => level.label), ['Safely managed', 'Basic only', 'At least basic']);
 for (let i = 0; i < 2; i++) {
   for (const key of ['bau_hh', 'target_hh', 'financing_gap_by_service', 'new_capex_by_service',
-    'replacement_by_service', 'funded_by_service', 'cash_deficit_by_service']) {
+    'replacement_by_service', 'funded_by_service', 'cash_deficit_by_service', 'replacement_backlog_closing_by_service']) {
     assert.equal(bauServiceValue(sector, key, i, 'at_least_basic'), sector[key][0][i] + sector[key][1][i]);
     assert.equal(bauServiceValue(sector, key, i, 'basic'), sector[key][1][i]);
     assert.equal(bauServiceValue(sector, key, i, 'safely_managed'), sector[key][0][i]);
@@ -43,6 +44,8 @@ for (const key of ['water_supply', 'sanitation']) {
 }
 assert.equal(bauSpendingRows([{ years: [2026], water_supply: { ...sector, available_total: [0] } }], 'water_supply', 2025)[0].available, 0);
 for (const missing of [undefined, null, NaN, Infinity, '0']) {
+  assert.throws(() => bauServiceValue({ replacement_backlog_closing_by_service: [[1], [missing]] },
+    'replacement_backlog_closing_by_service', 0, 'at_least_basic'), /missing/);
   assert.throws(() => bauServiceValue({ bau_hh: [[1], [missing]] }, 'bau_hh', 0, 'at_least_basic'), /missing/);
   assert.throws(() => bauAccessGap({ at_least_basic_access_gap: [missing] }, 0, 'at_least_basic'), /missing/);
   assert.throws(() => bauSpendingRows([{ years: [2026], water_supply: { ...sector, available_total: [missing] } }], 'water_supply', 2025), /missing/);
@@ -68,6 +71,17 @@ for (const rate of [null, 0, -4, NaN, Infinity]) {
   assert.equal(convertMoney(2309.58, { ...usd, localPerUsd: rate }), 2309.58);
 }
 assert.equal(JSON.stringify(sector), before, 'Reporting must not mutate model results');
+// Read closing snapshots directly: accumulation, partial repayment, full repayment.
+for (const key of ['water_supply', 'sanitation']) {
+  const areas = [
+    { [key]: { replacement_backlog_closing_by_service: [[0, 6, 4, 0], [0, 3, 1, 0]] } },
+    { [key]: { replacement_backlog_closing_by_service: [[0, 2, 1, 0], [0, 4, 2, 0]] } },
+  ];
+  for (const [level, expected] of [['safely_managed', [0, 8, 5, 0]], ['basic', [0, 7, 3, 0]], ['at_least_basic', [0, 15, 8, 0]]]) {
+    assert.deepEqual([0, 1, 2, 3].map(i => areas.reduce((sum, area) =>
+      sum + bauServiceValue(area[key], 'replacement_backlog_closing_by_service', i, level), 0)), expected);
+  }
+}
 const workspace = readFileSync(new URL('../components/BAUWorkspace.tsx', import.meta.url), 'utf8');
 assert.ok(workspace.indexOf('aria-label="BAU graph area"') < workspace.indexOf('aria-label="BAU sector"'));
 assert.equal((workspace.match(/data-section-key=/g) || []).length, 2);

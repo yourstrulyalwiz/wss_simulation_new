@@ -132,7 +132,13 @@ try {
         await select(level, level === 'at_least_basic' ? 'table' : 'graph');
         const result = await e(`window.__bauResponses.at(-1)`);
         const endIndex = result.years.indexOf(inputs.period.forecast_end_year);
-        assert.equal(await e(`document.querySelectorAll('.bau-forecast-table thead th').length`), 12);
+        assert.equal(await e(`document.querySelectorAll('.bau-forecast-table thead th').length`), 11);
+        assert.equal(await e(`/cash deficit/i.test(document.querySelector('.bau-forecast-table').textContent)`), false);
+        const moneyText = value => Number((value / 1000).toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 });
+        assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:nth-child(9)').textContent`),
+          moneyText(rungs.reduce((sum, rung) => sum + result[sectorKey].financing_gap_by_service[rung][endIndex], 0)));
+        assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:nth-child(10)').textContent`),
+          moneyText(result[sectorKey].financing_gap[endIndex]));
         assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:last-child').textContent`),
           Number((result[sectorKey].available_total[endIndex] / 1000).toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 }),
           'Final column shows sector-wide annual funding in every service view');
@@ -173,6 +179,8 @@ try {
   await e(`document.querySelector('[data-bau-ledger] button[title="Download this table as CSV"]').click()`);
   await w(`window.__bauDownloads.length>0`, 'CSV download missing');
   const csv = await e(`window.__bauDownloads.at(-1).text()`);
+  assert.ok(!/cash deficit/i.test(csv));
+  assert.equal(csv.trim().split('\r\n').at(-1).split(',').length, 11);
   assert.ok(csv.includes('USD M'), 'CSV labels must identify millions rather than table billions');
   assert.ok(csv.includes('At least basic') || csv.includes('at least basic'));
   assert.ok(csv.split('\r\n').find(line => line.startsWith('Year,'))?.endsWith('Sector available funding (USD M/yr)'));
@@ -192,6 +200,14 @@ try {
   await e(`document.querySelector('[data-bau-ledger] button[title="Download this table as Excel (.xlsx)"]').click()`);
   await w(`window.__bauDownloads.length>1`, 'Excel download missing');
   assert.deepEqual(await e(`window.__bauDownloads.at(-1).slice(0,2).arrayBuffer().then(b=>[...new Uint8Array(b)])`), [80, 75]);
+  const tableExport = await e(`window.__bauExportBodies.filter(item=>item.path==='/api/export/table').at(-1).body.sheets[0]`);
+  assert.equal(tableExport.headers.length, 11);
+  assert.ok(tableExport.headers.every(header => !/cash deficit/i.test(header)));
+  assert.equal(tableExport.headers.at(-1), 'Sector available funding (USD M/yr)');
+  assert.ok(tableExport.rows.every(row => row.length === 11));
+  assert.equal(tableExport.rows.at(-1)[10], Number(availableUsd.toPrecision(3)));
+  assert.equal(tableExport.rows.at(-1)[8], Number(((rawResult.sanitation.financing_gap_by_service[0][last] + rawResult.sanitation.financing_gap_by_service[1][last]) / 137.42).toPrecision(3)));
+  assert.equal(tableExport.rows.at(-1)[9], Number((rawResult.sanitation.financing_gap[last] / 137.42).toPrecision(3)));
   for (const panel of ['.modern-bau-plot-panel:not(.modern-bau-spending)', '.modern-bau-spending']) {
     for (const format of ['PNG', 'JPG', 'Excel']) {
       const downloads = await e(`window.__bauDownloads.length`);

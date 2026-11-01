@@ -8,6 +8,12 @@ Use two primary navigation sections: BAU Graph and BAU Table.
 Keep Water Supply/Sanitation switching and Urban/Rural graph controls.
 Include baseline-year and target-year result KPI cards.
 
+Omit the Cash deficit column from BAU tables and their exports without changing
+the engine's cash-deficit handling or closing balances.
+**Why:** The user considers the column unhelpful for intervention-free BAU.
+**How to apply:** This is a reporting-only restriction, not permission to remove
+cash obligations from scenario accounting.
+
 Keep geography above sector selection. Graph and table share one service selection:
 Safely managed, Basic only, or At least basic. Default both graph and table to
 At least basic, as requested by the user. The combined view adds exclusive

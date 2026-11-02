@@ -22,8 +22,9 @@ test('graph and table stay mounted together with shared selector state', () => {
   assert.doesNotMatch(panel, /activeSection === 'graph' &&/);
   assert.doesNotMatch(panel, /showTable=\{activeSection === 'table'\}/);
   assert.match(panel, /showTable=\{false\}/, 'coverage KPI cards remain above the graph');
-  assert.equal((panel.match(/aria-label="Intervention (graph|table) geography"/g) || []).length, 2);
-  assert.equal((panel.match(/aria-label="Intervention (graph|table) sector"/g) || []).length, 2);
+  assert.equal((panel.match(/aria-label="Intervention (graph|table) geography"/g) || []).length, 1);
+  assert.equal((panel.match(/aria-label="Intervention (graph|table) sector"/g) || []).length, 1);
+  assert.doesNotMatch(panel, /aria-label="Intervention table (geography|sector)"/);
 });
 
 test('design controls and nested input drawer hide without unmounting their state/portal target', () => {

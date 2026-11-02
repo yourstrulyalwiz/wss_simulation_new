@@ -10,6 +10,9 @@ selecting Graph or Table hides that list and its nested input drawer. Individual
 intervention inputs still push the main content right rather than overlaying it.
 Keep coverage and available funding together, shared geography/sector/service
 selectors synchronized, and scenario KPI cards above the graph.
+The page background should match BAU Scenario. Geography and sector selectors
+belong at the top only, not repeated in Intervention Table; the table retains its
+service-level selector and uses the shared top selections.
 
 **Why:** The user approved the intervention functionality and refined the layout
 to match BAU's long-form Graph/Table page and numbered section navigation,

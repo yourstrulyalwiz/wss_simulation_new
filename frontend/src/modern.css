@@ -194,7 +194,7 @@
    persistent workflow navigation and a collapsible controls/drawer rail. */
 .intervention-section-workspace {
   display:grid; flex:1 1 auto; min-width:0; min-height:0; overflow:hidden;
-  grid-template-columns:218px minmax(0,1fr); background:#fff;
+  grid-template-columns:218px minmax(0,1fr);
 }
 .intervention-section-workspace--design {
   grid-template-columns:218px minmax(300px,360px) minmax(0,1fr);
@@ -226,7 +226,7 @@
 }
 .intervention-reading-content {
   width:100%; max-width:none; min-height:0; padding:24px 28px;
-  background:#fff; overscroll-behavior:contain;
+  overscroll-behavior:contain;
 }
 .intervention-reading-section { scroll-margin-top:12px; }
 .intervention-reading-section + .intervention-reading-section {

@@ -11,8 +11,20 @@ try {
   await browser.call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await browser.call('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
   await browser.waitFor('document.querySelectorAll(".wb-tab").length > 4', 'Workspace did not load');
+  await evaluate(`Array.from(document.querySelectorAll('.wb-tab')).find(node => /BAU/i.test(node.textContent)).click()`);
+  await browser.waitFor('!!document.querySelector(".modern-section-workspace .modern-inputs-content")', 'BAU workspace did not load');
+  await evaluate(`window.__workspaceBackground = node => {
+    while (node) {
+      const color = getComputedStyle(node).backgroundColor;
+      if (color !== 'transparent' && color !== 'rgba(0, 0, 0, 0)') return color;
+      node = node.parentElement;
+    }
+    return 'transparent';
+  }; window.__bauBackground = window.__workspaceBackground(document.querySelector('.modern-section-workspace .modern-inputs-content')); true`);
   await evaluate(`Array.from(document.querySelectorAll('.wb-tab')).find(node => /intervention/i.test(node.textContent)).click()`);
   await browser.waitFor('!!document.querySelector(".intervention-section-nav")', 'Numbered navigation is missing');
+  assert.equal(await evaluate(`window.__workspaceBackground(document.querySelector('.intervention-reading-content')) === window.__bauBackground`), true, 'Intervention background must match BAU');
+  assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Intervention table geography"], [aria-label="Intervention table sector"]').length`), 0, 'Table must use the top geography and sector selectors');
   await browser.waitFor('!!document.querySelector(".modern-intv-table tbody tr")', 'Live scenario table did not load');
   await browser.waitFor('document.querySelectorAll(\'[data-section-key="graph"] .modern-intv-kpi\').length === 3', 'Coverage KPI cards must stay above the graphs');
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('.intervention-section-nav button')].map(node => node.textContent.replace(/^\\d+/, '').trim())`),
@@ -38,7 +50,13 @@ try {
   assert.equal(await evaluate('document.querySelector(".intervention-workspace__controls").hidden'), false);
   await browser.call('Emulation.setDeviceMetricsOverride', { width: 402, height: 874, deviceScaleFactor: 1, mobile: true });
   await evaluate(`(()=>{ const select = document.querySelector('.intervention-section-nav select'); select.value = 'table'; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
-  await browser.waitFor(`Math.abs(document.querySelector('[data-section-key="table"]').getBoundingClientRect().top - document.querySelector('.intervention-section-workspace').getBoundingClientRect().top) < 65`, 'Mobile Table navigation did not scroll');
+  await browser.waitFor(`(()=>{
+    const host = document.querySelector('.intervention-section-workspace');
+    const top = document.querySelector('[data-section-key="table"]').getBoundingClientRect().top;
+    const bounds = host.getBoundingClientRect();
+    return Math.abs(top - bounds.top) < 65 ||
+      (host.scrollTop >= host.scrollHeight - host.clientHeight - 2 && top >= bounds.top && top < bounds.bottom);
+  })()`, 'Mobile Table navigation did not scroll');
   assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Mobile page overflows horizontally');
   assert.deepEqual(browser.errors, []);
   console.log('PASS: numbered navigation, persistent long-page graph/table, conditional design rail, shared selectors, and mobile section scrolling.');

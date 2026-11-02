@@ -1086,14 +1086,6 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         </section>
         <section className="modern-bau-section intervention-reading-section" data-section-key="table">
           <h2 className="modern-bau-heading" tabIndex={-1}>Intervention Table</h2>
-          <div className="modern-bau-toggles" role="group" aria-label="Intervention table geography">
-            {scopeChoices.map(value => <button type="button" key={value} aria-pressed={scopeLabel.toLowerCase() === value.toLowerCase()}
-              onClick={() => onScopeChange?.(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}
-          </div>
-          <div className="modern-bau-toggles" role="group" aria-label="Intervention table sector">
-            {sectors.map(value => <button type="button" key={value} aria-pressed={sectorTab === value}
-              onClick={() => onSectorChange?.(value)}>{value === 'water' ? 'Water Supply' : 'Sanitation'}</button>)}
-          </div>
           <div className="modern-bau-service-picker modern-intv-service-picker">
             <span>Service level</span><div className="modern-bau-service-switch" role="group" aria-label="Intervention table service level">
               {BAU_SERVICE_LEVELS.map(item => <button key={item.value} type="button" data-service-level={item.value}

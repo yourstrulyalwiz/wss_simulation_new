@@ -11,6 +11,20 @@ const compile = (module, filename) => module._compile(ts.transpileModule(readFil
 require.extensions['.ts'] = compile;
 require.extensions['.tsx'] = compile;
 const { loanCoverageRows, loanComparisonRows, loanFundsRows, loanForecastLedger, withoutLoanSector } = require('../src/loanFundingReporting.ts');
+const { loanCashFlowRows, LOAN_CASH_FLOW_FIELDS } = require('../src/loanFundingReporting.ts');
+const merged = loanCashFlowRows({
+  reference_year: 2027, maturity_year: 2029,
+  annual_injection: [{year:2026, ordinary_before_debt_service:100}, {year:2028, debt_service_paid:8, ordinary_after_debt_service:92}, {year:2030, debt_service_paid:0}],
+  repayment_schedule: [{year:2029, debt_service:10, principal_payment:9}, {year:2028, debt_service:10, principal_payment:8}],
+}, 2025);
+assert.deepEqual(merged.map(row=>row.year), [2026,2027,2028,2029]);
+assert.equal(merged[0].opening_principal, 0);
+assert.equal(merged[2].debt_service_paid, 8);
+assert.equal(merged[2].debt_service, 10);
+assert.equal(merged[3].debt_service_paid, null, 'no invented post-horizon payment');
+assert.equal(merged[3].ordinary_before_debt_service, null);
+assert.deepEqual(loanCashFlowRows(null, 2025), []);
+assert.ok(LOAN_CASH_FLOW_FIELDS.every(([key])=> !/unfunded|disbursement|investment_from_loan/.test(key)));
 const { validateLoanFundingConfig } = require('../src/loanFunding.ts');
 const { defaultCurrencyDisplay, convertMoney } = require('../src/currencyDisplay.tsx');
 const fixtures = engineLoanFixtures();

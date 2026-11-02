@@ -86,3 +86,40 @@ export function loanFundsRows(result: any, key: 'water_supply' | 'sanitation', b
 export function loanForecastLedger(rows: any, baseline: number) {
   return Array.isArray(rows) ? rows.filter(row => loanNumber(row?.year) !== null && row.year > baseline) : [];
 }
+
+export const LOAN_CASH_FLOW_FIELDS = [
+  ['ordinary_before_debt_service', 'Ordinary funds before debt service'],
+  ['opening_principal', 'Opening contractual principal'],
+  ['principal_payment', 'Principal due'],
+  ['interest_payment', 'Interest due'],
+  ['debt_service', 'Total debt service due'],
+  ['debt_service_paid', 'Debt service funded from revenues'],
+  ['ordinary_after_debt_service', 'Ordinary funds after funded debt service'],
+  ['closing_principal', 'Closing contractual principal'],
+  ['opening_unspent_proceeds', 'Opening restricted proceeds'],
+  ['closing_unspent_proceeds', 'Closing restricted proceeds'],
+] as const;
+
+/** Join cash and contractual schedules by year, not position; never extend modeled revenues. */
+export function loanCashFlowRows(detail: any, baseline: number) {
+  const cash = new Map<number, any>(loanForecastLedger(detail?.annual_injection, baseline).map(row => [row.year, row]));
+  const schedule = new Map<number, any>(loanForecastLedger(detail?.repayment_schedule, baseline).map(row => [row.year, row]));
+  const maturity = loanNumber(detail?.maturity_year);
+  const end = maturity ?? Math.max(baseline, ...cash.keys(), ...schedule.keys());
+  const start = loanNumber(detail?.reference_year);
+  if (!Number.isInteger(baseline) || !Number.isInteger(end) || end <= baseline) return [];
+  return Array.from({ length: end - baseline }, (_, index) => {
+    const year = baseline + 1 + index;
+    const annual = cash.get(year), contract = schedule.get(year);
+    const row: Record<string, number | null> = { year };
+    for (const [key] of LOAN_CASH_FLOW_FIELDS) {
+      const contractual = ['opening_principal', 'closing_principal', 'principal_payment', 'interest_payment', 'debt_service'].includes(key);
+      row[key] = contractual
+        ? loanNumber(contract?.[key] ?? annual?.[key])
+        : loanNumber(annual?.[key] ?? contract?.[key]);
+      // Before origination (or with borrowing disabled), no contractual loan exists.
+      if (row[key] === null && contractual && (detail?.status === 'disabled' || (start !== null && year < start))) row[key] = 0;
+    }
+    return row;
+  });
+}

@@ -71,13 +71,19 @@ adjacent loan-settings panel, and an independent long-form graph/table body with
 matching background, contextual headings and coverage KPI cards. Hide settings
 when Graph or Coverage Comparison is selected, without clearing entered terms.
 Show coverage and Sector Available Funds with explicit marginal loan effects,
-then the loan-adjusted coverage comparison, then Annual Proceeds Use and Repayment
-Schedule as their own numbered sections and navigation entries. Navigation opens
-the selected ledger; tables can still collapse. **Why:** The user promoted the
-optional tables into directly accessible sections with matching headings.
+then the loan-adjusted coverage comparison, then a single Loan Cash Flow &
+Repayment section combining proceeds use and the repayment schedule by year.
+Navigation opens the ledger; it can still collapse. Hide unfunded interest,
+unfunded principal, unfunded debt service, new injection/disbursement and
+investment-from-proceeds columns in this combined table.
+**Why:** The user requested a simplified unified table without those repeated or
+unfunded-payment columns. This is a display simplification, not permission to
+forgive debt or assume unmodeled revenues/payments.
 Do not include the requirements-versus-funds chart here.
-Tables start after the baseline (2026 in the current example); retain repayment
-years beyond the forecast through full maturity.
+Tables start after the baseline (2026 in the current example); the combined
+ledger stops at loan maturity, including contractual years beyond the forecast.
+Beyond modeled years cash-flow cells remain unavailable. Without an active loan,
+use the simulation period.
 
 **Why:** The user requested Tab 3's layout for Tab 4 while replacing its content
 with the borrowing comparison and optional detailed schedules.

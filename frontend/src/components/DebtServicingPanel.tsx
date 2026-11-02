@@ -24,7 +24,7 @@ type Props = {
 };
 const scopeName = (scope: string) => scope === 'national' ? 'National' : scope === 'rural' ? 'Rural' : 'Urban';
 const sections = [{ key: 'design', title: 'Loan Settings' }, { key: 'graph', title: 'Loan Graph' }, { key: 'table', title: 'Coverage Comparison' },
-  { key: 'annual_injection', title: 'Annual Proceeds Use' }, { key: 'repayment_schedule', title: 'Repayment Schedule' }] as const;
+  { key: 'cash_flow', title: 'Loan Cash Flow & Repayment' }] as const;
 type Section = typeof sections[number]['key'];
 
 export default function DebtServicingPanel({
@@ -134,12 +134,11 @@ export default function DebtServicingPanel({
         {results?.[key] && !error ? <LoanCoverageComparison result={results} inputs={inputs} sector={sectorTab} level={level} scopeLabel={area} currencyDisplay={currencyDisplay} /> :
           <p className="modern-intv-table-state">The comparison uses the same matched calculation as the graphs above.</p>}
       </section>
-      {(['annual_injection', 'repayment_schedule'] as const).map((tableKey, index) => <section
-        key={tableKey} className="modern-bau-section intervention-reading-section" data-section-key={tableKey}>
-        {heading(index + 4, tableKey === 'annual_injection' ? 'Annual Proceeds Use' : 'Repayment Schedule')}
+      <section className="modern-bau-section intervention-reading-section" data-section-key="cash_flow">
+        {heading(4, 'Loan Cash Flow & Repayment')}
         <LoanDetailTables detail={!error ? detail : null} baseline={Number(inputs.period.baseline_year)}
-          currency={currency} currencyDisplay={currencyDisplay} tableKey={tableKey} />
-      </section>)}
+          currency={currency} currencyDisplay={currencyDisplay} />
+      </section>
     </div>
   </div>;
 }

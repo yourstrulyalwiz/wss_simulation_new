@@ -289,12 +289,8 @@ def export_pptx(inputs: dict = Body(...)):
     )
 
 
-def generated_deck(payload: dict):
+def generated_deck(payload: dict, with_omissions=False):
     payload = dict(payload)
-    for area, inputs in (payload.get('areas') or {'current': payload.get('inputs', payload)}).items():
-        issues = validate_interventions(inputs, area)
-        if any(issue['severity'] == 'error' for issue in issues):
-            raise InterventionInputError(issues)
     """Branded PowerPoint deck, built by filling the shipped .pptx template.
 
     Body: {"areas": {"urban": <inputs>, "rural": <inputs>, "national": <inputs>}}. Only the areas the
@@ -315,6 +311,8 @@ def generated_deck(payload: dict):
         areas = {'national': single} if single else {}
     if not areas:
         raise HTTPException(status_code=422, detail="No area inputs supplied.")
+    from deck_completion import completed_deck_areas
+    areas, omitted = completed_deck_areas(areas)
     try:
         currency_display = validate_currency_display(currency_settings, [
             ((area.get('country_config') or {}).get('currency') or 'LCU') for area in areas.values()
@@ -324,8 +322,8 @@ def generated_deck(payload: dict):
     # One line recording which scopes the deck was built from. A deck missing a scope is almost always
     # a payload that never carried it, and that is otherwise invisible from the output alone.
     print(f"[export/deck] areas={list(areas)}", flush=True)
-    out = build_deck(areas, contribution_view=contribution_view, currency_display=currency_display)
-    return out.getvalue()
+    out = build_deck(areas, contribution_view=contribution_view, currency_display=currency_display, omitted_sections=omitted)
+    return (out.getvalue(), omitted) if with_omissions else out.getvalue()
 
 
 @app.post("/api/export/deck/preview")
@@ -333,7 +331,8 @@ def preview_deck_api(payload: dict = Body(...)):
     from deck_preview import preview_deck, preview_slot
     # The existing export access boundary applies; no persistent URLs or shared files.
     with preview_slot():
-        return preview_deck(generated_deck(payload))
+        data, omitted = generated_deck(payload, with_omissions=True)
+        return {**preview_deck(data), "omitted_sections": omitted}
 
 
 @app.post("/api/export/deck")

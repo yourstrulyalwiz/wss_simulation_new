@@ -75,6 +75,10 @@ export default function SlideDeckWorkspace({ active, geoScope, inputs, altInputs
           <p>{preview.failure.message}</p>{!!preview.failure.issues.length && <ul>{preview.failure.issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul>}
           <button type="button" className="slide-deck-button" onClick={preview.generate}>Retry preview</button></div>
         : slide ? <section className="slide-deck-viewer" tabIndex={0} aria-label="Slide viewer. Use left and right arrow keys to navigate.">
+          {!!preview.artifact?.omitted_sections?.length && <details className="slide-deck-note">
+            <summary>Completed sections only — {preview.artifact.omitted_sections.length} sections omitted</summary>
+            <ul>{preview.artifact.omitted_sections.map((reason, index) => <li key={index}>{reason}</li>)}</ul>
+          </details>}
           <h3 className="slide-deck-slide-title">{slide.number}. {slide.title}</h3>
           {imageError ? <div role="alert" className="slide-deck-state slide-deck-state--error"><p>This rendered slide could not be displayed.</p>
             <button type="button" className="slide-deck-button" onClick={preview.generate}>Retry preview</button></div>

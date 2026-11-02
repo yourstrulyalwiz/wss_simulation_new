@@ -6,7 +6,7 @@ import type { ContributionView } from './contributionView';
 import type { CurrencyDisplaySettings } from './currencyDisplay';
 
 export type DeckSlide = { number: number; title: string; image: string; width: number; height: number };
-type Preview = { filename: string; pptx_base64: string; slides: DeckSlide[]; rendered_with: 'LibreOffice' };
+type Preview = { filename: string; pptx_base64: string; slides: DeckSlide[]; rendered_with: 'LibreOffice'; omitted_sections?: string[] };
 type Artifact = Omit<Preview, 'pptx_base64'> & { url: string; key: string };
 type Failure = { message: string; issues: string[] };
 
@@ -80,7 +80,8 @@ export function useDeckPreview(areas: Record<string, any>, contributionView: Con
       const binary = atob(preview.pptx_base64);
       const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
       const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }));
-      const next = { filename: preview.filename, slides: preview.slides, rendered_with: preview.rendered_with, url, key };
+      const next = { filename: preview.filename, slides: preview.slides, rendered_with: preview.rendered_with,
+        omitted_sections: preview.omitted_sections || [], url, key };
       artifactRef.current = next; setArtifact(next); setStale(false);
     } catch (error) {
       if (attempt !== generation.current || currentKey.current !== key) return;

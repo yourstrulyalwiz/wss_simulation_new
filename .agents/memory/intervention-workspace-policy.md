@@ -13,11 +13,16 @@ selectors synchronized, and scenario KPI cards above the graph.
 The page background should match BAU Scenario. Geography and sector selectors
 belong at the top only, not repeated in Intervention Table; the table retains its
 service-level selector and uses the shared top selections.
-Intervention Table must retain all BAU Table headings and BAU statistics, adding
-intervention coverage and intervention available funding as two comparison
-columns, rather than replacing the underlying BAU financing statistics.
-Place intervention households immediately after target households in both the
-displayed table and exports.
+Intervention Table keeps BAU's structure but uses intervention-adjusted access
+gaps, costs, replacement balances, financing gaps and available funding.
+Retain BAU households as the comparison, immediately followed by intervention
+households, then target households, in both the table and exports. This supersedes
+the earlier BAU-statistics-plus-two-columns interpretation.
+
+**Why:** The user clarified that this table should show the intervention scenario,
+not unchanged BAU finances. Coverage surplus must not produce negative access
+gaps or remaining coverage-related new-service costs; legitimate replacement
+obligations can still remain.
 
 **Why:** The user approved the intervention functionality and refined the layout
 to match BAU's long-form Graph/Table page and numbered section navigation,
@@ -25,8 +30,8 @@ preserving existing controls rather than replacing or simplifying them.
 
 **How to apply:** Navigation must not enable a lever. Keep enabling controls
 separate, preserve dormant/paused settings and local validation, and use scenario
-funding for scenario-labelled metrics while retaining BAU values in the comparison
-columns. At-least-basic coverage combines exclusive SM
+funding and obligations throughout the intervention table, retaining BAU households
+only as the coverage comparison. At-least-basic coverage combines exclusive SM
 and Basic-only stocks once. Existing no-loan intervention preview semantics stay
 unchanged; missing outputs must remain unavailable rather than becoming zeros.
 

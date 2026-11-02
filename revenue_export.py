@@ -109,9 +109,7 @@ def revenue_table(result, sector, currency):
 def append_revenue_slides(prs, results, currency, money_factor=1.0, display_currency=None):
     """Annual revenue appendix; retain full calibration/provenance in slide speaker notes."""
     import json
-    from pptx.util import Inches, Pt
-    from pptx.dml.color import RGBColor
-    from pptx.opc.packuri import PackURI
+    from deck_layout import add_notes, new_content_slide, native_table, text_box
     display_currency = display_currency or currency
     labels = ['Year', 'Volume\n(M m³)', f'Reference\n({display_currency} M)',
               f'Collected\n({display_currency} M)', f'New connections\n({display_currency} M)',
@@ -135,52 +133,26 @@ def append_revenue_slides(prs, results, currency, money_factor=1.0, display_curr
             for prefix, name in (('', 'BAU'), ('scenario_', 'Scenario')):
                 for start in range(0, len(forecast), 8):
                     indexes = forecast[start:start + 8]
-                    existing = {p.partname for p in prs.part.package.iter_parts()}
-                    slide = prs.slides.add_slide(prs.slide_layouts[6])
-                    if slide.part.partname in existing:
-                        j = 1
-                        while PackURI(f'/ppt/slides/slide{j}.xml') in existing:
-                            j += 1
-                        slide.part.partname = PackURI(f'/ppt/slides/slide{j}.xml')
-                    box = slide.shapes.add_textbox(Inches(.45), Inches(.25), Inches(12.4), Inches(.6))
-                    box.text = f'{scope.title()} — {title} revenue details: {name}'
-                    p = box.text_frame.paragraphs[0]
-                    p.font.size, p.font.bold = Pt(21), True
-                    p.font.color.rgb = RGBColor(1, 73, 114)
+                    slide = new_content_slide(prs, f'{scope.title()} - {title} revenue details: {name}')
                     mode = 'Mixed; see area results' if status.get('mixed') else (
                         'Connection-based' if status.get('effective') else 'Exogenous')
-                    note = slide.shapes.add_textbox(Inches(.45), Inches(.92), Inches(12.4), Inches(.65))
-                    note.text = f'{mode}. Annual signed cash flows, not financing-gap reductions. One-year billing lag; reference funding is not credited again.'
-                    note.text_frame.paragraphs[0].font.size = Pt(11)
-                    table = slide.shapes.add_table(len(indexes) + 1, len(labels), Inches(.45),
-                                                  Inches(1.75), Inches(12.4), Inches(3.8)).table
+                    text_box(slide, f'{mode}. Annual signed cash flows; {display_currency} millions (volume in M m3).',
+                             .65, 1.3, 12, .4, size=12)
                     rows = [labels]
                     for i in indexes:
                         values = [float((sec.get(prefix + key) or [0] * len(result['years']))[i])
                                   for key in keys]
                         rows.append([str(result['years'][i]), f'{values[0]:,.6f}',
                                      *[f'{v * money_factor:,.6f}' for v in values[1:]]])
-                    for ri, row in enumerate(rows):
-                        for ci, val in enumerate(row):
-                            cell = table.cell(ri, ci)
-                            cell.text = val
-                            for paragraph in cell.text_frame.paragraphs:
-                                paragraph.font.size = Pt(9)
-                                paragraph.font.bold = ri == 0
+                    native_table(slide, rows, [.65, 1.15, 1.25, 1.25, 1.4, 1.3, 1.2, 1.2, 1.2, 1.59],
+                                 top=1.9, height=4.55, size=10)
                     # All diagnostics and empirical notes accompany the annual cash summary.
                     headers, raw = revenue_table(result, sector, currency)
-                    notes = slide.notes_slide
-                    if notes.notes_text_frame is None:
-                        # The branded template's notes master omits a BODY placeholder.
-                        # Create one explicitly so source assumptions are not dropped.
-                        from pptx.enum.shapes import PP_PLACEHOLDER
-                        notes.shapes._spTree.add_placeholder(
-                            notes.shapes._next_shape_id, 'Revenue assumptions',
-                            PP_PLACEHOLDER.BODY, 'horz', 'full', 1)
-                    notes.notes_text_frame.text = json.dumps({
+                    add_notes(slide, json.dumps({
                         'configuration': sec.get(prefix + 'connection_revenue'),
                         'revenue_reconciliation': sec.get(prefix + 'revenue_reconciliation'),
                         'headers_native_currency': headers,
                         'annual_rows': [r for r in raw if r[1] == name and r[0] in [result['years'][i] for i in indexes]],
                         'limitations': status.get('warnings', []),
-                    }, ensure_ascii=False)
+                        'interpretation': 'Annual signed cash flows, not financing-gap reductions. One-year billing lag; reference funding is not credited again.',
+                    }, ensure_ascii=False))

@@ -52,7 +52,7 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
         <p>{scopeLabel} · {sector === 'water' ? 'Water supply' : 'Sanitation'} · {serviceLabel} · share of households</p>
         <div className="modern-bau-kpis" aria-live="polite">
           {(['baseline', 'bau', 'target'] as const).map(key => <div key={key} className="modern-bau-kpi" data-bau-kpi={key}>
-            <span>{key === 'baseline' ? 'BASELINE · LAST HISTORICAL YEAR' : key === 'bau' ? 'BUSINESS-AS-USUAL · FORECAST END' : 'ENTERED SERVICE TARGET · FORECAST END'} {key === 'baseline' ? coverage?.baselineYear : coverage?.endYear}</span>
+            <span>{key === 'baseline' ? 'Baseline' : key === 'bau' ? 'Business as usual' : 'Entered target'} {key === 'baseline' ? coverage?.baselineYear : coverage?.endYear}</span>
             <strong>{format(coverage?.[key])}</strong><small>{serviceLabel}</small>
           </div>)}
         </div>

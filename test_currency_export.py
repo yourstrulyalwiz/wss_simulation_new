@@ -121,7 +121,10 @@ class CurrencyExportTests(unittest.TestCase):
         branded_deck = Presentation(build_deck({'urban': inputs}, currency_display=display))
         cover_text = '\n'.join(shape.text for shape in branded_deck.slides[0].shapes
                                if getattr(shape, 'has_text_frame', False))
-        self.assertIn('US$1 = 100 NPR', cover_text)
+        self.assertNotIn('US$1 = 100 NPR', cover_text)
+        notes = branded_deck.slides[0].notes_slide.notes_text_frame.text
+        self.assertIn('US$1 = 100 NPR', notes)
+        self.assertIn('Constant-price model values translated', notes)
         investment_tables = [
             shape.table
             for slide in branded_deck.slides

@@ -255,8 +255,11 @@ def clone_slide(prs, source_index: int, insert_at: Optional[int] = None):
 
     _remap_rels(source, dest)
 
-    if source.has_notes_slide and source.notes_slide.notes_text_frame.text.strip():
-        dest.notes_slide.notes_text_frame.text = source.notes_slide.notes_text_frame.text
+    if source.has_notes_slide:
+        frame = source.notes_slide.notes_text_frame
+        if frame is not None and frame.text.strip():
+            from deck_layout import add_notes
+            add_notes(dest, frame.text)
 
     if insert_at is not None:
         move_slide(prs, len(prs.slides) - 1, insert_at)

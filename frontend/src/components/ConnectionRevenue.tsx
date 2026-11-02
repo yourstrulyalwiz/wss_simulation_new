@@ -128,9 +128,10 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area, draw
       <button type="button" onClick={() => setAttempt(n => n + 1)}>Retry verification</button>
     </div>}
   </>;
-  return <section data-testid="connection-revenue" aria-label={`Revenue from new connections — ${area} — ${sector}`}
+  const content = <section data-testid="connection-revenue" aria-label={`Revenue from new connections — ${area} — ${sector}`}
     style={{ marginBottom: 8, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', minWidth: 0 }}>
       <InterventionControlRow label="Include revenue from new connections" checked={config.enabled} disabled={readOnly}
+        settingsOnly={inDrawer}
         expanded={settingsVisible} onChange={enabled => update({ enabled })}
         needsAttention={interventionIssues.some(issue => issue.severity === 'error') || errors.length > 0}
         controls={!inDrawer || drawerSelected && drawerTarget ? `${id}-settings` : undefined}
@@ -138,10 +139,10 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area, draw
           if (onOpenDrawer) onOpenDrawer(event.currentTarget);
           else setShowSettings(value => !value);
         }} />
-    {inDrawer
-      ? drawerSelected && drawerTarget ? createPortal(<div id={`${id}-settings`}>{details}</div>, drawerTarget) : null
-      : <div id={`${id}-settings`} hidden={!settingsVisible}>{details}</div>}
+    <div id={`${id}-settings`} hidden={!settingsVisible}>{details}</div>
   </section>;
+  if (inDrawer) return drawerSelected && drawerTarget ? createPortal(content, drawerTarget) : null;
+  return content;
 }
 
 export function connectionRevenueErrors(config: any, inputs: any, sector: 'water' | 'sanitation') {

@@ -41,6 +41,11 @@ try {
   await e(`{const style=document.createElement('style');style.textContent=${JSON.stringify(css + '\n#root{height:100dvh;display:flex;--modern-teal:#009ca7} *{box-sizing:border-box}')};document.head.append(style)}`);
   await e(output.find(asset => asset.type === 'chunk').code);
   await w(`document.querySelectorAll('${nav} button').length === 10`, 'Grouped nav did not mount');
+  assert.equal(await e(`document.querySelectorAll('.intervention-workspace__controls, .intervention-category, .intervention-toggle__name').length`), 0, 'No middle list or duplicate openers');
+  assert.equal(await e(`document.querySelectorAll('.intervention-settings-mount input, .intervention-settings-mount button').length`), 0, 'Mounting plumbing contains no controls');
+  assert.ok(await e(`!!document.querySelector('.intervention-settings-empty')`), 'Design starts with small empty settings state');
+  assert.equal(await e(`getComputedStyle(document.querySelector('.intervention-section-workspace')).gridTemplateColumns.split(' ').length`), 3, 'Only nav, reading content and settings reserve width');
+  assert.ok(await e(`document.querySelector('#intervention-input-drawer').getBoundingClientRect().left >= document.querySelector('.intervention-reading-content').getBoundingClientRect().right - 1`), 'Settings are separate and rightmost');
   for (const sector of ['water', 'sanitation']) {
     await e(`__setSector('${sector}')`);
     const prefix = sector === 'water' ? 'ws' : 'san';
@@ -52,12 +57,6 @@ try {
     assert.deepEqual(await e(`[...document.querySelectorAll('${nav} ul')].map(n=>n.children.length)`), [3, 2, 3, 1, 1]);
     assert.equal(await e(`document.querySelector('${nav} ul li:last-child button').textContent.trim()`), 'Revenue from new connections');
     assert.equal(await e(`document.querySelector('${nav}').textContent.includes('Coming soon') || document.querySelector('${nav}').textContent.includes('Custom')`), false);
-    // Every currently rendered control is navigable, including display-label aliases.
-    assert.equal(await e(`(()=>{
-      const controls=[...document.querySelectorAll('.intervention-workspace__controls input[type="checkbox"][aria-label^="Enable "]')];
-      const names=[...document.querySelectorAll('${nav} button')].map(n=>n.textContent.trim().toLowerCase());
-      return controls.length===10 && controls.every(n=>names.includes(n.getAttribute('aria-label').replace(/^Enable (Include )?/,'').toLowerCase()));
-    })()`), true);
     const keys = await e(`[...document.querySelectorAll('${nav} button')].map(n=>n.dataset.interventionKey)`);
     for (const key of keys) {
       const before = await snapshot();
@@ -65,6 +64,10 @@ try {
       assert.equal(await snapshot(), before, 'Navigation must never enable or otherwise write inputs');
       const label = await e(`document.querySelector('${link(key)} > span').textContent`);
       const expected = await e(`document.querySelector(${JSON.stringify(controlSelector(label))}).checked`);
+      assert.equal(await e(`document.querySelectorAll('[aria-label^="Enable "]').length`), 1, 'Only selected activation control is mounted');
+      assert.equal(await e(`document.querySelector('#intervention-input-drawer h3').textContent`), label);
+      assert.equal(await e(`document.querySelectorAll('.intervention-reading-content [aria-label^="Enable "]').length`), 0, 'Settings must not leak into graph/table');
+      assert.equal(await e(`document.querySelector(${JSON.stringify(controlSelector(label))}).checkVisibility()`), true, 'Portal stays visible despite hidden source');
       assert.equal(await active(key), expected, 'Dot uses actual enabled state');
       await toggle(label);
       assert.equal(await active(key), !expected, 'Live toggle updates dot on/off');
@@ -72,14 +75,11 @@ try {
       if (!expected) assert.equal(await e(`getComputedStyle(document.querySelector('${link(key)} .intervention-nav-status')).backgroundColor`), 'rgb(0, 156, 167)');
       await toggle(label);
       assert.equal(await active(key), expected);
+      // Read-only inspection works for every lever, including nested editors.
+      await e('__setReadOnly(true)');
+      assert.equal(await e(`[...document.querySelectorAll('#intervention-input-drawer input')].every(n=>n.matches(':disabled') || n.readOnly)`), true);
+      await e('__setReadOnly(false)');
     }
-    // A collapsed category is revealed, without changing activation.
-    await e(`document.querySelector('#${sector}-funding-header').click()`);
-    await w(`document.querySelector('#${sector}-funding-content').hidden`, 'Category did not collapse');
-    const before = await snapshot();
-    await open(`${prefix}_financial_commitment_enabled`);
-    await w(`!document.querySelector('#${sector}-funding-content').hidden`, 'Nav must reveal collapsed category');
-    assert.equal(await snapshot(), before);
     // Read-only users retain navigation and active indicators, but not mutation.
     await e('__setReadOnly(true)');
     await open(`${prefix}_connections_enabled`);
@@ -105,6 +105,9 @@ try {
   await e(`__setInputs(i=>({...i,toggles:{...i.toggles,san_nrw_link_enabled:true}}));__setSectors(['sanitation'])`);
   await w(`document.querySelector('${link('san_nrw_link_enabled')}').getAttribute('aria-label').includes('Unavailable')`, 'Unavailable linkage needs accessible status');
   assert.equal(await active('san_nrw_link_enabled'), false, 'Dormant unavailable linkage must not be teal');
+  await open('san_nrw_link_enabled');
+  assert.equal(await e(`document.querySelector('[aria-label="Enable NRW-linked sanitation revenue"]').disabled`), true);
+  assert.ok(await e(`document.querySelector('#intervention-input-drawer').textContent.includes('Saved settings are retained')`));
   await e(`__setSectors(['water','sanitation'])`);
   await w(`document.querySelector('${link('san_nrw_link_enabled')} .intervention-nav-status').dataset.active==='true'`, 'Restoring sector restores saved active state');
   for (const mobile of [false, true]) {
@@ -116,10 +119,10 @@ try {
     await open('san_microfinance_enabled');
     // Escape closes and returns keyboard focus to the navigation trigger.
     await b.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
-    await w(`document.querySelector('#intervention-input-drawer').hidden && document.activeElement.dataset.interventionKey==='san_microfinance_enabled'`, 'Escape must restore nav focus');
+    await w(`!document.querySelector('#intervention-input-drawer').classList.contains('is-open') && !!document.querySelector('.intervention-settings-empty') && document.activeElement.dataset.interventionKey==='san_microfinance_enabled'`, 'Escape must restore nav focus and empty settings');
     for (const section of ['graph', 'table']) {
       await navigate(section);
-      await w(`!document.querySelector('${nav}') && document.querySelector('.intervention-workspace__controls').hidden &&
+      await w(`!document.querySelector('${nav}') &&
         document.querySelector('#intervention-input-drawer').hidden`, 'Graph/Table must hide grouped nav, controls and drawer');
       await w(`document.activeElement.closest('[data-section-key="${section}"]') !== null`, 'Section heading must receive focus');
       await w(`(()=>{
@@ -132,5 +135,5 @@ try {
     assert.ok(await e('document.documentElement.scrollWidth <= innerWidth'), 'No horizontal mobile overflow');
   }
   assert.deepEqual(b.errors, []);
-  console.log('PASS: registry-backed groups, every live on/off dot, saved connection precedence, navigation without enabling, collapsed categories, both sectors, geography, read-only/unavailable inspection, desktop/mobile focus and Graph/Table scroll.');
+  console.log('PASS: two-rail navigation/settings, no middle list or duplicate controls, all levers/both sectors, live on/off dots, saved connection precedence, no activation on selection, read-only/unavailable inspection, desktop/mobile focus, separate rightmost settings and persistent Graph/Table scroll.');
 } finally { b.close(); }

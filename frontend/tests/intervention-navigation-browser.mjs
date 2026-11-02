@@ -81,29 +81,40 @@ try {
   await browser.waitFor('document.querySelectorAll(\'[data-section-key="graph"] .modern-intv-kpi\').length === 3', 'Coverage KPI cards must stay above the graphs');
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('.intervention-section-nav .modern-inputs-nav__item')].map(node => node.textContent.replace(/^\\d+/, '').trim())`),
     ['Intervention Design', 'Intervention Graph', 'Intervention Table']);
-  assert.equal(await evaluate('document.querySelector(".intervention-workspace__controls").hidden'), false);
-  const groupedNavigation = await evaluate(`({
+  assert.equal(await evaluate('document.querySelector(".intervention-workspace__controls")'), null);
+  assert.ok(await evaluate('!!document.querySelector(".intervention-settings-empty")'));
+  for (const sector of ['water', 'sanitation']) {
+    await evaluate(`{const select=document.querySelector('[aria-label="Intervention settings sector"]'); select.value='${sector}';select.dispatchEvent(new Event('change',{bubbles:true}));}`);
+    await browser.waitFor(`!!document.querySelector('[data-intervention-key="${sector === 'water' ? 'ws' : 'san'}_connections_enabled"]')`, 'Live sector navigation stale');
+    const groupedNavigation = await evaluate(`({
     groups: document.querySelectorAll('.intervention-nav-group').length,
     rows: [...document.querySelectorAll('.intervention-nav-link')].map(row => {
       const label = row.querySelector('span').textContent;
-      const controlLabel = label === 'Revenue from new connections' ? 'Include revenue from new connections' : label;
-      const control = [...document.querySelectorAll('.intervention-workspace__controls input[type="checkbox"]')]
-        .find(input => input.getAttribute('aria-label') === 'Enable ' + controlLabel);
       const dot = row.querySelector('.intervention-nav-status');
-      return { label, active: dot.dataset.active === 'true', checked: control?.checked,
+      return { label, key: row.dataset.interventionKey, active: dot.dataset.active === 'true',
         color: getComputedStyle(dot).backgroundColor, status: row.getAttribute('aria-label') };
     })
   })`);
   assert.equal(groupedNavigation.groups, 5, 'Live Design navigation contains all five lever categories');
   assert.equal(groupedNavigation.rows.length, 10, 'Live Design navigation contains every available intervention');
   for (const row of groupedNavigation.rows) {
-    assert.equal(row.active, row.checked, `${row.label}: live dot matches current enable control`);
+    await evaluate(`document.querySelector('[data-intervention-key="${row.key}"]').click()`);
+    await browser.waitFor(`document.querySelector('#intervention-input-drawer h3')?.textContent === ${JSON.stringify(row.label)}`, 'Direct navigation must open settings');
+    const enableLabel = `Enable ${row.label === 'Revenue from new connections' ? 'Include revenue from new connections' : row.label}`;
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(`[aria-label="${enableLabel}"]`)}).checked`), row.active, `${row.label}: dot matches activation inside settings`);
+    assert.equal(await evaluate(`document.querySelectorAll('.intervention-settings-mount button, .intervention-settings-mount input').length`), 0, 'Hidden sources contain no duplicate controls');
+    assert.equal(await evaluate(`document.querySelectorAll('.intervention-reading-content input[aria-label^="Enable "]').length`), 0, 'No settings in reading body');
+    assert.ok(await evaluate(`document.querySelector('#intervention-input-drawer input[aria-label^="Enable "]').checkVisibility()`), 'Live portal settings visible');
     assert.ok(row.status.endsWith(row.active ? 'Active' : 'Inactive'), `${row.label}: accessible active status`);
     if (row.active) assert.equal(row.color, 'rgb(0, 156, 167)', `${row.label}: enabled dot is teal`);
   }
-  console.log(`PASS: live grouped navigation has five categories, ten interventions, and ${groupedNavigation.rows.filter(row => row.active).length} teal active dots matching enable controls.`);
+    console.log(`PASS: live ${sector} navigation has five categories, ten interventions, and ${groupedNavigation.rows.filter(row => row.active).length} teal active dots matching activation inside separate settings.`);
+  }
+  await evaluate(`{const select=document.querySelector('[aria-label="Intervention settings sector"]');select.value='water';select.dispatchEvent(new Event('change',{bubbles:true}));}`);
+  await browser.waitFor(`!!document.querySelector('[data-intervention-key="ws_collection_efficiency_enabled"]')`, 'Water navigation must restore');
+  await browser.waitFor(`!!document.querySelector('[data-section-key="graph"] .recharts-wrapper')`, 'Water charts must restore');
   await evaluate(`window.__tableBeforeNavigation = document.querySelector('.modern-intv-table-wrap .modern-intv-table'); window.__coverageBeforeNavigation = document.querySelector('[data-section-key="graph"] .recharts-wrapper'); true`);
-  await evaluate(`Array.from(document.querySelectorAll('.intervention-workspace__controls button')).find(node => node.textContent === 'Collection efficiency').click()`);
+  await evaluate(`document.querySelector('[data-intervention-key="ws_collection_efficiency_enabled"]').click()`);
   await browser.waitFor('!!document.querySelector(".intervention-input-drawer.is-open input")', 'Intervention inputs did not open');
   await navigate(2);
   await browser.waitFor(`(()=>{
@@ -113,13 +124,13 @@ try {
     return Math.abs(top - bounds.top) < 65 ||
       (host.scrollTop >= host.scrollHeight - host.clientHeight - 2 && top >= bounds.top && top < bounds.bottom);
   })()`, 'Table navigation did not scroll');
-  assert.equal(await evaluate('document.querySelector(".intervention-workspace__controls").hidden'), true);
+  assert.equal(await evaluate('document.querySelector(".intervention-workspace__controls")'), null);
   assert.equal(await evaluate('document.querySelector(".intervention-input-drawer").hidden'), true);
   assert.equal(await evaluate(`window.__tableBeforeNavigation === document.querySelector('.modern-intv-table-wrap .modern-intv-table') && window.__coverageBeforeNavigation === document.querySelector('[data-section-key="graph"] .recharts-wrapper')`), true);
   await evaluate(`document.querySelector('[aria-label="Intervention table service level"] [data-service-level="basic"]').click()`);
   assert.equal(await evaluate(`document.querySelector('[aria-label="Intervention graph service level"] [data-service-level="basic"]').getAttribute('aria-pressed')`), 'true');
   await navigate(0);
-  assert.equal(await evaluate('document.querySelector(".intervention-workspace__controls").hidden'), false);
+  assert.ok(await evaluate('!!document.querySelector(".intervention-settings-empty")'));
   await browser.call('Emulation.setDeviceMetricsOverride', { width: 402, height: 874, deviceScaleFactor: 1, mobile: true });
   await evaluate(`(()=>{ const select = document.querySelector('.intervention-section-nav select'); select.value = 'table'; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
   await browser.waitFor(`(()=>{

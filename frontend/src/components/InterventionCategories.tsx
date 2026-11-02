@@ -97,13 +97,16 @@ function ComingSoonIntervention({ kind }: { kind: 'energy' | 'subsidies' }) {
   );
 }
 
-export default function InterventionCategories({ sector, children, reveal }: {
-  sector: 'water' | 'sanitation'; children: React.ReactNode; reveal?: InterventionReveal | null;
+export default function InterventionCategories({ sector, children, reveal, settingsOnly = false }: {
+  sector: 'water' | 'sanitation'; children: React.ReactNode; reveal?: InterventionReveal | null; settingsOnly?: boolean;
 }) {
   // Reuse the original controls unchanged, including every field, setter and guide identifier.
   const controls = React.Children.toArray(children).filter(
     (child): child is React.ReactElement<{ label: string }> => React.isValidElement<{ label: string }>(child)
   );
+  // Portal sources stay mounted, without category headings, rows or focus targets.
+  if (settingsOnly) return <>{interventionGroups(sector).flatMap(category =>
+    category.interventions.map(({ label }) => controls.find(control => control.props.label === label)))}</>;
   return <>{interventionGroups(sector).map(category => (
     <InterventionCategory key={`${sector}-${category.id}`} id={`${sector}-${category.id}`}
       title={category.title} description={category.description}

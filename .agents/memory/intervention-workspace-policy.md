@@ -5,11 +5,17 @@ description: BAU-aligned intervention navigation, cascading inputs and scenario 
 Use a persistent three-item numbered navigation for Intervention Design:
 Intervention Design, Intervention Graph, Intervention Table. Graph and Table are
 sections on one long scrollable page, with BAU's reading-column width and toggle
-placement. Selecting Design reveals the intervention list beside the navigation;
-selecting Graph or Table hides that list and its nested input drawer. Individual
-intervention inputs still push the main content right rather than overlaying it.
+placement. The left navigation is the only visible intervention list: there is
+no middle list/control panel. Selecting an intervention directly opens the separate
+rightmost settings panel; never place its settings in the main graph/table body.
+The settings panel contains the contextual Intervention Design heading, lever
+heading, activation control and existing settings. Keep shared scope selectors
+available even before an intervention is selected. Graph/Table hide the settings
+panel and grouped intervention list while preserving mounted drafts.
+**Why:** The user explicitly replaced the middle-list-plus-drawer layout with
+direct navigation-to-settings to simplify the UI.
 Connection revenue belongs last in Funding Mobilization, after public spending
-and external funding, using the same compact enable row as public spending.
+and external funding, using the same activation styling as public spending.
 **Why:** The user explicitly requested matching controls and this ordering.
 When Design is selected, expand lever-grouped interventions in the left navigation.
 Show teal right-end dots for enabled interventions, independently of which drawer

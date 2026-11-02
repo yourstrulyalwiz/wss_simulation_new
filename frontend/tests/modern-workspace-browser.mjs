@@ -72,7 +72,7 @@ try {
   const expected = series => `SM ${(Math.min(result.total_hh[last], series[0][last]) / result.total_hh[last] * 100).toFixed(1)}%`;
   assert.equal(await e(`document.querySelector('[data-bau-kpi="bau"] strong').textContent`), expected(result.sanitation.bau_hh));
   assert.equal(await e(`document.querySelector('[data-bau-kpi="target"] strong').textContent`), expected(result.sanitation.target_hh));
-  for (const [tab, selector] of [[2,'.modern-page-intro--intervention'],[3,'.debt-overview-strip'],[4,'.modern-results-intro']]) {
+  for (const [tab, selector] of [[2,'.intervention-settings-empty'],[3,'.debt-overview-strip'],[4,'.modern-results-intro']]) {
     await e(`document.querySelectorAll('.wb-tab')[${tab}].click()`);
     await w(`!!document.querySelector(${JSON.stringify(selector)})`, `Workflow ${tab + 1} presentation missing`);
   }

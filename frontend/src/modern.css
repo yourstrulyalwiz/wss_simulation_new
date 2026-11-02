@@ -53,7 +53,7 @@
 .modern-intv-table-state { display:grid; gap:8px; padding:12px 0; color:#5f737b; font-size:12px; }
 .modern-intv-table-state p { margin:0; }
 .modern-skeleton { display:block; height:14px; max-width:60%; border-radius:3px; background:linear-gradient(90deg,#e6edef,#f4f8f9,#e6edef); }
-.intervention-workspace__controls { flex:0 0 360px!important; width:360px; max-width:36vw; padding:16px!important; }
+.intervention-settings-mount { display:none!important; }
 .intervention-workspace__charts { container-type:inline-size; container-name:intervention-charts; }
 .intervention-input-drawer {
   flex:0 0 0; width:0; min-width:0; overflow:hidden; background:#fff;
@@ -96,7 +96,6 @@
   .modern-intv-graph-controls { align-items:flex-start; flex-direction:column; gap:8px; }
   .modern-workspace-sections button { padding:10px 6px; font-size:10px; }
   .intervention-workspace { flex-direction:column!important; overflow:auto!important; }
-  .intervention-workspace__controls { flex:0 0 auto!important; width:100%; max-width:none; max-height:52dvh; border-right:0!important; }
   .intervention-input-drawer,.intervention-input-drawer.is-open { flex:0 0 auto; width:100%; border:0; min-height:0; }
   .intervention-input-drawer.is-open { min-height:45dvh; border-top:1px solid #dce6e9; border-bottom:1px solid #dce6e9; }
   .intervention-input-drawer__body { height:auto; max-height:40dvh; }
@@ -190,17 +189,17 @@
 }
 @media(prefers-reduced-motion:reduce) { .wb-app * { scroll-behavior:auto !important; transition:none !important; } }
 
-/* Intervention design uses the BAU reading-column rhythm while keeping its own
-   persistent workflow navigation and a collapsible controls/drawer rail. */
+/* Navigation and settings flank the independent, long-page reading column.
+   The settings sources render portals only; they never reserve a layout column. */
 .intervention-section-workspace {
   display:grid; flex:1 1 auto; min-width:0; min-height:0; overflow:hidden;
   grid-template-columns:218px minmax(0,1fr);
 }
 .intervention-section-workspace--design {
-  grid-template-columns:218px minmax(300px,360px) minmax(0,1fr);
+  grid-template-columns:218px minmax(0,1fr) minmax(300px,360px);
 }
 .intervention-section-workspace--drawer-open {
-  grid-template-columns:218px minmax(300px,360px) minmax(260px, min(360px,32vw)) minmax(0,1fr);
+  grid-template-columns:218px minmax(0,1fr) minmax(300px,360px);
 }
 .intervention-section-nav { grid-column:1; grid-row:1; }
 .intervention-nav-groups { margin:5px 0 14px 8px; padding-left:9px; border-left:1px solid #d5e2e6; }
@@ -215,23 +214,19 @@
 .intervention-nav-link:hover, .intervention-nav-link[aria-expanded="true"] { background:#e6f2f3; border-color:#c4dfe1; color:#014972; }
 .intervention-nav-status { flex:0 0 8px; width:8px; height:8px; box-sizing:border-box; border:1px solid #a9bdc5; border-radius:50%; }
 .intervention-nav-status[data-active="true"] { background:var(--modern-teal, #009ca7); border-color:var(--modern-teal, #009ca7); }
-.intervention-workspace__controls {
-  grid-column:2; grid-row:1; width:auto; max-width:none; min-width:0;
-  overflow-y:auto; overscroll-behavior:contain; border-right:1px solid #dce6e9;
-}
-.intervention-workspace__controls[hidden], .intervention-input-drawer[hidden] { display:none!important; }
+.intervention-input-drawer[hidden] { display:none!important; }
 .intervention-section-workspace--design .intervention-input-drawer {
   grid-column:3; grid-row:1; display:flex; flex-direction:column; min-width:0;
-  width:auto; flex:none; border-left:0; border-right:0;
+  width:auto; flex:none; border-left:1px solid #dce6e9; border-right:0;
 }
 .intervention-section-workspace--design .intervention-input-drawer.is-open {
   border-left:1px solid #dce6e9; border-right:1px solid #dce6e9;
 }
 .intervention-section-workspace--design:not(.intervention-section-workspace--drawer-open) .intervention-reading-content {
-  grid-column:3; grid-row:1;
+  grid-column:2; grid-row:1;
 }
 .intervention-section-workspace--drawer-open .intervention-reading-content {
-  grid-column:4; grid-row:1;
+  grid-column:2; grid-row:1;
 }
 .intervention-section-workspace:not(.intervention-section-workspace--design) .intervention-reading-content {
   grid-column:2; grid-row:1;
@@ -245,6 +240,19 @@
   margin-top:38px; padding-top:28px; border-top:1px solid #dce8eb;
 }
 .intervention-section-workspace .intervention-input-drawer__body { flex:1; min-height:0; height:auto; }
+.intervention-input-drawer__header { align-items:flex-start; }
+.intervention-input-drawer__header .modern-input-section-heading { padding:4px 0 10px; font-size:12px; }
+.intervention-input-drawer__context { flex:1; min-width:0; }
+.intervention-settings-selectors { display:grid; gap:9px; padding:12px 15px; background:#f6fafb; border-bottom:1px solid #dce6e9; }
+.intervention-settings-selectors label { display:grid; gap:4px; color:#46616c; font-size:11px; font-weight:600; }
+.intervention-settings-selectors select { width:100%; min-width:0; min-height:34px; border:1px solid #c8dade; border-radius:4px; background:#fff; color:#014972; padding:5px 8px; font:inherit; }
+.intervention-settings-empty { padding:20px 16px; color:#58717d; font-size:12px; line-height:1.6; }
+.intervention-settings-empty strong { display:block; margin-bottom:6px; color:#014972; }
+.intervention-settings-empty p { margin:0; }
+.intervention-activation { display:flex; align-items:center; gap:9px; padding:12px 15px; border-bottom:1px solid #dce6e9; background:#f6fafb; color:#315568; font-size:12px; font-weight:600; }
+.intervention-activation input { width:18px; height:18px; accent-color:#009ca7; }
+.intervention-input-drawer__body > [data-testid="connection-revenue"] { padding:0 15px 15px; }
+.intervention-input-drawer__body > [data-testid="connection-revenue"] .intervention-activation { margin-inline:-15px; }
 .intervention-section-workspace .intervention-input-drawer.is-open .intervention-input-drawer__header { flex:0 0 auto; }
 .intervention-section-workspace .modern-intv-chart-group { padding:12px; }
 .intervention-section-workspace .modern-bau-section { max-width:1200px; }
@@ -252,8 +260,8 @@
 .intervention-section-workspace .modern-bau-service-note { margin:8px 0 16px; }
 
 @media(max-width:900px) and (min-width:768px) {
-  .intervention-section-workspace--design { grid-template-columns:190px minmax(270px,32vw) minmax(0,1fr); }
-  .intervention-section-workspace--drawer-open { grid-template-columns:190px minmax(270px,32vw) minmax(250px,30vw) minmax(0,1fr); }
+  .intervention-section-workspace--design,
+  .intervention-section-workspace--drawer-open { grid-template-columns:190px minmax(0,1fr) minmax(280px,34vw); }
   .intervention-reading-content { padding-inline:20px; }
 }
 @media(max-width:767px) {
@@ -273,19 +281,18 @@
   .intervention-nav-link { min-height:44px; font-size:12px; padding:10px 8px; }
   .intervention-nav-group h4 { font-size:11px; }
   .intervention-section-nav .modern-inputs-nav__select { display:block; width:100%; min-height:38px; }
-  .intervention-workspace__controls,
   .intervention-section-workspace--design .intervention-input-drawer,
   .intervention-section-workspace--design:not(.intervention-section-workspace--drawer-open) .intervention-reading-content,
   .intervention-section-workspace--drawer-open .intervention-reading-content,
   .intervention-section-workspace:not(.intervention-section-workspace--design) .intervention-reading-content {
     grid-column:1; grid-row:auto;
   }
-  .intervention-workspace__controls { max-height:52dvh; padding:16px!important; border-right:0; }
   .intervention-section-workspace--design .intervention-input-drawer { min-height:0; width:100%; border:0; }
   .intervention-section-workspace--design .intervention-input-drawer.is-open {
     min-height:45dvh; border-top:1px solid #dce6e9; border-bottom:1px solid #dce6e9;
   }
-  .intervention-section-workspace .intervention-input-drawer__body { max-height:40dvh; }
+  .intervention-section-workspace .intervention-input-drawer__body { max-height:none; overflow:visible; }
+  .intervention-input-drawer__header { min-height:0; }
   .intervention-reading-content { padding:16px; overflow:visible; }
 }
 

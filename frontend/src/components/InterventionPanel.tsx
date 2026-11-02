@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useProjectScope } from '../projectScope';
 import PublicSpendingTargets from './PublicSpendingTargets';
-import InterventionCategories, { InterventionNavigation, type InterventionReveal } from './InterventionCategories';
+import InterventionCategories, { InterventionNavigation, interventionGroups } from './InterventionCategories';
 import LiveInterventionChart from './LiveInterventionChart';
 import InterventionScenarioTable from './InterventionScenarioTable';
 import InterventionFundingChart from './InterventionFundingChart';
@@ -112,8 +112,8 @@ function F({ label, value, onChange, unit, step, isPercent, tip, fieldType, plac
   );
 }
 
-// Toggle with a parameter panel that is opened/closed only by its own Show/Hide button.
-// The checkbox just enables/disables the intervention (drives the graph) and never opens or closes the panel.
+// Portal-only settings source. Left navigation selects; activation inside the
+// separate settings panel drives the scenario without opening or closing it.
 function InterventionToggle({ label, checked, onChange, children, unavailable = false }: {
   label: string; checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode; onFocus?: () => void;
   unavailable?: boolean;
@@ -136,25 +136,21 @@ function InterventionToggle({ label, checked, onChange, children, unavailable = 
     label.startsWith(issue.label + ' (') ||
     issue.field.endsWith('.capeff_target_pct') && label.includes('Target execution') ||
     issue.field.endsWith('.tariff_target') && label.includes('Target') && label.includes('tariff')));
-  return (
-    <div style={{ marginBottom: 8, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+  if (!expanded || !drawer?.target) return null;
+  return createPortal(
+    <>
       <InterventionControlRow label={label} checked={checked && !unavailable} disabled={readOnly || unavailable}
+        settingsOnly
         expanded={!!expanded} onChange={onChange} onOpen={event => drawer?.select(label, event.currentTarget)}
         needsAttention={issues.some(issue => issue.severity === 'error')} />
       {unavailable && <p style={{ margin: '8px 12px', fontSize: 11, color: '#587681' }}>Add Water supply to use this linkage. Saved settings are retained but inactive.</p>}
-      {expanded && (
-        (drawer?.target ? createPortal(
         <fieldset disabled={readOnly || unavailable} style={{ margin: 0, border: 0, minWidth: 0, padding: '12px 16px 18px', background: '#fff', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px', alignItems: 'start' }}>
           <FieldIssuesContext.Provider value={issues}>
             {children}
             <IssueMessages issues={remaining} />
           </FieldIssuesContext.Provider>
-        </fieldset>, drawer.target) : <fieldset disabled={readOnly || unavailable} style={{ margin: 0, border: 0, minWidth: 0, padding: '10px 14px', background: '#fff', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px', alignItems: 'start' }}>
-          <FieldIssuesContext.Provider value={issues}>{children}<IssueMessages issues={remaining} /></FieldIssuesContext.Provider>
-        </fieldset>)
-      )}
-    </div>
-  );
+        </fieldset>
+    </>, drawer.target);
 }
 
 // Optimised-technology-selection editor: re-weight / re-cost the SAFELY-MANAGED technology mix (pre-filled
@@ -251,7 +247,6 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   React.useEffect(() => () => pendingNavigation.current?.(), []);
   const [expandedChartGroup, setExpandedChartGroup] = useState(false);
   const [selectedIntervention, setSelectedIntervention] = useState<string | null>(null);
-  const [interventionReveal, setInterventionReveal] = useState<InterventionReveal | null>(null);
   const [drawerTarget, setDrawerTarget] = useState<HTMLElement | null>(null);
   const selectedTrigger = React.useRef<HTMLButtonElement | null>(null);
   const drawerCloseButton = React.useRef<HTMLButtonElement | null>(null);
@@ -566,7 +561,6 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           {key === 'design' && activeSection === 'design' && <InterventionNavigation
             sector={sectorTab} inputs={inputs} waterAvailable={sectors.includes('water')} selected={selectedIntervention}
             onSelect={(intervention, trigger) => {
-              setInterventionReveal({ label: intervention });
               selectedTrigger.current = trigger;
               setSelectedIntervention(intervention);
             }} />}
@@ -579,44 +573,12 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           <option value="table">3. Intervention Table</option>
         </select>
       </nav>
-      {/* The controls stay mounted so draft fields and open categories survive navigation. */}
-      <div className="intervention-workspace__controls" hidden={activeSection !== 'design'} style={{ minWidth: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', borderRight: '1px solid #e0e0e0', fontSize: 12 }}>
-        <header className="modern-page-intro modern-page-intro--intervention">
-          <span className="modern-page-intro__eyebrow">WORKFLOW 03 · TEST POLICY LEVERS</span>
-          <h2>Intervention Design</h2>
-          <p>Switch a lever on to include its impact, then open its parameters only when you need to adjust them. Results update alongside your design.</p>
-        </header>
-        <h3 className="modern-input-section-heading" tabIndex={-1}>
-          <span className="modern-input-section-heading__index">1</span><span>Intervention Design ({headingContext})</span>
-        </h3>
-
-        {/* Sector toggle */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-          {sectors.map(s => (
-            <button key={s} onClick={() => onSectorChange?.(s)} style={{
-              flex: 1, padding: '8px 16px', border: 'none', borderRadius: 6, cursor: 'pointer',
-              background: sectorTab === s ? '#2563eb' : '#e5e7eb',
-              color: sectorTab === s ? '#fff' : '#374151', fontWeight: 600, fontSize: 13,
-            }}>{s === 'water' ? 'Water Supply' : 'Sanitation'}</button>
-          ))}
-        </div>
-
-        <nav className="modern-category-jump" aria-label={`${sectorTab === 'water' ? 'Water supply' : 'Sanitation'} intervention categories`}>
-          <span>LEVER GROUPS</span>
-          {[['funding', 'Funding'], ['operations', 'Operations'], ['investment', 'Investment'],
-            ['tariff', 'Tariff'], ['household', 'Households']].map(([id, label]) => (
-            <button key={id} type="button" onClick={() => {
-              const target = document.getElementById(`${sectorTab}-${id}-header`);
-              target?.focus({ preventScroll: true });
-              target?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-            }}>{label}</button>
-          ))}
-        </nav>
+      {/* These sources return portals only. Native hidden affects source DOM, not
+          the separately mounted settings destination. No duplicate list exists. */}
+      <div className="intervention-settings-mount" hidden>
         {/* ===== WATER SUPPLY INTERVENTIONS ===== */}
         {sectorTab === 'water' && <>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Water Supply Interventions</h3>
-
-          <InterventionCategories sector="water" reveal={interventionReveal}>
+          <InterventionCategories sector="water" settingsOnly>
           <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="water" area={scopeLabel || 'Selected area'}
             drawerTarget={drawerTarget} drawerSelected={selectedIntervention === 'Revenue from new connections'}
             onOpenDrawer={trigger => selectIntervention('Revenue from new connections', trigger)} />
@@ -757,9 +719,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
         {/* ===== SANITATION INTERVENTIONS ===== */}
         {sectorTab === 'sanitation' && <>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Sanitation Interventions</h3>
-
-          <InterventionCategories sector="sanitation" reveal={interventionReveal}>
+          <InterventionCategories sector="sanitation" settingsOnly>
           <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="sanitation" area={scopeLabel || 'Selected area'}
             drawerTarget={drawerTarget} drawerSelected={selectedIntervention === 'Revenue from new connections'}
             onOpenDrawer={trigger => selectIntervention('Revenue from new connections', trigger)} />
@@ -1002,13 +962,37 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
       </div>
 
       <aside id="intervention-input-drawer" className={`intervention-input-drawer${selectedIntervention && activeSection === 'design' ? ' is-open' : ''}`}
-        hidden={activeSection !== 'design' || !selectedIntervention} aria-hidden={!selectedIntervention || activeSection !== 'design'} aria-label={`${selectedIntervention || 'Intervention'} inputs`}>
-        {selectedIntervention && <>
+        hidden={activeSection !== 'design'} aria-hidden={activeSection !== 'design'} aria-label={`${selectedIntervention || 'Intervention'} inputs`}>
           <header className="intervention-input-drawer__header">
-            <div><span>INTERVENTION INPUTS</span><h3>{selectedIntervention}</h3></div>
-            <button ref={drawerCloseButton} type="button" aria-label="Close intervention inputs" onClick={closeIntervention}>Close</button>
+            <div className="intervention-input-drawer__context">
+              <h2 className="modern-input-section-heading" tabIndex={-1}>
+                <span className="modern-input-section-heading__index">1</span><span>Intervention Design ({headingContext})</span>
+              </h2>
+              {selectedIntervention && <>
+                <span>{interventionGroups(sectorTab).find(group => group.labels.includes(selectedIntervention))?.title}</span>
+                <h3>{selectedIntervention}</h3>
+              </>}
+            </div>
+            {selectedIntervention && <button ref={drawerCloseButton} type="button" aria-label="Close intervention inputs" onClick={closeIntervention}>Close</button>}
           </header>
-        </>}
+          <div className="intervention-settings-selectors">
+            <label>Geography<select aria-label="Intervention settings geography" value={geoScope}
+              onChange={event => onScopeChange?.(event.target.value)}>
+              {scopeChoices.map(value => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}
+            </select></label>
+            <label>Sector<select aria-label="Intervention settings sector" value={sectorTab}
+              onChange={event => onSectorChange?.(event.target.value as 'water' | 'sanitation')}>
+              {sectors.map(value => <option key={value} value={value}>{value === 'water' ? 'Water Supply' : 'Sanitation'}</option>)}
+            </select></label>
+            <label>Service level<select aria-label="Intervention settings service level" value={serviceLevel}
+              onChange={event => setServiceLevel(event.target.value as BauServiceLevel)}>
+              {BAU_SERVICE_LEVELS.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select></label>
+          </div>
+        {!selectedIntervention && <div className="intervention-settings-empty">
+          <strong>Select an intervention</strong>
+          <p>Choose a lever in the navigation to inspect its settings. Selecting a lever does not activate it.</p>
+        </div>}
         <div className="intervention-input-drawer__body" ref={node => setDrawerTarget(node)} />
       </aside>
 
@@ -1024,11 +1008,6 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         setActiveSection(current);
       }}>
         <section className="modern-bau-section intervention-reading-section" data-section-key="graph">
-          <header className="modern-page-intro">
-            <span className="modern-page-intro__eyebrow">WORKFLOW 03 · INTERVENTION DESIGN</span>
-            <h2 tabIndex={-1}>Intervention Design</h2>
-            <p>Review the combined intervention scenario using live engine results for the selected area and service level.</p>
-          </header>
           <h3 className="modern-input-section-heading" tabIndex={-1}>
             <span className="modern-input-section-heading__index">2</span><span>Intervention Graph ({headingContext})</span>
           </h3>

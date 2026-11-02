@@ -48,6 +48,7 @@ function Harness() {
   return <ProjectScopeContext.Provider value={{ sectors, readOnly, projectMode: true }}>
     <InterventionPanel inputs={inputs} onChange={setInputs} sectorTab={sector} onSectorChange={setSector}
       geoScope={scope.toLowerCase()} scopeLabel={scope} scopeChoices={['urban', 'rural', 'national']}
+      onScopeChange={value => setScope(value[0].toUpperCase() + value.slice(1))}
       contributionView="individual" onContributionViewChange={() => {}}
       currencyDisplay={{ mode: 'local', sourceCurrency: 'LCU', localPerUsd: 1, rateReferenceYear: 2025 }}
       onCurrencyDisplayChange={() => {}} onEditCurrencyRate={() => {}} />

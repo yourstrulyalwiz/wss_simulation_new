@@ -259,6 +259,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   const { sectors, readOnly } = useProjectScope();
   const scopeLabel = providedScopeLabel || (geoScope === 'national' ? 'National' : geoScope === 'rural' ? 'Rural' : 'Urban');
   const [serviceLevel, setServiceLevel] = useState<BauServiceLevel>('at_least_basic');
+  const headingContext = `${scopeLabel} · ${sectorTab === 'water' ? 'Water Supply' : 'Sanitation'} · ${BAU_SERVICE_LEVELS.find(item => item.value === serviceLevel)?.label}`;
   const [activeSection, setActiveSection] = useState<'design' | 'graph' | 'table'>('design');
   const readingContent = React.useRef<HTMLDivElement>(null);
   const pendingNavigation = React.useRef<(() => void) | null>(null);
@@ -592,7 +593,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           <p>Switch a lever on to include its impact, then open its parameters only when you need to adjust them. Results update alongside your design.</p>
         </header>
         <h3 className="modern-input-section-heading" tabIndex={-1}>
-          <span className="modern-input-section-heading__index">1</span><span>Intervention Design</span>
+          <span className="modern-input-section-heading__index">1</span><span>Intervention Design ({headingContext})</span>
         </h3>
 
         {/* Sector toggle */}
@@ -1040,7 +1041,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             <p>Review the combined intervention scenario using live engine results for the selected area and service level.</p>
           </header>
           <h3 className="modern-input-section-heading" tabIndex={-1}>
-            <span className="modern-input-section-heading__index">2</span><span>Intervention Graph</span>
+            <span className="modern-input-section-heading__index">2</span><span>Intervention Graph ({headingContext})</span>
           </h3>
           <div className="modern-bau-toggles" role="group" aria-label="Intervention graph geography">
             {scopeChoices.map(value => <button type="button" key={value} aria-pressed={scopeLabel.toLowerCase() === value.toLowerCase()}
@@ -1092,7 +1093,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         </section>
         <section className="modern-bau-section intervention-reading-section" data-section-key="table">
           <h2 className="modern-input-section-heading" tabIndex={-1}>
-            <span className="modern-input-section-heading__index">3</span><span>Intervention Table</span>
+            <span className="modern-input-section-heading__index">3</span><span>Intervention Table ({headingContext})</span>
           </h2>
           <div className="modern-bau-service-picker modern-intv-service-picker">
             <span>Service level</span><div className="modern-bau-service-switch" role="group" aria-label="Intervention table service level">

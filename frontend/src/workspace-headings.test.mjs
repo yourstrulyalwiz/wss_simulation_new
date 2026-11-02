@@ -23,7 +23,7 @@ test('workspace section headings reuse Data Inputs styles and navigation numberi
     labels.forEach((label, index) => {
       assert.match(source, new RegExp(
         `<h[23] className="modern-input-section-heading" tabIndex=\\{-1\\}>\\s*` +
-        `<span className="modern-input-section-heading__index">${index + 1}</span><span>${label}</span>\\s*</h[23]>`
+        `<span className="modern-input-section-heading__index">${index + 1}</span><span>${label} \\(\\{headingContext\\}\\)</span>\\s*</h[23]>`
       ));
     });
     for (const key of ['graph', 'table']) {

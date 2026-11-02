@@ -16,6 +16,8 @@ service-level selector and uses the shared top selections.
 Use “BAU Scenario” and “Intervention Design” as the workflow page titles.
 Numbered sections in both workspaces must match Data Inputs headings, including
 number badges, uppercase bold type, matching font size and underline.
+Append the currently selected geography, sector and service level in parentheses
+to each numbered heading; keep them synchronized with the workspace selectors.
 **Why:** The user explicitly requested heading consistency across these workflows.
 Intervention Table keeps BAU's structure but uses intervention-adjusted access
 gaps, costs, replacement balances, financing gaps and available funding.

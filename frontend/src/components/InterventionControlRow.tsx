@@ -1,22 +1,11 @@
 import type { MouseEventHandler } from 'react';
 
 /** Shared compact enable control and independent parameter-drawer openers. */
-export default function InterventionControlRow({ label, checked, disabled, expanded, onChange, onOpen, needsAttention = false, controls, settings = false, headingLabel = label }: {
+export default function InterventionControlRow({ label, checked, disabled, expanded, onChange, onOpen, needsAttention = false, controls }: {
   label: string; checked: boolean; disabled: boolean; expanded: boolean;
   onChange: (value: boolean) => void; onOpen: MouseEventHandler<HTMLButtonElement>;
-  needsAttention?: boolean; controls?: string; settings?: boolean; headingLabel?: string;
+  needsAttention?: boolean; controls?: string;
 }) {
-  if (settings) return <div className="intervention-settings-control">
-    <div><h3>{headingLabel}</h3>
-      {needsAttention && <span className="intervention-toggle__issue">Needs attention</span>}
-    </div>
-    <label className="intervention-activation">
-      <span>ACTIVATION</span>
-      <input type="checkbox" role="switch" aria-label={`Enable ${label}`} disabled={disabled}
-        checked={checked} onChange={event => onChange(event.target.checked)} />
-      <span>{checked ? 'On' : 'Off'}</span>
-    </label>
-  </div>;
   return <div style={{
     display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
     background: checked ? '#eef2ff' : '#fafbfc', borderBottom: expanded ? '1px solid #c7d2fe' : 'none',

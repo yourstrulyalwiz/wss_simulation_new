@@ -52,19 +52,18 @@ try {
     assert.deepEqual(await e(`[...document.querySelectorAll('${nav} ul')].map(n=>n.children.length)`), [3, 2, 3, 1, 1]);
     assert.equal(await e(`document.querySelector('${nav} ul li:last-child button').textContent.trim()`), 'Revenue from new connections');
     assert.equal(await e(`document.querySelector('${nav}').textContent.includes('Coming soon') || document.querySelector('${nav}').textContent.includes('Custom')`), false);
-    assert.equal(await e(`document.querySelector('.intervention-workspace__controls').hidden`), true, 'No visible middle control rail');
-    assert.equal(await e(`document.querySelector('.intervention-reading-content').hidden`), true, 'Design devotes the right panel to settings');
-    assert.equal(await e(`!!document.querySelector('.intervention-settings-empty')`), true, 'Empty selection has a prompt');
+    // Every currently rendered control is navigable, including display-label aliases.
+    assert.equal(await e(`(()=>{
+      const controls=[...document.querySelectorAll('.intervention-workspace__controls input[type="checkbox"][aria-label^="Enable "]')];
+      const names=[...document.querySelectorAll('${nav} button')].map(n=>n.textContent.trim().toLowerCase());
+      return controls.length===10 && controls.every(n=>names.includes(n.getAttribute('aria-label').replace(/^Enable (Include )?/,'').toLowerCase()));
+    })()`), true);
     const keys = await e(`[...document.querySelectorAll('${nav} button')].map(n=>n.dataset.interventionKey)`);
     for (const key of keys) {
       const before = await snapshot();
       await open(key);
       assert.equal(await snapshot(), before, 'Navigation must never enable or otherwise write inputs');
       const label = await e(`document.querySelector('${link(key)} > span').textContent`);
-      assert.equal(await e(`document.querySelector('.intervention-settings-control h3').textContent`), label);
-      assert.equal(await e(`document.querySelectorAll('#intervention-input-drawer [role="switch"]').length`), 1, 'Only the selected activation switch is rendered');
-      assert.equal(await e(`document.querySelector('.intervention-input-drawer__header h3').textContent`),
-        await e(`document.querySelector('${link(key)}').closest('section').querySelector('h4').textContent`), 'Settings names the selected lever group');
       const expected = await e(`document.querySelector(${JSON.stringify(controlSelector(label))}).checked`);
       assert.equal(await active(key), expected, 'Dot uses actual enabled state');
       await toggle(label);
@@ -74,42 +73,19 @@ try {
       await toggle(label);
       assert.equal(await active(key), expected);
     }
-    // The original producer rail remains hidden even when settings are open.
+    // A collapsed category is revealed, without changing activation.
+    await e(`document.querySelector('#${sector}-funding-header').click()`);
+    await w(`document.querySelector('#${sector}-funding-content').hidden`, 'Category did not collapse');
     const before = await snapshot();
     await open(`${prefix}_financial_commitment_enabled`);
-    assert.equal(await e(`getComputedStyle(document.querySelector('.intervention-workspace__controls')).display`), 'none');
+    await w(`!document.querySelector('#${sector}-funding-content').hidden`, 'Nav must reveal collapsed category');
     assert.equal(await snapshot(), before);
     // Read-only users retain navigation and active indicators, but not mutation.
     await e('__setReadOnly(true)');
     await open(`${prefix}_connections_enabled`);
-    assert.equal(await e(`document.querySelector('#intervention-input-drawer [role="switch"]').disabled`), true);
     assert.equal(await e(`document.querySelector('[aria-label="Basic expansion billed (%)"]').disabled`), true);
     assert.equal(await e(`document.querySelector('${link(`${prefix}_connections_enabled`)}').disabled`), false);
     await e('__setReadOnly(false)');
-    // Existing parameter setters and field-local validation now live in settings.
-    await open(`${prefix}_tariff_enabled`);
-    const inputSection = sector === 'water' ? 'water_interventions' : 'sanitation_interventions';
-    const fieldLabel = sector === 'water' ? 'Target tariff' : 'Target sewer tariff';
-    const value = sector === 'water' ? '37.4' : '21.8';
-    await e(`{
-      const label=[...document.querySelectorAll('#intervention-input-drawer label')].find(n=>n.textContent.startsWith('${fieldLabel}'));
-      const field=document.getElementById(label.htmlFor);
-      field.focus();
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(field,'${value}');
-      field.dispatchEvent(new Event('input',{bubbles:true}));field.blur();
-    }`);
-    assert.equal(await e(`__inputs.${inputSection}.tariff_target`), Number(value));
-    await e(`__validationIssues=[{area:'urban',sector:'${sector}',intervention:'tariff',field:'${inputSection}.tariff_target',label:'${fieldLabel}',severity:'error',code:'fixture',message:'Fixture tariff validation'}];
-      __setInputs(i=>({...i,toggles:{...i.toggles,${prefix}_tariff_enabled:true}}))`);
-    await w(`document.querySelector('#intervention-input-drawer [aria-invalid="true"]') !== null`, 'Field-local validation did not follow its portal');
-    assert.equal(await e(`document.querySelector('#intervention-input-drawer').textContent.includes('Fixture tariff validation')`), true);
-    await toggle('Tariff reform');
-    await open(`${prefix}_microfinance_enabled`);
-    await open(`${prefix}_tariff_enabled`);
-    assert.equal(await e(`__inputs.${inputSection}.tariff_target`), Number(value), 'Disabling and switching settings preserve parameters');
-    assert.equal(await e(`document.querySelector('#intervention-input-drawer [role="switch"]').checked`), false);
-    await e(`__validationIssues=[]`);
-    await e(`document.querySelector('[aria-label="Close intervention inputs"]').click()`);
   }
   // Missing toggle falls back to specialized connection config; explicit false wins.
   for (const sector of ['water', 'sanitation']) {
@@ -129,9 +105,6 @@ try {
   await e(`__setInputs(i=>({...i,toggles:{...i.toggles,san_nrw_link_enabled:true}}));__setSectors(['sanitation'])`);
   await w(`document.querySelector('${link('san_nrw_link_enabled')}').getAttribute('aria-label').includes('Unavailable')`, 'Unavailable linkage needs accessible status');
   assert.equal(await active('san_nrw_link_enabled'), false, 'Dormant unavailable linkage must not be teal');
-  await open('san_nrw_link_enabled');
-  assert.equal(await e(`document.querySelector('#intervention-input-drawer [role="switch"]').disabled`), true);
-  assert.equal(await e(`document.querySelector('#intervention-input-drawer').textContent.includes('Add Water supply')`), true);
   await e(`__setSectors(['water','sanitation'])`);
   await w(`document.querySelector('${link('san_nrw_link_enabled')} .intervention-nav-status').dataset.active==='true'`, 'Restoring sector restores saved active state');
   for (const mobile of [false, true]) {
@@ -141,15 +114,9 @@ try {
     assert.equal(await e(`getComputedStyle(document.querySelector('${nav}')).display !== 'none' && document.querySelector('${nav}').getBoundingClientRect().width > 0`), true);
     if (mobile) assert.ok(await e(`document.querySelector('${nav} button').getBoundingClientRect().height >= 44`), 'Touch rows must be at least 44px');
     await open('san_microfinance_enabled');
-    if (!mobile) assert.equal(await e(`(()=>{
-      const nav=document.querySelector('.intervention-section-nav').getBoundingClientRect();
-      const settings=document.querySelector('#intervention-input-drawer').getBoundingClientRect();
-      const workspace=document.querySelector('.intervention-section-workspace').getBoundingClientRect();
-      return Math.abs(settings.left-nav.right)<2 && Math.abs(settings.right-workspace.right)<2;
-    })()`), true, 'Exactly two adjacent panels, with no reserved reading/middle width');
     // Escape closes and returns keyboard focus to the navigation trigger.
     await b.call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
-    await w(`!!document.querySelector('.intervention-settings-empty') && document.activeElement.dataset.interventionKey==='san_microfinance_enabled'`, 'Escape must restore nav focus and empty settings');
+    await w(`document.querySelector('#intervention-input-drawer').hidden && document.activeElement.dataset.interventionKey==='san_microfinance_enabled'`, 'Escape must restore nav focus');
     for (const section of ['graph', 'table']) {
       await navigate(section);
       await w(`!document.querySelector('${nav}') && document.querySelector('.intervention-workspace__controls').hidden &&
@@ -165,5 +132,5 @@ try {
     assert.ok(await e('document.documentElement.scrollWidth <= innerWidth'), 'No horizontal mobile overflow');
   }
   assert.deepEqual(b.errors, []);
-  console.log('PASS: two-panel Design, empty settings, all ten interventions in both sectors, lever headings, live activation dots, saved connection precedence, navigation without enabling, geography, read-only/unavailable inspection, desktop/mobile focus and Graph/Table scroll.');
+  console.log('PASS: registry-backed groups, every live on/off dot, saved connection precedence, navigation without enabling, collapsed categories, both sectors, geography, read-only/unavailable inspection, desktop/mobile focus and Graph/Table scroll.');
 } finally { b.close(); }

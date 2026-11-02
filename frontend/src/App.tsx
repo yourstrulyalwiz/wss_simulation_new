@@ -533,6 +533,9 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
         )}
         {activeTab === 3 && activeInputs && (
           <DebtServicingPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={resultInputs.current === activeInputs ? results : null} calculationError={calculationError}
+            scopeChoices={both ? ['urban', 'rural'] : [inputScope]}
+            scopeLabel={inputScope === 'national' ? 'National' : inputScope === 'rural' ? 'Rural' : 'Urban'}
+            onScopeChange={value => { if (value === 'urban' || value === 'rural') { setBauChartScope(value); setSubArea(value); } }}
             sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} contributionView={contributionView}
             onContributionViewChange={setContributionView} currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay}
             onEditCurrencyRate={editCurrencyRate} onSectionFocus={focusGuideSection} onRetry={retryCalculation} />

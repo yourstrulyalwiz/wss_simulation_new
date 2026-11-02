@@ -63,3 +63,22 @@ enabled-loan validation. Excluding debt from a Results view must not erase saved
 loan terms or interventions, and its live exports must use that same debt choice
 across all entered areas. Report genuine calculation failures clearly; do not
 silently keep stale charts or fabricate missing intervention contributions.
+
+## Loan Funding workspace
+
+Apply Intervention Design's layout to Loan Funding: left numbered navigation,
+adjacent loan-settings panel, and an independent long-form graph/table body with
+matching background, contextual headings and coverage KPI cards. Hide settings
+when Graph or Coverage Comparison is selected, without clearing entered terms.
+Show coverage and Sector Available Funds with explicit marginal loan effects,
+then the loan-adjusted coverage comparison, then collapsed Annual Proceeds Use
+and Repayment Schedule. Do not include the requirements-versus-funds chart here.
+Tables start after the baseline (2026 in the current example); retain repayment
+years beyond the forecast through full maturity.
+
+**Why:** The user requested Tab 3's layout for Tab 4 while replacing its content
+with the borrowing comparison and optional detailed schedules.
+**How to apply:** Compare matched interventions without/with loan, never BAU as
+the no-loan substitute. Distinguish new injection, actual payments and restricted
+carry; carry is a balance, not additional annual funding. Preserve negative
+marginal effects and missing values, with exports following displayed semantics.

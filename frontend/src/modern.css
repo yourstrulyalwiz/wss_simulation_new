@@ -190,6 +190,86 @@
 }
 @media(prefers-reduced-motion:reduce) { .wb-app * { scroll-behavior:auto !important; transition:none !important; } }
 
+/* Intervention design uses the BAU reading-column rhythm while keeping its own
+   persistent workflow navigation and a collapsible controls/drawer rail. */
+.intervention-section-workspace {
+  display:grid; flex:1 1 auto; min-width:0; min-height:0; overflow:hidden;
+  grid-template-columns:218px minmax(0,1fr); background:#fff;
+}
+.intervention-section-workspace--design {
+  grid-template-columns:218px minmax(300px,360px) minmax(0,1fr);
+}
+.intervention-section-workspace--drawer-open {
+  grid-template-columns:218px minmax(300px,360px) minmax(260px, min(360px,32vw)) minmax(0,1fr);
+}
+.intervention-section-nav { grid-column:1; grid-row:1; }
+.intervention-workspace__controls {
+  grid-column:2; grid-row:1; width:auto; max-width:none; min-width:0;
+  overflow-y:auto; overscroll-behavior:contain; border-right:1px solid #dce6e9;
+}
+.intervention-workspace__controls[hidden], .intervention-input-drawer[hidden] { display:none!important; }
+.intervention-section-workspace--design .intervention-input-drawer {
+  grid-column:3; grid-row:1; display:flex; flex-direction:column; min-width:0;
+  width:auto; flex:none; border-left:0; border-right:0;
+}
+.intervention-section-workspace--design .intervention-input-drawer.is-open {
+  border-left:1px solid #dce6e9; border-right:1px solid #dce6e9;
+}
+.intervention-section-workspace--design:not(.intervention-section-workspace--drawer-open) .intervention-reading-content {
+  grid-column:3; grid-row:1;
+}
+.intervention-section-workspace--drawer-open .intervention-reading-content {
+  grid-column:4; grid-row:1;
+}
+.intervention-section-workspace:not(.intervention-section-workspace--design) .intervention-reading-content {
+  grid-column:2; grid-row:1;
+}
+.intervention-reading-content {
+  width:100%; max-width:none; min-height:0; padding:24px 28px;
+  background:#fff; overscroll-behavior:contain;
+}
+.intervention-reading-section { scroll-margin-top:12px; }
+.intervention-reading-section + .intervention-reading-section {
+  margin-top:38px; padding-top:28px; border-top:1px solid #dce8eb;
+}
+.intervention-section-workspace .intervention-input-drawer__body { flex:1; min-height:0; height:auto; }
+.intervention-section-workspace .intervention-input-drawer.is-open .intervention-input-drawer__header { flex:0 0 auto; }
+.intervention-section-workspace .modern-intv-chart-group { padding:12px; }
+.intervention-section-workspace .modern-bau-section { max-width:1200px; }
+.intervention-section-workspace .modern-intv-service-picker { margin:16px 0 8px; }
+.intervention-section-workspace .modern-bau-service-note { margin:8px 0 16px; }
+
+@media(max-width:900px) and (min-width:768px) {
+  .intervention-section-workspace--design { grid-template-columns:190px minmax(270px,32vw) minmax(0,1fr); }
+  .intervention-section-workspace--drawer-open { grid-template-columns:190px minmax(270px,32vw) minmax(250px,30vw) minmax(0,1fr); }
+  .intervention-reading-content { padding-inline:20px; }
+}
+@media(max-width:767px) {
+  .intervention-section-workspace,
+  .intervention-section-workspace--design,
+  .intervention-section-workspace--drawer-open {
+    display:grid; grid-template-columns:minmax(0,1fr); grid-auto-rows:auto;
+    align-content:start; overflow-y:auto; overflow-x:hidden;
+  }
+  .intervention-section-nav { grid-column:1; grid-row:auto; padding:8px 10px; border-right:0; border-bottom:1px solid #d5e2e6; }
+  .intervention-section-nav .modern-inputs-nav__items { display:none; }
+  .intervention-section-nav .modern-inputs-nav__select { display:block; width:100%; min-height:38px; }
+  .intervention-workspace__controls,
+  .intervention-section-workspace--design .intervention-input-drawer,
+  .intervention-section-workspace--design:not(.intervention-section-workspace--drawer-open) .intervention-reading-content,
+  .intervention-section-workspace--drawer-open .intervention-reading-content,
+  .intervention-section-workspace:not(.intervention-section-workspace--design) .intervention-reading-content {
+    grid-column:1; grid-row:auto;
+  }
+  .intervention-workspace__controls { max-height:52dvh; padding:16px!important; border-right:0; }
+  .intervention-section-workspace--design .intervention-input-drawer { min-height:0; width:100%; border:0; }
+  .intervention-section-workspace--design .intervention-input-drawer.is-open {
+    min-height:45dvh; border-top:1px solid #dce6e9; border-bottom:1px solid #dce6e9;
+  }
+  .intervention-section-workspace .intervention-input-drawer__body { max-height:40dvh; }
+  .intervention-reading-content { padding:16px; overflow:visible; }
+}
+
 .modern-bau-service-picker { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:16px 0 8px; color:#014972; font-size:13px; font-weight:700; }
 .modern-bau-service-switch { display:flex; flex-wrap:wrap; gap:4px; padding:4px; max-width:100%; border:1px solid #c7d8df; border-radius:7px; background:#edf3f5; }
 .modern-bau-service-switch button { min-height:38px; padding:8px 14px; border:1px solid transparent; border-radius:5px; background:transparent; color:#014972; font:inherit; font-size:12px; cursor:pointer; }

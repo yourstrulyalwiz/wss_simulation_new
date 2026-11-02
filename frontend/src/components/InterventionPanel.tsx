@@ -259,7 +259,10 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   const { sectors, readOnly } = useProjectScope();
   const scopeLabel = providedScopeLabel || (geoScope === 'national' ? 'National' : geoScope === 'rural' ? 'Rural' : 'Urban');
   const [serviceLevel, setServiceLevel] = useState<BauServiceLevel>('at_least_basic');
-  const [activeSection, setActiveSection] = useState<'graph' | 'table'>('graph');
+  const [activeSection, setActiveSection] = useState<'design' | 'graph' | 'table'>('design');
+  const readingContent = React.useRef<HTMLDivElement>(null);
+  const pendingNavigation = React.useRef<(() => void) | null>(null);
+  React.useEffect(() => () => pendingNavigation.current?.(), []);
   const [expandedChartGroup, setExpandedChartGroup] = useState(false);
   const [selectedIntervention, setSelectedIntervention] = useState<string | null>(null);
   const [drawerTarget, setDrawerTarget] = useState<HTMLElement | null>(null);
@@ -277,6 +280,47 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   const closeIntervention = () => {
     setSelectedIntervention(null);
     requestAnimationFrame(() => selectedTrigger.current?.focus());
+  };
+  const navigateWorkspace = (key: 'design' | 'graph' | 'table') => {
+    pendingNavigation.current?.();
+    setActiveSection(key);
+    if (key !== 'design') {
+      setSelectedIntervention(null);
+      selectedTrigger.current = null;
+    }
+    if (key === 'design') return;
+    requestAnimationFrame(() => {
+      const host = readingContent.current;
+      const target = host?.querySelector<HTMLElement>(`[data-section-key="${key}"]`);
+      if (!target || !host) return;
+      const heading = target.querySelector<HTMLElement>('h2, h3') || target;
+      heading.focus({ preventScroll: true });
+      // Mobile stacks the rails and reading column inside the outer scrolling grid.
+      const scrollHost = getComputedStyle(host).overflowY === 'visible'
+        ? host.closest<HTMLElement>('.intervention-section-workspace') || host : host;
+      const alignSection = (behavior: ScrollBehavior = 'auto') => scrollHost.scrollTo({
+        top: scrollHost.scrollTop + target.getBoundingClientRect().top - scrollHost.getBoundingClientRect().top - 12,
+        behavior,
+      });
+      alignSection(matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
+      // Responsive charts and pending result cards can change section heights after
+      // the rails collapse. Keep the requested anchor briefly, but never fight input.
+      const observer = new ResizeObserver(() => alignSection());
+      host.querySelectorAll('[data-section-key]').forEach(section => observer.observe(section));
+      const stopFollowing = () => {
+        observer.disconnect();
+        clearTimeout(timer);
+        for (const event of ['wheel', 'touchstart', 'pointerdown', 'keydown']) {
+          scrollHost.removeEventListener(event, stopFollowing);
+        }
+        if (pendingNavigation.current === stopFollowing) pendingNavigation.current = null;
+      };
+      const timer = setTimeout(stopFollowing, 2000);
+      for (const event of ['wheel', 'touchstart', 'pointerdown', 'keydown']) {
+        scrollHost.addEventListener(event, stopFollowing, { passive: true });
+      }
+      pendingNavigation.current = stopFollowing;
+    });
   };
   const drawerContext = React.useRef({ sectorTab, scopeLabel });
   React.useEffect(() => {
@@ -321,7 +365,6 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
       key, { ...(inputs.utility_debt?.[key] || {}), enabled: false },
     ])),
   };
-  const scopeLower = scopeLabel.toLowerCase();
   const scheduleYear = (iv: any, field: string, end = false) =>
     iv[field];
 
@@ -520,23 +563,34 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   return (
     <ValidationContext.Provider value={{issues: validationIssues, sector: sectorTab, onNavigate: () => window.dispatchEvent(new CustomEvent('intervention-source-navigation'))}}>
     <InterventionDrawerContext.Provider value={{ selected: selectedIntervention, target: drawerTarget, select: selectIntervention }}>
-    <div className="intervention-workspace" style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'hidden' }}>
-      {/* Left: intervention controls */}
-      <div className="intervention-workspace__controls" style={{ flex: '0 1 598px', minWidth: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', borderRight: '1px solid #e0e0e0', fontSize: 12 }}>
+    <div className={`intervention-section-workspace${activeSection === 'design' ? ' intervention-section-workspace--design' : ''}${selectedIntervention && activeSection === 'design' ? ' intervention-section-workspace--drawer-open' : ''}`}>
+      <nav className="modern-inputs-nav intervention-section-nav" aria-label="Intervention sections">
+        <span className="modern-inputs-nav__eyebrow">INTERVENTION WORKSPACE</span>
+        <div className="modern-inputs-nav__items">
+          {([
+            ['design', 'Intervention Design'],
+            ['graph', 'Intervention Graph'],
+            ['table', 'Intervention Table'],
+          ] as const).map(([key, label], index) => <button key={key} type="button"
+            className="modern-inputs-nav__item" aria-current={activeSection === key ? 'location' : undefined}
+            onClick={() => navigateWorkspace(key)}>
+            <span className="modern-inputs-nav__number">{index + 1}</span>{label}
+          </button>)}
+        </div>
+        <select className="modern-inputs-nav__select" aria-label="Go to Intervention section"
+          value={activeSection} onChange={event => navigateWorkspace(event.target.value as 'design' | 'graph' | 'table')}>
+          <option value="design">1. Intervention Design</option>
+          <option value="graph">2. Intervention Graph</option>
+          <option value="table">3. Intervention Table</option>
+        </select>
+      </nav>
+      {/* The controls stay mounted so draft fields and open categories survive navigation. */}
+      <div className="intervention-workspace__controls" hidden={activeSection !== 'design'} style={{ minWidth: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', borderRight: '1px solid #e0e0e0', fontSize: 12 }}>
         <header className="modern-page-intro modern-page-intro--intervention">
           <span className="modern-page-intro__eyebrow">WORKFLOW 03 · TEST POLICY LEVERS</span>
           <h2>Design the intervention package</h2>
-          <p>Switch a lever on to include its impact, then open its parameters only when you need to adjust them. The preview to the right shows service and financing effects before loan funding.</p>
+          <p>Switch a lever on to include its impact, then open its parameters only when you need to adjust them. Results update alongside your design.</p>
         </header>
-
-        {/* Area-scope banner */}
-        <div style={{
-          display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, textAlign: 'left',
-          padding: '8px 14px', borderRadius: 6, fontSize: 12.5, fontWeight: 600,
-          background: '#EBF6FB', border: '1px solid #b6e0f0', color: '#0073A8',
-        }}>
-          <span>Configuring <span style={{ textTransform: 'capitalize' }}>{scopeLabel}</span> interventions — every field below is {scopeLower}-specific.</span>
-        </div>
 
         {/* Sector toggle */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
@@ -954,81 +1008,102 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         </div>
       </div>
 
-      <aside className={`intervention-input-drawer${selectedIntervention ? ' is-open' : ''}`}
-        aria-hidden={!selectedIntervention} aria-label={`${selectedIntervention || 'Intervention'} inputs`}>
+      <aside className={`intervention-input-drawer${selectedIntervention && activeSection === 'design' ? ' is-open' : ''}`}
+        hidden={activeSection !== 'design' || !selectedIntervention} aria-hidden={!selectedIntervention || activeSection !== 'design'} aria-label={`${selectedIntervention || 'Intervention'} inputs`}>
         {selectedIntervention && <>
           <header className="intervention-input-drawer__header">
             <div><span>INTERVENTION INPUTS</span><h3>{selectedIntervention}</h3></div>
             <button ref={drawerCloseButton} type="button" aria-label="Close intervention inputs" onClick={closeIntervention}>Close</button>
           </header>
-          <div className="intervention-input-drawer__body" ref={node => setDrawerTarget(node)} />
         </>}
+        <div className="intervention-input-drawer__body" ref={node => setDrawerTarget(node)} />
       </aside>
 
-      {/* Right: live scenario workspace. */}
-      <div className="intervention-workspace__charts" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '24px 28px', background: '#fff', borderLeft: '1px solid #e2e8f0' }}>
-        <header className="modern-page-intro">
-          <span className="modern-page-intro__eyebrow">WORKFLOW 03 · INTERVENTION DESIGN</span>
-          <h2>{activeSection === 'graph' ? 'Intervention Graph' : 'Intervention Design Table'}</h2>
-          <p>Review the combined intervention scenario using live engine results for the selected area and service level.</p>
-        </header>
-        <nav className="modern-workspace-sections" aria-label="Intervention Design sections">
-          <button type="button" aria-current={activeSection === 'graph' ? 'page' : undefined}
-            onClick={() => setActiveSection('graph')}>01 <span>Intervention Graph</span></button>
-          <button type="button" aria-current={activeSection === 'table' ? 'page' : undefined}
-            onClick={() => setActiveSection('table')}>02 <span>Intervention Design Table</span></button>
-        </nav>
-        <div className="modern-intv-graph-controls">
-          <div className="modern-bau-toggles" role="group" aria-label="Intervention graph area">
-            {scopeChoices.map(value => <button type="button" key={value} aria-pressed={scopeLabel.toLowerCase() === value}
+      <div className="modern-inputs-content intervention-reading-content" ref={readingContent} onScroll={() => {
+        const host = readingContent.current;
+        if (!host || activeSection === 'design') return;
+        const top = host.getBoundingClientRect().top;
+        let current: 'graph' | 'table' = 'graph';
+        for (const key of ['graph', 'table'] as const) {
+          const node = host.querySelector<HTMLElement>(`[data-section-key="${key}"]`);
+          if (node && node.getBoundingClientRect().top <= top + 65) current = key;
+        }
+        setActiveSection(current);
+      }}>
+        <section className="modern-bau-section intervention-reading-section" data-section-key="graph">
+          <header className="modern-page-intro">
+            <span className="modern-page-intro__eyebrow">WORKFLOW 03 · INTERVENTION DESIGN</span>
+            <h2 tabIndex={-1}>Intervention Graph</h2>
+            <p>Review the combined intervention scenario using live engine results for the selected area and service level.</p>
+          </header>
+          <div className="modern-bau-toggles" role="group" aria-label="Intervention graph geography">
+            {scopeChoices.map(value => <button type="button" key={value} aria-pressed={scopeLabel.toLowerCase() === value.toLowerCase()}
               onClick={() => onScopeChange?.(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}
           </div>
           <div className="modern-bau-toggles" role="group" aria-label="Intervention graph sector">
             {sectors.map(value => <button type="button" key={value} aria-pressed={sectorTab === value}
               onClick={() => onSectorChange?.(value)}>{value === 'water' ? 'Water Supply' : 'Sanitation'}</button>)}
           </div>
-        </div>
-        <div className="modern-bau-service-picker modern-intv-service-picker">
-          <span>Service level</span><div className="modern-bau-service-switch" role="group" aria-label="Intervention service level">
-            {BAU_SERVICE_LEVELS.map(item => <button key={item.value} type="button" data-service-level={item.value}
-              aria-pressed={serviceLevel === item.value} onClick={() => setServiceLevel(item.value)}>{item.label}</button>)}
-          </div>
-        </div>
-        <InterventionScenarioTable inputs={interventionChartInputs} sector={sectorTab} level={serviceLevel} showTable={activeSection === 'table'} currencyDisplay={currencyDisplay} scopeLabel={scopeLabel} />
-        {activeSection === 'graph' && <>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-          <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={CUR}
-            onModeChange={mode => onCurrencyDisplayChange({ ...currencyDisplay, mode, sourceCurrency: CUR })}
-            onEditRate={onEditCurrencyRate} />
-          {/* Excel / CSV only — the slide deck belongs to the finished scenario, so it lives on Results. */}
-          <ContributionViewToggle value={contributionView} onChange={onContributionViewChange} />
-          <ExportButtons inputs={interventionChartInputs} pptx={false} contributionView={contributionView} currencyDisplay={currencyDisplay} />
-        </div>
-        <p data-testid="intervention-no-debt-note" style={{ fontSize: 12, color: '#475569', margin: '0 0 12px' }}>
-          Live intervention preview — includes selected interventions, without borrowing or debt servicing. Custom interventions are temporarily disabled. Saved loan settings are applied separately in Debt servicing.
-        </p>
-        <section className={`modern-intv-chart-group${expandedChartGroup ? ' modern-intv-chart-group--expanded' : ''}`}>
-          <div className="modern-bau-chart-actions">
-            <button type="button" aria-pressed={expandedChartGroup} onClick={() => setExpandedChartGroup(value => !value)}>
-              {expandedChartGroup ? 'Restore chart size' : 'Expand charts'}
-            </button>
-          </div>
-          <div className="modern-intv-chart-pair">
-            <div className="modern-intv-coverage-chart">
-              <LiveInterventionChart key={`${sectorTab}-${scopeLabel}-${serviceLevel}`}
-                inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel}
-                serviceLevel={serviceLevel} contributionView={contributionView} currencyDisplay={currencyDisplay}
-                chartHeight={expandedChartGroup ? 500 : undefined} />
+          <div className="modern-bau-service-picker modern-intv-service-picker">
+            <span>Service level</span><div className="modern-bau-service-switch" role="group" aria-label="Intervention graph service level">
+              {BAU_SERVICE_LEVELS.map(item => <button key={item.value} type="button" data-service-level={item.value}
+                aria-pressed={serviceLevel === item.value} onClick={() => setServiceLevel(item.value)}>{item.label}</button>)}
             </div>
-            <InterventionFundingChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel}
-              currencyDisplay={currencyDisplay} chartHeight={expandedChartGroup ? 500 : 360} />
           </div>
+          <InterventionScenarioTable inputs={interventionChartInputs} sector={sectorTab} level={serviceLevel}
+            showTable={false} currencyDisplay={currencyDisplay} scopeLabel={scopeLabel} />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={CUR}
+              onModeChange={mode => onCurrencyDisplayChange({ ...currencyDisplay, mode, sourceCurrency: CUR })}
+              onEditRate={onEditCurrencyRate} />
+            <ContributionViewToggle value={contributionView} onChange={onContributionViewChange} />
+            <ExportButtons inputs={interventionChartInputs} pptx={false} contributionView={contributionView} currencyDisplay={currencyDisplay} />
+          </div>
+          <p data-testid="intervention-no-debt-note" style={{ fontSize: 12, color: '#475569', margin: '0 0 12px' }}>
+            Live intervention results include selected interventions, without borrowing or debt servicing. Saved loan settings are applied separately in Debt servicing.
+          </p>
+          <section className={`modern-bau-chart-card modern-intv-chart-group${expandedChartGroup ? ' modern-intv-chart-group--expanded' : ''}`}>
+            <div className="modern-bau-chart-actions">
+              <button type="button" aria-pressed={expandedChartGroup} onClick={() => setExpandedChartGroup(value => !value)}>
+                {expandedChartGroup ? 'Restore chart size' : 'Expand charts'}
+              </button>
+            </div>
+            <div className="modern-intv-chart-pair">
+              <div className="modern-intv-coverage-chart">
+                <LiveInterventionChart key={`${sectorTab}-${scopeLabel}-${serviceLevel}`}
+                  inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel}
+                  serviceLevel={serviceLevel} contributionView={contributionView} currencyDisplay={currencyDisplay}
+                  chartHeight={expandedChartGroup ? 500 : undefined} />
+              </div>
+              <InterventionFundingChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel}
+                currencyDisplay={currencyDisplay} chartHeight={expandedChartGroup ? 500 : 360} />
+            </div>
+          </section>
+          <details className="modern-intv-revenue-details">
+            <summary>Additional revenue by source</summary>
+            <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} />
+          </details>
         </section>
-        <details className="modern-intv-revenue-details">
-          <summary>Additional revenue by source</summary>
-          <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} />
-        </details>
-        </>}
+        <section className="modern-bau-section intervention-reading-section" data-section-key="table">
+          <h2 className="modern-bau-heading" tabIndex={-1}>Intervention Table</h2>
+          <div className="modern-bau-toggles" role="group" aria-label="Intervention table geography">
+            {scopeChoices.map(value => <button type="button" key={value} aria-pressed={scopeLabel.toLowerCase() === value.toLowerCase()}
+              onClick={() => onScopeChange?.(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}
+          </div>
+          <div className="modern-bau-toggles" role="group" aria-label="Intervention table sector">
+            {sectors.map(value => <button type="button" key={value} aria-pressed={sectorTab === value}
+              onClick={() => onSectorChange?.(value)}>{value === 'water' ? 'Water Supply' : 'Sanitation'}</button>)}
+          </div>
+          <div className="modern-bau-service-picker modern-intv-service-picker">
+            <span>Service level</span><div className="modern-bau-service-switch" role="group" aria-label="Intervention table service level">
+              {BAU_SERVICE_LEVELS.map(item => <button key={item.value} type="button" data-service-level={item.value}
+                aria-pressed={serviceLevel === item.value} onClick={() => setServiceLevel(item.value)}>{item.label}</button>)}
+            </div>
+          </div>
+          <p className="modern-bau-service-note">{scopeLabel} · {sectorTab === 'water' ? 'Water supply' : 'Sanitation'} · {BAU_SERVICE_LEVELS.find(item => item.value === serviceLevel)?.label}. Changing selectors updates the graph and table together.</p>
+          <InterventionScenarioTable inputs={interventionChartInputs} sector={sectorTab} level={serviceLevel}
+            showKpis={false} currencyDisplay={currencyDisplay} scopeLabel={scopeLabel} />
+        </section>
       </div>
     </div>
     </InterventionDrawerContext.Provider>

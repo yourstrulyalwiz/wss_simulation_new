@@ -5,11 +5,11 @@ import { convertMoney, currencyUnit, type CurrencyDisplaySettings } from '../cur
 import TableExport from './TableExport';
 import { interventionCoverageKpis, interventionTableRows } from '../interventionReporting';
 
-type Props = { inputs: any; sector: 'water' | 'sanitation'; level: BauServiceLevel; showTable?: boolean; currencyDisplay: CurrencyDisplaySettings; scopeLabel: string; };
+type Props = { inputs: any; sector: 'water' | 'sanitation'; level: BauServiceLevel; showTable?: boolean; showKpis?: boolean; currencyDisplay: CurrencyDisplaySettings; scopeLabel: string; };
 const sectionKey = (sector: 'water' | 'sanitation') => sector === 'water' ? 'water_supply' : 'sanitation';
 
 /** A reporting-only view of the selected area's combined intervention calculation. */
-export default function InterventionScenarioTable({ inputs, sector, level, showTable = true, currencyDisplay, scopeLabel }: Props) {
+export default function InterventionScenarioTable({ inputs, sector, level, showTable = true, showKpis = true, currencyDisplay, scopeLabel }: Props) {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -63,11 +63,11 @@ export default function InterventionScenarioTable({ inputs, sector, level, showT
   const exportRows = rows.map(row => [row.year, row.bau, row.scenario, row.target, row.expansion,
     row.replacement, row.available, row.gap]);
   return <div className="modern-intv-table-wrap">
-    <div className="modern-intv-kpis" aria-label="Intervention scenario coverage indicators">
+    {showKpis && <div className="modern-intv-kpis" aria-label="Intervention scenario coverage indicators">
       {kpis.map(card => <div className="modern-intv-kpi" key={card.label}>
         <span>{card.label}</span><strong>{card.value == null ? '—' : `${fmt(card.value)}%`}</strong><small>household coverage · live engine</small>
       </div>)}
-    </div>
+    </div>}
     {hasUnavailableValues && <p className="modern-intv-data-note" role="status">One or more engine metrics are unavailable. Affected values are shown as — and are not treated as zero.</p>}
     {showTable && <><div className="modern-intv-table-caption">
       <div className="modern-intv-table-caption__title">

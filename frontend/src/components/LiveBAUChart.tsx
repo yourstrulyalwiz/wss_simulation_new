@@ -7,6 +7,7 @@ import {
 import { C } from '../chartColors';
 import { bauServiceValue, bauAccessGap, bauSpendingRows, type BauSpendingRow, type BauServiceLevel } from '../bauServiceView';
 import { forecastTableHeaders } from '../forecastTableColumns';
+import { signedAccessBalance, signedFinancingBalance, forecastCell, forecastValueClass } from '../forecastTablePresentation';
 import { yearAxisInterval } from '../chartAxis';
 import { resolveChartWindow } from '../chartWindow';
 import { linesFirstLegend } from './chartLegend';
@@ -446,9 +447,9 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
     `Sector financing gaps (${displayCur} M)`,
     `Sector available funding (${displayCur} M/yr)`];
   const displayTableHeaders = forecastTableHeaders(serviceLevel, displayCur);
-  const tableExportRows = tableRows.map((r: any) => [r.year, round3(r.total), round3(r.bau), round3(r.tgt), round3(r.gapHH),
-    round3(r.newNeed * moneyFactor), round3(r.replacement * moneyFactor), round3(r.funded * moneyFactor), round3(r.replacementBacklog * moneyFactor), round3(r.serviceGap * moneyFactor),
-    r.finGap == null ? '' : round3(r.finGap * moneyFactor), round3(r.available * moneyFactor)]);
+  const tableExportRows = tableRows.map((r: any) => [r.year, round3(r.total), round3(r.bau), round3(r.tgt), signedAccessBalance(r.gapHH, r.bau, r.tgt),
+    round3(r.newNeed * moneyFactor), round3(r.replacement * moneyFactor), round3(r.funded * moneyFactor), round3(r.replacementBacklog * moneyFactor), signedFinancingBalance(r.serviceGap == null ? null : round3(r.serviceGap * moneyFactor)),
+    signedFinancingBalance(r.finGap == null ? null : round3(r.finGap * moneyFactor)), round3(r.available * moneyFactor)]);
 
   const toolBtn: React.CSSProperties = {
     padding: '4px 10px', fontSize: 11, border: '1px solid #cbd5e1', borderRadius: 6,
@@ -795,6 +796,9 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
           <div className="bau-ledger-frame">
             <table className="bau-forecast-table">
               <caption>{rungNameRaw} annual projections. Households in millions; money in billions of {displayCur}.
+                Gap columns show red − deficits, green + surpluses and dark-blue zero balances.
+                Access surplus is coverage above target only when no unmet access gap remains; Basic-only retains SM credit.
+                Financing gaps remain outstanding obligations, not available funding minus costs.
                 Financial columns are attributed to the selected service level except the sector financing gaps and available funding.
                 Sector available funding is total annual available capital, not the amount left after replacement.
                 Replacement need, replacement credit and available funding are annual flows; financing gaps are not additive across years.
@@ -804,13 +808,12 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
               <colgroup><col style={{ width: '6%' }} />{Array.from({ length: 11 }, (_, i) => <col key={i} style={{ width: `${94 / 11}%` }} />)}</colgroup>
               <thead><tr>{displayTableHeaders.map((header, i) => <th key={i} scope="col">{header}</th>)}</tr></thead>
               <tbody>{tableRows.map((row: any) => <tr key={row.year}>
-                {[String(row.year), sig3(row.total), sig3(row.bau), sig3(row.tgt), sig3(row.gapHH),
-                  sigB(row.newNeed * moneyFactor), sigB(row.replacement * moneyFactor),
-                  sigB(row.funded * moneyFactor),
-                  sigB(row.replacementBacklog * moneyFactor),
-                  sigB(row.serviceGap * moneyFactor), row.finGap == null ? 'n/a' : sigB(row.finGap * moneyFactor),
-                  sigB(row.available * moneyFactor)]
-                  .map((value, i) => <td key={i} data-label={displayTableHeaders[i]}>{value}</td>)}
+                {[row.year, row.total, row.bau, row.tgt, signedAccessBalance(row.gapHH, row.bau, row.tgt),
+                  ...[row.newNeed, row.replacement, row.funded, row.replacementBacklog,
+                    signedFinancingBalance(row.serviceGap), signedFinancingBalance(row.finGap), row.available]
+                    .map(value => value == null ? null : value * moneyFactor / 1000)]
+                  .map((value, i) => <td key={i} className={forecastValueClass(value, i)} data-label={displayTableHeaders[i]}>
+                    {i === 0 ? value : forecastCell(value, [4, 9, 10].includes(i))}</td>)}
               </tr>)}</tbody>
             </table>
           </div>

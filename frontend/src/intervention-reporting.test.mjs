@@ -14,6 +14,23 @@ for (const ext of ['.ts', '.tsx']) {
 const { scenarioSpendingRows, interventionTableRows, interventionCoverageKpis, interventionComparisonRows } =
   require('./interventionReporting.ts');
 const { forecastTableHeaders } = require('./forecastTableColumns.ts');
+const { signedAccessBalance, signedFinancingBalance, forecastCell, forecastValueClass } = require('./forecastTablePresentation.ts');
+assert.equal(signedAccessBalance(10, 60, 70), -10);
+assert.equal(signedAccessBalance(0, 80, 70), 10);
+assert.equal(signedAccessBalance(0, 20, 30), 0, 'SM credit must not become a new basic deficit');
+assert.equal(signedAccessBalance(5, 80, 70), -5, 'local obligations take priority over aggregate surplus');
+assert.equal(signedAccessBalance(null, 80, 70), null);
+assert.equal(signedFinancingBalance(12), -12);
+assert.equal(signedFinancingBalance(-12), 12);
+assert.equal(signedFinancingBalance(null), null);
+assert.equal(forecastCell(-12, true), '-12');
+assert.equal(forecastCell(12, true), '+12');
+assert.equal(forecastCell(0, true), '0');
+assert.equal(forecastCell(null, true), '—');
+assert.equal(forecastCell(-0.001, true), '-0.001');
+assert.equal(forecastValueClass(-12, 9), 'forecast-value--deficit');
+assert.equal(forecastValueClass(12, 4), 'forecast-value--surplus');
+assert.equal(forecastValueClass(0, 10), 'forecast-value--neutral');
 const { sourceCoverageRows } = require('./sourceAttribution.ts');
 const sector = {
   // Deliberately distinct values expose accidental reads from the BAU path.

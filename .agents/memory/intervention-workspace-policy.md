@@ -41,3 +41,14 @@ interacts or scrolls.
 
 **Why:** Responsive chart resizing and pending result cards can move a destination
 after the initial scroll, especially in the stacked mobile layout.
+
+BAU and Intervention tables use signed gap presentation: negative/red deficits,
+positive/green genuine surpluses, neutral dark-blue zeros. This supersedes the
+earlier unsigned display only; underlying unmet obligations stay nonnegative.
+Access overachievement may be shown only when the existing gap is zero; retain
+SM credit and do not net away local deficits. Never fabricate a financing surplus
+by subtracting already-applied funding from residual obligations.
+
+**Why:** The user requested explicit signs and consistent red/green/dark-blue
+formatting in both tables, plus wrapping Intervention columns to fit like BAU.
+**How to apply:** Keep this a reporting convention, not a model-accounting change.

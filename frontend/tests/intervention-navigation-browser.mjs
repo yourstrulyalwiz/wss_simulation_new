@@ -15,6 +15,7 @@ try {
   await evaluate(`Array.from(document.querySelectorAll('.wb-tab')).find(node => /BAU/i.test(node.textContent)).click()`);
   await browser.waitFor('!!document.querySelector(".modern-section-workspace .modern-inputs-content")', 'BAU workspace did not load');
   await browser.waitFor('!!document.querySelector(".bau-forecast-table tbody tr")', 'BAU forecast table did not load');
+  assert.equal(await evaluate(`[...document.querySelectorAll('.bau-forecast-table tbody tr')].every(row=>[4,9,10].every(i=>!row.children[i].classList.contains('forecast-value--deficit') || row.children[i].textContent.trim().startsWith('-')))`), true, 'BAU deficits have minus signs');
   await evaluate(`window.__bauForecast = {
     headers: [...document.querySelectorAll('.bau-forecast-table thead th')].map(node => node.textContent),
     rows: [...document.querySelectorAll('.bau-forecast-table tbody tr')].map(row => [...row.children].map(node => node.textContent))
@@ -45,6 +46,7 @@ try {
   assert.equal(await evaluate(`window.__workspaceBackground(document.querySelector('.intervention-reading-content')) === window.__bauBackground`), true, 'Intervention background must match BAU');
   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Intervention table geography"], [aria-label="Intervention table sector"]').length`), 0, 'Table must use the top geography and sector selectors');
   await browser.waitFor('!!document.querySelector(".modern-intv-table tbody tr")', 'Live scenario table did not load');
+  assert.equal(await evaluate(`(()=>{const table=document.querySelector('.modern-intv-table'); return table.scrollWidth <= table.parentElement.clientWidth+2;})()`), true, 'All intervention columns fit the content area');
   assert.equal(await evaluate(`JSON.stringify([...document.querySelectorAll('.modern-intv-table thead th')].filter((_,index)=>index!==3).map(node=>node.textContent)) === JSON.stringify(window.__bauForecast.headers)`), true, 'Keep BAU-style headings');
   assert.equal(await evaluate(`JSON.stringify([...document.querySelectorAll('.modern-intv-table tbody tr')].map(row=>row.children[2].textContent)) === JSON.stringify(window.__bauForecast.rows.map(row=>row[2]))`), true, 'BAU households remains unchanged');
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('.modern-intv-table thead th')].slice(2,5).map(node=>node.textContent)`),
@@ -55,7 +57,10 @@ try {
     const r = window.__scenarioResult, s = r.water_supply, settings = window.__savedCurrency;
     const usd = document.querySelector('.modern-intv-table thead').textContent.includes('(B USD');
     const factor = usd && settings.sourceCurrency !== 'USD' ? 1/settings.localPerUsd : 1;
-    const fmt = value => Number(value.toPrecision(3)).toLocaleString('en-US', {maximumFractionDigits:2});
+    const fmt = (value, signed=false) => {
+      const rounded=Number(value.toPrecision(3));
+      return (signed && rounded>0 ? '+' : '') + rounded.toLocaleString('en-US', {maximumFractionDigits:rounded!==0 && Math.abs(rounded)<0.01 ? 6 : 2});
+    };
     return r.years.flatMap((year,i)=>{
       if(year <= window.__scenarioInputs.period.baseline_year) return [];
       const sum = key => s[key][0][i] + s[key][1][i];
@@ -64,9 +69,10 @@ try {
       const target = Math.min(r.total_hh[i],sum('scenario_target_hh'));
       const money = ['new_capex_by_service','replacement_by_service','funded_by_service',
         'replacement_backlog_closing_by_service','financing_gap_by_service'].map(key=>sum('scenario_'+key));
-      money.push(s.scenario_financing_gap[i], s.scenario_available_total[i]);
-      return [[String(year), ...[r.total_hh[i],bau,scenario,target,Math.max(0,target-scenario)].map(fmt),
-        ...money.map(value=>fmt(value*factor/1000))]];
+      money[4] = -money[4];
+      money.push(-s.scenario_financing_gap[i], s.scenario_available_total[i]);
+      return [[String(year), ...[r.total_hh[i],bau,scenario,target].map(value=>fmt(value)), fmt(scenario-target,true),
+        ...money.map((value,index)=>fmt(value*factor/1000,index===4 || index===5))]];
     });
   })()`);
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('.modern-intv-table tbody tr')].map(row=>[...row.children].map(node=>node.textContent))`),

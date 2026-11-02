@@ -5,6 +5,7 @@ import { convertMoney, displayCurrency, type CurrencyDisplaySettings } from '../
 import TableExport from './TableExport';
 import { interventionCoverageKpis, interventionComparisonRows } from '../interventionReporting';
 import { forecastTableHeaders } from '../forecastTableColumns';
+import { signedAccessBalance, signedFinancingBalance, forecastCell, forecastValueClass } from '../forecastTablePresentation';
 
 type Props = { inputs: any; sector: 'water' | 'sanitation'; level: BauServiceLevel; showTable?: boolean; showKpis?: boolean; currencyDisplay: CurrencyDisplaySettings; scopeLabel: string; };
 const sectionKey = (sector: 'water' | 'sanitation') => sector === 'water' ? 'water_supply' : 'sanitation';
@@ -45,14 +46,14 @@ export default function InterventionScenarioTable({ inputs, sector, level, showT
   const shownCurrency = displayCurrency(currencyDisplay, currency);
   const moneyColumns = new Set([5, 6, 7, 8, 9, 10, 11]);
   const columnOrder = [0, 1, 2, 12, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-  const rows = reportingRows.map(row => row.map((value, index) => {
+  const rows = reportingRows.map(row => row.map((raw, index) => {
+    const value = index === 4 ? signedAccessBalance(raw, row[12], row[3])
+      : [9, 10].includes(index) ? signedFinancingBalance(raw) : raw;
     if (value == null || !moneyColumns.has(index)) return value;
     const converted = convertMoney(value, currencyDisplay, currency);
     return converted == null ? null : converted / 1000;
   })).map(row => columnOrder.map(index => row[index]));
   const fmt = (value: number) => Number.isFinite(value) ? value.toLocaleString('en-US', { maximumFractionDigits: 3 }) : '—';
-  const cell = (value: number | null) => value == null ? '—'
-    : Number(value.toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 });
   const kpis = [
     { label: `Baseline · ${kpiValues.baselineYear}`, value: kpiValues.baseline },
     { label: `Intervention · ${kpiValues.endYear ?? 'forecast end'}`, value: kpiValues.scenario },
@@ -76,13 +77,15 @@ export default function InterventionScenarioTable({ inputs, sector, level, showT
         <TableExport filename={`${scopeLabel}_${sector}_${level}_intervention_design`} sheetName="Intervention design"
           headers={exportHeaders} rows={exportRows} compact currencyDisplay={currencyDisplay} />
       </div>
-      <small>BAU households is the comparison; targets, remaining access gaps and all financial columns reflect the combined intervention scenario without loans. Households are in millions and money is in billions of {shownCurrency}. Access gaps cannot be negative; Basic-only shortfall accounts for safely managed coverage meeting the basic minimum. Service costs and balances follow the selected service level; sector gaps and available funding cover both service levels. Replacement obligations can remain even when coverage exceeds target. Replacement need, credit and funding are annual flows. Residual replacement cost is the outstanding year-end balance already included in financing gaps; do not add it again or sum balances across years.</small>
+      <small>BAU households is the comparison; targets and financial columns reflect the combined intervention scenario without loans. Households are in millions and money is in billions of {shownCurrency}. Gap columns show red − deficits, green + surpluses and dark-blue zero balances. Access surplus is coverage above target, shown only when no unmet access gap remains; Basic-only shortfall retains SM credit. Financing gaps show outstanding obligations, not available funding minus costs. Service costs and balances follow the selected service level; sector gaps and available funding cover both service levels. Replacement obligations can remain even when coverage exceeds target. Replacement need, credit and funding are annual flows. Residual replacement cost is the outstanding year-end balance already included in financing gaps; do not add it again or sum balances across years.</small>
     </div>
     <div className="modern-intv-table-scroll"><table className="modern-intv-table">
       <thead><tr>{exportHeaders.map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
       <tbody>{rows.map(row => <tr key={row[0]}>
         <th scope="row">{row[0]}</th>
-        {row.slice(1).map((value, index) => <td key={index} data-label={exportHeaders[index + 1]}>{cell(value)}</td>)}
+         {row.slice(1).map((value, index) => <td key={index} data-label={exportHeaders[index + 1]}
+           className={forecastValueClass(value, columnOrder[index + 1])}>
+           {forecastCell(value, [4, 9, 10].includes(columnOrder[index + 1]))}</td>)}
       </tr>)}</tbody>
     </table></div></>}
   </div>;

@@ -25,7 +25,9 @@ def append_service_access_slides(prs, results):
     ]
     for scope, result in results.items():
         for sector, title in (('water_supply', 'Water Supply'), ('sanitation', 'Sanitation')):
-            sec = result[sector]
+            sec = result.get(sector)
+            if sec is None:
+                continue
             # Templates drop unused slides without renumbering their remaining parts.
             # python-pptx chooses len(slides)+1, which can collide with a surviving part.
             existing_names = {part.partname for part in prs.part.package.iter_parts()}

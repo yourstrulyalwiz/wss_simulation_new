@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useProjectScope } from '../projectScope';
 import PublicSpendingTargets from './PublicSpendingTargets';
-import InterventionCategories from './InterventionCategories';
+import InterventionCategories, { InterventionNavigation, interventionGroups } from './InterventionCategories';
 import LiveInterventionChart from './LiveInterventionChart';
+import InterventionScenarioTable from './InterventionScenarioTable';
+import InterventionFundingChart from './InterventionFundingChart';
 import NumInput from './NumInput';
 import ExportButtons from './ExportButtons';
 import { RevenueBaseEditor, REVENUE_ATTRIBUTION } from './RevenueBase';
@@ -11,11 +14,18 @@ import { CurrencyDisplayControl, type CurrencyDisplaySettings } from '../currenc
 import NRWDiagnostics from './NRWDiagnostics';
 import { nrwLinkBillableVolume, nrwRevenueMetadata, nrwRevenueVersion, setNrwLinkOverlapYear } from '../nrwRevenue';
 import ConnectionRevenue from './ConnectionRevenue';
-import { BAU_SERVICE_LEVELS, type BauServiceLevel } from '../bauServiceView';
+import InterventionControlRow from './InterventionControlRow';
 import RevenueSourceChart from './RevenueSourceChart';
 import { collectionBelowBaselineWarning } from '../collectionWarning';
+import { ValidationContext, FieldIssuesContext, IssueMessages, groupForLabel, useInterventionIssues } from '../interventionValidation';
+import { BAU_SERVICE_LEVELS, type BauServiceLevel } from '../bauServiceView';
 
 const CUSTOM_INTERVENTIONS_ENABLED = false;
+const InterventionDrawerContext = React.createContext<{
+  selected: string | null;
+  target: HTMLElement | null;
+  select: (label: string, trigger: HTMLButtonElement) => void;
+} | null>(null);
 
 function Section({ title, children, defaultOpen = false, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; sectionKey?: string; onFocus?: (key: string) => void }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -41,6 +51,15 @@ function SubHead({ text }: { text: string }) {
 function F({ label, value, onChange, unit, step, isPercent, tip, fieldType, placeholder, min, max }: {
   label: string; value?: number; onChange: (v: number) => void; unit?: string; step?: number; isPercent?: boolean; tip?: string; fieldType?: 'input' | 'linked' | 'computed'; placeholder?: string; min?: number; max?: number;
 }) {
+  const issueId = React.useId();
+  const [editing, setEditing] = React.useState(false);
+  const previouslyShown = React.useRef(false);
+  const currentIssues = React.useContext(FieldIssuesContext).filter(issue =>
+    issue.label === label || label.startsWith(issue.label + ' (') ||
+    issue.field.endsWith('.capeff_target_pct') && label.includes('Target execution') ||
+    issue.field.endsWith('.tariff_target') && label.includes('Target') && label.includes('tariff'));
+  if (!editing) previouslyShown.current = currentIssues.length > 0;
+  const fieldIssues = !editing || previouslyShown.current ? currentIssues : [];
   const hasVal = typeof value === 'number' && !Number.isNaN(value);
   const rawPct = hasVal ? Math.round((value as number) * 1e4) / 1e2 : NaN;
   const displayVal = !hasVal ? NaN : (isPercent ? (fieldType === 'computed' ? Math.round(rawPct * 100) / 100 : rawPct) : Math.round((value as number) * 100) / 100);
@@ -53,7 +72,7 @@ function F({ label, value, onChange, unit, step, isPercent, tip, fieldType, plac
     <div style={{
       display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0,
     }}>
-      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: '#3A4452', lineHeight: 1.3, fontWeight: 500, minHeight: 32 }} title={tip || undefined}>
+      <label htmlFor={issueId} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: '#3A4452', lineHeight: 1.3, fontWeight: 500, minHeight: 32 }} title={tip || undefined}>
         {label}
         {tip && <span style={{
           width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
@@ -73,53 +92,65 @@ function F({ label, value, onChange, unit, step, isPercent, tip, fieldType, plac
           }} />
       ) : (
         <NumInput
-          value={Number.isNaN(displayVal) ? undefined : displayVal} commas={useCommas}
+          onFocus={() => setEditing(true)} onBlur={() => setEditing(false)}
+          id={issueId} aria-invalid={fieldIssues.some(issue => issue.severity === 'error') || undefined}
+          aria-describedby={fieldIssues.length ? issueId + '-messages' : undefined}
+          value={typeof value === 'string' ? value : Number.isNaN(displayVal) ? undefined : displayVal} commas={useCommas}
+          onInvalid={draft => onChange(draft as unknown as number)}
           placeholder={placeholder} min={min} max={max}
           // Empty cell → NaN in the model (JSON-serialises to null → engine reads 0 / uses the placeholder).
-          onValue={v => onChange(v === undefined ? (NaN as number) : (isPercent ? v / 100 : v))}
+          onValue={v => onChange(v === undefined ? (null as unknown as number) : (isPercent ? v / 100 : v))}
           style={{
             width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, textAlign: 'left',
             border: '1px solid #F0D070', background: '#FFF9E6', color: '#3A4452',
             cursor: 'text', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit',
           }} />
       )}
+      {!isDerived && <div id={issueId + '-messages'}><IssueMessages issues={fieldIssues} /></div>}
       {unit && <span style={{ fontSize: 11, color: '#6B7785' }}>{unit}</span>}
     </div>
   );
 }
 
-// Toggle with a parameter panel that is opened/closed only by its own Show/Hide button.
-// The checkbox just enables/disables the intervention (drives the graph) and never opens or closes the panel.
-function InterventionToggle({ label, checked, onChange, children, onFocus, unavailable = false }: {
+// Portal-only settings source. Left navigation selects; activation inside the
+// separate settings panel drives the scenario without opening or closing it.
+function InterventionToggle({ label, checked, onChange, children, unavailable = false }: {
   label: string; checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode; onFocus?: () => void;
   unavailable?: boolean;
 }) {
   const { readOnly } = useProjectScope();
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div style={{ marginBottom: 8, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-        background: checked ? '#eef2ff' : '#fafbfc', borderBottom: expanded ? '1px solid #c7d2fe' : 'none',
-      }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}>
-          <input type="checkbox" disabled={readOnly || unavailable} checked={checked && !unavailable} onChange={e => onChange(e.target.checked)}
-            style={{ width: 18, height: 18, accentColor: '#2563eb' }} />
-          <span style={{ fontSize: 13, color: checked ? '#1e3a5f' : '#475569', fontWeight: checked ? 600 : 400 }}>{label}</span>
-        </label>
-        <button onClick={() => { const e = !expanded; setExpanded(e); if (e && onFocus) onFocus(); }}
-          style={{ border: '1px solid #c7d2fe', background: '#fff', cursor: 'pointer', fontSize: 11, color: '#2563eb', fontWeight: 600, padding: '3px 10px', borderRadius: 12 }}>
-          {expanded ? '▴ Hide' : '▾ Show'}
-        </button>
-      </div>
+  const drawer = React.useContext(InterventionDrawerContext);
+  const expanded = drawer?.selected === label;
+  const validation = React.useContext(ValidationContext);
+  const issues = checked && !unavailable ? validation.issues.filter(issue =>
+    issue.sector === validation.sector && issue.intervention === groupForLabel(label)) : [];
+  const labels: string[] = [];
+  const collect = (nodes: React.ReactNode) => React.Children.forEach(nodes, child => {
+    if (!React.isValidElement(child)) return;
+    const props = child.props as any;
+    if (child.type === F && props.fieldType !== 'computed' && props.fieldType !== 'linked') labels.push(props.label);
+    if (props.children) collect(props.children);
+  });
+  collect(children);
+  const remaining = issues.filter(issue => !labels.some(label => label === issue.label ||
+    label.startsWith(issue.label + ' (') ||
+    issue.field.endsWith('.capeff_target_pct') && label.includes('Target execution') ||
+    issue.field.endsWith('.tariff_target') && label.includes('Target') && label.includes('tariff')));
+  if (!expanded || !drawer?.target) return null;
+  return createPortal(
+    <>
+      <InterventionControlRow label={label} checked={checked && !unavailable} disabled={readOnly || unavailable}
+        settingsOnly
+        expanded={!!expanded} onChange={onChange} onOpen={event => drawer?.select(label, event.currentTarget)}
+        needsAttention={issues.some(issue => issue.severity === 'error')} />
       {unavailable && <p style={{ margin: '8px 12px', fontSize: 11, color: '#587681' }}>Add Water supply to use this linkage. Saved settings are retained but inactive.</p>}
-      {expanded && (
-        <fieldset disabled={readOnly || unavailable} style={{ margin: 0, border: 0, minWidth: 0, padding: '10px 14px', background: '#fff', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px', alignItems: 'start' }}>
-          {children}
+        <fieldset disabled={readOnly || unavailable} style={{ margin: 0, border: 0, minWidth: 0, padding: '12px 16px 18px', background: '#fff', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px', alignItems: 'start' }}>
+          <FieldIssuesContext.Provider value={issues}>
+            {children}
+            <IssueMessages issues={remaining} />
+          </FieldIssuesContext.Provider>
         </fieldset>
-      )}
-    </div>
-  );
+    </>, drawer.target);
 }
 
 // Optimised-technology-selection editor: re-weight / re-cost the SAFELY-MANAGED technology mix (pre-filled
@@ -151,11 +182,13 @@ function MixTable({ mix, bauMix, setMix, CUR, rungLabel }: {
             <tr key={i}>
               <td><input type="text" style={{ ...cellStyle, width: 180 }} value={t.name || ''} onChange={e => upd(i, { name: e.target.value })} /></td>
               <td><NumInput style={{ ...shareCell, width: 60 }}
-                    value={(t.share == null || Number.isNaN(+t.share)) ? undefined : Math.round((+t.share) * 1e6) / 1e4}
-                    onValue={v => upd(i, { share: v === undefined ? undefined : v / 100 })} /></td>
+                    value={typeof t.share === 'string' ? t.share : t.share == null ? undefined : Math.round((+t.share) * 1e6) / 1e4}
+                    onInvalid={draft => upd(i, {share: draft})}
+                    onValue={v => upd(i, { share: v === undefined ? null : v / 100 })} /></td>
               <td><NumInput style={{ ...cellStyle, width: 92 }} commas
-                    value={(t.cost == null || Number.isNaN(+t.cost)) ? undefined : Math.round(+t.cost)}
-                    onValue={v => upd(i, { cost: v })} /></td>
+                    value={typeof t.cost === 'string' ? t.cost : t.cost == null ? undefined : Math.round(+t.cost)}
+                    onInvalid={draft => upd(i, {cost: draft})}
+                    onValue={v => upd(i, { cost: v ?? null })} /></td>
               <td><button onClick={() => { if (mix.length > 1) setMix(mix.filter((_: any, j: number) => j !== i)); }} style={{ border: 'none', background: '#fee2e2', color: '#dc2626', borderRadius: 3, padding: '2px 7px', cursor: 'pointer', fontSize: 10 }}>✕</button></td>
             </tr>
           ))}
@@ -200,11 +233,98 @@ function TechMixEditor({ inputs, onChange, section, CUR }: {
   );
 }
 
-interface Props { inputs: any; onChange: (i: any) => void; results?: any; calculationError?: string; sectorTab?: 'water' | 'sanitation'; onSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (key: string) => void; geoScope?: string; chartScope?: string; contributionView: ContributionView; onContributionViewChange: (v: ContributionView) => void; currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void; onEditCurrencyRate: () => void; }
+interface Props { inputs: any; onChange: (i: any) => void; results?: any; calculationError?: string; sectorTab?: 'water' | 'sanitation'; onSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (key: string) => void; geoScope?: string; chartScope?: string; contributionView: ContributionView; onContributionViewChange: (v: ContributionView) => void; currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void; onEditCurrencyRate: () => void; scopeChoices?: string[]; scopeLabel?: string; onScopeChange?: (value: string) => void; }
 
-export default function InterventionPanel({ inputs, onChange, results, calculationError = '', sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
+export default function InterventionPanel({ inputs, onChange, results, calculationError = '', sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate, scopeChoices = [geoScope], scopeLabel: providedScopeLabel, onScopeChange }: Props) {
+  const validationIssues = useInterventionIssues(inputs);
   const { sectors, readOnly } = useProjectScope();
-  const [serviceLevel, setServiceLevel] = useState<BauServiceLevel>('safely_managed');
+  const scopeLabel = providedScopeLabel || (geoScope === 'national' ? 'National' : geoScope === 'rural' ? 'Rural' : 'Urban');
+  const [serviceLevel, setServiceLevel] = useState<BauServiceLevel>('at_least_basic');
+  const headingContext = `${scopeLabel} · ${sectorTab === 'water' ? 'Water Supply' : 'Sanitation'} · ${BAU_SERVICE_LEVELS.find(item => item.value === serviceLevel)?.label}`;
+  const [activeSection, setActiveSection] = useState<'design' | 'graph' | 'table'>('design');
+  const readingContent = React.useRef<HTMLDivElement>(null);
+  const pendingNavigation = React.useRef<(() => void) | null>(null);
+  React.useEffect(() => () => pendingNavigation.current?.(), []);
+  const [expandedChartGroup, setExpandedChartGroup] = useState(false);
+  const [selectedIntervention, setSelectedIntervention] = useState<string | null>(null);
+  const [drawerTarget, setDrawerTarget] = useState<HTMLElement | null>(null);
+  const selectedTrigger = React.useRef<HTMLButtonElement | null>(null);
+  const drawerCloseButton = React.useRef<HTMLButtonElement | null>(null);
+  const selectIntervention = (label: string, trigger: HTMLButtonElement) => {
+    if (selectedIntervention === label) {
+      setSelectedIntervention(null);
+      requestAnimationFrame(() => selectedTrigger.current?.focus());
+    } else {
+      selectedTrigger.current = trigger;
+      setSelectedIntervention(label);
+    }
+  };
+  const closeIntervention = () => {
+    setSelectedIntervention(null);
+    requestAnimationFrame(() => selectedTrigger.current?.focus());
+  };
+  const navigateWorkspace = (key: 'design' | 'graph' | 'table') => {
+    pendingNavigation.current?.();
+    setActiveSection(key);
+    if (key !== 'design') {
+      setSelectedIntervention(null);
+      selectedTrigger.current = null;
+    }
+    if (key === 'design') return;
+    requestAnimationFrame(() => {
+      const host = readingContent.current;
+      const target = host?.querySelector<HTMLElement>(`[data-section-key="${key}"]`);
+      if (!target || !host) return;
+      const heading = target.querySelector<HTMLElement>('h2, h3') || target;
+      heading.focus({ preventScroll: true });
+      // Mobile stacks the rails and reading column inside the outer scrolling grid.
+      const scrollHost = getComputedStyle(host).overflowY === 'visible'
+        ? host.closest<HTMLElement>('.intervention-section-workspace') || host : host;
+      const alignSection = (behavior: ScrollBehavior = 'auto') => scrollHost.scrollTo({
+        top: scrollHost.scrollTop + target.getBoundingClientRect().top - scrollHost.getBoundingClientRect().top - 12,
+        behavior,
+      });
+      alignSection(matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
+      // Responsive charts and pending result cards can change section heights after
+      // the rails collapse. Keep the requested anchor briefly, but never fight input.
+      const observer = new ResizeObserver(() => alignSection());
+      host.querySelectorAll('[data-section-key]').forEach(section => observer.observe(section));
+      const stopFollowing = () => {
+        observer.disconnect();
+        clearTimeout(timer);
+        for (const event of ['wheel', 'touchstart', 'pointerdown', 'keydown']) {
+          scrollHost.removeEventListener(event, stopFollowing);
+        }
+        if (pendingNavigation.current === stopFollowing) pendingNavigation.current = null;
+      };
+      const timer = setTimeout(stopFollowing, 2000);
+      for (const event of ['wheel', 'touchstart', 'pointerdown', 'keydown']) {
+        scrollHost.addEventListener(event, stopFollowing, { passive: true });
+      }
+      pendingNavigation.current = stopFollowing;
+    });
+  };
+  const drawerContext = React.useRef({ sectorTab, scopeLabel });
+  React.useEffect(() => {
+    if (drawerContext.current.sectorTab !== sectorTab || drawerContext.current.scopeLabel !== scopeLabel) {
+      setSelectedIntervention(null);
+      selectedTrigger.current = null;
+      drawerContext.current = { sectorTab, scopeLabel };
+    }
+  }, [sectorTab, scopeLabel]);
+  React.useEffect(() => {
+    if (!selectedIntervention) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); closeIntervention(); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedIntervention]);
+  React.useEffect(() => {
+    if (!selectedIntervention || !drawerTarget) return;
+    const first = drawerTarget.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), button:not([disabled])');
+    (first || drawerCloseButton.current)?.focus();
+  }, [selectedIntervention, drawerTarget]);
   const [invalidNrwOverlapYear, setInvalidNrwOverlapYear] = useState<number | null>(null);
   // Budget execution (executed budget ÷ allocated budget) is COMPUTED by the live engine from the
   // historical budget rows — it is shown read-only as the current value in the Budget-execution
@@ -227,10 +347,8 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
       key, { ...(inputs.utility_debt?.[key] || {}), enabled: false },
     ])),
   };
-  const scopeLabel = geoScope === 'national' ? 'National' : geoScope === 'rural' ? 'Rural' : 'Urban';
-  const scopeLower = scopeLabel.toLowerCase();
   const scheduleYear = (iv: any, field: string, end = false) =>
-    Number.isFinite(iv[field]) ? iv[field] : (end ? inputs.period.forecast_end_year : inputs.period.baseline_year + 1);
+    iv[field];
 
   // ── Affordability lever (microfinance + means-based grant) helpers ──────────────────────────────
   const miniInput: React.CSSProperties = { width: '100%', padding: '5px 7px', borderRadius: 4, fontSize: 12,
@@ -256,8 +374,8 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
       <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b', marginBottom: 2 }}>
         A loan offer is made to each eligible {svc} household cohort during the configured intervention window. Cohort eligibility is separate from the service target; target coverage is not an annual enrollment cap.
       </div>
-      <F label="Connection fee" value={iv.mf_connection_fee || undefined} onChange={v => u(section, 'mf_connection_fee', v)} step={1000} unit={CUR}
-         placeholder="per-household service cost"
+      <F label="Connection fee" value={iv.mf_connection_fee} onChange={v => u(section, 'mf_connection_fee', v)} step={1000} unit={CUR}
+         placeholder="Enter fee; 0 means zero fee"
          tip="Connection fee per household — the capital cost of providing one household with safely-managed service, financed by the loan. Starts blank; enter the amount." />
       <F label="Improvement start year" value={iv.mf_start_year} onChange={v => u(section, 'mf_start_year', v)} tip="Year the microfinance scheme begins." />
       <F label="End year" value={iv.mf_end_year} onChange={v => u(section, 'mf_end_year', v)} tip="Last year new microfinance-financed service is added." />
@@ -362,7 +480,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
       {option('fin_gdp_enabled', 'Target executed spending as a share of GDP',
         <PublicSpendingTargets inputs={inputs} section={section} onChange={onChange} />)}
       {option('fin_growth_enabled', 'Annual percentage increase in spending', <>
-        <F label="Annual spending increase" value={iv.fin_growth_rate} onChange={v => u(section, 'fin_growth_rate', Math.max(0, v))} isPercent unit="% per year"
+        <F label="Annual spending increase" value={iv.fin_growth_rate} onChange={v => u(section, 'fin_growth_rate', v)} isPercent unit="% per year"
           tip="Compounded uplift over each year's BAU spending through the end year. Afterwards, the achieved executed-spending share of GDP is maintained, unless BAU exceeds it. The separate GDP-target option remains additive." />
         <F label="Start year" value={scheduleYear(iv, 'fin_growth_start_year')} onChange={v => u(section, 'fin_growth_start_year', v)} />
         <F label="End year" value={scheduleYear(iv, 'fin_growth_end_year', true)} onChange={v => u(section, 'fin_growth_end_year', v)}
@@ -380,12 +498,13 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             ? `Annual available funding (${CUR} millions). The full amount enters available funds each year from the start year through the end year; capital spending share and execution rate are not applied.`
             : `One-time available funding (${CUR} millions). The full amount enters available funds in the selected year; capital spending share and execution rate are not applied.`}
         </div>
-        <F label={recurring ? 'Annual funding amount' : 'Funding amount'} value={iv.fin_injection_amount} onChange={v => u(section, 'fin_injection_amount', Math.max(0, v))}
+        <F label={recurring ? 'Annual funding amount' : 'Funding amount'} value={iv.fin_injection_amount} onChange={v => u(section, 'fin_injection_amount', v)}
           unit={`${CUR} mn`} tip="Absolute additional funding in local-currency millions." />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
           <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Schedule</label>
-          <select value={iv.fin_injection_mode || 'one_time'} onChange={e => u(section, 'fin_injection_mode', e.target.value)}
+          <select aria-label="Funding mode" value={iv.fin_injection_mode ?? ''} onChange={e => u(section, 'fin_injection_mode', e.target.value)}
             style={{ padding: '7px 10px', border: '1px solid #F0D070', background: '#FFF9E6', borderRadius: 4, fontSize: 13 }}>
+            <option value="">Select funding mode</option>
             <option value="one_time">One-time</option>
             <option value="recurring">Recurring annually</option>
           </select>
@@ -424,52 +543,45 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   }, [sectorTab]);
 
   return (
-    <div className="intervention-workspace" style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'hidden' }}>
-      {/* Left: intervention controls */}
-      <div className="intervention-workspace__controls" style={{ flex: '0 1 598px', minWidth: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', borderRight: '1px solid #e0e0e0', fontSize: 12 }}>
-        <header className="modern-page-intro modern-page-intro--intervention">
-          <span className="modern-page-intro__eyebrow">WORKFLOW 03 · TEST POLICY LEVERS</span>
-          <h2>Design the intervention package</h2>
-          <p>Switch a lever on to include its impact, then open its parameters only when you need to adjust them. The preview to the right shows service and financing effects before loan funding.</p>
-        </header>
-
-        {/* Area-scope banner */}
-        <div style={{
-          display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, textAlign: 'left',
-          padding: '8px 14px', borderRadius: 6, fontSize: 12.5, fontWeight: 600,
-          background: '#EBF6FB', border: '1px solid #b6e0f0', color: '#0073A8',
-        }}>
-          <span>Configuring <span style={{ textTransform: 'capitalize' }}>{scopeLabel}</span> interventions — every field below is {scopeLower}-specific.</span>
+    <ValidationContext.Provider value={{issues: validationIssues, sector: sectorTab, onNavigate: () => window.dispatchEvent(new CustomEvent('intervention-source-navigation'))}}>
+    <InterventionDrawerContext.Provider value={{ selected: selectedIntervention, target: drawerTarget, select: selectIntervention }}>
+    <div className={`intervention-section-workspace${activeSection === 'design' ? ' intervention-section-workspace--design' : ''}${selectedIntervention && activeSection === 'design' ? ' intervention-section-workspace--drawer-open' : ''}`}>
+      <nav className="modern-inputs-nav intervention-section-nav" aria-label="Intervention sections">
+        <span className="modern-inputs-nav__eyebrow">INTERVENTION WORKSPACE</span>
+        <div className="modern-inputs-nav__items">
+          {([
+            ['design', 'Intervention Design'],
+            ['graph', 'Intervention Graph'],
+            ['table', 'Intervention Table'],
+          ] as const).map(([key, label], index) => <React.Fragment key={key}><button type="button"
+            className="modern-inputs-nav__item" aria-current={activeSection === key ? 'location' : undefined}
+            onClick={() => navigateWorkspace(key)}>
+            <span className="modern-inputs-nav__number">{index + 1}</span>{label}
+          </button>
+          {key === 'design' && activeSection === 'design' && <InterventionNavigation
+            sector={sectorTab} inputs={inputs} waterAvailable={sectors.includes('water')} selected={selectedIntervention}
+            onSelect={(intervention, trigger) => {
+              selectedTrigger.current = trigger;
+              setSelectedIntervention(intervention);
+            }} />}
+          </React.Fragment>)}
         </div>
-
-        {/* Sector toggle */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-          {sectors.map(s => (
-            <button key={s} onClick={() => { onSectorChange?.(s); onSectionFocus?.(s === 'water' ? 'ws_interventions' : 'san_interventions'); }} style={{
-              flex: 1, padding: '8px 16px', border: 'none', borderRadius: 6, cursor: 'pointer',
-              background: sectorTab === s ? '#2563eb' : '#e5e7eb',
-              color: sectorTab === s ? '#fff' : '#374151', fontWeight: 600, fontSize: 13,
-            }}>{s === 'water' ? 'Water Supply' : 'Sanitation'}</button>
-          ))}
-        </div>
-
-        <nav className="modern-category-jump" aria-label={`${sectorTab === 'water' ? 'Water supply' : 'Sanitation'} intervention categories`}>
-          <span>LEVER GROUPS</span>
-          {[['funding', 'Funding'], ['operations', 'Operations'], ['investment', 'Investment'],
-            ['tariff', 'Tariff'], ['household', 'Households']].map(([id, label]) => (
-            <button key={id} type="button" onClick={() => {
-              const target = document.getElementById(`${sectorTab}-${id}-header`);
-              target?.focus({ preventScroll: true });
-              target?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-            }}>{label}</button>
-          ))}
-        </nav>
+        <select className="modern-inputs-nav__select" aria-label="Go to Intervention section"
+          value={activeSection} onChange={event => navigateWorkspace(event.target.value as 'design' | 'graph' | 'table')}>
+          <option value="design">1. Intervention Design</option>
+          <option value="graph">2. Intervention Graph</option>
+          <option value="table">3. Intervention Table</option>
+        </select>
+      </nav>
+      {/* These sources return portals only. Native hidden affects source DOM, not
+          the separately mounted settings destination. No duplicate list exists. */}
+      <div className="intervention-settings-mount" hidden>
         {/* ===== WATER SUPPLY INTERVENTIONS ===== */}
         {sectorTab === 'water' && <>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Water Supply Interventions</h3>
-
-          <InterventionCategories sector="water">
-          <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="water" area={scopeLabel || 'Selected area'} />
+          <InterventionCategories sector="water" settingsOnly>
+          <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="water" area={scopeLabel || 'Selected area'}
+            drawerTarget={drawerTarget} drawerSelected={selectedIntervention === 'Revenue from new connections'}
+            onOpenDrawer={trigger => selectIntervention('Revenue from new connections', trigger)} />
           <InterventionToggle label="Increase in Public Spending" checked={inputs.toggles?.ws_financial_commitment_enabled ?? false} onChange={v => toggleIntv('ws_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('ws_financial_commitment')}>
             {financialFields('water_interventions')}
           </InterventionToggle>
@@ -523,22 +635,23 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
               if (t > 0 && t < 0.15) return <div style={{ gridColumn: '1 / -1', fontSize: 10, fontWeight: 600, color: '#92400e', padding: '3px 8px', background: '#fef3c7', borderRadius: 4, marginBottom: 4 }}>Warning: Below ~15% is rarely economically optimal — reducing NRW further usually costs more than it saves (~20% is a typical benchmark).</div>;
               return null;
             })()}
-            <F label="Commercial losses % of NRW" value={inputs.water_interventions.nrw_commercial_loss_pct || 0} onChange={v => u('water_interventions','nrw_commercial_loss_pct',v)} isPercent unit="%" tip="Share of NRW from commercial losses (metering errors, theft, unbilled use). Commercial + physical must sum to 100%." />
-            <F label="Physical losses % of NRW" value={inputs.water_interventions.nrw_physical_loss_pct || 0} onChange={v => u('water_interventions','nrw_physical_loss_pct',v)} isPercent unit="%" tip="Share of NRW from physical leaks in the network. Only this physical (leak) portion frees up deliverable water for basic→SM upgrades; the commercial portion counts only toward revenue. Commercial + physical must sum to 100%." />
+            <F label="Commercial losses % of NRW" value={inputs.water_interventions.nrw_commercial_loss_pct} onChange={v => u('water_interventions','nrw_commercial_loss_pct',v)} isPercent unit="%" tip="Share of NRW from commercial losses (metering errors, theft, unbilled use). Commercial + physical must sum to 100%." />
+            <F label="Physical losses % of NRW" value={inputs.water_interventions.nrw_physical_loss_pct} onChange={v => u('water_interventions','nrw_physical_loss_pct',v)} isPercent unit="%" tip="Share of NRW from physical leaks in the network. Only this physical (leak) portion frees up deliverable water for basic→SM upgrades; the commercial portion counts only toward revenue. Commercial + physical must sum to 100%." />
             {(() => {
               const s = (inputs.water_interventions.nrw_commercial_loss_pct || 0) + (inputs.water_interventions.nrw_physical_loss_pct || 0);
               const bad = Math.abs(s - 1) > 0.005;
               return <div style={{ gridColumn: '1 / -1', fontSize: 10, fontWeight: 600, color: bad ? '#dc2626' : '#16a34a', padding: '3px 8px', background: bad ? '#fef2f2' : '#f0fdf4', borderRadius: 4, marginBottom: 4 }}>{bad ? `Commercial and physical losses add up to ${Math.round(s * 10000) / 100}% — they should total 100%.` : 'Commercial and physical losses add up to 100%. ✓'}</div>;
             })()}
-            <F label="System input volume (at start year)" value={inputs.water_interventions.nrw_system_input_vol || 0} onChange={v => u('water_interventions','nrw_system_input_vol',v)} step={1} unit="MLD" tip="Total water produced / put into the system at the start year, in million litres per day. It grows each forecast year — with population by default, or at the growth rate below if you set one." />
+            <F label="System input volume (at start year)" value={inputs.water_interventions.nrw_system_input_vol} onChange={v => u('water_interventions','nrw_system_input_vol',v)} step={1} unit="MLD" tip="Total water produced / put into the system at the start year, in million litres per day. It grows each forecast year — with population by default, or at the growth rate below if you set one." />
             <F label="Volume growth rate" value={inputs.water_interventions.nrw_vol_growth} onChange={v => u('water_interventions','nrw_vol_growth',v)} isPercent unit="%" placeholder="population" tip="Annual real growth of the system input volume from the start year. Leave blank to scale with population; enter a rate to override (e.g. 3%)." />
             <p style={{ fontSize: 11, gridColumn: '1 / -1' }}>Scenario system input also scales with coverage-driven billable expansion, excluding NRW’s own direct physical upgrades. This is a modeling proxy, not a hydraulic estimate. Zero or missing system input produces no recovered water.</p>
-            <F label="Water per basic→SM upgrade" value={inputs.water_interventions.nrw_water_per_upgrade || 0} onChange={v => u('water_interventions','nrw_water_per_upgrade',v)} step={5} unit="m³/HH/yr" tip="Extra water a basic household needs each year to become safely managed. Recovered physical water ÷ this = households upgraded." />
-            <F label="Cost of fixing" value={inputs.water_interventions.nrw_capex_unit_cost_local || 0} onChange={v => u('water_interventions','nrw_capex_unit_cost_local',v)} step={1000} unit={`${CUR}/m³/day`} tip="Existing implementation-cost input and timing are retained. This cost stays inside signed NRW net cash and is not added again as a separate financing requirement." />
+            <F label="Water per basic→SM upgrade" value={inputs.water_interventions.nrw_water_per_upgrade} onChange={v => u('water_interventions','nrw_water_per_upgrade',v)} step={5} unit="m³/HH/yr" tip="Extra water a basic household needs each year to become safely managed. Recovered physical water ÷ this = households upgraded." />
+            <F label="Cost of fixing" value={inputs.water_interventions.nrw_capex_unit_cost_local} onChange={v => u('water_interventions','nrw_capex_unit_cost_local',v)} step={1000} unit={`${CUR}/m³/day`} tip="Existing implementation-cost input and timing are retained. This cost stays inside signed NRW net cash and is not added again as a separate financing requirement." />
             <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
               <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }} title="How to value the recovered water: as tariff revenue from sales, or as the production cost you no longer have to spend.">Value recovered water at</label>
-              <select value={inputs.water_interventions.nrw_value_basis || 'tariff'} onChange={e => u('water_interventions','nrw_value_basis', e.target.value)}
+              <select aria-label="NRW valuation mode" value={inputs.water_interventions.nrw_value_basis ?? ''} onChange={e => u('water_interventions','nrw_value_basis', e.target.value)}
                 style={{ width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, border: '1px solid #F0D070', background: '#FFF9E6', color: '#3A4452', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }}>
+                <option value="">Select valuation mode</option>
                 <option value="tariff">Water tariff — revenue from sales</option>
                 <option value="production">Cost of production — cost avoided (separate from sales)</option>
               </select>
@@ -558,7 +671,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
               </span>}
             </label>}
             {['production', 'avoided_cost'].includes(inputs.water_interventions.nrw_value_basis)
-              ? <F label="Production cost" value={inputs.water_interventions.nrw_production_cost || 0} onChange={v => u('water_interventions','nrw_production_cost',v)} step={0.5} unit={`${CUR}/m³`} tip="Recovering water avoids producing this much fresh water, per cubic metre." />
+              ? <F label="Production cost" value={inputs.water_interventions.nrw_production_cost} onChange={v => u('water_interventions','nrw_production_cost',v)} step={0.5} unit={`${CUR}/m³`} tip="Recovering water avoids producing this much fresh water, per cubic metre." />
               : <div style={{ gridColumn: '1 / -1' }}>
                 <div style={{ fontSize: 11, color: '#64748b' }}>Shared baseline tariff (read-only): {inputs.revenue_bases?.water?.tariff ?? 'not set'} {CUR}/m³.
                   {' '}Shared baseline collection (read-only): {inputs.revenue_bases?.water?.collection_ratio == null ? 'not set' : `${inputs.revenue_bases.water.collection_ratio * 100}%`}.
@@ -569,7 +682,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
           <InterventionToggle label="Budget execution improvement" checked={inputs.toggles?.ws_capital_efficiency_enabled ?? false} onChange={v => toggleIntv('ws_capital_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('ws_budget_exec')}>
             <F label="Current budget execution" value={wsCurEff} onChange={() => {}} fieldType="computed" isPercent unit="%" tip="Resolved executed spending ÷ allocated budget at the service baseline year, before capital conversion. Each forecast year uses its own calculated baseline rate. Not editable here." />
-            <F label="Target budget execution" value={inputs.water_interventions.capeff_target_pct ?? 1} onChange={v => u('water_interventions','capeff_target_pct',v)} isPercent unit="%" tip="The budget execution rate to reach — at most 100% (spend the whole allocated budget). Raising it lets the same allocated budget build more service and shrinks the financing gap." />
+            <F label="Target budget execution" value={inputs.water_interventions.capeff_target_pct} onChange={v => u('water_interventions','capeff_target_pct',v)} isPercent unit="%" tip="The budget execution rate to reach — at most 100% (spend the whole allocated budget). Raising it lets the same allocated budget build more service and shrinks the financing gap." />
             <F label="Improvement start year" value={inputs.water_interventions.capeff_start_year} onChange={v => u('water_interventions','capeff_start_year',v)} tip="Year the budget-execution improvement begins" />
             <F label="Target year" value={inputs.water_interventions.capeff_target_year} onChange={v => u('water_interventions','capeff_target_year',v)} tip="Year the target execution rate is reached; it ramps linearly from the start year to here." />
             <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
@@ -606,10 +719,10 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
         {/* ===== SANITATION INTERVENTIONS ===== */}
         {sectorTab === 'sanitation' && <>
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Sanitation Interventions</h3>
-
-          <InterventionCategories sector="sanitation">
-          <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="sanitation" area={scopeLabel || 'Selected area'} />
+          <InterventionCategories sector="sanitation" settingsOnly>
+          <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="sanitation" area={scopeLabel || 'Selected area'}
+            drawerTarget={drawerTarget} drawerSelected={selectedIntervention === 'Revenue from new connections'}
+            onOpenDrawer={trigger => selectIntervention('Revenue from new connections', trigger)} />
           <InterventionToggle label="Increase in Public Spending" checked={inputs.toggles?.san_financial_commitment_enabled ?? false} onChange={v => toggleIntv('san_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('san_financial_commitment')}>
             {financialFields('sanitation_interventions')}
           </InterventionToggle>
@@ -621,7 +734,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             <F label="Improvement start year" value={inputs.sanitation_interventions.ce_start_year} onChange={v => u('sanitation_interventions','ce_start_year',v)} tip="Year the collection efficiency improvement begins" />
             <F label="Target year" value={inputs.sanitation_interventions.ce_target_year} onChange={v => u('sanitation_interventions','ce_target_year',v)} tip="Year the target is achieved" />
             <RevenueBaseEditor inputs={inputs} onChange={onChange} sector="sanitation" />
-            <F label="Target collection ratio" value={inputs.sanitation_interventions.ce_target_ratio ?? inputs.water_interventions.ce_target_ratio} onChange={v => u('sanitation_interventions','ce_target_ratio',v)} isPercent min={0} max={100} unit="%" tip="Sanitation's own collection target. Its legacy water-linked value is materialized when the revenue base is resolved." />
+            <F label="Target collection ratio" value={inputs.sanitation_interventions.ce_target_ratio} onChange={v => u('sanitation_interventions','ce_target_ratio',v)} isPercent min={0} max={100} unit="%" tip="Sanitation's own collection target." />
             <div style={{ gridColumn: '1 / -1', fontSize: 10.5, color: '#64748b', marginTop: -7 }}>Enter 90 for 90%.</div>
             {inputs.toggles?.san_collection_efficiency_enabled && collectionBelowBaselineWarning(scopeLabel, 'sanitation', inputs.revenue_bases?.sanitation?.collection_ratio,
               inputs.sanitation_interventions?.ce_target_ratio ?? inputs.water_interventions?.ce_target_ratio) &&
@@ -633,7 +746,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
           <InterventionToggle label="Budget execution improvement" checked={inputs.toggles?.san_capital_efficiency_enabled ?? false} onChange={v => toggleIntv('san_capital_efficiency_enabled', v)} onFocus={() => onSectionFocus?.('san_budget_exec')}>
             <F label="Current budget execution" value={sanCurEff} onChange={() => {}} fieldType="computed" isPercent unit="%" tip="Resolved executed spending ÷ allocated budget at the service baseline year, before capital conversion. Each forecast year uses its own calculated baseline rate. Not editable here." />
-            <F label="Target budget execution" value={inputs.sanitation_interventions.capeff_target_pct ?? 1} onChange={v => u('sanitation_interventions','capeff_target_pct',v)} isPercent unit="%" tip="The budget execution rate to reach — at most 100% (spend the whole allocated budget). Raising it lets the same allocated budget build more service." />
+            <F label="Target budget execution" value={inputs.sanitation_interventions.capeff_target_pct} onChange={v => u('sanitation_interventions','capeff_target_pct',v)} isPercent unit="%" tip="The budget execution rate to reach — at most 100% (spend the whole allocated budget). Raising it lets the same allocated budget build more service." />
             <F label="Improvement start year" value={inputs.sanitation_interventions.capeff_start_year} onChange={v => u('sanitation_interventions','capeff_start_year',v)} tip="Year the budget-execution improvement begins" />
             <F label="Target year" value={inputs.sanitation_interventions.capeff_target_year} onChange={v => u('sanitation_interventions','capeff_target_year',v)} tip="Year the target execution rate is reached; it ramps linearly from the start year to here." />
             <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b' }}>
@@ -684,9 +797,9 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
                 .sort((a, b) => a - b);
               const invalidOverlap = Object.values(overlapSeries).some(value => value != null && (!Number.isFinite(Number(value)) || Number(value) < 0));
               const updateOverlap = (year: number, value: number | undefined) => {
-                if (value != null && value < 0) { setInvalidNrwOverlapYear(year); return; }
-                setInvalidNrwOverlapYear(null);
-                u('sanitation_interventions', 'nrw_link_overlap_m3_series', setNrwLinkOverlapYear(overlapSeries, year, value));
+                setInvalidNrwOverlapYear(value != null && value < 0 ? year : null);
+                u('sanitation_interventions', 'nrw_link_overlap_m3_series',
+                  { ...overlapSeries, [year]: value ?? null } as any);
               };
               return (<>
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, lineHeight: 1.5, borderRadius: 6, padding: '7px 10px',
@@ -696,8 +809,8 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
                     : <>Warning: This lever needs <b>NRW reduction</b> switched on under the <b>Water Supply</b> interventions — that is what recovers the water. While it is off there is no recovered volume, so this lever has no effect.</>}
                 </div>
                 <F label="Wastewater return ratio" value={iv.nrw_link_return_ratio} onChange={v => u('sanitation_interventions','nrw_link_return_ratio',v)} isPercent unit="%" tip="Share of the recovered water that returns to the sewer as wastewater the utility can charge for (the rest is consumptive use or not sewer-connected)." />
-                <F label="Explicit sewer-billable share" value={iv.nrw_link_eligible_share ?? 1}
-                  onChange={v => u('sanitation_interventions','nrw_link_eligible_share',Math.max(0, Math.min(1, v)))}
+                <F label="Explicit sewer-billable share" value={iv.nrw_link_eligible_share}
+                  onChange={v => u('sanitation_interventions','nrw_link_eligible_share',v)}
                   isPercent min={0} max={100} unit="%" tip="Share of returned recovered water eligible for sewer billing. The legacy default of 100% is retained as an explicit assumption, not a measured connection share." />
                 <div style={{ gridColumn: '1 / -1', fontSize: 11 }}>Shared baseline sanitation rates (read-only): {inputs.revenue_bases?.sanitation?.tariff ?? 'not set'} {CUR}/m³ ·
                   {' '}{inputs.revenue_bases?.sanitation?.collection_ratio == null ? 'not set' : `${inputs.revenue_bases.sanitation.collection_ratio * 100}%`} collection.</div>
@@ -739,15 +852,10 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           </InterventionCategories>
         </>}
 
-        {/* ===== CUSTOM INTERVENTIONS (always visible, no dropdown) ===== */}
-        <div style={{ marginTop: 16, border: '1px solid #ddd', borderRadius: 8, background: '#fff', padding: '12px 14px' }}>
+        {/* Paused controls stay unavailable without altering saved custom settings. */}
+        {CUSTOM_INTERVENTIONS_ENABLED && <div style={{ marginTop: 16, border: '1px solid #ddd', borderRadius: 8, background: '#fff', padding: '12px 14px' }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', margin: '0 0 8px' }}>Custom Interventions</h3>
-          {!CUSTOM_INTERVENTIONS_ENABLED && (
-            <p style={{ margin: 0, fontSize: 12, color: '#475569' }}>
-              Custom funding and cost-reduction interventions are temporarily disabled for both water and sanitation. Saved settings are preserved but do not affect calculations.
-            </p>
-          )}
-          {CUSTOM_INTERVENTIONS_ENABLED && <fieldset disabled={readOnly} style={{ margin: 0, padding: 0, border: 0, minWidth: 0 }} onClick={() => onSectionFocus?.('custom_interventions')}>
+          <fieldset disabled={readOnly} style={{ margin: 0, padding: 0, border: 0, minWidth: 0 }} onClick={() => onSectionFocus?.('custom_interventions')}>
             <div style={{ fontSize: 11, color: '#155e75', background: '#ecfeff', border: '1px solid #a5f3fc', padding: '6px 8px', borderRadius: 4, marginBottom: 8, lineHeight: 1.5 }}>
               You can add interventions not covered above as custom interventions. Two types are supported: <b>New revenue source</b> — invest to produce an output whose net value funds new safely-managed service — and <b>Cost reduction</b> — lower the per-household service cost. Pick each one's sector and tick its box to switch it on.
             </div>
@@ -849,44 +957,121 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             }} style={{ width: '100%', padding: '8px', border: '1px dashed #9333ea', borderRadius: 6, background: 'none', cursor: 'pointer', fontSize: 12, color: '#9333ea', fontWeight: 500 }}>
               + Add Custom Intervention
             </button>
-          </fieldset>}
-        </div>
+          </fieldset>
+        </div>}
       </div>
 
-      {/* Right: actual source-funded coverage for the area being edited. */}
-      <div className="intervention-workspace__charts" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '24px 28px', background: '#fff', borderLeft: '1px solid #e2e8f0' }}>
-        <header className="modern-page-intro">
-          <span className="modern-page-intro__eyebrow">LIVE SCENARIO VIEW</span>
-          <h2>{sectorTab === 'water' ? 'Water supply' : 'Sanitation'} · {scopeLabel}</h2>
-          <p>Compare revenue sources and coverage at each service level. The separate loan-funding comparison is on the next workflow tab.</p>
-        </header>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-          <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={CUR}
-            onModeChange={mode => onCurrencyDisplayChange({ ...currencyDisplay, mode, sourceCurrency: CUR })}
-            onEditRate={onEditCurrencyRate} />
-          {/* Excel / CSV only — the slide deck belongs to the finished scenario, so it lives on Results. */}
-          <ContributionViewToggle value={contributionView} onChange={onContributionViewChange} />
-          <ExportButtons inputs={interventionChartInputs} pptx={false} contributionView={contributionView} currencyDisplay={currencyDisplay} />
-        </div>
-        <p data-testid="intervention-no-debt-note" style={{ fontSize: 12, color: '#475569', margin: '0 0 12px' }}>
-          Live intervention preview — includes selected interventions, without borrowing or debt servicing. Custom interventions are temporarily disabled. Saved loan settings are applied separately in Debt servicing.
-        </p>
-        <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} />
-        <section className="modern-intervention-coverage">
-          <div className="modern-bau-service-picker">
-            <span>Service level</span>
-            <div className="modern-bau-service-switch" role="group" aria-label="Intervention service level">
-              {BAU_SERVICE_LEVELS.map(level => (
-                <button type="button" key={level.value} aria-pressed={serviceLevel === level.value}
-                  onClick={() => setServiceLevel(level.value)}>{level.label}</button>
-              ))}
+      <aside id="intervention-input-drawer" className={`intervention-input-drawer${selectedIntervention && activeSection === 'design' ? ' is-open' : ''}`}
+        hidden={activeSection !== 'design'} aria-hidden={activeSection !== 'design'} aria-label={`${selectedIntervention || 'Intervention'} inputs`}>
+          <header className="intervention-input-drawer__header">
+            <div className="intervention-input-drawer__context">
+              <h2 className="modern-input-section-heading" tabIndex={-1}>
+                <span className="modern-input-section-heading__index">1</span><span>Intervention Design ({headingContext})</span>
+              </h2>
+              {selectedIntervention && <>
+                <span>{interventionGroups(sectorTab).find(group => group.labels.includes(selectedIntervention))?.title.replace(/^\d+\.\s*/, '')}</span>
+                <h3>{selectedIntervention}</h3>
+              </>}
+            </div>
+            {selectedIntervention && <button ref={drawerCloseButton} type="button" aria-label="Close intervention inputs" onClick={closeIntervention}>Close</button>}
+          </header>
+          <div className="intervention-settings-selectors">
+            <label>Geography<select aria-label="Intervention settings geography" value={geoScope}
+              onChange={event => onScopeChange?.(event.target.value)}>
+              {scopeChoices.map(value => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}
+            </select></label>
+            <label>Sector<select aria-label="Intervention settings sector" value={sectorTab}
+              onChange={event => onSectorChange?.(event.target.value as 'water' | 'sanitation')}>
+              {sectors.map(value => <option key={value} value={value}>{value === 'water' ? 'Water Supply' : 'Sanitation'}</option>)}
+            </select></label>
+          </div>
+        {!selectedIntervention && <div className="intervention-settings-empty">
+          <strong>Select an intervention</strong>
+          <p>Choose a lever in the navigation to inspect its settings. Selecting a lever does not activate it.</p>
+        </div>}
+        <div className="intervention-input-drawer__body" ref={node => setDrawerTarget(node)} />
+      </aside>
+
+      <div className="modern-inputs-content intervention-reading-content" ref={readingContent} onScroll={() => {
+        const host = readingContent.current;
+        if (!host || activeSection === 'design') return;
+        const top = host.getBoundingClientRect().top;
+        let current: 'graph' | 'table' = 'graph';
+        for (const key of ['graph', 'table'] as const) {
+          const node = host.querySelector<HTMLElement>(`[data-section-key="${key}"]`);
+          if (node && node.getBoundingClientRect().top <= top + 65) current = key;
+        }
+        setActiveSection(current);
+      }}>
+        <section className="modern-bau-section intervention-reading-section" data-section-key="graph">
+          <h3 className="modern-input-section-heading" tabIndex={-1}>
+            <span className="modern-input-section-heading__index">2</span><span>Intervention Graph ({headingContext})</span>
+          </h3>
+          <div className="modern-bau-toggles" role="group" aria-label="Intervention graph geography">
+            {scopeChoices.map(value => <button type="button" key={value} aria-pressed={scopeLabel.toLowerCase() === value.toLowerCase()}
+              onClick={() => onScopeChange?.(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}
+          </div>
+          <div className="modern-bau-toggles" role="group" aria-label="Intervention graph sector">
+            {sectors.map(value => <button type="button" key={value} aria-pressed={sectorTab === value}
+              onClick={() => onSectorChange?.(value)}>{value === 'water' ? 'Water Supply' : 'Sanitation'}</button>)}
+          </div>
+          <div className="modern-bau-service-picker modern-intv-service-picker">
+            <span>Service level</span><div className="modern-bau-service-switch" role="group" aria-label="Intervention graph service level">
+              {BAU_SERVICE_LEVELS.map(item => <button key={item.value} type="button" data-service-level={item.value}
+                aria-pressed={serviceLevel === item.value} onClick={() => setServiceLevel(item.value)}>{item.label}</button>)}
             </div>
           </div>
-          <LiveInterventionChart key={sectorTab + serviceLevel} inputs={interventionChartInputs}
-            sector={sectorTab} scopeLabel={scopeLabel} serviceLevel={serviceLevel}
-            contributionView={contributionView} currencyDisplay={currencyDisplay} />
+          <InterventionScenarioTable inputs={interventionChartInputs} sector={sectorTab} level={serviceLevel}
+            showTable={false} currencyDisplay={currencyDisplay} scopeLabel={scopeLabel} />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={CUR}
+              onModeChange={mode => onCurrencyDisplayChange({ ...currencyDisplay, mode, sourceCurrency: CUR })}
+              onEditRate={onEditCurrencyRate} />
+            <ContributionViewToggle value={contributionView} onChange={onContributionViewChange} />
+            <ExportButtons inputs={interventionChartInputs} pptx={false} contributionView={contributionView} currencyDisplay={currencyDisplay} />
+          </div>
+          <p data-testid="intervention-no-debt-note" style={{ fontSize: 12, color: '#475569', margin: '0 0 12px' }}>
+            Live intervention results include selected interventions, without borrowing or debt servicing. Saved loan settings are applied separately in Debt servicing.
+          </p>
+          <section className={`modern-bau-chart-card modern-intv-chart-group${expandedChartGroup ? ' modern-intv-chart-group--expanded' : ''}`}>
+            <div className="modern-bau-chart-actions">
+              <button type="button" aria-pressed={expandedChartGroup} onClick={() => setExpandedChartGroup(value => !value)}>
+                {expandedChartGroup ? 'Restore chart size' : 'Expand charts'}
+              </button>
+            </div>
+            <div className="modern-intv-chart-pair">
+              <div className="modern-intv-coverage-chart">
+                <LiveInterventionChart key={`${sectorTab}-${scopeLabel}-${serviceLevel}`}
+                  inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel}
+                  serviceLevel={serviceLevel} contributionView={contributionView} currencyDisplay={currencyDisplay}
+                  chartHeight={expandedChartGroup ? 500 : undefined} />
+              </div>
+              <InterventionFundingChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel}
+                currencyDisplay={currencyDisplay} chartHeight={expandedChartGroup ? 500 : 360} />
+            </div>
+          </section>
+          <details className="modern-intv-revenue-details">
+            <summary>Sector Available Funds</summary>
+            <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} />
+          </details>
+        </section>
+        <section className="modern-bau-section intervention-reading-section" data-section-key="table">
+          <h2 className="modern-input-section-heading" tabIndex={-1}>
+            <span className="modern-input-section-heading__index">3</span><span>Intervention Table ({headingContext})</span>
+          </h2>
+          <div className="modern-bau-service-picker modern-intv-service-picker">
+            <span>Service level</span><div className="modern-bau-service-switch" role="group" aria-label="Intervention table service level">
+              {BAU_SERVICE_LEVELS.map(item => <button key={item.value} type="button" data-service-level={item.value}
+                aria-pressed={serviceLevel === item.value} onClick={() => setServiceLevel(item.value)}>{item.label}</button>)}
+            </div>
+          </div>
+          <p className="modern-bau-service-note">{scopeLabel} · {sectorTab === 'water' ? 'Water supply' : 'Sanitation'} · {BAU_SERVICE_LEVELS.find(item => item.value === serviceLevel)?.label}. Changing selectors updates the graph and table together.</p>
+          <InterventionScenarioTable inputs={interventionChartInputs} sector={sectorTab} level={serviceLevel}
+            showKpis={false} currencyDisplay={currencyDisplay} scopeLabel={scopeLabel} />
         </section>
       </div>
     </div>
+    </InterventionDrawerContext.Provider>
+    </ValidationContext.Provider>
   );
 }

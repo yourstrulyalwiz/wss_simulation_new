@@ -16,14 +16,14 @@ function required(value: unknown, key: string): number {
 /** The first two service categories are exclusive; add them once for combined reporting. */
 export function bauServiceValue(sector: any, key: string, index: number, level: BauServiceLevel): number {
   const rungs = level === 'at_least_basic' ? [0, 1] : [level === 'basic' ? 1 : 0];
-  return rungs.reduce((sum, rung) => sum + required(sector[key]?.[rung]?.[index], key), 0);
+  return rungs.reduce((sum, rung) => sum + required(sector?.[key]?.[rung]?.[index], key), 0);
 }
 
 /** Read gaps assessed by the engine before adding areas; never offset one area's deficit with another's surplus. */
 export function bauAccessGap(sector: any, index: number, level: BauServiceLevel): number {
   const key = level === 'at_least_basic' ? 'at_least_basic_access_gap'
     : level === 'basic' ? 'adjusted_basic_only_gap' : 'sm_access_gap';
-  return required(sector[key]?.[index], key);
+  return required(sector?.[key]?.[index], key);
 }
 
 export type BauSpendingRow = { year: number; expansion: number; replacement: number; available: number };

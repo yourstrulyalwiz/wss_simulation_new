@@ -1,0 +1,43 @@
+/* Results uses the same numbered reading workspace as Intervention Design and Loan Funding. */
+.results-workspace { background:#eef3f5; color:#29343b; }
+.results-workspace .modern-input-section-heading { margin-bottom:18px; }
+.results-workspace .modern-inputs-nav__items { display:flex; flex-direction:column; }
+.results-workspace .results-controls { margin-bottom:20px; }
+.results-workspace .results-controls__row { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:12px 0; }
+.results-workspace .results-controls label { font-size:12px; color:#46616c; }
+.results-workspace .results-controls select { margin-left:6px; padding:6px 8px; border:1px solid #c8dade; background:#f8fbfc; color:#014972; max-width:100%; }
+.results-workspace .modern-results-chart-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.results-workspace .results-summary { border:1px solid #d1e1e5; border-radius:5px; background:#f8fbfc; margin:12px 0; min-width:0; }
+.results-workspace .results-summary > summary { padding:14px; color:#014972; font-size:13px; font-weight:700; cursor:pointer; }
+.results-workspace .results-summary__body { padding:0 14px 16px; min-width:0; }
+.results-workspace .results-funds-table-frame { container-type:inline-size; container-name:results-funds; overflow:auto; max-width:100%; margin:16px 0; }
+.results-workspace .results-funds-table { table-layout:fixed; width:100%; border-collapse:collapse; font-size:11px; color:#29343b; }
+.results-workspace .results-funds-table th,.results-workspace .results-funds-table td { white-space:normal; overflow-wrap:normal; vertical-align:top; text-align:right; padding:10px 8px; border-bottom:1px solid #dce4e8; font-variant-numeric:tabular-nums; }
+.results-workspace .results-funds-table thead th { background:#e5eef2; color:#014972; font-weight:700; line-height:1.45; }
+.results-workspace .results-funds-table tr > :first-child { width:64px; min-width:64px; white-space:nowrap; overflow-wrap:normal; text-align:left; background:#edf3f5; }
+.results-workspace .results-funds-table tbody tr:nth-child(even) { background:#f5f9fa; }
+.results-workspace .results-funds-table [data-funds-total] { font-weight:700; color:#014972; }
+.results-workspace .results-ledger { margin-top:16px; }
+.results-workspace .results-section-state { min-height:180px; }
+.results-workspace [data-section-key="summary"] { min-height:100dvh; }
+.results-workspace .results-summary table { max-width:100%; }
+@media(max-width:1100px) {
+  .results-workspace .modern-results-chart-grid { grid-template-columns:minmax(0,1fr); }
+}
+@container results-funds (max-width:1000px) {
+  .results-workspace .results-funds-table,.results-workspace .results-funds-table tbody { display:block; }
+  .results-workspace .results-funds-table colgroup { display:none; }
+  .results-workspace .results-funds-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .results-workspace .results-funds-table tbody tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin-bottom:16px; border:1px solid #dce4e8; }
+  .results-workspace .results-funds-table tbody th { grid-column:1/-1; width:auto; padding:12px; }
+  .results-workspace .results-funds-table tbody th::before { content:'Year · '; }
+  .results-workspace .results-funds-table td { min-width:0; text-align:left; padding:12px; }
+  .results-workspace .results-funds-table td::before { content:attr(data-label); display:block; margin-bottom:6px; color:#596b73; font-size:11px; font-weight:600; line-height:1.5; }
+}
+@media(max-width:767px) {
+  .results-workspace .modern-inputs-nav__items { display:none; }
+  .results-workspace .results-controls__row { gap:10px; align-items:flex-start; }
+  .results-workspace .results-controls__row > * { max-width:100%; }
+  .results-workspace .results-funds-table tr > :first-child { position:sticky; left:0; z-index:1; }
+  .results-workspace .results-summary__body { padding-inline:10px; }
+}

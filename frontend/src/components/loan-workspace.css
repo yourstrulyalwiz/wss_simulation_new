@@ -1,0 +1,52 @@
+/* Loan Funding shares Tab 3's reading column, type scale and navigation rails. */
+.loan-workspace { background:#eef3f5; color:#29343b; }
+.loan-workspace .loan-settings { overflow:auto; min-height:0; background:#f6fafb; border-right:1px solid #dce6e9; }
+.loan-workspace .loan-settings[hidden] { display:none; }
+.loan-workspace .debt-controls { width:auto; min-width:0; padding:16px; border:0; background:transparent; overflow:visible; }
+.loan-workspace .debt-panel-heading h2 { font-size:16px; color:#014972; }
+.loan-workspace .debt-step-mark { display:none; }
+.loan-workspace .debt-control-card { background:#fbfdfd; border-color:#d1e1e5; }
+.loan-workspace .debt-eyebrow { color:#527684; }
+.loan-workspace .debt-controls { --debt-ink:#014972; --debt-muted:#59727d; --debt-line:#d1e1e5; --debt-accent:#009ca7; --debt-accent-dark:#014972; --debt-paper:#f8fbfc; }
+.loan-chart { min-width:0; margin:18px 0; padding:14px; border:1px solid #d1e1e5; border-radius:6px; background:#fbfdfd; }
+.loan-chart h3 { margin:0; color:#014972; font-size:14px; }
+.loan-chart p,.loan-report-note { color:#596b73; font-size:11px; line-height:1.6; }
+.loan-chart__tools { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin:12px 0; }
+.loan-chart__tools label { display:flex; align-items:center; gap:5px; font-size:11px; color:#46616c; }
+.loan-chart select { padding:5px; border:1px solid #c8dade; background:#f8fbfc; color:#014972; }
+.loan-chart__canvas { width:100%; min-width:0; height:370px; }
+.loan-optional { margin:16px 0; border:1px solid #d1e1e5; border-radius:5px; background:#f8fbfc; }
+.loan-optional > summary { padding:14px; cursor:pointer; color:#014972; font-size:12px; font-weight:700; }
+.loan-optional__body { padding:0 14px 14px; min-width:0; }
+.loan-optional__body .modern-intv-table { width:100%; min-width:0; table-layout:fixed; }
+.loan-cash-flow .modern-intv-table thead th { white-space:normal; overflow-wrap:anywhere; vertical-align:top; }
+.loan-cash-flow .modern-intv-table tr > :first-child { white-space:nowrap; overflow-wrap:normal; text-align:left; }
+@container intervention-ledger (max-width:700px) {
+  .loan-cash-flow .modern-intv-table colgroup { display:none; }
+}
+.loan-workspace .modern-intv-data-note { margin-block:12px; }
+.loan-status { margin:12px 0; font-size:11px; color:#527684; line-height:1.6; }
+/* Eighteen explicit comparison columns need cards sooner than Tab 3's thirteen. */
+@container intervention-ledger (max-width:1000px) {
+  .loan-comparison-frame .modern-intv-table,.loan-comparison-frame .modern-intv-table tbody { display:block; }
+  .loan-comparison-frame .modern-intv-table thead { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); }
+  .loan-comparison-frame .modern-intv-table tbody tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin-bottom:14px; border-bottom:1px solid #dce4e8; }
+  .loan-comparison-frame .modern-intv-table tbody th { grid-column:1 / -1; padding:10px; background:#edf3f5; color:#014972; }
+  .loan-comparison-frame .modern-intv-table td { display:block; min-width:0; padding:10px; text-align:left; font-size:12px; }
+  .loan-comparison-frame .modern-intv-table td::before { content:attr(data-label); display:block; margin-bottom:4px; color:#596b73; font-size:11px; font-weight:600; }
+}
+@media(min-width:768px) {
+  .loan-workspace.intervention-section-workspace--design { grid-template-columns:218px minmax(300px,360px) minmax(0,1fr); }
+  .loan-workspace .loan-settings { grid-column:2; grid-row:1; }
+}
+@media(min-width:768px) and (max-width:900px) {
+  .loan-workspace.intervention-section-workspace--design { grid-template-columns:190px minmax(280px,34vw) minmax(0,1fr); }
+}
+@media(max-width:767px) {
+  .loan-workspace.intervention-section-workspace { grid-auto-rows:max-content; }
+  .loan-workspace .loan-settings { grid-column:1; grid-row:auto; min-height:max-content; overflow:visible; border-bottom:1px solid #dce6e9; }
+  .loan-workspace .intervention-reading-content { min-height:max-content; }
+  .loan-workspace .modern-inputs-nav__items { display:none; }
+  .loan-chart { padding:10px; }
+  .loan-chart__canvas { height:330px; }
+}

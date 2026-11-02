@@ -1,12 +1,13 @@
 import React from 'react';
 
-export default function GeographicalScope({ value, onChange, area, onAreaChange, hint, dismissHint, readOnly = false }: {
+export default function GeographicalScope({ value, onChange, area, onAreaChange, hint, dismissHint, readOnly = false, navigationOnly = false }: {
   value: string; onChange: (value: string) => void; area: string;
   onAreaChange: (area: 'urban' | 'rural') => void; hint: boolean; dismissHint: () => void;
   readOnly?: boolean;
+  navigationOnly?: boolean;
 }) {
   return <div className="modern-geographical-scope" onClickCapture={dismissHint}>
-    <div className="modern-geographical-scope__row">
+    {!navigationOnly && <div className="modern-geographical-scope__row">
       <label htmlFor="input-geographical-scope">Select geographical scope</label>
       <select disabled={readOnly} id="input-geographical-scope" className="wb-scope-select" value={value}
         onChange={event => { onChange(event.target.value); dismissHint(); }}>
@@ -16,7 +17,7 @@ export default function GeographicalScope({ value, onChange, area, onAreaChange,
         <option value="national">National (no urban/rural breakdown)</option>
       </select>
       {hint && <span className="modern-geographical-scope__hint">Start here</span>}
-    </div>
+    </div>}
     {value === 'both' && <div className="modern-geographical-scope__row">
       <span>Entering data for:</span>
       {(['urban', 'rural'] as const).map(item =>

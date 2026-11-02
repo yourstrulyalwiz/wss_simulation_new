@@ -1,14 +1,41 @@
 ---
 name: Data Inputs navigation scope
-description: User-requested seven-section continuous form and sector grouping.
+description: Continuous Data Inputs form, standalone investment split and sector grouping.
 ---
-The Data Inputs design must have exactly seven top-level sections, with left-hand
-navigation that scrolls to headings in one continuous expanded form, not seven
+The Data Inputs design has nine top-level sections, with left-hand
+navigation that scrolls to headings in one continuous expanded form, not separate
 separate screens or top-level accordions.
 
-**Why:** The user explicitly requested seven sections and a single long form.
+**Why:** The user originally requested seven sections and a single long form,
+then requested Investment Split by Service Level as a standalone section styled
+like Revenue Inputs. The user subsequently requested Sector Selection as section
+immediately after Budget, followed by Investment Split, Revenue Inputs, and Unit Costs.
+The user subsequently moved Country/Area/Currency and Analysis Period into a new
+workflow step 0, Setup, together with simulation sector and geographical coverage.
+Edit setup must open that tab, not a modal. Data Inputs retains area/sector
+view selectors, while inclusion settings live in Setup.
+
+Setup has four sections in order: Simulation Name; Country Profile (country name,
+ISO, income group, region and area of focus); Simulation Coverage; Currency.
+Analysis Period is now Data Inputs section 1, followed by Geographical Scope
+Selection at 2. The seven detailed sections start at 3, with area suffixes only
+from section 3 onward.
+**Why:** The user requested a separate Currency section and retrospective country
+profiles for existing DRC and Nepal simulations, then a standalone name section
+first and coverage before currency, then moved Analysis Period back to Data Inputs
+and made the Urban/Rural viewing toggle its own second section.
+**How to apply:** Resolve descriptive country classifications from the same
+World Bank catalogue used at creation, using stable country identity. These are
+current descriptive metadata, not historical simulation assumptions; do not
+rewrite preserved inputs or immutable results to fill these display fields.
 Water and Sanitation are sector choices within that structure, not additional
 top-level sections.
+
+Area of focus offers National or Subnational, with a free-text area name only
+for Subnational. Keep this separate from Urban/Rural calculation geography.
+**Why:** The user requested this country-profile selection while retaining named areas.
+**How to apply:** Preserve legacy area names as subnational descriptions; do not
+reinterpret this descriptive choice as a change to sector/geographical coverage.
 
 **How to apply:** Keep unit costs and technical parameters as one sector-adaptive
 section. Preserve this grouping when adding or reorganizing input details; ask
@@ -27,9 +54,7 @@ containers should not become white cards again. The user has explicitly approved
 production graduation; these requirements now apply to frontend/src. Preserve
 production data, callbacks, autosave and exports; do not copy preview runtime behavior.
 
-Place Tab 1 geographical scope controls in the main body immediately below
-the baseline heading and subtitle, without an enclosing banner.
-**Why:** The user requested the controls be integrated into the page rather than
-occupying a separate full-width banner.
-**How to apply:** Retain scope choices and urban/rural switching; do not apply
-this relocation to the other tabs.
+Keep Urban/Rural viewing controls in Data Inputs section 2.
+**Why:** The user moved geographical coverage configuration to Setup, but area-specific
+data still needs an area selector.
+**How to apply:** Do not duplicate editable coverage controls outside Setup.

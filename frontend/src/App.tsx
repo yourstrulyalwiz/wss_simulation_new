@@ -6,6 +6,7 @@ import InterventionPanel from './components/InterventionPanel';
 import DebtServicingPanel from './components/DebtServicingPanel';
 import RevenueReconciliation from './components/RevenueBase';
 import ResultsDashboard from './components/ResultsDashboard';
+import SlideDeckWorkspace from './components/SlideDeckWorkspace';
 import BAUWorkspace from './components/BAUWorkspace';
 import { runCalculation, runEconomicProjections } from './api';
 import { type ContributionView } from './contributionView';
@@ -14,7 +15,6 @@ import { normalizeScope, scopedBundle, preserveDormantInputs, ProjectScopeContex
 import type { Draft } from './projectApi';
 import { migrateNrwRevenueInputs } from './nrwRevenue';
 import { migrateConnectionRevenueInputs } from './connectionRevenueConfig';
-import { setInterventionEnabled } from './interventionRegistry';
 import { simulationHeaders, stripSimulationId, withSimulationId } from './simulationTransport';
 
 // Older saved sessions/profiles kept injection as an option under the financial master switch.
@@ -31,13 +31,20 @@ function migrateInjectionToggle(area: any) {
   return migrateConnectionRevenueInputs(migrateNrwRevenueInputs({ ...area, toggles }));
 }
 
-type WorkspaceProps = { initialBundle: any; initialScenarios?: any[]; initialLocation?: any; readOnly?: boolean; projectId?: string; onDraftChange: (draft: Draft) => void; onSetup: () => void; headerSlot?: (toolOverview: React.ReactNode, saveComparison: React.ReactNode) => React.ReactNode };
-function App({ initialBundle, initialScenarios = [], initialLocation = {}, readOnly = false, projectId, onDraftChange, onSetup, headerSlot }: WorkspaceProps) {
+type WorkspaceProps = { initialBundle: any; initialScenarios?: any[]; initialLocation?: any; readOnly?: boolean; projectId?: string; countryCode?: string; countryMetadata?: any; onDraftChange: (draft: Draft) => void; onSetup: () => void; setupControls?: React.ReactNode; setupNameControls?: React.ReactNode; headerSlot?: (toolOverview: React.ReactNode, saveComparison: React.ReactNode) => React.ReactNode };
+function App({ initialBundle, initialScenarios = [], initialLocation = {}, readOnly = false, projectId, countryCode, countryMetadata, onDraftChange, onSetup, setupControls, setupNameControls, headerSlot }: WorkspaceProps) {
   const initialScope = normalizeScope(initialBundle.scope);
   const modified = useRef(false);
   const notify = useRef(onDraftChange); notify.current = onDraftChange;
   const [inputs, setInputs] = useState<any>(() => migrateInjectionToggle(withSimulationId(initialBundle.inputs, projectId)));
-  const [activeTab, setActiveTab] = useState(Number.isInteger(initialLocation.activeTab) && initialLocation.activeTab >= 0 && initialLocation.activeTab <= 4 ? initialLocation.activeTab : 0);
+  // Keep existing saved tab IDs stable; Setup is -1 internally and step 0 visually.
+  const [activeTab, setActiveTab] = useState(Number.isInteger(initialLocation.activeTab) && initialLocation.activeTab >= -1 && initialLocation.activeTab <= 5 ? initialLocation.activeTab : 0);
+  const [includeDebt, setIncludeDebt] = useState(true);
+  useEffect(() => {
+    const openSetup = () => setActiveTab(-1);
+    window.addEventListener('simulation-setup-navigation', openSetup);
+    return () => window.removeEventListener('simulation-setup-navigation', openSetup);
+  }, []);
   const [contributionView, setContributionView] = useState<ContributionView>(initialBundle.presentation?.contributionView || 'individual');
   const [currencyDisplay, setCurrencyDisplay] = useState<CurrencyDisplaySettings>(initialBundle.presentation?.currencyDisplay || defaultCurrencyDisplay(initialBundle.inputs?.country_config?.currency));
   const [focusCurrencyRequest, setFocusCurrencyRequest] = useState(0);
@@ -116,7 +123,7 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
       mode: source.toUpperCase() === 'USD' || validRate(next, source) ? next.mode : 'local' });
   };
   const editCurrencyRate = () => {
-    setActiveTab(0);
+    setActiveTab(-1);
     setFocusCurrencyRequest(request => request + 1);
   };
 
@@ -212,6 +219,21 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
   const [calculationError, setCalculationError] = useState('');
   const [calculationRevision, setCalculationRevision] = useState(0);
   useEffect(() => {
+    const source = () => setActiveTab(0);
+    const intervention = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      setActiveTab(2);
+      if (['urban', 'rural'].includes(detail?.area)) setSubArea(detail.area);
+      if (detail?.issues?.[0]?.sector) setSectorTab(detail.issues[0].sector);
+    };
+    window.addEventListener('intervention-source-navigation', source);
+    window.addEventListener('intervention-validation-navigation', intervention);
+    return () => {
+      window.removeEventListener('intervention-source-navigation', source);
+      window.removeEventListener('intervention-validation-navigation', intervention);
+    };
+  }, []);
+  useEffect(() => {
     if (!activeInputs) return;
     let cancelled = false;
     setResults(null);
@@ -261,19 +283,6 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
       setAltInputs(prev => ({ ...prev, [inputScope]: resized }));   // national — isolated single dataset
     }
   }, [resizeMacroArrays, inputScope, inputs, shiftAreaArrays, readOnly, activeInputsRaw]);
-
-  // Flip one intervention toggle on/off across EVERY area (interventions are on/off globally, applied per
-  // area). Used by the Results dashboard's on/off toggles — the parameters still live on the Intervention tab.
-  const setToggle = useCallback((key: string, value: boolean) => {
-    if (readOnly || key.startsWith('ws_') && !initialScope.sectors.includes('water') || key.startsWith('san_') && !initialScope.sectors.includes('sanitation')) return;
-    modified.current = true;
-    if (scopeMode === 'urban_rural' && areaUrban) setInputs((prev: any) => prev ? setInterventionEnabled(prev, key, value) : prev);
-    setAltInputs(prev => {
-      const n: Record<string, any> = { ...prev };
-      for (const k of Object.keys(prev)) if (scopeMode === 'national' ? k === 'national' : k === 'rural' && areaRural) n[k] = setInterventionEnabled(prev[k], key, value);
-      return n;
-    });
-  }, [readOnly, scopeMode, areaUrban, areaRural]);
 
   // Geographical scope as ONE dropdown value: 'both' (Urban + Rural), 'urban', 'rural', 'national'.
   const scopeValue = scopeMode === 'national' ? 'national' : (areaUrban && areaRural) ? 'both' : areaRural ? 'rural' : 'urban';
@@ -376,18 +385,19 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
     }
   }
 
-  // Exports now live throughout the tool (per-table, per-chart, and the whole-scenario Export buttons on
-  // the Intervention Design and Results tabs), so there is no separate Export tab.
-  const tabs = ['Data Inputs', 'BAU Scenario', 'Intervention Design', 'Loan funding', 'Results Dashboard'];
+  const tabs = ['Setup', 'Data Inputs', 'BAU Scenario', 'Intervention Design', 'Loan funding', 'Results Dashboard', 'Slide Deck'];
 
   return (
-    <ProjectScopeContext.Provider value={{ sectors: initialScope.sectors, readOnly, projectMode: true, projectId }}>
+    <ProjectScopeContext.Provider value={{ sectors: initialScope.sectors, readOnly, projectMode: true, projectId, countryCode, countryMetadata,
+      validationInputs: scopeMode === 'urban_rural' && areaUrban && areaRural
+        ? { urban: inputs, rural: { ...altInputs.rural, country_config: inputs.country_config, period: inputs.period, calculation_scope: initialScope.sectors } }
+        : { [inputScope]: activeInputs } }}>
     <div className={`wb-app${readOnly ? ' workspace-view-only' : ''}`} style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {!readOnly && <RevenueReconciliation inputs={activeInputs} onChange={value => { if (modified.current) handleSetActiveInputs(value); }} area={inputScope} silent={true} />}
       {/* Header */}
       {headerSlot ? headerSlot(
         <button id="tool-overview-btn" onClick={() => setShowOnboarding(true)} className="wb-header-action">Tool Overview</button>,
-        !readOnly && <button onClick={saveScenario} className="wb-header-action">Save comparison</button>
+        null
       ) : <header className="wb-header">
         <div className="wb-brand-lockup">
           <span className="wb-brand-mark" aria-hidden="true">WSS</span>
@@ -402,7 +412,6 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
         </div>
         <div className="wb-header-actions">
           {!readOnly && <button onClick={onSetup} className="wb-header-action">Edit simulation setup</button>}
-          {!readOnly && <button onClick={saveScenario} className="wb-header-action">Save comparison</button>}
           <button id="tool-overview-btn" onClick={() => setShowOnboarding(true)} className="wb-header-action">Tool Overview</button>
         </div>
       </header>}
@@ -437,14 +446,15 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
 
       {/* Tab Navigation */}
       <nav className="wb-tab-nav" aria-label="Scenario workflow">
-        {tabs.map((tab, i) => {
+        {tabs.map((tab, index) => {
+          const i = index - 1;
           return (
-          <button key={tab} onClick={() => { if (!readOnly) modified.current = true; setActiveTab(i); if (i === 1 && both) setBauChartScope(subArea); }}
+          <button key={tab} onClick={() => { if (!readOnly) modified.current = true; if (i === -1) onSetup(); setActiveTab(i); if ((i === 1 || i === 2) && both) setBauChartScope(subArea); }}
             className={`wb-tab${activeTab === i ? ' wb-tab-active' : ''}`}>
             <span className="wb-tab-step">{i + 1}</span>
             <span className="wb-tab-label">
               <span className="wb-tab-first">{tab.split(' ')[0]}</span>
-              <span className="wb-tab-rest">{tab.slice(tab.indexOf(' ') + 1)}</span>
+              <span className="wb-tab-rest">{tab.includes(' ') ? tab.slice(tab.indexOf(' ') + 1) : ''}</span>
             </span>
           </button>
         );})}
@@ -453,14 +463,14 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
       {/* Main Content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Scope bar. Full controls (mode + include) only on Data Inputs; BAU & Intervention get just the Editing switch. The dashboard has its own scope dropdown. */}
-        {activeTab >= 2 && activeTab <= 3 && (
+        {(activeTab === 1 || activeTab === 3) && (
           <div className="wb-scope-bar">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {both ? (
                   <>
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Entering data for:</span>
                     {(['urban', 'rural'] as const).map(a => (
-                      <button key={a} onClick={() => setSubArea(a)}
+                      <button key={a} onClick={() => { setSubArea(a); setBauChartScope(a); }}
                         className={`wb-scope-option${subArea === a ? ' wb-scope-option-active' : ''}`}>{a}</button>
                     ))}
                   </>
@@ -475,9 +485,19 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
         )}
 
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        {activeTab === -1 && activeInputs && (
+          <InputPanel key="setup" inputs={activeInputs} onChange={handleSetActiveInputs}
+            showSection="setup" geoScope={inputScope} scopeControls={setupControls} setupNameControls={setupNameControls}
+            onSectionFocus={focusGuideSection} currencyDisplay={currencyDisplay}
+            onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
+        )}
         {activeTab === 0 && activeInputs && (
-          <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results || economicProjections} calculationError={calculationError} projectionError={projectionError} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
-            scopeControls={<GeographicalScope value={scopeValue} onChange={readOnly ? () => {} : setScopeValue} area={subArea} onAreaChange={value => { if (!readOnly) modified.current = true; setSubArea(value); }} hint={scopeHint} dismissHint={dismissScopeHint} readOnly={readOnly} />}
+          <InputPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={{
+            ...results, ...economicProjections,
+            water_supply: { ...results?.water_supply, ...economicProjections?.water_supply },
+            sanitation: { ...results?.sanitation, ...economicProjections?.sanitation },
+          }} calculationError={calculationError} projectionError={projectionError} geoScope={inputScope} showSection="inputs" onSectionFocus={focusGuideSection}
+            scopeControls={<GeographicalScope navigationOnly value={scopeValue} onChange={readOnly ? () => {} : setScopeValue} area={subArea} onAreaChange={value => { if (!readOnly) modified.current = true; setSubArea(value); }} hint={scopeHint} dismissHint={dismissScopeHint} readOnly={readOnly} />}
             bauSector={sectorTab} onBauSectorChange={value => { if (!readOnly) modified.current = true; setSectorTab(value); }}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} focusCurrencyRequest={focusCurrencyRequest} />
         )}
@@ -492,10 +512,16 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
         )}
         {activeTab === 2 && activeInputs && (
           <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} calculationError={calculationError} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} contributionView={contributionView} onContributionViewChange={setContributionView}
-            currencyDisplay={currencyDisplay} onEditCurrencyRate={editCurrencyRate} onCurrencyDisplayChange={updateCurrencyDisplay} />
+            currencyDisplay={currencyDisplay} onEditCurrencyRate={editCurrencyRate} onCurrencyDisplayChange={updateCurrencyDisplay}
+            scopeChoices={both ? ['urban', 'rural'] : [inputScope]}
+            scopeLabel={both ? (bauChartScope === 'urban' ? 'Urban' : 'Rural') : inputScope[0].toUpperCase() + inputScope.slice(1)}
+            onScopeChange={value => { if (value === 'urban' || value === 'rural') { setBauChartScope(value); setSubArea(value); } }} />
         )}
         {activeTab === 3 && activeInputs && (
           <DebtServicingPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={resultInputs.current === activeInputs ? results : null} calculationError={calculationError}
+            scopeChoices={both ? ['urban', 'rural'] : [inputScope]}
+            scopeLabel={inputScope === 'national' ? 'National' : inputScope === 'rural' ? 'Rural' : 'Urban'}
+            onScopeChange={value => { if (value === 'urban' || value === 'rural') { setBauChartScope(value); setSubArea(value); } }}
             sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} contributionView={contributionView}
             onContributionViewChange={setContributionView} currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay}
             onEditCurrencyRate={editCurrencyRate} onSectionFocus={focusGuideSection} onRetry={retryCalculation} />
@@ -519,9 +545,18 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
         )}
 
         {activeTab === 4 && (
-          <ResultsDashboard geoScope={chartScope} scenarios={scenarios} inputs={inputs} altInputs={altInputs} onToggle={setToggle} contributionView={contributionView} onContributionViewChange={setContributionView}
+          <ResultsDashboard geoScope={chartScope} scenarios={scenarios} inputs={inputs} altInputs={altInputs} contributionView={contributionView} onContributionViewChange={setContributionView}
+            sectorTab={sectorTab} onSectorChange={setSectorTab}
+            initialViewScope={inputScope}
+            includeDebt={includeDebt} onIncludeDebtChange={setIncludeDebt}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
         )}
+        {/* Keep only this in-memory viewer mounted so navigation survives tab changes.
+            Input changes invalidate its artifacts even while the tab is hidden. */}
+        <SlideDeckWorkspace active={activeTab === 5} geoScope={chartScope} inputs={inputs} altInputs={altInputs}
+          includeDebt={includeDebt} onIncludeDebtChange={setIncludeDebt}
+          contributionView={contributionView} onContributionViewChange={setContributionView}
+          currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
 
         </div>
       </div>
@@ -605,7 +640,7 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
               <strong>Data Inputs</strong> — In <em>Country, Area of Focus &amp; Currency</em>, select your country and the currency fills in automatically. In <em>2. Analysis Period</em>, set the key dates; then complete the year-by-year sections — <em>3. Service levels</em> (water &amp; sanitation), <em>4. Economic &amp; demographic data</em> (real GDP, population, households) and <em>5. Budget</em>. <em>Country</em> and the <em>Analysis Period</em> are shared across Urban and Rural; the year-by-year sections are entered separately per area. Historical cells use a light neutral fill; forecast cells use a teal tint and are optional (leave them blank to fill in from the yearly growth rate, or type your own projection). To set a <strong>target</strong>, fill a whole future service-level column so it totals 100%; you can set as many target years as you like. The budget is derived from the cost of new service, and any cell can be overridden.
             </li>
             <li style={{ marginBottom: 6 }}>
-              <strong>BAU Scenario</strong> — Pick Water Supply or Sanitation, then work down the sections: <em>Unit Costs &amp; Technical Parameters</em> (enter technology prices as nominal, with a price index that converts them to real). These fields are shared with the Data Inputs tab. The BAU graph on the right updates live as you type.
+              <strong>BAU Scenario</strong> — Pick Water Supply or Sanitation and the geographical area, then review the <em>BAU Graph</em> and <em>BAU Table</em>. Edit baseline assumptions, unit costs and technical parameters in Data Inputs; the BAU projections use those inputs.
             </li>
             <li style={{ marginBottom: 6 }}>
               <strong>Intervention Design</strong> — Pick Water Supply or Sanitation, switch each intervention on or off with its toggle, and set its parameters, which include collection efficiency, NRW reduction, budget execution improvement, capex efficiency (a unit-cost discount), optimised technology selection, tariff reform, and microfinance (with a self-finance carve-out and a means-based grant inside it). Add your own under <em>Custom Interventions</em> at the bottom. The impact graph updates live.
@@ -726,13 +761,17 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
       </div>
     ),
   },
+  simulation_name: {
+    title: '1. Simulation Name',
+    content: <p>Name this simulation, then apply the change with Save setup in Simulation Coverage.</p>,
+  },
   country: {
-    title: 'Country & Area of focus',
+    title: '2. Country Profile',
     content: 'Select the country and the area of focus for the analysis. The currency code sets the unit for all monetary inputs. Choosing a country will auto-fill its currency, but you can change it manually if needed. This section applies to the whole analysis and is shared across the Urban and Rural datasets.',
     sources: [{ name: 'World Bank country classification', url: 'https://datahelpdesk.worldbank.org/knowledgebase/articles/906519' }],
   },
   period: {
-    title: '2. Analysis Period',
+    title: '1. Analysis Period',
     content: (
       <div>
         <p style={{ margin: '0 0 6px' }}>Define the analysis time frame for the tool. These dates apply to the whole analysis and are shared across the Urban and Rural datasets.</p>
@@ -803,6 +842,28 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
           <span style={gNote}>Note: If household data is unavailable, it can be estimated by dividing the population by the average household size.</span>
         </div>
       </div>
+    ),
+  },
+  currency: {
+    title: '4. Currency',
+    content: <p>Set the source currency and optional USD display conversion. Display conversion does not change the model inputs or coverage results.</p>,
+  },
+  coverage: {
+    title: '3. Simulation Coverage',
+    content: <p>Choose the included sectors and geographical coverage, then Save setup. Excluded inputs remain stored; newly included areas start blank. Country identity stays fixed to protect existing observations.</p>,
+  },
+  geographical_selection: {
+    title: '2. Geographical Scope Selection',
+    content: <p>Select Urban or Rural to view and enter that area's data. This selector does not change which areas are included in the simulation; manage coverage in Setup.</p>,
+  },
+  sector_selection: {
+    title: '6. Sector Selection',
+    content: <p>Select Water Supply or Sanitation to view the sector-specific inputs. Switching sectors does not erase either sector’s saved inputs.</p>,
+  },
+  investment_split: {
+    title: '7. Investment Split by Service Level',
+    content: (
+      <p>Choose how new investment is divided between basic and safely managed service after replacement is funded. The shares always total 100%. These settings apply to the selected area and sector and affect both BAU and intervention scenarios.</p>
     ),
   },
   budget: {
@@ -1013,7 +1074,8 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
 const guideKeysByTab: Record<number, string[]> = {
   // Data Inputs — includes the BAU data entry duplicated onto this tab. test2: targets & technical
   // params are folded into the table / the merged unit-cost section.
-  0: ['how_model_works', 'country', 'period', 'service_levels', 'econ_demo', 'budget', 'ws_unit_costs', 'san_unit_costs'],
+  [-1]: ['simulation_name', 'country', 'coverage', 'currency'],
+  0: ['period', 'geographical_selection', 'how_model_works', 'service_levels', 'econ_demo', 'budget', 'sector_selection', 'investment_split', 'ws_unit_costs', 'san_unit_costs'],
   // BAU Scenario
   1: ['how_model_works', 'ws_unit_costs', 'san_unit_costs'],
   // Intervention Design — one card per intervention, grouped by sector. DataGuide filters this list to

@@ -11,9 +11,9 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
   const { user, publicReadOnly } = useAppAccess();
   const state = useSimulation(id, identity?.id);
   const { project, loading, error, saving, dirty, conflict, saveError, recovery, editorEpoch, update, save, reload, acceptServer } = state;
-  const [dialog, setDialog] = useState<'setup' | 'version' | 'history' | 'duplicate' | 'archive' | 'unpublish' | null>(new URLSearchParams(window.location.search).has('history') ? 'history' : null);
+  const [dialog, setDialog] = useState<'version' | 'history' | 'duplicate' | 'archive' | 'unpublish' | null>(new URLSearchParams(window.location.search).has('history') ? 'history' : null);
   const [name, setName] = useState('');
-  const [area, setArea] = useState('');
+  const [setupName, setSetupName] = useState('');
   const [label, setLabel] = useState('');
   const [scope, setScope] = useState<ProjectScope>(normalizeScope());
   const [versions, setVersions] = useState<SavedVersion[]>([]);
@@ -27,6 +27,9 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
   const owner = !!project?.is_owner && !project.read_only && !!identity;
   const historyAllowed = !!identity && (!!project?.is_owner || identity.is_admin) && !project?.is_seed;
   useEffect(() => {
+    if (project) { setSetupName(project.name); setScope(normalizeScope(project.scope)); }
+  }, [project?.id, editorEpoch]);
+  useEffect(() => {
     if (!dialog) return;
     const previous = document.activeElement as HTMLElement | null;
     const timer = setTimeout(() => {
@@ -35,9 +38,10 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
     }, 0);
     return () => { clearTimeout(timer); previous?.focus(); };
   }, [dialog]);
-  const open = (value: typeof dialog) => {
-    setActionError(''); setDialog(value); setLabel('');
-    if (project) { setName(value === 'duplicate' ? `${project.name} — copy` : project.name); setArea(project.area_label || ''); setScope(normalizeScope(project.scope)); }
+  const open = (value: typeof dialog | 'setup') => {
+    setActionError(''); setDialog(value === 'setup' ? null : value); setLabel('');
+    if (project && value !== 'setup') setName(value === 'duplicate' ? `${project.name} — copy` : project.name);
+    if (value === 'setup') window.dispatchEvent(new Event('simulation-setup-navigation'));
   };
   useEffect(() => {
     if (dialog !== 'history' || !historyAllowed) return;
@@ -53,6 +57,7 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
   // Explicit actions must save ALL edits, including edits made while a prior request was pending.
   const settled = async () => { let record = await save(); if (dirty) record = await save(); return record; };
   const saveSetup = async () => {
+    if (!setupName.trim()) return;
     const latest = await settled();
     const nextBundle = scopedBundle(latest.bundle, scope);
     const missing = scope.scopeMode === 'national' ? ['national'] : scope.areaRural ? ['rural'] : [];
@@ -60,7 +65,7 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
       const blank = await projectRequest<any>('/defaults/blank');
       nextBundle.altInputs[key] = { ...(blank.inputs || blank), country_config: nextBundle.inputs.country_config, period: nextBundle.inputs.period, calculation_scope: scope.sectors };
     }
-    update({ name: name.trim(), scope, bundle: nextBundle, scenarios: latest.scenarios, location: latest.location || {} });
+    update({ name: setupName.trim(), scope, bundle: nextBundle, scenarios: latest.scenarios, location: { ...latest.location, activeTab: -1 } });
     const value = await save();
     acceptServer(value); setDialog(null);
   };
@@ -70,7 +75,26 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
     {saveError && <div className="project-alert" role="alert">{saveError}<button onClick={state.download}>Download recoverable draft</button>{conflict ? <button onClick={() => { if (window.confirm('Reload the newer server revision? Your local draft will remain available for recovery. Download it first if needed.')) void reload(); }}>Reload newer revision</button> : <button onClick={() => void save().catch(() => {})}>Retry save</button>}</div>}
     {actionError && !dialog && <div className="project-alert" role="alert">{actionError}</div>}
     {recovery && owner && <div className="project-alert">This browser has a pending or failed save for this account and simulation.<button onClick={state.restoreRecovery}>Recover draft</button><button onClick={() => { if (window.confirm('Discard the browser recovery draft? The server record is unchanged.')) state.dismissRecovery(); }}>Discard recovery</button></div>}
-    <div className="project-workspace"><App key={`${id}:${editorEpoch}`} projectId={id} initialBundle={project.bundle} initialScenarios={project.scenarios} initialLocation={project.location} readOnly={!owner} onDraftChange={update} onSetup={() => open('setup')} headerSlot={(toolOverview, saveComparison) => (
+    <div className="project-workspace"><App key={`${id}:${editorEpoch}`} projectId={id} initialBundle={project.bundle} initialScenarios={project.scenarios} initialLocation={project.location} readOnly={!owner} onDraftChange={update} onSetup={() => open('setup')}
+      countryCode={project.country_code} countryMetadata={project.country_metadata}
+      setupNameControls={<div className="project-setup-name">
+        <div className="project-setup-name__heading"><label htmlFor="setup-simulation-name">Simulation name</label><span id="setup-name-count">{setupName.length} / 160 characters</span></div>
+        <input id="setup-simulation-name" value={setupName} maxLength={160} disabled={!owner || busy} aria-required="true" aria-invalid={!setupName.trim()} aria-describedby={`setup-name-help setup-name-count${!setupName.trim() ? ' setup-name-error' : ''}`} onChange={event => setSetupName(event.target.value)} />
+        <p id="setup-name-help">{owner ? 'Use a name you can recognize in your workspace and version history. Apply it with Save setup in Simulation Coverage below.' : 'The name identifies this planning record. Only the owner can change the setup.'}</p>
+        {!setupName.trim() && <p className="project-setup-validation" id="setup-name-error">Enter a simulation name before saving setup.</p>}
+      </div>}
+      setupControls={<div className="project-setup-coverage" aria-busy={busy}>
+        <ScopeFields scope={scope} onChange={setScope} variant="setup" disabled={!owner || busy} />
+        <p className="project-setup-note">Excluded sector and area data are retained, not deleted. Include them again to resume working with those inputs.</p>
+        <div className="project-setup-save">
+          <div className="project-setup-save__copy"><strong>{owner ? 'Save the name and coverage together' : 'Read-only simulation setup'}</strong>
+            <p id="setup-save-help">{owner ? 'Save setup applies both choices above and the simulation name. Country Profile, currency and analysis-period edits use normal progress saving.' : 'Only the owner can change these choices. Excluded data remains part of the saved planning record.'}</p>
+            {owner && conflict && <p>Resolve the save conflict before applying setup changes.</p>}
+          </div>
+          {owner && <button className="portal-btn" aria-describedby="setup-save-help" disabled={busy || saving || conflict || !setupName.trim()} onClick={() => void act(saveSetup)}>{busy ? 'Saving setup…' : 'Save setup'}</button>}
+        </div>
+      </div>}
+      headerSlot={(toolOverview, saveComparison) => (
       <header className="wb-header project-combined-header">
         <div className="wb-brand-lockup project-brand-lockup">
           <span className="wb-brand-mark" aria-hidden="true">WSS</span>
@@ -84,12 +108,11 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
           <small className="project-save-status" role="status" aria-live="polite">{owner ? saving ? 'Saving progress…' : conflict ? 'Conflict · Draft retained' : saveError ? 'Could not save' : dirty ? 'Unsaved changes' : `Saved ${new Date(project.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Read-only view'}</small>
           <Link href="/" className="wb-header-action">Return</Link>
           {user || publicReadOnly ? <Link href="/user-portal" className="wb-header-action">{publicReadOnly ? 'Browse simulations' : 'My simulations'}</Link> : <Link href="/sign-in" className="wb-header-action">Sign in</Link>}
-          {owner && <><button disabled={saving || conflict} className="wb-header-action" onClick={() => void act(async () => { await settled(); })}>Save progress</button><button disabled={saving || conflict} className="wb-header-action" onClick={() => open('version')}>Save version</button><button className="wb-header-action" onClick={() => open('setup')}>Edit setup</button></>}
+          {owner && <><button className="wb-header-action" onClick={() => open('setup')}>Edit setup</button><button disabled={saving || conflict} className="wb-header-action" onClick={() => void act(async () => { await settled(); })}>Save progress</button><button disabled={saving || conflict} className="wb-header-action" onClick={() => open('version')}>Save as</button></>}
+          {identity ? <button className="wb-header-action" onClick={() => open('duplicate')}>{project.is_seed ? 'Use as starting point' : 'Duplicate'}</button> : !publicReadOnly && <Link href="/sign-in" className="wb-header-action">Private copy</Link>}
           {saveComparison}
           {historyAllowed && <button className="wb-header-action" onClick={() => open('history')}>{owner ? 'History & sharing' : 'Version history'}</button>}
-          {identity ? <button className="wb-header-action" onClick={() => open('duplicate')}>{project.is_seed ? 'Use as starting point' : 'Duplicate'}</button> : !publicReadOnly && <Link href="/sign-in" className="wb-header-action">Private copy</Link>}
           {owner && project.visibility === 'public' && <button className="wb-header-action" onClick={() => open('unpublish')}>Make private</button>}
-          {owner && <button className="wb-header-action" onClick={() => open('archive')}>{project.archived_at ? 'Unarchive' : 'Archive'}</button>}
           {toolOverview}
         </div>
       </header>
@@ -102,8 +125,7 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }}>
-      <h2 id="project-dialog-title">{dialog === 'setup' ? 'Edit simulation setup' : dialog === 'version' ? 'Save a meaningful checkpoint' : dialog === 'history' ? 'History & publication' : dialog === 'duplicate' ? 'Create a private copy' : dialog === 'unpublish' ? 'Make this simulation private?' : project.archived_at ? 'Return to your active workspace?' : 'Archive this simulation?'}</h2>
-      {dialog === 'setup' && <><p>Changing scope preserves dormant data. Newly included areas start blank. To change country, <Link href="/simulations/new">create a new simulation</Link>—do not relabel existing observations.</p><label className="setup-field">Simulation name<input autoFocus required value={name} maxLength={160} onChange={event => setName(event.target.value)} /></label><div className="setup-meta">{project.country_name} · {area || 'No area label'} · Country identity retained</div><ScopeFields scope={scope} onChange={setScope} /></>}
+      <h2 id="project-dialog-title">{dialog === 'version' ? 'Save a meaningful checkpoint' : dialog === 'history' ? 'History & publication' : dialog === 'duplicate' ? 'Create a private copy' : dialog === 'unpublish' ? 'Make this simulation private?' : project.archived_at ? 'Return to your active workspace?' : 'Archive this simulation?'}</h2>
       {dialog === 'version' && <><p>Progress saves your current working draft. A named version keeps an immutable input checkpoint for future reference or publication. Calculation success is not required.</p><label className="setup-field">Version label<input autoFocus value={label} maxLength={160} onChange={event => setLabel(event.target.value)} placeholder="e.g. Baseline reviewed with country team" /></label></>}
       {dialog === 'duplicate' && <><p>This creates an owned, private project with a new ID. The source simulation is unchanged.</p><label className="setup-field">Name for your copy<input autoFocus value={name} maxLength={160} onChange={event => setName(event.target.value)} /></label></>}
       {dialog === 'unpublish' && <p>The published version will no longer be available to other viewers. Your working draft and version history remain saved. Copies already made by permitted users are independent projects.</p>}
@@ -117,8 +139,7 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
       }}>{project.published_version_id === version.id ? 'Published' : project.visibility === 'public' ? 'Update public version' : 'Publish version'}</button></div>}</div>) : <div className="portal-message">No saved versions yet. Save your first checkpoint before publishing.</div>}</>}
       {actionError && <ErrorMessage message={actionError} />}
       <div className="project-dialog-actions"><button disabled={busy} onClick={() => setDialog(null)}>{dialog === 'history' ? 'Close' : 'Cancel'}</button>
-        {dialog === 'setup' && owner && <button className="primary" disabled={busy || !name.trim() || conflict} onClick={() => void act(saveSetup)}>{busy ? 'Saving setup…' : 'Save setup'}</button>}
-        {dialog === 'version' && owner && <button className="primary" disabled={busy || !label.trim() || conflict} onClick={() => void act(async () => { const latest = await settled(); await projectMutation(`/simulations/${id}/versions`, { revision: latest.revision, label: label.trim() }); setDialog(null); })}>{busy ? 'Saving version…' : 'Save version'}</button>}
+        {dialog === 'version' && owner && <button className="primary" disabled={busy || !label.trim() || conflict} onClick={() => void act(async () => { const latest = await settled(); await projectMutation(`/simulations/${id}/versions`, { revision: latest.revision, label: label.trim() }); setDialog(null); })}>{busy ? 'Saving…' : 'Save as'}</button>}
         {dialog === 'duplicate' && identity && <button className="primary" disabled={busy || !name.trim() || conflict} onClick={() => void act(async () => { if (owner) await settled(); const copy = await projectMutation<Simulation>(`/simulations/${id}/duplicate`, { name: name.trim() }); if (live.current) navigate(`/simulations/${copy.id}`); })}>{busy ? 'Creating copy…' : 'Create private copy'}</button>}
         {dialog === 'unpublish' && owner && <button className="primary" disabled={busy || conflict} onClick={() => void act(async () => { const latest = await settled(); const value = await projectMutation<Simulation>(`/simulations/${id}/unpublish`, { revision: latest.revision }); acceptServer(value); setDialog(null); })}>Make private</button>}
         {dialog === 'archive' && owner && <button className="primary" disabled={busy || conflict} onClick={() => void act(async () => { const latest = await settled(); const value = await projectMutation<Simulation>(`/simulations/${id}`, { revision: latest.revision, archived: !project.archived_at }, 'PATCH'); acceptServer(value); setDialog(null); })}>{project.archived_at ? 'Unarchive simulation' : 'Archive simulation'}</button>}

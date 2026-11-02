@@ -10,7 +10,8 @@ import { yearAxisInterval } from '../chartAxis';
 import { resolveChartWindow } from '../chartWindow';
 import { runCalculation } from '../api';
 import { resultsInputs } from '../resultsDebtMode';
-import { ledgerSnapshots, ledgerRows, ledgerCategory, type LedgerSnapshot, type LedgerContribution, type LedgerMetric, type LedgerService, type LedgerBasis, type LedgerData } from '../resultsLedger';
+import { deckExportAreas } from '../useDeckPreview';
+import { ledgerSnapshots, ledgerCategory, type LedgerSnapshot, type LedgerContribution, type LedgerMetric, type LedgerService, type LedgerBasis, type LedgerData } from '../resultsLedger';
 import ResultsLedgerPanel from './ResultsLedgerPanel';
 import { linesFirstLegend } from './chartLegend';
 import ExportButtons from './ExportButtons';
@@ -26,11 +27,26 @@ import { aggregateContributionRows, ContributionViewToggle, type ContributionVie
 import { CurrencyDisplayControl, type CurrencyDisplaySettings, validRate } from '../currencyDisplay';
 import { aggregateWeightedRevenueRate, connectionRevenueAreaModes, summarizeConnectionRevenueModes } from '../connectionRevenueMode';
 import { isModeledLoanSummary, LOAN_FUNDING_QUALIFICATION, LOAN_REPAYMENT_ACCOUNTING, LOAN_SUMMARY_VERSION } from '../loanFunding';
-import RevenueSourceChart from './RevenueSourceChart';
 import { WATER_INTERVENTIONS as WATER_INTV, SANITATION_INTERVENTIONS as SAN_INTV, GLOBAL_INTERVENTION_ORDER, comparisonInputs, interventionEnabled, type InterventionDefinition as IntvDef } from '../interventionRegistry';
 import { selectedLedgerSources } from '../ledgerSelection';
 import { aggregateCoverage, aggregateSourceFunding, sourceCoverageRows, sourceDefinition, BASELINE_COVERAGE_LABEL, SOURCE_COVERAGE_TEXT, type CoverageAttribution, type SourceFunding } from '../sourceAttribution';
 import { useNarrowChart } from '../useNarrowChart';
+import { replacementWaterfallReports } from '../replacementWaterfall';
+import ReplacementWaterfallTable from './ReplacementWaterfallTable';
+import ResultsFundingPanel from './ResultsFundingPanel';
+import { validateLoanFundingConfig } from '../loanFunding';
+import './loan-workspace.css';
+import './results-workspace.css';
+
+const resultSections = [
+  { key: 'coverage', title: 'Coverage Graphs' },
+  { key: 'capital', title: 'Capital Requirements & Funding' },
+  { key: 'funds', title: 'Sector Available Funds' },
+  { key: 'ledger', title: 'Water Supply Ledger' },
+  { key: 'attribution', title: 'Attributed Coverage by Source' },
+  { key: 'summary', title: 'Summary Flows' },
+] as const;
+type ResultSection = typeof resultSections[number]['key'];
 
 // ── formatting helpers (mirrors LiveBAUChart) ──────────────────────────────────────────────────
 function round3(v: number): number { return (!isFinite(v) || v === 0) ? 0 : Number(v.toPrecision(3)); }
@@ -59,17 +75,21 @@ interface Props {
   scenarios: { name: string; inputs: any }[];
   inputs: any;
   altInputs?: Record<string, any>;
-  onToggle?: (key: string, value: boolean) => void;
   contributionView: ContributionView;
   onContributionViewChange: (v: ContributionView) => void;
   currencyDisplay: CurrencyDisplaySettings;
   onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void;
   onEditCurrencyRate: () => void;
+  sectorTab?: 'water' | 'sanitation';
+  onSectorChange?: (sector: 'water' | 'sanitation') => void;
+  initialViewScope?: 'urban' | 'rural' | 'national';
+  includeDebt?: boolean;
+  onIncludeDebtChange?: (value: boolean) => void;
 }
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
 type DebtData = { summary: any; rows: any[]; areas: any[]; annualRows: any[] };
-type Series = { sum: any; attribution: CoverageAttribution; sourceFunding?: SourceFunding; sourceBands: ContribBand[]; impactRows: Row[]; inv: InvTable; unit: { sm: number; basic: number }; ledgerBase: LedgerSnapshot[]; ledgerScenario: LedgerSnapshot[]; ledgerAreas: LedgerData['areas']; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any; nrwResults: any[] };
+type Series = { waterfallReports: ReturnType<typeof replacementWaterfallReports>; sum: any; attribution: CoverageAttribution; sourceFunding?: SourceFunding; sourceBands: ContribBand[]; impactRows: Row[]; inv: InvTable; unit: { sm: number; basic: number }; ledgerBase: LedgerSnapshot[]; ledgerScenario: LedgerSnapshot[]; ledgerAreas: LedgerData['areas']; coverageRows: any[]; financingRows: any[]; basicRows: BasicCoverageRow[]; financeRows: FinanceYear[]; debt: DebtData; accessRows: AccessRow[]; revenueRows: any[]; revenueModes: any[]; connectionMetadata: any; nrwResults: any[] };
 type Both = { water: Series | null; sanitation: Series | null } | null;
 type Row = { key: string; label: string; addHH: number | null; resources: number | null };
 
@@ -224,10 +244,43 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
   );
 }
 
-export default function ResultsDashboard({ geoScope, scenarios, inputs, altInputs, onToggle, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
-  const { sectors, readOnly, projectId } = useProjectScope();
+export default function ResultsDashboard({ geoScope, scenarios, inputs, altInputs, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate, sectorTab: suppliedSector, onSectorChange, initialViewScope, includeDebt: suppliedDebt, onIncludeDebtChange }: Props) {
+  const { sectors, projectId } = useProjectScope();
   const scenarioAreas = (bundle: any) => comparisonAreas(bundle, { sectors, scopeMode: geoScope === 'national' ? 'national' : 'urban_rural', areaUrban: geoScope === 'urban' || geoScope === 'urban_rural', areaRural: geoScope === 'rural' || geoScope === 'urban_rural' });
-  const [includeDebt, setIncludeDebt] = useState(false);
+  const [localDebt, setLocalDebt] = useState(true);
+  const includeDebt = suppliedDebt ?? localDebt;
+  const setIncludeDebt = onIncludeDebtChange ?? setLocalDebt;
+  const [sectorTab, setSectorTab] = useState<'water' | 'sanitation'>(sectors[0] || 'water');
+  const requestedSector = suppliedSector ?? sectorTab;
+  const activeSector = sectors.includes(requestedSector) ? requestedSector : sectors[0];
+  const [activeSection, setActiveSection] = useState<ResultSection>('coverage');
+  const reading = useRef<HTMLDivElement>(null);
+  const pendingNavigation = useRef<(() => void) | null>(null);
+  useEffect(() => () => pendingNavigation.current?.(), []);
+  const navigate = (key: ResultSection) => {
+    pendingNavigation.current?.();
+    setActiveSection(key);
+    requestAnimationFrame(() => {
+      const host = reading.current;
+      const target = host?.querySelector<HTMLElement>(`[data-section-key="${key}"]`);
+      if (!host || !target) return;
+      target.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true });
+      const scroll = getComputedStyle(host).overflowY === 'visible'
+        ? host.closest<HTMLElement>('.results-workspace') || host : host;
+      const align = () => scroll.scrollTo({ top: scroll.scrollTop + target.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 12 });
+      align();
+      const observer = new ResizeObserver(align);
+      host.querySelectorAll('[data-section-key]').forEach(section => observer.observe(section));
+      const stop = () => {
+        observer.disconnect(); clearTimeout(timer);
+        for (const event of ['wheel', 'touchstart', 'pointerdown', 'keydown']) scroll.removeEventListener(event, stop);
+        pendingNavigation.current = null;
+      };
+      const timer = setTimeout(stop, 2000);
+      for (const event of ['wheel', 'touchstart', 'pointerdown', 'keydown']) scroll.addEventListener(event, stop, { passive: true });
+      pendingNavigation.current = stop;
+    });
+  };
   const [attempt, setAttempt] = useState(0);
   const dashboardRef = useRef<HTMLDivElement>(null);
   type Selection = { metric: LedgerMetric; service: LedgerService; basis: LedgerBasis };
@@ -239,9 +292,10 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     setLedgerSelection(current => ({ ...current, [sector]: selection }));
     setTimeout(() => dashboardRef.current?.querySelector(`[data-results-ledger="${sector}"]`)
       ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 0);
+    navigate('ledger');
   };
   const [viewScope, setViewScope] = useState<'urban' | 'rural' | 'national'>(
-    geoScope === 'urban' ? 'urban' : geoScope === 'rural' ? 'rural' : 'national'
+    geoScope === 'urban_rural' ? initialViewScope ?? 'urban' : geoScope
   );
   const [unitMode, setUnitMode] = useState<'count' | 'share'>('count');
   // Graph-only year window. It intentionally does not enter the calculation payload or saved inputs.
@@ -251,12 +305,12 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // the ENTRY mode (how the user filled the data in), not the Scope dropdown above, which only
   // chooses what this tab displays. In national-entry mode the national dataset lives in altInputs
   // and `inputs` is still the urban primary, so read it explicitly rather than exporting urban.
-  const deckAreas = React.useMemo(() => Object.fromEntries(
-    Object.entries(liveAreas(geoScope, inputs, altInputs)).map(([area, data]) => [area, resultsInputs(data, includeDebt)])),
-    [geoScope, inputs, altInputs, includeDebt]);
+  const deckAreas = React.useMemo(() => deckExportAreas(geoScope, inputs, altInputs, sectors, includeDebt),
+    [geoScope, inputs, altInputs, sectors, includeDebt]);
   const [both, setBoth] = useState<Both>(null);
   const [contrib, setContrib] = useState<Contrib>(null);   // per-intervention stacked series
   const [error, setError] = useState<string | null>(null);
+  const [sectorErrors, setSectorErrors] = useState<Record<string, string>>({});
   const [contributionError, setContributionError] = useState<string | null>(null);
 
   // The dataset the user actually filled in. Same asymmetry deckAreas handles above: in national-ENTRY
@@ -291,7 +345,6 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   const useUsd = currencyDisplay.mode === 'usd' && !mixedCurrencies && validRate(currencyDisplay, cur);
   const displayCur = useUsd ? 'USD' : cur;
   const moneyFactor = useUsd && cur.toUpperCase() !== 'USD' ? 1 / (currencyDisplay.localPerUsd as number) : 1;
-  const displayMoney = (v: number) => v * moneyFactor;
   const detailExportCurrency = mixedCurrencies ? { ...currencyDisplay, mode: 'local' as const } : currencyDisplay;
   const toggles = primary?.toggles || {};
   const depKey = JSON.stringify(datasets);
@@ -302,6 +355,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     let cancelled = false;
     setBoth(null);
     setError(null);
+    setSectorErrors({});
     const h = setTimeout(() => {
       Promise.all(datasets.map(data => runCalculation(data, 'partial'))).then(resList => {
         if (cancelled) return;
@@ -312,8 +366,30 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         const sum = (pick: (res: any, i: number) => number) =>
           years.map((_: number, i: number) => resList.reduce((a, res) => a + (pick(res, i) || 0), 0));
         const totalHH = years.map((_, i) => resList.reduce((a, res) => a + (res.total_hh[i] || 0), 0));
+        const errors: Record<string, string> = {};
+        sectors.forEach(sector => {
+          const key = sector === 'water' ? 'water_supply' : 'sanitation';
+          const issues = datasets.flatMap((dataset, index) => {
+            const validation = dataset?.utility_debt?.[sector]?.enabled
+              ? validateLoanFundingConfig(dataset.utility_debt[sector], dataset?.period) : {};
+            // Partial calculations omit invalid sectors but report intervention validation
+            // separately from sector_errors. Never discard these reasons or use another area.
+            const result = resList[index];
+            const interventionIssues = (result?.intervention_issues || [])
+              .filter((issue: any) => issue.severity === 'error' && issue.sector === sector)
+              .map((issue: any) => `${issue.intervention ? `${issue.intervention}: ` : ''}${issue.message}`);
+            const messages = [...Object.values(validation), ...interventionIssues,
+              ...(result?.sector_errors?.[key] ? [result.sector_errors[key]] : [])];
+            if (!result?.[key] && !messages.length) messages.push(`${sector === 'water' ? 'Water Supply' : 'Sanitation'} results were not returned. Complete this area's active inputs.`);
+            const area = datasets.length > 1 ? index === 0 ? 'Urban' : 'Rural'
+              : effScope === 'urban' ? 'Urban' : effScope === 'rural' ? 'Rural' : 'National';
+            return [...new Set(messages)].map(issue => `${area}: ${issue}`);
+          });
+          if (issues.length) errors[sector] = issues.join(' ');
+        });
+        setSectorErrors(errors);
         const build = (secKey: 'water_supply' | 'sanitation'): Series | null => {
-          if (resList.some(res => !res[secKey])) return null;
+          if (errors[secKey === 'water_supply' ? 'water' : 'sanitation'] || resList.some(res => !res[secKey])) return null;
           const secOf = (res: any) => res[secKey];
           const sector = secKey === 'water_supply' ? 'water' : 'sanitation';
           const attribution = aggregateCoverage(resList, secKey, !includeDebt);
@@ -400,9 +476,7 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const tBase = totalHH[baseIdx] || 0;
           const curCov = tBase > 0 ? Math.min(tBase, bau[baseIdx]) / tBase : 0;
           // Investment-gap table (BAU basis): annual flows summed over each period, millions → billions.
-          const newCap = sum((r, i) => secOf(r).new_capex_total?.[i] || 0);
           const repl = sum((r, i) => secOf(r).replacement_capex?.[i] || 0);
-          const totNeed = sum((r, i) => secOf(r).total_investment_need?.[i] || 0);
           const bauInv = sum((r, i) => secOf(r).bau_available?.[i] || 0);
           const scnInv = sum((r, i) => secOf(r).scenario_available_total[i]);
           const ledger = (key: string) => sum((r, i) => secOf(r)[key][i]);
@@ -458,15 +532,21 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             invRow('Closing outstanding expansion — end balance', ledger('closing_outstanding_expansion'), false, true),
             invRow('Catch-up before funding — end-year snapshot', ledger('catch_up_requirement'), false, true),
             invRow('Replacement credit — annual flows', ledger('replacement_credit')),
+            invRow('Current replacement paid — annual flows', ledger('replacement_current_paid')),
+            invRow('Opening backlog paid — annual flows', ledger('replacement_backlog_paid')),
+            invRow('Total replacement paid — annual flows (subtotal)', ledger('replacement_paid_total')),
+            invRow('Closing replacement backlog — end balance', ledger('replacement_backlog_closing'), false, true),
+            invRow('Eligible pooled capital after losses / debt service', ledger('eligible_capital_after_losses_debt')),
+            invRow('Ordinary capital remaining for expansion', ledger('ordinary_expansion_available')),
             invRow('Unpaid replacement — annual flows', ledger('unfunded_replacement')),
             invRow('Negative cash — annual flows', ledger('cash_deficit')),
-            invRow('Endline requirement incl. all prior shortfalls', ledger('endline_financing_requirement'), true, true),
+            invRow('Endline: expansion + replacement backlog + accumulated cash', ledger('endline_financing_requirement'), true, true),
             invRow('Gross funded asset stock — end balance', ledger('funded_asset_stock'), false, true),
             invRow('Sector-funded expansion — annual flows', ledger('sector_funded_expansion')),
             invRow('Externally funded expansion — annual flows', ledger('externally_funded_expansion')),
             invRow('Total available capital (reporting only)', bauInv),
             invRow('Coverage-stock replacement basis', ledger('bau_replacement_capex')),
-            invRow('Replacement funding reserved', ledger('replacement_reserved')),
+            invRow('Current replacement funding reserved — not total paid', ledger('replacement_reserved')),
             invRow('Actual funded connection purchases', ledger('connection_purchase_capital')),
             invRow('Unallocated positive expansion capital', ledger('unallocated_positive_capital')),
           ] };
@@ -508,8 +588,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const scheduleMetadataPresent = activeDebtAreas.length > 0 && activeDebtAreas.every(area => isModeledLoanSummary(area));
           const debt: DebtData = {
             areas: debtAreas,
-            rows: [...injectionMap.values()].sort((a, b) => a.year - b.year),
-            annualRows: [...injectionMap.values()].sort((a, b) => a.year - b.year),
+            rows: [...injectionMap.values()].filter(row => row.year > baseYr).sort((a, b) => a.year - b.year),
+            annualRows: [...injectionMap.values()].filter(row => row.year > baseYr).sort((a, b) => a.year - b.year),
             summary: {
               enabled: debtAreas.some(a => a.enabled),
               status: [...new Set(debtAreas.filter(a => a.enabled).map(a => a.status))].join(' · ') || 'disabled',
@@ -530,6 +610,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           const unit = { sm: secOf(resList[0]).cost_per_hh || 0, basic: secOf(resList[0]).cost_basic || 0 };
            return { inv, unit, attribution, sourceFunding, sourceBands: sourceCoverage.bands, impactRows,
             ledgerBase: ledgerSnapshots(resList, secKey, baseYr, false),
+            waterfallReports: replacementWaterfallReports(resList, secKey, baseYr,
+              datasets.map((dataset: any) => dataset.country_config?.area || 'Selected area'), true),
             ledgerScenario: ledgerSnapshots(resList, secKey, baseYr),
             ledgerAreas: geoScope === 'national' ? [] : resList.map((result, index) => {
               const key: 'urban' | 'rural' = effScope === 'rural' || (effScope === 'national' &&
@@ -665,8 +747,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
 
   const isShare = unitMode === 'share';
   const chartWindow = resolveChartWindow(
-    both?.water?.coverageRows?.map((r: any) => r.year) ?? [],
-    datasets[0]?.period, chartStartOverride, chartEndOverride);
+    both?.[activeSector]?.coverageRows?.map((r: any) => r.year) ?? [],
+    datasets[0]?.period, chartStartOverride ?? (Number(datasets[0]?.period?.baseline_year) + 1), chartEndOverride);
   const chartYears = chartWindow.years;
   const chartStart = chartWindow.start, chartEnd = chartWindow.end;
   const filterChartYears = (rows: any[]) => {
@@ -676,8 +758,6 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     return rows.filter(r => r.year >= lo && r.year <= hi);
   };
   const covFmt = isShare ? (v: number) => Math.round(v * 100) + '%' : (v: number) => sig3(v);
-  // gapRows are ALREADY in billions (÷1000 when built), so format with sig3 — sigB would divide twice.
-  const gapFmt = (v: number) => sig3(v);
   // Coverage stack in % mode: divide the base, every band, and the target/ceiling by that year's total.
   const asShareStack = (rows: any[], bands: ContribBand[]) => rows.map(r => {
     const tot = r.__total || 0; const d = (v: number) => tot > 0 ? v / tot : 0;
@@ -687,6 +767,11 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   });
 
   const scopeName = effScope === 'rural' ? 'Rural' : effScope === 'urban' ? 'Urban' : 'National';
+  const sectorLabel = activeSector === 'water' ? 'Water Supply' : 'Sanitation';
+  const sectionTitle = (key: ResultSection, title: string) => <h2 className="modern-input-section-heading" tabIndex={-1}>
+    <span className="modern-input-section-heading__index">{resultSections.findIndex(section => section.key === key) + 1}</span>
+    <span>{title} ({scopeName} · {sectorLabel})</span>
+  </h2>;
   const pct = (f: number) => (f * 100).toFixed(1) + '%';
 
   // Capture by identity, not DOM order: the Basic charts must not shift the existing deck images.
@@ -849,91 +934,20 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     );
   };
 
-  const RevenueDetails = ({ series, sector }: { series: Series; sector: string }) => {
-    const fields: { key: string; label: string; unit: string; currency: boolean }[] = [
-      { key: 'baseline_billed_volume_million_m3', label: 'Baseline billed volume', unit: 'million m³/year', currency: false },
-      { key: 'connection_raw_volume_million_m3', label: 'Coverage-expansion volume before overlap', unit: 'million m³/year', currency: false },
-      { key: 'connection_overlap_volume_million_m3', label: 'Identified connection/NRW overlap', unit: 'million m³/year', currency: false },
-      { key: 'connection_volume_million_m3', label: 'Reconciled connection volume', unit: 'million m³/year', currency: false },
-      { key: 'nrw_avoided_sales_adjustment', label: 'Avoided-sales volume adjustment', unit: 'million m³/year', currency: false },
-      { key: 'connection_scale', label: 'Aggregate coverage scale', unit: 'fraction', currency: false },
-      { key: 'connection_aggregate_volume_proxy', label: 'Aggregate volume-scaling proxy', unit: 'm³/reference served-household equivalent', currency: false },
-      { key: 'raw_billed_volume_million_m3', label: 'Raw billed volume', unit: 'million m³', currency: false },
-      { key: 'non_nrw_billed_volume_million_m3', label: 'Reconciled non-NRW billed volume', unit: 'million m³', currency: false },
-      { key: 'reference_billed_volume_million_m3', label: 'Funding reference billed volume', unit: 'million m³', currency: false },
-      { key: 'billed_volume_million_m3', label: 'Total billed volume', unit: 'million m³', currency: false },
-      { key: 'applicable_tariff', label: 'Applicable tariff', unit: `${displayCur}/m³`, currency: true },
-      { key: 'applicable_collection_ratio', label: 'Applicable collection ratio', unit: 'fraction', currency: false },
-      { key: 'reference_collected_revenue', label: 'Reference collected revenue', unit: `million ${displayCur}`, currency: true },
-      { key: 'collected_revenue', label: 'Collected revenue', unit: `million ${displayCur}`, currency: true },
-      { key: 'connection_net_cash', label: 'Revenue from new connections', unit: `million ${displayCur}`, currency: true },
-      { key: 'collection_cash', label: 'Collection-efficiency cash', unit: `million ${displayCur}`, currency: true },
-      { key: 'tariff_cash', label: 'Tariff-reform cash', unit: `million ${displayCur}`, currency: true },
-      { key: 'nrw_net', label: 'Water NRW signed net cash after implementation cost', unit: `million ${displayCur}`, currency: true },
-      { key: 'eligible_nrw_link_cash', label: 'Eligible NRW-linked sanitation signed net cash', unit: `million ${displayCur}`, currency: true },
-      { key: 'additional_net_cash', label: 'Additional net cash', unit: `million ${displayCur}`, currency: true },
-    ];
-    const hasAny = series.revenueRows.some(row => fields.some(f => row[`bau_${f.key}`] != null || row[`scenario_${f.key}`] != null));
-    const exportHeaders = ['Year', ...fields.flatMap(f => [`BAU — ${f.label} (${f.unit})`, `Scenario — ${f.label} (${f.unit})`])];
-    const exportRows = series.revenueRows.map(row => [
-      row.year,
-      ...fields.flatMap(f => ['bau', 'scenario'].map(kind => {
-        const value = row[`${kind}_${f.key}`];
-        if (value == null) return '';
-        return f.currency ? Number(value) * moneyFactor : value;
-      })),
-    ]);
-    const fmt = (v: number | null, f: typeof fields[number]) => {
-      if (v == null || !Number.isFinite(Number(v))) return '—';
-      const converted = f.currency ? Number(v) * moneyFactor : Number(v);
-      return converted.toLocaleString('en-US', { maximumFractionDigits: f.key === 'connection_billed_households' ? 0 : 3 });
-    };
-    const th: React.CSSProperties = { position: 'sticky', top: 0, zIndex: 1, background: '#e8f0f4', borderBottom: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'right', fontSize: 10, whiteSpace: 'nowrap' };
-    const td: React.CSSProperties = { borderBottom: '1px solid #edf1f3', padding: '5px 8px', textAlign: 'right', fontSize: 10.5, whiteSpace: 'nowrap' };
-    return <section data-revenue-details={sector} aria-label={`${sector} annual revenue details`} style={{ marginTop: 10, border: '1px solid #cbd5e1', borderRadius: 6, background: '#fbfdfe', padding: '9px 10px' }}>
-      <RevenueSourceChart inputs={datasets} results={series.nrwResults} sector={sector === 'water' ? 'water' : 'sanitation'} currencyDisplay={detailExportCurrency} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 3 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#164e63' }}>Annual Revenue Details — BAU / scenario</div>
-        {hasAny && <TableExport filename={`${sector}_annual_revenue_details`} sheetName="Revenue details" headers={exportHeaders} rows={exportRows} compact currencyDisplay={detailExportCurrency} />}
-      </div>
-      <p style={{ margin: '3px 0 7px', fontSize: 10.5, color: '#64748b' }}>
-        Monetary results are native currency millions before display conversion. Gross collected revenue is distinct from net cash. Connection net cash is a funding flow, not a one-for-one financing-gap reduction.
-      </p>
-      {!hasAny ? <div style={{ padding: '10px 4px', color: '#64748b', fontSize: 11 }}>Annual revenue diagnostics are not present in the calculation response yet.</div> :
-        <div style={{ overflow: 'auto', maxHeight: 360, border: '1px solid #e2e8f0', borderRadius: 4 }}>
-          <table style={{ borderCollapse: 'collapse', minWidth: 1360, width: '100%' }}>
-            <thead><tr><th style={{ ...th, textAlign: 'left', left: 0 }}>Year</th>{fields.flatMap(f => [
-              <th key={`b-${f.key}`} style={th}>BAU · {f.label}<br /><span style={{ fontWeight: 400 }}>{f.unit}</span></th>,
-              <th key={`s-${f.key}`} style={th}>Scenario · {f.label}<br /><span style={{ fontWeight: 400 }}>{f.unit}</span></th>,
-            ])}</tr></thead>
-            <tbody>{series.revenueRows.map((row: any, i: number) => <tr key={row.year} style={{ background: i % 2 ? '#f6f9fa' : '#fff' }}>
-              <td style={{ ...td, textAlign: 'left', fontWeight: 700 }}>{row.year}</td>
-              {fields.flatMap(f => [
-                <td key={`b-${f.key}`} style={td}>{fmt(row[`bau_${f.key}`], f)}</td>,
-                <td key={`s-${f.key}`} style={td}>{fmt(row[`scenario_${f.key}`], f)}</td>,
-              ])}
-            </tr>)}</tbody>
-          </table>
-        </div>}
-    </section>;
-  };
-
   const sectorBlock = (secKey: 'water' | 'sanitation') => {
     if (!both) return null;
     const s = secKey === 'water' ? both.water : both.sanitation;
-    if (!s) return <section role="alert">{secKey === 'water' ? 'Water Supply' : 'Sanitation'} results unavailable. Missing sector or geography results are not counted as zero.</section>;
+    if (!s) return <section role="alert" className="modern-intv-table-state">
+      {secKey === 'water' ? 'Water Supply' : 'Sanitation'} results unavailable. {sectorErrors[secKey] || 'Missing sector or geography results are not counted as zero.'}
+      <button type="button" onClick={() => setAttempt(value => value + 1)}>Retry results</button>
+    </section>;
     const label = secKey === 'water' ? 'Water Supply' : 'Sanitation';
     const cs = secKey === 'water' ? contrib?.water : contrib?.sanitation;
     const groupedCov = contributionView === 'category' ? aggregateContributionRows(s.coverageRows, s.sourceBands) : { rows: s.coverageRows, bands: s.sourceBands };
-    const groupedGap = cs && contributionView === 'category' ? aggregateContributionRows(cs.gapRows, cs.bands) : { rows: cs?.gapRows ?? s.financingRows, bands: cs?.bands ?? [] };
     const csBands = groupedCov.bands as ContribBand[];
-    const gapBands = groupedGap.bands as ContribBand[];
     const allCovData = isShare ? asShareStack(groupedCov.rows, csBands) : groupedCov.rows;
     const covData = filterChartYears(allCovData);
     const basicData = filterChartYears(s.basicRows);
-    const gapData = filterChartYears(groupedGap.rows).map((r: any) => Object.fromEntries(
-      Object.entries(r).map(([key, value]) => [key, key === 'year' || typeof value !== 'number' ? value : value * moneyFactor])
-    ));
     // Both coverage charts share a household scale, including the total-households
     // ceiling, so their heights can be compared directly in count mode.
     const maxCoverage = Math.max(0,
@@ -949,12 +963,6 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
       { key: '__target', name: 'Target', color: C.target, dash: '6 3', width: 2 },
       { key: '__bau', name: 'Pure BAU (safely managed)', color: C.bau, dash: '4 3', width: 1.25 },
     ];
-    // Gap chart: NO base area — the intervention gap-reduction bands stack UP from zero (what the levers close),
-    // and a dashed line marks the total BAU financing gap. The vertical distance from the top of the stack up to
-    // that line is the gap still remaining to reach the fully-financed target.
-    const gapLines = [{ key: '__bau_gap', name: 'Total financing gap (BAU) — target to close', color: C.gap, dash: '6 3', width: 2 }];
-    if (!cs) gapLines.push({ key: '__scenario_gap', name: 'Full scenario requirement', color: C.bau, dash: '', width: 2 });
-    const noImpact = Math.abs(s.sum.addHH) < 1e-4 && Math.abs(s.sum.gapBauCum - s.sum.gapScnCum) < 1e-4;
     const rows = s.impactRows;
     const ledgerData: LedgerData = {
       sector: secKey,
@@ -969,50 +977,11 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
     };
     const visibleLedgerYears = s.ledgerScenario.filter(row => (chartStart == null || row.year >= chartStart) &&
       (chartEnd == null || row.year <= chartEnd)).map(row => row.year);
-    const chartService = ledgerSelection[secKey].service;
-    const closingValues = (sourceKind: 'bau' | 'scenario') => ledgerRows(ledgerData, {
-      metric: 'gap', service: chartService, basis: 'closing', years: visibleLedgerYears,
-      isShare: false, moneyFactor, currency: displayCur, view: 'source', sourceKind,
-    })[0]?.values ?? visibleLedgerYears.map(() => null);
-    const needBAU = closingValues('bau');
-    const needScenario = closingValues('scenario');
-    const needChartRows = visibleLedgerYears.map((year, i) => ({ year, bau: needBAU[i], scenario: needScenario[i] }));
     const hhCol = "Attributed SM stock / BAU reconciliation (HHs '000)";
-    const modes = s.revenueModes.map((mode: any) => {
-      const effective = String(mode.effective ?? '').toLowerCase().replace(/[_ ]/g, '-');
-      return {
-        ...mode,
-        label: effective.includes('aggregate') ? 'Aggregate coverage expansion' : effective.includes('legacy') ? 'Connection-based (legacy)'
-          : effective === 'incomplete' ? 'Incomplete'
-          : mode.effective === true || effective.includes('connection') || effective === 'dynamic' ? 'Legacy connection mode'
-          : mode.effective === false || effective.includes('exogenous') ? 'Exogenous'
-            : mode.requested ? 'Coverage expansion requested; effective status not reported' : 'Exogenous',
-      };
-    });
-    const distinctModes = [...new Set(modes.map((mode: any) => mode.label))];
     return (
       <div key={secKey} className="modern-results-sector" data-results-sector={secKey} style={{ marginBottom: 26, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: '2px solid #e2e8f0', paddingBottom: 4, marginBottom: 10 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#1e3a5f' }}>{label}</span>
-          <span style={{ fontSize: 11, color: '#64748b' }}>· {scopeName}</span>
-        </div>
-        <details style={{ marginBottom: 10 }}><summary style={{ cursor: 'pointer', fontSize: 11, color: '#334155' }}>Coverage summary, service gaps and revenue assumptions</summary>
-        <div style={{ marginBottom: 10, borderLeft: '3px solid #0f766e', background: '#f0fdfa', padding: '7px 10px', fontSize: 10.5, color: '#334155' }}>
-          <b>Pure baseline: exogenous · New-connection revenue:</b> {s.connectionMetadata?.label || (distinctModes.length > 1 ? 'Mixed across areas' : (distinctModes[0] || 'Exogenous'))}
-          {(modes.length > 1 || s.connectionMetadata?.mixed) ? <span> · Per area: {modes.map((mode: any) => `${mode.area}: ${mode.label}`).join(' · ')}</span> : null}
-          {modes.some((mode: any) => mode.errors?.length) && <span> · Validation issues are reported for the affected area.</span>}
-          <div style={{ marginTop: 3 }}>Connection cash can fund eligible work after replacement priority and service-pool limits; it is not itself a coverage intervention or a direct gap credit.</div>
-        </div>
-        <div style={{ fontSize: 11.5, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', borderLeft: '3px solid #0ea5e9', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55, marginBottom: 12 }}>
-          <b>By {s.sum.endline}</b>, safely-managed coverage increases from <b>{pct(s.sum.bauCov)}</b> (BAU) to <b>{pct(s.sum.scnCov)}</b> with the current interventions — <b>{sig3(s.sum.addHH)} M</b> more households — against a target of <b>{pct(s.sum.tgtCov)}</b>. The endline financing requirement changes from <b>{sigB(displayMoney(s.sum.gapBauCum))}</b> to <b>{sigB(displayMoney(s.sum.gapScnCum))} B {displayCur}</b>.
-        </div>
-        <ServiceAccessGaps rows={s.accessRows} filename={`${scopeName}_${secKey}_service_access`} />
-        {noImpact && (
-          <div style={{ fontSize: 10.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '5px 9px', marginBottom: 10 }}>
-            No interventions are active for {label.toLowerCase()}. Toggle some on above to break down the impact by intervention.
-          </div>
-        )}
-        </details>
+        <section className="modern-bau-section intervention-reading-section" data-section-key="coverage">
+        {sectionTitle('coverage', 'Coverage Graphs')}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: 8, marginBottom: 8 }}>
           <button type="button" aria-label={`${label} safely managed view table`}
             onClick={() => showLedger(secKey, { metric: 'coverage', service: 'sm', basis: 'annual' })}>View safely managed table</button>
@@ -1022,10 +991,6 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             onClick={() => showLedger(secKey, { metric: 'gap', service: 'total', basis: 'closing' })}>View financing table</button>
         </div>
         <div className="modern-results-chart-group">
-          <div className="modern-results-chart-group__heading">
-            <span>01 · SERVICE OUTCOMES</span>
-            <p>Coverage trajectories against business-as-usual and target.</p>
-          </div>
           <div className="modern-results-chart-grid modern-results-chart-grid--coverage">
           <StackChart title={`${label} — safely-managed coverage`} subtitle={contributionView === 'category' ? 'Categories sum actual source-funded and physical coverage; pure BAU is a separate line.' : 'Opening/baseline-funded stock + actual source-funded and physical coverage'}
             data={covData} yLabel={isShare ? '% of population' : '# households (millions)'}
@@ -1036,18 +1001,19 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
           </div>
         </div>
-        <div className="modern-results-chart-group modern-results-chart-group--finance">
-          <div className="modern-results-chart-group__heading">
-            <span>02 · FINANCING REQUIREMENT</span>
-            <p>Advanced intervention-effects bridge for the reported endline requirement; read alongside remaining-need balances below.</p>
-          </div>
-          <div className="modern-results-chart-grid">
-          <StackChart title={`${label} — advanced intervention-effects bridge (reported endline requirement)`} subtitle={!cs ? 'Combined safely managed + exclusive Basic financing. Advanced marginal effects on the existing endline-financing measure; attribution is pending or unavailable.' : 'Combined safely managed + exclusive Basic financing. Advanced view of the existing reported endline measure. Bands are signed reductions from BAU: positive reduces need, negative increases it. This is not the remaining-need balance; use the companion line below.'}
-            data={gapData} yLabel={`Year-end requirement (B ${displayCur})`}
-            bands={gapBands} lines={gapLines} fmt={gapFmt}
-            filename={`${scopeName}_${secKey}_financing_gap_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_gap`} currencyDisplay={detailExportCurrency} />
-          </div>
-        </div>
+        </section>
+        <section className="modern-bau-section intervention-reading-section" data-section-key="capital">
+          {sectionTitle('capital', 'Final Intervention Scenario Capital Requirements and Available Funding')}
+          <ResultsFundingPanel mode="capital" results={s.nrwResults} inputs={datasets} sector={secKey} scope={scopeName}
+            years={visibleLedgerYears} currency={displayCur} moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency} />
+        </section>
+        <section className="modern-bau-section intervention-reading-section" data-section-key="funds">
+          {sectionTitle('funds', 'Sector Available Funds')}
+          <ResultsFundingPanel mode="funds" results={s.nrwResults} inputs={datasets} sector={secKey} scope={scopeName}
+            years={visibleLedgerYears} currency={displayCur} moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency} />
+        </section>
+        <section className="modern-bau-section intervention-reading-section" data-section-key="ledger">
+        {sectionTitle('ledger', `${label} Ledger`)}
         <ResultsLedgerPanel data={ledgerData} sector={secKey} label={label} scope={scopeName}
           years={visibleLedgerYears}
           isShare={isShare} currency={displayCur} moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency}
@@ -1055,102 +1021,77 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           onRetry={() => setAttempt(value => value + 1)}
           selection={ledgerSelection[secKey]} onSelectionChange={selection =>
             setLedgerSelection(current => ({ ...current, [secKey]: selection }))} />
-        <section className="remaining-need-chart" aria-label={`${label} remaining financing need chart`}>
-          <div className="remaining-need-chart__heading">
-            <div>
-              <span>Closing balance · B {displayCur} / {scopeName} / {chartService === 'sm' ? 'Safely managed' : chartService === 'basic' ? 'Basic-only' : 'At least Basic'}</span>
-              <h3>Remaining financing need—with interventions</h3>
-              <p>BAU and combined scenario use the same closing source series as the year-end ledger. Effects show changes from BAU, not remaining need.</p>
-            </div>
-            <div className="remaining-need-chart__tools">
-              <strong>{visibleLedgerYears.length ? `${visibleLedgerYears[0]}–${visibleLedgerYears[visibleLedgerYears.length - 1]}` : 'No years selected'}</strong>
-              <TableExport filename={`${scopeName}_${secKey}_${chartService}_remaining_need_${displayCur}`}
-                sheetName="Closing need" compact currencyDisplay={detailExportCurrency} freezeColumns={7}
-                headers={['Year','Sector','Geography / scope','Service','Timing','Unit','BAU remaining need','Combined-scenario remaining need']}
-                rows={needChartRows.map(row => [row.year, label, scopeName,
-                  chartService === 'sm' ? 'Safely managed' : chartService === 'basic' ? 'Basic-only' : 'At least Basic',
-                  'Year-end balance', `B ${displayCur}`, row.bau, row.scenario])} />
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={260}>
-            <ComposedChart data={needChartRows} margin={{ top: 12, right: 22, bottom: 8, left: 10 }}>
-              <CartesianGrid strokeDasharray="3 4" stroke="#dce5e5" />
-              <XAxis dataKey="year" tick={{ fontSize: 10 }} interval={yearAxisInterval(needChartRows)} />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => sig3(Number(v))}>
-                <Label value={`B ${displayCur}`} angle={-90} position="insideLeft" style={{ fontSize: 10, fill: '#64748b' }} />
-              </YAxis>
-              <Tooltip formatter={(value: any, name: any) => [
-                value == null ? 'Not reported' : `${sig3(Number(value))} B ${displayCur}`, name,
-              ]} />
-              <Legend />
-              <Line type="monotone" dataKey="bau" name="Remaining financing need — BAU" stroke="#78939a"
-                strokeWidth={2} strokeDasharray="5 4" dot={false} connectNulls={false} isAnimationActive={false} />
-              <Line type="monotone" dataKey="scenario" name="Remaining financing need—with interventions" stroke="#087f78"
-                strokeWidth={2.8} dot={false} connectNulls={false} isAnimationActive={false} />
-            </ComposedChart>
-          </ResponsiveContainer>
-          {needChartRows.length > 0 && needChartRows.every(row => row.bau == null && row.scenario == null) &&
-            <p className="remaining-need-chart__unavailable" role="status">
-              Exact closing source fields are not present in this result set; balances are unavailable rather than inferred.
-            </p>}
         </section>
-        <details style={{ marginTop: 12, marginBottom: 12 }}>
-          <summary style={{ cursor: 'pointer', fontSize: 12, color: '#334155' }}>Full technical audit ledger and downloads</summary>
-          <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={displayCur}
-            moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency} />
-        </details>
-        <RevenueDetails series={s} sector={secKey} />
-        <NRWDiagnostics results={s.nrwResults} sector={secKey === 'water' ? 'water_supply' : 'sanitation'}
-          currency={cur} currencyDisplay={detailExportCurrency}
-          title={secKey === 'water' ? 'Water NRW source audit' : 'Sanitation revenue and NRW-link source audit'} />
-        <UtilityDebtSchedule debt={s.debt} currency={displayCur} moneyFactor={moneyFactor} />
+        <section className="modern-bau-section intervention-reading-section" data-section-key="attribution">
+        {sectionTitle('attribution', 'Attributed Coverage by Source')}
         {rows && rows.length > 0 && (
           <div style={{ marginTop: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f', marginBottom: 3 }}>Attributed coverage by source{contributionView === 'category' ? ' — individual detail' : ''} (stock at {s.sum.endline})</div>
             <ImpactTable rows={rows} hhCol={hhCol} />
           </div>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12, alignItems: 'start' }}>
-          <InvestmentGapTable inv={s.inv} />
-          <UnitCostTable unit={s.unit} />
-        </div>
+        <p className="modern-bau-service-note">Actual source-funded stocks and the signed baseline-funded difference reconcile the gain over pure BAU. Cost and technology benefits are embedded in purchases, not additional coverage sources. Loan proceeds are financing, not operating revenue.</p>
+        </section>
+        <section className="modern-bau-section intervention-reading-section" data-section-key="summary">
+          {sectionTitle('summary', 'Summary Flows')}
+          <details className="results-summary"><summary>Executive coverage summary and service gaps</summary>
+            <div className="results-summary__body"><ExecSummary /><ServiceAccessGaps rows={s.accessRows} filename={`${scopeName}_${secKey}_service_access`} /></div>
+          </details>
+          <details className="results-summary"><summary>Scenario capital flows and closing balances</summary>
+            <div className="results-summary__body">
+              <ScenarioGapTables rows={s.financeRows} sector={secKey} label={label} scope={scopeName} currency={displayCur}
+                moneyFactor={moneyFactor} currencyDisplay={detailExportCurrency} />
+            </div>
+          </details>
+          <details className="results-summary"><summary>Replacement waterfall and source audit</summary>
+            <div className="results-summary__body">{s.waterfallReports.map((report, i) =>
+              <ReplacementWaterfallTable key={report.label} label={report.label} rows={report.rows} moneyFactor={moneyFactor} currency={displayCur}
+                filename={`${scopeName}_${secKey}_replacement_waterfall_${i}`} currencyDisplay={detailExportCurrency} />)}
+              <NRWDiagnostics results={s.nrwResults} sector={secKey === 'water' ? 'water_supply' : 'sanitation'}
+                currency={cur} currencyDisplay={detailExportCurrency} title={`${label} source audit`} />
+            </div>
+          </details>
+          <details className="results-summary"><summary>Indicative loan proceeds and contractual repayment</summary>
+            <div className="results-summary__body">{s.debt.areas.some(area => area.enabled)
+              ? <UtilityDebtSchedule debt={s.debt} currency={displayCur} moneyFactor={moneyFactor} />
+              : <p className="modern-bau-service-note">No enabled loan in this view. Ordinary intervention results are shown; saved settings are unchanged.</p>}</div>
+          </details>
+          <details className="results-summary"><summary>BAU reference investment flows and unit costs</summary>
+            <div className="results-summary__body"><InvestmentGapTable inv={s.inv} /><UnitCostTable unit={s.unit} /></div>
+          </details>
+        </section>
       </div>
     );
   };
 
-  // ── Intervention on/off toggle bar (details live on the Intervention Design tab) ─────────────────
-  const ToggleColumn = ({ title, defs }: { title: string; defs: IntvDef[] }) => (
-    <div style={{ flex: 1, minWidth: 220 }}>
-      <div style={{ fontSize: 11.5, fontWeight: 700, color: '#1e3a5f', marginBottom: 5 }}>{title}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {defs.map(d => {
-          const on = datasets.some(inp => interventionEnabled(inp, d.key));
-          return (
-            <label key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, cursor: 'pointer',
-              padding: '4px 8px', background: on ? '#eff6ff' : '#fff', border: `1px solid ${on ? '#bfdbfe' : '#e5e7eb'}`, borderRadius: 5 }}>
-              <input type="checkbox" disabled={readOnly || d.key === 'san_nrw_link_enabled' && !sectors.includes('water')} checked={on && (d.key !== 'san_nrw_link_enabled' || sectors.includes('water'))} onChange={e => onToggle?.(d.key, e.target.checked)}
-                style={{ width: 15, height: 15, accentColor: '#2563eb' }} />
-              <span style={{ color: on ? '#1e3a5f' : '#475569', fontWeight: on ? 600 : 400 }}>{d.label}</span>
-            </label>
-          );
-        })}
-      </div>
-    </div>
-  );
-
   return (
-    <div ref={dashboardRef} className="modern-results-page" data-testid="results-dashboard" style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', padding: '18px 26px' }}>
-      <header className="modern-results-intro modern-page-intro">
-        <span className="modern-page-intro__eyebrow">WORKFLOW 05 · COMPARE SCENARIO OUTCOMES</span>
-        <h2>Results, by service and financing need</h2>
-        <p>Start with the executive coverage summary, then review each sector’s coverage and financing views. Use the controls below to change display scope, units and comparison settings.</p>
-      </header>
-      <div className="modern-results-toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-        <div>
-          <h2 style={{ fontSize: 17, color: '#1e3a5f', margin: 0 }}>Results — intervention impact (live)</h2>
-          <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-            Safely-managed coverage shows actual funding-source and physical delivery stocks; financial-gap effects retain ordered comparisons. Basic coverage compares the BAU, full scenario and target; Basic households may move up to Safely Managed.
-          </div>
+    <div ref={dashboardRef} className="results-workspace loan-workspace intervention-section-workspace" data-testid="results-dashboard">
+      <nav className="modern-inputs-nav intervention-section-nav" aria-label="Results sections">
+        <span className="modern-inputs-nav__eyebrow">Results dashboard</span>
+        <select className="modern-inputs-nav__select" aria-label="Results section" value={activeSection}
+          onChange={event => navigate(event.target.value as ResultSection)}>
+          {resultSections.map((section, index) => <option key={section.key} value={section.key}>
+            {index + 1}. {section.key === 'ledger' ? `${sectorLabel} Ledger` : section.title}
+          </option>)}
+        </select>
+        <div className="modern-inputs-nav__items">{resultSections.map((section, index) => <button key={section.key} type="button"
+          className="modern-inputs-nav__item" aria-current={activeSection === section.key ? 'location' : undefined}
+          onClick={() => navigate(section.key)}>
+          <span className="modern-inputs-nav__number">{index + 1}</span>
+          <span>{section.key === 'ledger' ? `${sectorLabel} Ledger` : section.title}</span>
+        </button>)}</div>
+      </nav>
+      <div className="modern-inputs-content intervention-reading-content" ref={reading}>
+      <div className="results-controls">
+        <div className="modern-bau-toggles" role="group" aria-label="Results geography">
+          {(geoScope === 'urban_rural' ? ['urban', 'rural', 'national'] as const : [geoScope]).map(scope => <button key={scope}
+            type="button" aria-pressed={effScope === scope} onClick={() => setViewScope(scope as 'urban' | 'rural' | 'national')}>
+            {scope[0].toUpperCase() + scope.slice(1)}
+          </button>)}
+        </div>
+        <div className="modern-bau-toggles" role="group" aria-label="Results sector">
+          {sectors.map(sector => <button key={sector} type="button" aria-pressed={activeSector === sector}
+            onClick={() => { setSectorTab(sector); onSectorChange?.(sector); }}>{sector === 'water' ? 'Water Supply' : 'Sanitation'}</button>)}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={cur} canUseUsd={!mixedCurrencies}
@@ -1158,23 +1099,6 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             onEditRate={onEditCurrencyRate} />
           {mixedCurrencies && <span style={{ fontSize: 10, color: '#b45309' }}>USD display and exports require matching area currencies ({resultCurrencies.join(', ')}).</span>}
           <ContributionViewToggle value={contributionView} onChange={onContributionViewChange} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>Scope</span>
-            {/* National entry is one dataset with no urban/rural split, so the only honest view is National —
-                offering Urban/Rural there would label the same national numbers as an area's. */}
-            <select value={effScope} onChange={e => setViewScope(e.target.value as any)}
-              disabled={geoScope !== 'urban_rural'}
-              title={geoScope === 'national' ? 'The data was entered as a single national dataset — there is no urban/rural breakdown to view.' : undefined}
-              style={{ padding: '5px 26px 5px 8px', borderRadius: 5, border: '1px solid #94a3b8', fontSize: 12,
-                background: geoScope === 'national' ? '#f1f5f9' : '#fff', color: geoScope === 'national' ? '#64748b' : undefined,
-                cursor: geoScope === 'national' ? 'not-allowed' : 'pointer' }}>
-              {geoScope !== 'urban_rural' ? <option value={geoScope}>{geoScope[0].toUpperCase() + geoScope.slice(1)}</option> : (<>
-                <option value="urban">Urban</option>
-                <option value="rural">Rural</option>
-                <option value="national">National</option>
-              </>)}
-            </select>
-          </div>
           {chartYears.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>Graph years</span>
@@ -1213,38 +1137,24 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
           </div>
           {/* Excel/CSV post one dataset and run the engine on it, so they take the edited primary (the
               national dataset in national-entry mode); the deck still covers every entered area. */}
-          <ExportButtons inputs={primary} pptxCharts={captureResultsCharts} areas={deckAreas} contributionView={contributionView}
-            currencyDisplay={currencyDisplay} />
+          <ExportButtons inputs={datasets[0]} pptxCharts={captureResultsCharts} areas={deckAreas} contributionView={contributionView}
+            currencyDisplay={detailExportCurrency} />
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+      <div className="results-controls__row">
         <label style={{ fontSize: 12, color: '#334155' }}>Loan funding
-          <select aria-label="Results debt mode" value={hasConfiguredDebt && includeDebt ? 'with_debt' : 'without_debt'}
+          <select aria-label="Results debt mode" value={includeDebt ? 'with_debt' : 'without_debt'}
             onChange={event => setIncludeDebt(event.target.value === 'with_debt')} style={{ marginLeft: 8, padding: '5px 8px', fontSize: 12 }}>
-            <option value="without_debt">Without loan funding — standard results</option>
-            <option value="with_debt" disabled={!hasConfiguredDebt}>With indicative loan funding</option>
+            <option value="with_debt">Include saved indicative loans (default)</option>
+            <option value="without_debt">Exclude borrowing for comparison</option>
           </select>
         </label>
-        <span style={{ fontSize: 11, color: '#64748b' }}>Results exclude loan funding by default. Include it here without changing saved terms.</span>
-        {sectors.map(sector => <button key={sector} type="button"
-          onClick={() => dashboardRef.current?.querySelector(`[data-results-sector="${sector}"]`)?.scrollIntoView({ block: 'start' })}
-          style={{ padding: '5px 8px', fontSize: 11 }}>{sector === 'water' ? 'Water supply graphs' : 'Sanitation graphs'}</button>)}
+        <span className="modern-bau-service-note">{includeDebt
+          ? hasConfiguredDebt ? 'Saved enabled loans are included. Disabled loans stay disabled.' : 'No enabled loans. Ordinary intervention results are shown.'
+          : 'Borrowing excluded for this view only. Saved settings are unchanged.'}</span>
       </div>
       <p style={{ fontSize: 11, lineHeight: 1.5, color: '#64748b', margin: '-4px 0 12px' }}>{LOAN_FUNDING_QUALIFICATION}</p>
-      {/* Optional edits stay available without pushing the standard graphs off-screen. */}
-      <details className="modern-results-advanced" style={{ border: '1px solid #c7d2fe', background: '#f5f7ff', borderRadius: 8, padding: '10px 14px', marginBottom: 18 }}>
-        <summary style={{ cursor: 'pointer', fontSize: 12, color: '#312e81' }}>Adjust intervention switches</summary>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: '#312e81' }}>Interventions</span>
-          <span style={{ fontSize: 10.5, color: '#64748b' }}>Switch each on or off — set its parameters on the <b>Intervention Design</b> tab.</span>
-        </div>
-        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-          {sectors.includes('water') && <ToggleColumn title="Water Supply" defs={WATER_INTV} />}
-          {sectors.includes('sanitation') && <ToggleColumn title="Sanitation" defs={SAN_INTV} />}
-        </div>
-      </details>
-
       {error && <div role="alert" style={{ fontSize: 11, color: '#b91c1c', marginBottom: 8 }}>Results unavailable — {error}
         <button type="button" onClick={() => setAttempt(value => value + 1)} style={{ marginLeft: 8 }}>Retry results</button>
       </div>}
@@ -1252,21 +1162,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         Intervention breakdown unavailable — {contributionError}. Full-scenario graphs and outputs are shown when available.
         <button type="button" onClick={() => setAttempt(value => value + 1)} style={{ marginLeft: 8 }}>Retry breakdown</button>
       </div>}
-      {!both && !error && <div style={{ fontSize: 12, color: '#64748b', padding: '20px 0' }}>Computing…</div>}
-
-      {/* Executive summary (table 9) — headline coverage, results-first. */}
-      <div className="modern-results-executive-summary"><ExecSummary /></div>
-
-      {sectors.includes('water') && sectorBlock('water')}
-      {sectors.includes('sanitation') && sectorBlock('sanitation')}
-
-      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: -6, marginBottom: 16 }}>
-        Table: “Resources / financing” reports cash mobilised or loan principal accepted; utility borrowing is financing,
-        not operating revenue. Attributed SM stocks plus the signed baseline-funded difference reconcile the total gain over pure BAU.
-        Cost-efficiency and technology benefits are included in funded additions, not separate coverage sources.
-      </div>
+      {!both && !error && <div className="modern-intv-table-state results-section-state" aria-label="Loading results">
+        <span className="modern-skeleton" /><span className="modern-skeleton" /><span className="modern-skeleton" />
+      </div>}
+      {activeSector && sectorBlock(activeSector)}
 
       {scenarios.length > 0 && (
+        <details className="results-summary"><summary>Saved scenario downloads</summary>
         <div style={{ marginTop: 8 }}>
           <h3 style={{ fontSize: 13, marginBottom: 6, fontWeight: 600, color: '#1e3a5f' }}>Saved scenarios</h3>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1290,8 +1192,9 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
               </div>
             ))}
           </div>
-        </div>
+        </div></details>
       )}
+      </div>
     </div>
   );
 }

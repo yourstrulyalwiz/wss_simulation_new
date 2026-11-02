@@ -18,6 +18,89 @@
 .modern-geographical-scope label { font-size:13px; font-weight:700; color:#014972; }
 .modern-geographical-scope .wb-scope-select { max-width:100%; min-width:0; padding:8px 12px; }
 .modern-geographical-scope p { margin:8px 0 0; font-size:11px; }
+
+.modern-workspace-sections {
+  display:flex; align-items:stretch; gap:8px; margin:4px 0 18px;
+  border-bottom:1px solid #d7e1e5;
+}
+.modern-workspace-sections button {
+  appearance:none; border:0; border-bottom:3px solid transparent; border-radius:0!important;
+  padding:11px 14px; background:transparent; color:#58717d; text-align:left;
+  font-size:11px; font-weight:700; letter-spacing:.04em; cursor:pointer;
+}
+.modern-workspace-sections button span { margin-left:8px; color:#294c5d; letter-spacing:0; }
+.modern-workspace-sections button[aria-current="page"] { color:#007b83; border-bottom-color:#009ca7; }
+.modern-intv-graph-controls { display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin-bottom:10px; }
+.modern-intv-service-picker { margin:12px 0 16px; }
+.modern-intv-table-wrap { min-width:0; max-width:100%; margin:16px 0 20px; }
+.modern-intv-kpis { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:14px 0 20px; }
+.modern-intv-kpi {
+  min-width:0; padding:13px 15px; border:1px solid #dbe5e8; border-top:3px solid #009ca7;
+  border-radius:4px; background:#f5f9fa; display:flex; flex-direction:column; gap:4px;
+}
+.modern-intv-kpi span { color:#55717c; font-size:10px; font-weight:700; letter-spacing:.055em; text-transform:uppercase; }
+.modern-intv-kpi strong { color:#014972; font-size:22px; font-variant-numeric:tabular-nums; }
+.modern-intv-kpi small { color:#72848b; font-size:10px; }
+.modern-intv-table-caption { display:flex; flex-direction:column; gap:5px; margin:8px 0 10px; color:#204d61; font-size:13px; font-weight:700; }
+.modern-intv-table-caption__title { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.modern-intv-table-caption small { color:#63777f; font-size:11px; font-weight:400; }
+.modern-intv-table-scroll { container:intervention-ledger / inline-size; min-width:0; max-width:100%; overflow:auto; border:1px solid #d9e3e7; border-radius:4px; }
+.modern-intv-table { table-layout:fixed; width:100%; min-width:0; max-width:100%; border-collapse:collapse; background:#fff; font-size:11px; white-space:normal; }
+.modern-intv-table th,.modern-intv-table td { box-sizing:border-box; min-width:0; padding:9px 6px; border-bottom:1px solid #e7edef; white-space:normal; overflow-wrap:anywhere; vertical-align:top; text-align:right; line-height:1.4; font-variant-numeric:tabular-nums; }
+.modern-intv-table thead th { position:sticky; top:0; background:#eaf2f4; color:#295566; font-size:10px; }
+.modern-intv-table tbody th { text-align:left; color:#426271; }
+.modern-intv-table tbody tr:nth-child(even) { background:#f7fafb; }
+.modern-intv-table-state { display:grid; gap:8px; padding:12px 0; color:#5f737b; font-size:12px; }
+.modern-intv-table-state p { margin:0; }
+.modern-skeleton { display:block; height:14px; max-width:60%; border-radius:3px; background:linear-gradient(90deg,#e6edef,#f4f8f9,#e6edef); }
+.intervention-settings-mount { display:none!important; }
+.intervention-workspace__charts { container-type:inline-size; container-name:intervention-charts; }
+.intervention-input-drawer {
+  flex:0 0 0; width:0; min-width:0; overflow:hidden; background:#fff;
+  border-right:0 solid #dce6e9; border-left:0 solid #dce6e9;
+}
+.intervention-input-drawer.is-open {
+  flex:0 0 min(360px,32vw); width:min(360px,32vw); border-left-width:1px; border-right-width:1px;
+}
+.intervention-input-drawer__header {
+  min-height:74px; padding:14px 15px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  background:#edf4f5; border-bottom:1px solid #dce6e9;
+}
+.intervention-input-drawer__header span { color:#6b838d; font-size:9px; font-weight:800; letter-spacing:.11em; }
+.intervention-input-drawer__header h3 { margin:3px 0 0; font-size:14px; }
+.intervention-input-drawer__header button {
+  border:1px solid #b9ccd2; padding:6px 10px; background:#fff; color:#315868; font-size:10px; cursor:pointer;
+}
+.intervention-input-drawer__body { height:calc(100% - 74px); overflow:auto; overscroll-behavior:contain; }
+.intervention-toggle__checkbox { display:flex; align-items:center; flex:0 0 22px; cursor:pointer; }
+.intervention-toggle__name {
+  flex:1; min-width:0; padding:3px 2px; border:0; border-radius:3px!important; background:transparent;
+  color:#315568; text-align:left; font-size:12px; font-weight:600; cursor:pointer;
+}
+.intervention-toggle__name:hover { color:#007b83; text-decoration:underline; }
+.intervention-toggle__issue { display:block; margin-top:3px; color:#a33c35; font-size:9px; font-weight:600; }
+.modern-intv-data-note { padding:8px 10px; color:#725c37; background:#fff8e9; border-left:3px solid #c69b45; font-size:11px; line-height:1.5; }
+.modern-intv-chart-group { min-width:0; margin:12px 0 20px; }
+.modern-intv-chart-pair { display:grid; grid-template-columns:minmax(0,1fr); gap:18px; align-items:stretch; }
+.modern-intv-coverage-chart { min-width:0; padding:10px; border:1px solid #d1e1e5; border-radius:6px; background:#fbfdfd; }
+.modern-intv-chart-pair .modern-bau-spending { min-width:0; margin:0; padding:10px; border:1px solid #d1e1e5; border-radius:6px; background:#fbfdfd; }
+.modern-intv-revenue-details { margin:16px 0 28px; border:1px solid #d1e1e5; border-radius:6px; background:#f8fbfc; }
+.modern-intv-revenue-details summary { padding:12px 14px; color:#24566a; font-weight:700; font-size:12px; cursor:pointer; }
+.modern-intv-revenue-details[open] { padding:0 12px 12px; }
+@container intervention-charts (min-width:1076px) {
+  .modern-intv-chart-pair { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .modern-intv-chart-group--expanded .modern-intv-chart-pair { grid-template-columns:minmax(0,1fr); }
+}
+@media(max-width:767px) {
+  .modern-intv-kpis { grid-template-columns:1fr; }
+  .modern-intv-graph-controls { align-items:flex-start; flex-direction:column; gap:8px; }
+  .modern-workspace-sections button { padding:10px 6px; font-size:10px; }
+  .intervention-workspace { flex-direction:column!important; overflow:auto!important; }
+  .intervention-input-drawer,.intervention-input-drawer.is-open { flex:0 0 auto; width:100%; border:0; min-height:0; }
+  .intervention-input-drawer.is-open { min-height:45dvh; border-top:1px solid #dce6e9; border-bottom:1px solid #dce6e9; }
+  .intervention-input-drawer__body { height:auto; max-height:40dvh; }
+  .intervention-workspace__charts { flex:1 0 auto!important; overflow:visible!important; padding:18px!important; }
+}
 .modern-geographical-scope__hint { color:#014972; font-weight:700; }
 .wb-app button:focus-visible, .wb-app select:focus-visible, .modern-input-section-heading:focus-visible { outline:3px solid #009ca761; outline-offset:2px; }
 .modern-section-workspace { flex:1; min-width:0; min-height:0; display:grid; grid-template-columns:218px minmax(0,1fr); }
@@ -106,6 +189,113 @@
 }
 @media(prefers-reduced-motion:reduce) { .wb-app * { scroll-behavior:auto !important; transition:none !important; } }
 
+/* Navigation, adjacent settings, then the independent long-page reading column.
+   The settings sources render portals only; they never reserve a layout column. */
+.intervention-section-workspace {
+  display:grid; flex:1 1 auto; min-width:0; min-height:0; overflow:hidden;
+  grid-template-columns:218px minmax(0,1fr);
+}
+.intervention-section-workspace--design {
+  grid-template-columns:218px minmax(300px,360px) minmax(0,1fr);
+}
+.intervention-section-workspace--drawer-open {
+  grid-template-columns:218px minmax(300px,360px) minmax(0,1fr);
+}
+.intervention-section-nav { grid-column:1; grid-row:1; }
+.intervention-nav-groups { margin:5px 0 14px 8px; padding-left:9px; border-left:1px solid #d5e2e6; }
+.intervention-nav-group h4 { margin:13px 0 5px; color:#527684; font-size:10px; line-height:1.45; font-weight:700; }
+.intervention-nav-group ul { list-style:none; margin:0; padding:0; }
+.intervention-nav-link {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  width:100%; min-height:36px; padding:7px 5px; border:1px solid transparent;
+  background:transparent; color:#46616c; text-align:left; font:inherit; font-size:10.5px;
+  line-height:1.4; cursor:pointer; overflow-wrap:anywhere;
+}
+.intervention-nav-link:hover, .intervention-nav-link[aria-expanded="true"] { background:#e6f2f3; border-color:#c4dfe1; color:#014972; }
+.intervention-nav-status { flex:0 0 8px; width:8px; height:8px; box-sizing:border-box; border:1px solid #a9bdc5; border-radius:50%; }
+.intervention-nav-status[data-active="true"] { background:var(--modern-teal, #009ca7); border-color:var(--modern-teal, #009ca7); }
+.intervention-input-drawer[hidden] { display:none!important; }
+.intervention-section-workspace--design .intervention-input-drawer {
+  grid-column:2; grid-row:1; display:flex; flex-direction:column; min-width:0;
+  width:auto; flex:none; border-left:1px solid #dce6e9; border-right:0;
+}
+.intervention-section-workspace--design .intervention-input-drawer.is-open {
+  border-left:1px solid #dce6e9; border-right:1px solid #dce6e9;
+}
+.intervention-section-workspace--design:not(.intervention-section-workspace--drawer-open) .intervention-reading-content {
+  grid-column:3; grid-row:1;
+}
+.intervention-section-workspace--drawer-open .intervention-reading-content {
+  grid-column:3; grid-row:1;
+}
+.intervention-section-workspace:not(.intervention-section-workspace--design) .intervention-reading-content {
+  grid-column:2; grid-row:1;
+}
+.intervention-reading-content {
+  width:100%; max-width:none; min-height:0; padding:24px 28px;
+  overscroll-behavior:contain;
+}
+.intervention-reading-section { scroll-margin-top:12px; }
+.intervention-reading-section + .intervention-reading-section {
+  margin-top:38px; padding-top:28px; border-top:1px solid #dce8eb;
+}
+.intervention-section-workspace .intervention-input-drawer__body { flex:1; min-height:0; height:auto; }
+.intervention-input-drawer__header { align-items:flex-start; }
+.intervention-input-drawer__header .modern-input-section-heading { padding:4px 0 10px; font-size:12px; }
+.intervention-input-drawer__context { flex:1; min-width:0; }
+.intervention-settings-selectors { display:grid; gap:9px; padding:12px 15px; background:#f6fafb; border-bottom:1px solid #dce6e9; }
+.intervention-settings-selectors label { display:grid; gap:4px; color:#46616c; font-size:11px; font-weight:600; }
+.intervention-settings-selectors select { width:100%; min-width:0; min-height:34px; border:1px solid #c8dade; border-radius:4px; background:#fff; color:#014972; padding:5px 8px; font:inherit; }
+.intervention-settings-empty { padding:20px 16px; color:#58717d; font-size:12px; line-height:1.6; }
+.intervention-settings-empty strong { display:block; margin-bottom:6px; color:#014972; }
+.intervention-settings-empty p { margin:0; }
+.intervention-activation { display:flex; align-items:center; gap:9px; padding:12px 15px; border-bottom:1px solid #dce6e9; background:#f6fafb; color:#315568; font-size:12px; font-weight:600; }
+.intervention-activation input { width:18px; height:18px; accent-color:#009ca7; }
+.intervention-input-drawer__body > [data-testid="connection-revenue"] { padding:0 15px 15px; }
+.intervention-input-drawer__body > [data-testid="connection-revenue"] .intervention-activation { margin-inline:-15px; }
+.intervention-section-workspace .intervention-input-drawer.is-open .intervention-input-drawer__header { flex:0 0 auto; }
+.intervention-section-workspace .modern-intv-chart-group { padding:12px; }
+.intervention-section-workspace .modern-bau-section { max-width:1200px; }
+.intervention-section-workspace .modern-intv-service-picker { margin:16px 0 8px; }
+.intervention-section-workspace .modern-bau-service-note { margin:8px 0 16px; }
+
+@media(max-width:900px) and (min-width:768px) {
+  .intervention-section-workspace--design,
+  .intervention-section-workspace--drawer-open { grid-template-columns:190px minmax(280px,34vw) minmax(0,1fr); }
+  .intervention-reading-content { padding-inline:20px; }
+}
+@media(max-width:767px) {
+  .intervention-section-workspace,
+  .intervention-section-workspace--design,
+  .intervention-section-workspace--drawer-open {
+    display:grid; grid-template-columns:minmax(0,1fr); grid-auto-rows:auto;
+    align-content:start; overflow-y:auto; overflow-x:hidden;
+  }
+  .intervention-section-nav { grid-column:1; grid-row:auto; padding:8px 10px; border-right:0; border-bottom:1px solid #d5e2e6; }
+  .intervention-section-nav { display:flex; flex-direction:column; overflow:visible; }
+  .intervention-section-nav .modern-inputs-nav__eyebrow { order:-2; }
+  .intervention-section-nav .modern-inputs-nav__select { order:-1; }
+  .intervention-section-nav .modern-inputs-nav__items { display:block; }
+  .intervention-section-nav .modern-inputs-nav__item { display:none; }
+  .intervention-nav-groups { margin:10px 0 4px; padding-left:10px; }
+  .intervention-nav-link { min-height:44px; font-size:12px; padding:10px 8px; }
+  .intervention-nav-group h4 { font-size:11px; }
+  .intervention-section-nav .modern-inputs-nav__select { display:block; width:100%; min-height:38px; }
+  .intervention-section-workspace--design .intervention-input-drawer,
+  .intervention-section-workspace--design:not(.intervention-section-workspace--drawer-open) .intervention-reading-content,
+  .intervention-section-workspace--drawer-open .intervention-reading-content,
+  .intervention-section-workspace:not(.intervention-section-workspace--design) .intervention-reading-content {
+    grid-column:1; grid-row:auto;
+  }
+  .intervention-section-workspace--design .intervention-input-drawer { min-height:0; width:100%; border:0; }
+  .intervention-section-workspace--design .intervention-input-drawer.is-open {
+    min-height:45dvh; border-top:1px solid #dce6e9; border-bottom:1px solid #dce6e9;
+  }
+  .intervention-section-workspace .intervention-input-drawer__body { max-height:none; overflow:visible; }
+  .intervention-input-drawer__header { min-height:0; }
+  .intervention-reading-content { padding:16px; overflow:visible; }
+}
+
 .modern-bau-service-picker { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:16px 0 8px; color:#014972; font-size:13px; font-weight:700; }
 .modern-bau-service-switch { display:flex; flex-wrap:wrap; gap:4px; padding:4px; max-width:100%; border:1px solid #c7d8df; border-radius:7px; background:#edf3f5; }
 .modern-bau-service-switch button { min-height:38px; padding:8px 14px; border:1px solid transparent; border-radius:5px; background:transparent; color:#014972; font:inherit; font-size:12px; cursor:pointer; }
@@ -122,8 +312,31 @@
 .bau-forecast-table tbody tr:nth-child(even) { background:#f8fafb; }
 .bau-forecast-table td:nth-child(3) { color:#014972; font-weight:600; }
 .bau-forecast-table td:nth-child(4) { color:#15803d; }
-.bau-forecast-table td:nth-child(5), .bau-forecast-table td:nth-child(n+10) { color:#9a3412; font-weight:600; }
-/* Eleven columns are useful on desktop; retain every labeled value on narrow panels. */
+.bau-forecast-table td:nth-child(5), .bau-forecast-table td:nth-child(10), .bau-forecast-table td:nth-child(11) { color:#9a3412; font-weight:600; }
+.bau-forecast-table td:nth-child(12) { color:#014972; font-weight:600; }
+/* Explicit value semantics take precedence over legacy BAU column colors.
+   Use neutral for households, deficit for costs, and surplus for credits/funding;
+   gap cells receive the appropriate class from their calculated value. */
+.bau-forecast-table td.forecast-value--deficit,
+.modern-intv-table td.forecast-value--deficit { color:#b91c1c; }
+.bau-forecast-table td.forecast-value--surplus,
+.modern-intv-table td.forecast-value--surplus { color:#15803d; }
+.bau-forecast-table td.forecast-value--neutral,
+.modern-intv-table td.forecast-value--neutral { color:#1e3a5f; }
+.modern-intv-table tbody td:nth-child(4),
+.bau-forecast-table tbody td:nth-child(3) { color:#1e3a5f; font-weight:700; }
+/* Thirteen columns become labeled cards when the reading panel is narrow.
+   Keep the year row heading visible; data-label supplies each value's heading. */
+@container intervention-ledger (max-width:700px) {
+  .modern-intv-table, .modern-intv-table tbody { display:block; }
+  .modern-intv-table colgroup { display:none; }
+  .modern-intv-table thead { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); }
+  .modern-intv-table tbody tr { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin-bottom:14px; border-bottom:1px solid #dce4e8; }
+  .modern-intv-table tbody th { grid-column:1 / -1; padding:10px; background:#edf3f5; color:#014972; }
+  .modern-intv-table td { display:block; min-width:0; padding:10px; text-align:left; font-size:12px; }
+  .modern-intv-table td::before { content:attr(data-label); display:block; margin-bottom:4px; color:#596b73; font-size:11px; font-weight:600; }
+}
+/* Twelve columns are useful on desktop; retain every labeled value on narrow panels. */
 @container (max-width:700px) {
   .bau-forecast-table, .bau-forecast-table caption, .bau-forecast-table tbody { display:block; }
   .bau-forecast-table colgroup { display:none; }
@@ -135,10 +348,8 @@
 }
 
 .modern-bau-spending { min-width:0; margin-top:24px; padding-top:18px; border-top:1px solid #d1e1e5; }
-.modern-bau-spending-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
 .modern-bau-spending h3 { margin:0; font-size:15px; color:#014972; }
 .modern-bau-spending p { font-size:12px; line-height:1.5; color:#596b73; }
-
 /* Keep both chart canvases aligned; stack when the actual content area is narrow. */
 .modern-bau-analysis-container { container:bau-analysis / inline-size; }
 .modern-bau-chart-pair { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; align-items:stretch; }
@@ -146,14 +357,8 @@
 .modern-bau-plot-canvas { margin-top:auto; min-width:0; }
 .modern-bau-chart-pair .modern-bau-spending { margin:0; padding:12px; border:1px solid #d1e1e5; }
 .modern-bau-coverage-notes { margin-top:20px; min-width:0; }
+.modern-bau-loading { margin-bottom:12px; padding:18px; border-radius:5px; color:#46616c; background:linear-gradient(100deg,#edf3f5,#e2eef1,#edf3f5); font-size:12px; }
 @container bau-analysis (min-width:1076px) {
   .modern-bau-chart-pair { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .modern-bau-chart-pair--expanded { grid-template-columns:minmax(0,1fr); }
-}
-
-.modern-intervention-coverage {
-  width: 100%;
-  max-width: 1100px;
-  min-width: 0;
-  margin: 24px auto 0;
 }

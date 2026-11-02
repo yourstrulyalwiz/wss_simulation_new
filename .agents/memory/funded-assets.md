@@ -32,24 +32,20 @@ Expansion cash can include household finance and advance delivery; physical reus
 target changes and repricing can also change the closing expansion balance, so do
 not promise that cash paid alone explains every opening-to-closing difference.
 
-## Legacy obligations must remain qualified
+## Reconciled replacement obligations
 
-The user explicitly confirmed that legacy replacement-shortfall accounting is
-to remain unchanged during ledger/UI improvements. Correcting deferred-replacement
-accounting is separate and is not a prerequisite for improving the display.
+On November 1, 2026 the user's replacement-backlog reconciliation
+instructions required eligible pooled funds to pay current replacement, then prior
+replacement backlog, then expansion. Current losses and selected-source debt stay
+ahead of this sequence. Loans remain expansion-only; physical and earmarked
+household delivery may coexist with backlog. Historical cash shortfalls are not
+repaid. No deterioration or new historical backlog input is authorized.
 
-Accumulating an unpaid-replacement diagnostic does not itself establish a
-legitimate, settleable deferred obligation. Until a separate correction verifies
-carry-forward and repayment behavior, financial reporting must identify that
-component as a legacy measure and qualify totals containing it. Ancillary
-allowances similarly need their actual calibration/status explained.
+**Why:** The user explicitly approved a behavioral financing correction, replacing
+the earlier reporting-only restriction.
 
-**Why:** The user's ledger instructions explicitly distinguish explaining the
-current balance from validating replacement carryover or ancillary assumptions.
-They subsequently confirmed preservation of the current replacement accounting.
-
-**How to apply:** Add exact reporting breakdowns where needed, but do not invent
-missing allocations, repayments or corrected totals through frontend arithmetic.
-Show shared/unallocated obligations separately when attribution is unavailable.
-Do not reset or pay down the replacement counter, or change its contribution to
-existing totals, as part of reporting work.
+**How to apply:** Carry service-specific net unpaid replacement independently by
+sector/area/scenario, without repricing it by expansion costs or cancelling it on
+target changes. Replacement payments maintain assets, never add connections or
+gross stock. Financing gaps include closing backlog and current cash shortfalls;
+endline needs use accumulated cash shortfalls instead. Never sum snapshots.

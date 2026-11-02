@@ -307,12 +307,11 @@ def _fill_investment(slide, b, cur, money_factor=1.0, usd_mode=False):
     note = find_shape(slide, 'T503')
     if note is not None:
         _set_full_text(note, (
-            f"Residual-ledger subtotal: {bn(b['total_need_m'] * money_factor)} billion {cur} to {b['last_target_year']}.\n"
-            f"Endline requirement (closing expansion + accumulated shortfalls): {bn(b['financing_gap_m'] * money_factor)} billion {cur}. Period-end balances are not additive.\n"
-            "Gap = residual new-service cost + replacement requirement − replacement credit + cash deficit.\n"
-            "Available capital has already financed modeled connections; no second credit applies.\n"
-            "Replacement reserve uses coverage stock; reported obligations use target-needs stock.\n"
-            "Connection purchases are pre-cap allocations, not actual delivery."))
+            f"Annual new expansion + current replacement: {bn(b['total_need_m'] * money_factor)} billion {cur} to {b['last_target_year']}; excludes opening backlog.\n"
+            f"Endline requirement: {bn(b['financing_gap_m'] * money_factor)} billion {cur} = closing expansion + closing replacement backlog + accumulated cash shortfalls.\n"
+            "Financing gap uses current cash deficit instead of accumulated cash shortfalls. Current unpaid replacement is already inside closing backlog.\n"
+            "Pooled funds pay current replacement, then opening backlog, before ordinary expansion. Restricted loans remain expansion-only.\n"
+            "Payments are flows; opening/closing backlogs are snapshots, never summed across years. Expansion receives no second payment credit."))
 
 
 def _fill_interventions(slide, b, cur, contribution_view='individual', money_factor=1.0):
@@ -809,9 +808,11 @@ def _check_template(path: str) -> None:
 
 
 def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, contribution_view: str = 'individual',
-               currency_display: dict | None = None) -> io.BytesIO:
+               currency_display: dict | None = None, omitted_sections: list[str] | None = None) -> io.BytesIO:
     _check_template(template_path)
     d = DD.build(area_inputs)
+    if not d['blocks']:
+        raise ValueError('No complete sector results are available for this presentation.')
     currency_display = currency_display or {
         'mode': 'local', 'source_currency': d['currency'], 'display_currency': d['currency'],
         'factor': 1.0, 'rate_note': 'Local-currency results; no conversion applied.',
@@ -886,7 +887,23 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, co
     for paragraph in note.text_frame.paragraphs:
         paragraph.font.size = Pt(10)
         paragraph.font.color.rgb = RGBColor(0xBF, 0xDB, 0xFE)
-    _fill_exec(prs.slides[IDX_EXEC], d, cur, lt, money_factor)
+    if omitted_sections:
+        slide = prs.slides[IDX_EXEC]
+        for shape in list(slide.shapes):
+            shape._element.getparent().remove(shape._element)
+        box = slide.shapes.add_textbox(Inches(.6), Inches(.6), Inches(12), Inches(5.5))
+        box.text_frame.word_wrap = True
+        box.text_frame.text = 'Executive summary — completed sections only'
+        for text in ['The presentation includes the following completed results. Other sections have been omitted; no assumptions or interventions have been changed.'] + [
+                f"{SCOPE_TITLE[sc]} — {SECTOR_TITLE[sk].title()}" for sc, sk in d['blocks']]:
+            paragraph = box.text_frame.add_paragraph()
+            paragraph.text = text
+            paragraph.space_before = Pt(16)
+        for paragraph in box.text_frame.paragraphs:
+            paragraph.font.size = Pt(20)
+            paragraph.font.color.rgb = RGBColor(1, 73, 114)
+    else:
+        _fill_exec(prs.slides[IDX_EXEC], d, cur, lt, money_factor)
     replace_tokens(prs.slides[IDX_OBJECTIVES], {
         '[Country]': d['country'], '[Target years]': ', '.join(str(y) for y in d['target_years']),
     })
@@ -939,6 +956,21 @@ def build_deck(area_inputs: Dict[str, dict], template_path: str = TEMPLATE_A, co
     append_service_access_slides(prs, d['results'])
     from revenue_export import append_revenue_slides
     append_revenue_slides(prs, d['results'], source_cur, money_factor, display_cur)
+    if omitted_sections:
+        for start in range(0, len(omitted_sections), 3):
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            box = slide.shapes.add_textbox(Inches(.6), Inches(.4), Inches(12), Inches(6))
+            frame = box.text_frame
+            frame.word_wrap = True
+            frame.text = 'Omitted incomplete sections'
+            frame.paragraphs[0].font.size = Pt(24)
+            for text in omitted_sections[start:start + 3]:
+                paragraph = frame.add_paragraph()
+                paragraph.text = text
+                paragraph.font.size = Pt(13)
+                paragraph.space_before = Pt(12)
+            for paragraph in frame.paragraphs:
+                paragraph.font.color.rgb = RGBColor(1, 73, 114)
 
     # ── contents + prompts ──────────────────────────────────────────────────────────────────────
     _rebuild_contents(prs.slides[IDX_CONTENTS], _contents_entries(prs, d, present, lever_rows),

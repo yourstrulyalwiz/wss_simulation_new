@@ -1,6 +1,10 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { migrateConnectionRevenueConfig, validateConnectionRevenueConfig, type ConnectionRevenueConfig } from '../connectionRevenueConfig';
 import { resolveRevenueBases } from '../api';
+import { ValidationContext, IssueMessages } from '../interventionValidation';
+import { useProjectScope } from '../projectScope';
+import InterventionControlRow from './InterventionControlRow';
 
 export function revenueBasesRequestBody(inputs: any) { return JSON.stringify(inputs); }
 export function connectionRevenueStatus(data: any, sector: 'water' | 'sanitation') {
@@ -11,9 +15,13 @@ const fmt = (value: any, digits = 2) => value == null || !Number.isFinite(Number
 const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '7px 9px',
   border: '1px solid #d9c884', borderRadius: 4, background: '#fff9e6', color: '#20323d' };
 
-export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
+export default function ConnectionRevenue({ inputs, onChange, sector, area, drawerTarget, drawerSelected = false, onOpenDrawer }: {
   inputs: any; onChange: (value: any) => void; sector: 'water' | 'sanitation'; area: string; label?: string;
+  drawerTarget?: HTMLElement | null; drawerSelected?: boolean; onOpenDrawer?: (trigger: HTMLButtonElement) => void;
 }) {
+  const { readOnly } = useProjectScope();
+  const validationContext = React.useContext(ValidationContext);
+  const interventionIssues = validationContext.issues.filter(issue => issue.sector === sector && issue.intervention === 'connections');
   const id = useId();
   const [showSettings, setShowSettings] = useState(false);
   const stored = inputs.connection_revenue?.[sector];
@@ -44,7 +52,8 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
   const base = inputs.revenue_bases?.[sector] || {};
   const errors = [...new Set([...validateConnectionRevenueConfig(config),
     ...(Array.isArray(current?.status?.errors) ? current.status.errors : [])])];
-  const settingsVisible = showSettings || errors.length > 0;
+  const inDrawer = drawerTarget !== undefined;
+  const settingsVisible = inDrawer ? drawerSelected : showSettings || errors.length > 0;
   const state = errors.length ? 'Billing calibration incomplete' : !config.enabled ? 'Funding off' :
     current?.error ? 'Verification unavailable' : !current?.status ? 'Checking current inputs…' :
       current.status.effective === true || ['aggregate_coverage_expansion', 'aggregate-coverage-expansion'].includes(current.status.effective) || ['on', 'active', 'effective'].includes(current.status.state)
@@ -56,23 +65,11 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
   };
   const noticeKey = `${area}:${sector}`;
   const currency = inputs.country_config?.currency || 'LCU';
-  return <section data-testid="connection-revenue" aria-label={`Revenue from new connections — ${area} — ${sector}`}
-    style={{ marginTop: 12, border: '1px solid #c2d3da', borderRadius: 6, padding: 12, background: '#f3f8f9', minWidth: 0 }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-      <label htmlFor={`${id}-enabled`} style={{ fontSize: 13, fontWeight: 700, color: '#164e63' }}>
-        <input id={`${id}-enabled`} type="checkbox" checked={config.enabled} onChange={e => update({ enabled: e.target.checked })} />
-        {' '}Include revenue from new connections
-      </label>
-      <span role="status" style={{ fontSize: 11 }}>{state}</span>
-      <button type="button" aria-expanded={settingsVisible} aria-controls={`${id}-settings`}
-        onClick={() => setShowSettings(value => !value)}
-        style={{ fontSize: 11, cursor: 'pointer', border: '1px solid #c2d3da', borderRadius: 4, padding: '4px 8px', background: '#fff', color: '#164e63' }}>
-        {showSettings ? 'Hide settings' : 'Show settings'}
-      </button>
-    </div>
-    <div id={`${id}-settings`} hidden={!settingsVisible}>
+  const details = <>
+    <span role="status" style={{ fontSize: 11 }}>{interventionIssues.some(issue => issue.severity === 'error') ? 'Missing required inputs' : state}</span>
+    <IssueMessages issues={interventionIssues} />
     {config.current_behavior_notice && !dismissed.includes(noticeKey) && <div role="status" style={{ fontSize: 11, padding: '8px 0' }}>
-      {config.current_behavior_notice} <button type="button" onClick={() => {
+      {config.current_behavior_notice} <button type="button" disabled={readOnly} onClick={() => {
         setDismissed([...dismissed, noticeKey]);
         update({ current_behavior_notice: undefined });
       }}>Dismiss notice</button>
@@ -92,14 +89,14 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
       {([['basic', 'Basic expansion billed (%)'], ['sm', 'Safely Managed expansion billed (%)']] as const).map(([rung, label]) => {
         const field = `new_billed_share_${rung}` as const;
         return <label key={field} style={{ display: 'grid', gap: 5, fontSize: 12 }}>
-          {label}<input aria-label={label} type="number" min="0" max="100" step="any"
+          {label}<input aria-label={label} disabled={readOnly} type="number" min="0" max="100" step="any"
             value={config[field] == null ? '' : Number((config[field]! * 100).toPrecision(12))}
             onChange={e => update({ [field]: e.target.value === '' ? null : Number(e.target.value) / 100 })}
             style={inputStyle} />
         </label>;
       })}
       <label style={{ display: 'grid', gap: 5, fontSize: 12 }}>Source / assumption note (optional)
-        <input aria-label="Source / assumption note (optional)" value={config.shared_assumption_note}
+        <input aria-label="Source / assumption note (optional)" disabled={readOnly} value={config.shared_assumption_note}
           onChange={e => update({ shared_assumption_note: e.target.value })} style={inputStyle} />
       </label>
     </div>
@@ -121,7 +118,6 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
       equal percentages give no additional volume. This is an aggregate customer-mix proxy, not observed household consumption.
       Baseline collected revenue is comparison-only, not an extra funding injection.
     </p>
-    </div>
     <p style={{ fontSize: 11 }}>Billing volume: {current?.status?.volume_mode === 'dynamic' ? 'dynamic from delivered coverage' : 'requires valid billing calibration'}.
       {' '}New-connection receipts used for funding: {config.enabled ? 'on' : 'off'}. Billing percentages are also needed by active collection, tariff and NRW reforms when funding is off.</p>
     {errors.length > 0 && <div role="alert" style={{ color: '#8b2c35', fontSize: 11, marginTop: 9 }}>
@@ -131,7 +127,22 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area }: {
     {current?.error && <div role="alert" style={{ fontSize: 11, marginTop: 8 }}>{current.error}{' '}
       <button type="button" onClick={() => setAttempt(n => n + 1)}>Retry verification</button>
     </div>}
+  </>;
+  const content = <section data-testid="connection-revenue" aria-label={`Revenue from new connections — ${area} — ${sector}`}
+    style={{ marginBottom: 8, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', minWidth: 0 }}>
+      <InterventionControlRow label="Include revenue from new connections" checked={config.enabled} disabled={readOnly}
+        settingsOnly={inDrawer}
+        expanded={settingsVisible} onChange={enabled => update({ enabled })}
+        needsAttention={interventionIssues.some(issue => issue.severity === 'error') || errors.length > 0}
+        controls={!inDrawer || drawerSelected && drawerTarget ? `${id}-settings` : undefined}
+        onOpen={event => {
+          if (onOpenDrawer) onOpenDrawer(event.currentTarget);
+          else setShowSettings(value => !value);
+        }} />
+    <div id={`${id}-settings`} hidden={!settingsVisible}>{details}</div>
   </section>;
+  if (inDrawer) return drawerSelected && drawerTarget ? createPortal(content, drawerTarget) : null;
+  return content;
 }
 
 export function connectionRevenueErrors(config: any, inputs: any, sector: 'water' | 'sanitation') {

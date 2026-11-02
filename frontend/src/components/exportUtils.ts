@@ -9,13 +9,18 @@ export function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(u);
 }
 
-export async function postForBlob(endpoint: string, body: any, filename: string, projectId?: string) {
+export async function postForBlob(endpoint: string, body: any, filename: string, projectId?: string, isCurrent?: () => boolean) {
   const r = await fetch(endpoint, { method: 'POST', credentials: 'include', headers: simulationHeaders(body, projectId), body: JSON.stringify(body) });
   if (!r.ok) {
     const payload = await r.json().catch(() => ({}));
+    if (payload.intervention_issues) {
+      window.dispatchEvent(new CustomEvent('intervention-validation-navigation', {detail: {issues: payload.intervention_issues}}));
+      return;
+    }
     throw new Error(payload.detail || payload.error || 'Export failed (' + r.status + ').');
   }
-  downloadBlob(await r.blob(), filename);
+  const blob = await r.blob();
+  if (!isCurrent || isCurrent()) downloadBlob(blob, filename);
 }
 
 // Client-side CSV (with a BOM so Excel reads UTF-8 correctly).

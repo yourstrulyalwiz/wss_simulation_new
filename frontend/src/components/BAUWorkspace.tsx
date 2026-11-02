@@ -13,11 +13,12 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
   currencyDisplay: CurrencyDisplaySettings;
 }) {
   const { sectors } = useProjectScope();
-  const [serviceLevel, setServiceLevel] = useState<BauServiceLevel>('safely_managed');
+  const [serviceLevel, setServiceLevel] = useState<BauServiceLevel>('at_least_basic');
   const [coverage, setCoverage] = useState<BauCoverage | null>(null);
   const [tableTarget, setTableTarget] = useState<HTMLDivElement | null>(null);
   const [expandedChart, setExpandedChart] = useState(false);
   const serviceLabel = BAU_SERVICE_LEVELS.find(level => level.value === serviceLevel)!.label;
+  const headingContext = `${scopeLabel} · ${sector === 'water' ? 'Water Supply' : 'Sanitation'} · ${serviceLabel}`;
   const format = (value: number | null | undefined) => value == null ? '—' : `${value.toFixed(1)}%`;
   const serviceSelector = (location: string) => <div className="modern-bau-service-picker">
     <span>Service level</span>
@@ -29,8 +30,25 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
       </button>)}
     </div>
   </div>;
-
-  const coverageSummary = (<div aria-label="Baseline and forecast-end service coverage">
+  return <SectionWorkspace label="Business-as-usual sections" sections={[
+    {key:'graph', label:'BAU Graph'}, {key:'table', label:'BAU Table'},
+  ]}>
+    <section className="modern-bau-section" data-section-key="graph">
+      <header className="modern-page-intro"><span className="modern-page-intro__eyebrow">WORKFLOW 02 · BUSINESS-AS-USUAL</span>
+        <h2 tabIndex={-1}>BAU Scenario</h2><p>Review the status quo before designing interventions. Coverage is calculated from the selected area's live engine results.</p>
+      </header>
+      <h3 className="modern-input-section-heading" tabIndex={-1}>
+        <span className="modern-input-section-heading__index">1</span><span>BAU Graph ({headingContext})</span>
+      </h3>
+      <div className="modern-bau-toggles" role="group" aria-label="BAU graph area">
+        {scopeChoices.map(value => <button key={value} aria-pressed={scopeLabel.toLowerCase() === value} onClick={() => { if (scopeLabel.toLowerCase() !== value) { setCoverage(null); onScopeChange(value); } }}>{value[0].toUpperCase() + value.slice(1)}</button>)}
+      </div>
+      <div className="modern-bau-toggles" role="group" aria-label="BAU sector">
+        {sectors.map(value => <button key={value} aria-pressed={sector === value} onClick={() => { if (sector !== value) { setCoverage(null); onSectorChange(value); } }}>{value === 'water' ? 'Water Supply' : 'Sanitation'}</button>)}
+      </div>
+      {serviceSelector('graph')}
+      <p className="modern-bau-service-note">At least basic combines safely managed and basic-only households. Changing either selector updates both the graph and table.</p>
+      <div aria-label="Baseline and forecast-end service coverage">
         <p>{scopeLabel} · {sector === 'water' ? 'Water supply' : 'Sanitation'} · {serviceLabel} · share of households</p>
         <div className="modern-bau-kpis" aria-live="polite">
           {(['baseline', 'bau', 'target'] as const).map(key => <div key={key} className="modern-bau-kpi" data-bau-kpi={key}>
@@ -39,25 +57,7 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
           </div>)}
         </div>
         {!coverage && <p role="status">Coverage pending. Calculation errors, if any, appear below.</p>}
-      </div>);
-
-  return <SectionWorkspace label="Business-as-usual sections" sections={[
-    {key:'graph', label:'BAU Graph'}, {key:'table', label:'BAU Table'},
-  ]}>
-    <section className="modern-bau-section" data-section-key="graph">
-      <header className="modern-page-intro"><span className="modern-page-intro__eyebrow">WORKFLOW 02 · BUSINESS-AS-USUAL</span>
-        <h2 tabIndex={-1}>BAU Graph</h2><p>Review the status quo before designing interventions. Coverage is calculated from the selected area's live engine results.</p>
-      </header>
-      <div className="modern-bau-toggles" role="group" aria-label="BAU sector">
-        {sectors.map(value => <button key={value} aria-pressed={sector === value} onClick={() => { if (sector !== value) { setCoverage(null); onSectorChange(value); } }}>{value === 'water' ? 'Water Supply' : 'Sanitation'}</button>)}
       </div>
-      <div className="modern-bau-toggles" role="group" aria-label="BAU graph area">
-        {scopeChoices.map(value => <button key={value} aria-pressed={scopeLabel.toLowerCase() === value} onClick={() => { if (scopeLabel.toLowerCase() !== value) { setCoverage(null); onScopeChange(value); } }}>{value[0].toUpperCase() + value.slice(1)}</button>)}
-      </div>
-      {serviceSelector('graph')}
-      <p className="modern-bau-service-note">At least basic combines safely managed and basic-only households. Changing either selector updates both the graph and table.</p>
-
-      {coverageSummary}
       <div className="modern-bau-chart-card modern-bau-analysis-container">
         <div className="modern-bau-chart-actions">
           <button type="button" aria-pressed={expandedChart} onClick={() => setExpandedChart(current => !current)}>
@@ -71,7 +71,9 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
       </div>
     </section>
     <section className="modern-bau-section" data-section-key="table">
-      <h2 className="modern-bau-heading" tabIndex={-1}>BAU Table</h2>
+      <h2 className="modern-input-section-heading" tabIndex={-1}>
+        <span className="modern-input-section-heading__index">2</span><span>BAU Table ({headingContext})</span>
+      </h2>
       {serviceSelector('table')}
       <p className="modern-bau-service-note">{scopeLabel} · {sector === 'water' ? 'Water supply' : 'Sanitation'} · {serviceLabel}.
         {serviceLevel === 'at_least_basic' && ' Financing combines both service levels, including safely managed upgrades; it is not the cost of basic access alone.'}

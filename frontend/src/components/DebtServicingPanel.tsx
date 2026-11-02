@@ -1,191 +1,144 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { useProjectScope } from '../projectScope';
-import LiveInterventionChart from './LiveInterventionChart';
-import UtilityDebtPreview from './UtilityDebtPreview';
 import DebtServicingControls from './DebtServicingControls';
+import LoanFundingCharts from './LoanFundingCharts';
+import LoanCoverageComparison from './LoanCoverageComparison';
+import LoanDetailTables from './LoanDetailTables';
 import { ContributionViewToggle, type ContributionView } from '../contributionView';
-import { CurrencyDisplayControl, displayCurrency, type CurrencyDisplaySettings } from '../currencyDisplay';
-import ExportButtons from './ExportButtons';
-import TableExport from './TableExport';
+import { CurrencyDisplayControl, convertMoney, displayCurrency, type CurrencyDisplaySettings } from '../currencyDisplay';
+import { forecastCell } from '../forecastTablePresentation';
+import { loanNumber } from '../loanFundingReporting';
+import { BAU_SERVICE_LEVELS, type BauServiceLevel } from '../bauServiceView';
 import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
+import ExportButtons from './ExportButtons';
 import './debt-servicing.css';
-import RevenueSourceChart from './RevenueSourceChart';
+import './loan-workspace.css';
 
 type Props = {
-  inputs: any;
-  onChange: (inputs: any) => void;
-  results?: any;
-  calculationError?: string;
-  sectorTab: 'water' | 'sanitation';
-  onSectorChange: (sector: 'water' | 'sanitation') => void;
-  geoScope: string;
-  contributionView: ContributionView;
-  onContributionViewChange: (view: ContributionView) => void;
-  currencyDisplay: CurrencyDisplaySettings;
-  onCurrencyDisplayChange: (settings: CurrencyDisplaySettings) => void;
-  onEditCurrencyRate: () => void;
-  onSectionFocus?: (key: string) => void;
-  onRetry: () => void;
+  inputs: any; onChange: (inputs: any) => void; results?: any; calculationError?: string;
+  sectorTab: 'water' | 'sanitation'; onSectorChange: (sector: 'water' | 'sanitation') => void;
+  geoScope: string; scopeChoices?: string[]; scopeLabel?: string; onScopeChange?: (scope: string) => void;
+  contributionView: ContributionView; onContributionViewChange: (view: ContributionView) => void;
+  currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (settings: CurrencyDisplaySettings) => void;
+  onEditCurrencyRate: () => void; onSectionFocus?: (key: string) => void; onRetry: () => void;
 };
-
-function scopeName(scope: string) {
-  return scope === 'national' ? 'National' : scope === 'rural' ? 'Rural' : scope === 'urban_rural' ? 'Urban + Rural' : 'Urban';
-}
+const scopeName = (scope: string) => scope === 'national' ? 'National' : scope === 'rural' ? 'Rural' : 'Urban';
+const sections = [{ key: 'design', title: 'Loan Settings' }, { key: 'graph', title: 'Loan Graph' }, { key: 'table', title: 'Coverage Comparison' },
+  { key: 'cash_flow', title: 'Loan Cash Flow & Repayment' }] as const;
+type Section = typeof sections[number]['key'];
 
 export default function DebtServicingPanel({
   inputs, onChange, results, calculationError = '', sectorTab, onSectorChange, geoScope,
-  contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate, onSectionFocus, onRetry,
+  scopeChoices = [geoScope], scopeLabel, onScopeChange, contributionView, onContributionViewChange,
+  currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate, onSectionFocus, onRetry,
 }: Props) {
   const { sectors } = useProjectScope();
-  const currency = inputs?.country_config?.currency || 'LCU';
-  const sectorKey = sectorTab === 'water' ? 'water_supply' : 'sanitation';
+  const [activeSection, setActiveSection] = useState<Section>('design');
+  const [level, setLevel] = useState<BauServiceLevel>('at_least_basic');
+  const reading = useRef<HTMLDivElement>(null);
+  const pending = useRef<(() => void) | null>(null);
+  React.useEffect(() => () => pending.current?.(), []);
+  const area = scopeLabel || scopeName(geoScope);
+  const context = `${area} · ${sectorTab === 'water' ? 'Water Supply' : 'Sanitation'} · ${BAU_SERVICE_LEVELS.find(item => item.value === level)?.label}`;
+  const currency = inputs.country_config?.currency || 'LCU';
+  const key = sectorTab === 'water' ? 'water_supply' : 'sanitation';
   const debt = inputs.utility_debt?.[sectorTab] || { enabled: false };
-  const detail = results?.[sectorKey]?.scenario_utility_debt;
-  const areaLabel = scopeName(geoScope);
-  const chartRunKey = `${sectorTab}:${JSON.stringify(inputs)}`;
-  return (
-    <div className="debt-workspace" data-testid="debt-servicing-panel">
-      <DebtServicingControls inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} onChange={onChange} onSectionFocus={onSectionFocus}
+  const detail = results?.[key]?.scenario_utility_debt;
+  const money = (raw: unknown) => {
+    const value = loanNumber(raw);
+    return value === null ? '—' : `${forecastCell(convertMoney(value, currencyDisplay, currency) ?? null)} M ${displayCurrency(currencyDisplay, currency)}`;
+  };
+  const error = results?.sector_errors?.[key] || (!results ? calculationError : '');
+  const navigate = (section: Section) => {
+    pending.current?.();
+    setActiveSection(section);
+    if (section === 'design') return;
+    requestAnimationFrame(() => {
+      const host = reading.current, target = host?.querySelector<HTMLElement>(`[data-section-key="${section}"]`);
+      if (!host || !target) return;
+      const disclosure = target.querySelector('details');
+      if (disclosure) disclosure.open = true;
+      target.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true });
+      const scroll = getComputedStyle(host).overflowY === 'visible' ? host.closest<HTMLElement>('.loan-workspace') || host : host;
+      const align = () => scroll.scrollTo({ top: scroll.scrollTop + target.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 12 });
+      align();
+      const observer = new ResizeObserver(align);
+      host.querySelectorAll('[data-section-key]').forEach(node => observer.observe(node));
+      const stop = () => {
+        observer.disconnect(); clearTimeout(timer);
+        for (const event of ['wheel', 'touchstart', 'pointerdown', 'keydown']) scroll.removeEventListener(event, stop);
+        pending.current = null;
+      };
+      const timer = setTimeout(stop, 2000);
+      for (const event of ['wheel', 'touchstart', 'pointerdown', 'keydown']) scroll.addEventListener(event, stop, { passive: true });
+      pending.current = stop;
+    });
+  };
+  const heading = (number: number, title: string) => <h2 className="modern-input-section-heading" tabIndex={-1}>
+    <span className="modern-input-section-heading__index">{number}</span><span>{title} ({context})</span></h2>;
+  const servicePicker = (label: string) => <div className="modern-bau-service-picker">
+    <span>Service level</span><div className="modern-bau-service-switch" role="group" aria-label={label}>
+      {BAU_SERVICE_LEVELS.map(item => <button type="button" key={item.value} aria-pressed={level === item.value}
+        onClick={() => setLevel(item.value)}>{item.label}</button>)}
+    </div></div>;
+  return <div className={`loan-workspace intervention-section-workspace${activeSection === 'design' ? ' intervention-section-workspace--design' : ''}`} data-testid="debt-servicing-panel">
+    <nav className="modern-inputs-nav intervention-section-nav" aria-label="Loan funding sections">
+      <span className="modern-inputs-nav__eyebrow">Loan funding</span>
+      <select className="modern-inputs-nav__select" aria-label="Loan funding section" value={activeSection} onChange={event => navigate(event.target.value as Section)}>
+        {sections.map((section, index) => <option key={section.key} value={section.key}>{index + 1}. {section.title}</option>)}
+      </select>
+      <div className="modern-inputs-nav__items">{sections.map((section, index) => <button type="button" key={section.key}
+        className="modern-inputs-nav__item" aria-current={activeSection === section.key ? 'location' : undefined} onClick={() => navigate(section.key)}>
+        <span className="modern-inputs-nav__number">{index + 1}</span><span>{section.title}</span></button>)}</div>
+    </nav>
+    <aside className="loan-settings" hidden={activeSection !== 'design'} aria-label="Loan settings">
+      <header className="intervention-input-drawer__header">{heading(1, 'Loan Settings')}</header>
+      <DebtServicingControls inputs={inputs} sector={sectorTab} scopeLabel={area} onChange={onChange} onSectionFocus={onSectionFocus}
         referenceSourceCash={Number(detail?.reference_year) === Number(debt.disbursement_year) ? detail?.reference_source_cash : undefined} />
-      <main className="debt-results-pane">
-        <section className="debt-overview-strip modern-page-intro" aria-label="How to read the loan funding comparison">
-          <div className="debt-overview-strip__heading">
-            <span className="modern-page-intro__eyebrow">WORKFLOW 04 · FINANCING COMPARISON</span>
-            <h2>Trace a loan from eligible cash to service outcomes</h2>
-            <p>Indicative borrowing is a distinct financing case—not operating revenue, a feasibility assessment, or a promise of funds.</p>
+      <div className="loan-status" style={{ padding: 16 }} data-testid="loan-status">
+        <strong>Frozen reference · {detail?.reference_year ?? '—'}</strong>
+        <div>Indicative principal: <b data-testid="indicative-principal">{money(detail?.indicative_principal)}</b></div>
+        <div>Selected signed pool: {money(detail?.selected_signed_pool)}</div>
+        <div>Eligible pool (single zero floor): {money(detail?.eligible_pool)}</div>
+        <div>Annual allocation / fixed service: {money(detail?.fixed_annual_debt_service)}</div>
+        <div>Annuity factor: {forecastCell(loanNumber(detail?.annuity_factor))}</div>
+        <div>Status: {detail?.status || 'awaiting calculation'}. First repayment: {detail?.first_repayment_year ?? '—'}; maturity: {detail?.maturity_year ?? '—'}.</div>
+        <div>Feasibility not assessed; selected sources and fixed obligations are unchanged.</div>
+      </div>
+    </aside>
+    <div className="modern-inputs-content intervention-reading-content" ref={reading}>
+      <section className="modern-bau-section intervention-reading-section" data-section-key="graph">
+        {heading(2, 'Loan Graph')}
+          <div className="modern-bau-toggles" role="group" aria-label="Loan geography">
+            {scopeChoices.map(scope => <button key={scope} type="button" aria-pressed={geoScope === scope}
+              onClick={() => onScopeChange?.(scope)}>{scopeName(scope)}</button>)}
           </div>
-          <ol>
-            <li><b>Set the source pool</b><span>Select eligible reference-year intervention cash and pooled allocation.</span></li>
-            <li><b>Specify the terms</b><span>Choose injection year, real interest rate and loan term.</span></li>
-            <li><b>Compare the result</b><span>Review the repayment schedule, then compare access with and without borrowing.</span></li>
-          </ol>
-        </section>
-        <div className="debt-results-toolbar">
-          <div className="debt-sector-tabs" role="group" aria-label="Debt servicing sector">
-            {sectors.map(sector => (
-            <button key={sector} type="button" aria-pressed={sectorTab === sector} onClick={() => onSectorChange(sector)}>
-                {sector === 'water' ? 'Water supply' : 'Sanitation'}
-              </button>
-            ))}
-          </div>
-          <div className="debt-view-tools">
-            <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={currency}
-              onModeChange={mode => onCurrencyDisplayChange({ ...currencyDisplay, mode, sourceCurrency: currency })}
-              onEditRate={onEditCurrencyRate} />
-            <ContributionViewToggle value={contributionView} onChange={onContributionViewChange} />
-            <ExportButtons inputs={inputs} pptx={false} contributionView={contributionView} currencyDisplay={currencyDisplay} />
-          </div>
+          <div className="modern-bau-toggles" role="group" aria-label="Loan sector">{sectors.map(sector => <button type="button" key={sector}
+            aria-pressed={sectorTab === sector} onClick={() => onSectorChange(sector)}>{sector === 'water' ? 'Water Supply' : 'Sanitation'}</button>)}</div>
+        <div className="modern-intv-graph-controls">
+          <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={currency}
+            onModeChange={mode => onCurrencyDisplayChange({ ...currencyDisplay, mode, sourceCurrency: currency })} onEditRate={onEditCurrencyRate} />
+          <ContributionViewToggle value={contributionView} onChange={onContributionViewChange} />
+          <ExportButtons inputs={inputs} pptx={false} contributionView={contributionView} currencyDisplay={currencyDisplay} />
         </div>
-        <div className="debt-story-heading">
-          <div>
-            <span className="debt-eyebrow">INDICATIVE LOAN FUNDING → SERVICE ACCESS</span>
-            <h2>{areaLabel} {sectorTab === 'water' ? 'water supply' : 'sanitation'}</h2>
-          </div>
-          <p>Intervention impact remains separate; loan proceeds are shown as a distinct funding comparison.</p>
-        </div>
-        <UtilityDebtPreview debt={debt} result={detail} currency={currency} currencyDisplay={currencyDisplay}
-          scenarioResult={results?.[sectorKey]}
-          calculationError={results ? results.sector_errors?.[sectorKey] : calculationError} fresh={!!results?.[sectorKey]} onRetry={onRetry} />
-        <div className="debt-chart-stack">
-          <div className="debt-chart-stack__label">
-            <span>MODEL OUTPUTS</span>
-            <p>Cash sources are shown separately from projected service coverage. Both charts retain their existing units and intervention definitions.</p>
-          </div>
-          <RevenueSourceChart inputs={inputs} results={results} sector={sectorTab} currencyDisplay={currencyDisplay} />
-          <LiveInterventionChart key={`${chartRunKey}:sm`} inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} rung={0} contributionView={contributionView} currencyDisplay={currencyDisplay} />
-          <LiveInterventionChart key={`${chartRunKey}:basic`} inputs={inputs} sector={sectorTab} scopeLabel={areaLabel} rung={1} contributionView={contributionView} currencyDisplay={currencyDisplay} />
-        </div>
-        <section className="debt-ledger-section">
-          <div className="debt-section-heading">
-            <div><span className="debt-eyebrow">YEAR-BY-YEAR · SERVICE ACCESS</span><h2>Coverage comparison</h2></div>
-            <span className={`debt-status-pill${debt.enabled ? ' is-enabled' : ''}`}>{debt.enabled ? 'Indicative borrowing enabled' : 'Borrowing excluded'}</span>
-          </div>
-          <AccessGapComparison inputs={inputs} withDebt={results} sectorKey={sectorKey} />
-        </section>
-      </main>
+        {servicePicker('Loan graph service level')}
+        <p className="modern-bau-service-note">{LOAN_FUNDING_QUALIFICATION} {debt.enabled ? 'Borrowing enabled for this sector.' : 'Borrowing excluded; saved terms are retained.'}</p>
+        {error ? <div className="modern-intv-table-state" role="alert"><p>Loan scenario unavailable — {error}</p><button type="button" onClick={onRetry}>Retry calculation</button></div>
+          : !results?.[key] ? <div className="modern-intv-table-state" aria-label="Loading loan results"><span className="modern-skeleton" /><span className="modern-skeleton" /><span className="modern-skeleton" /></div>
+          : <><LoanCoverageComparison result={results} inputs={inputs} sector={sectorTab} level={level} scopeLabel={area} currencyDisplay={currencyDisplay} kpisOnly />
+            <LoanFundingCharts result={results} inputs={inputs} sector={sectorTab} level={level} scopeLabel={area} contributionView={contributionView} currencyDisplay={currencyDisplay} /></>}
+      </section>
+      <section className="modern-bau-section intervention-reading-section" data-section-key="table">
+        {heading(3, 'Coverage Comparison')}
+        {servicePicker('Loan comparison service level')}
+        {results?.[key] && !error ? <LoanCoverageComparison result={results} inputs={inputs} sector={sectorTab} level={level} scopeLabel={area} currencyDisplay={currencyDisplay} /> :
+          <p className="modern-intv-table-state">The comparison uses the same matched calculation as the graphs above.</p>}
+      </section>
+      <section className="modern-bau-section intervention-reading-section" data-section-key="cash_flow">
+        {heading(4, 'Loan Cash Flow & Repayment')}
+        <LoanDetailTables detail={!error ? detail : null} baseline={Number(inputs.period.baseline_year)}
+          currency={currency} currencyDisplay={currencyDisplay} />
+      </section>
     </div>
-  );
-}
-
-function AccessGapComparison({ inputs, withDebt, sectorKey }: { inputs: any; withDebt: any; sectorKey: 'water_supply' | 'sanitation' }) {
-  const financed = withDebt?.[sectorKey];
-  const reference: any = Object.fromEntries(Object.entries(financed || {})
-    .filter(([key]) => key.startsWith('scenario_without_utility_debt_'))
-    .map(([key, value]) => [key.replace('scenario_without_utility_debt_', 'scenario_'), value]));
-  if (!withDebt?.years?.length) return <div className="debt-preview-state">Recalculating matched loan comparisons…</div>;
-
-   const years: number[] = withDebt.years.filter((year: number) => year > Number(inputs.period.baseline_year));
-  const totalHouseholds = withDebt?.hh_total || withDebt?.total_hh || financed.hh_total || financed.total_hh || [];
-   const indexes = years.map(year => withDebt.years.indexOf(year));
-  const endYear = Number(inputs.period.forecast_end_year);
-  const validSeries = (v: any) => Array.isArray(v) && indexes.every(i => typeof v[i] === 'number' && Number.isFinite(v[i]));
-  if (!years.includes(endYear) || [financed, reference].some(data =>
-    ![data?.scenario_hh?.[0], data?.scenario_hh?.[1], data?.scenario_sm_access_gap,
-      data?.scenario_at_least_basic_access_gap].every(validSeries)))
-    return <div className="debt-preview-error" role="alert">Access comparison unavailable — matched results are incomplete. Recalculate the scenario.</div>;
-   const rungValue = (data: any, rung: number, index: number) => Number(data.scenario_hh[rung][indexes[index]]);
-  const metricDefinitions = [
-    { label: 'Safely-managed coverage', kind: 'coverage', values: years.map((year, index) => ({ year, before: rungValue(reference, 0, index), after: rungValue(financed, 0, index) })) },
-    { label: 'Minimum Basic coverage · SM + Basic', kind: 'coverage', values: years.map((year, index) => ({ year, before: rungValue(reference, 0, index) + rungValue(reference, 1, index), after: rungValue(financed, 0, index) + rungValue(financed, 1, index) })) },
-     { label: 'Safely-managed access gap', kind: 'gap', values: years.map((year, index) => ({ year, before: Number(reference.scenario_sm_access_gap?.[indexes[index]]), after: Number(financed.scenario_sm_access_gap?.[indexes[index]]) })) },
-     { label: 'Minimum Basic access gap', kind: 'gap', values: years.map((year, index) => ({ year, before: Number(reference.scenario_at_least_basic_access_gap?.[indexes[index]]), after: Number(financed.scenario_at_least_basic_access_gap?.[indexes[index]]) })) },
-  ].map(metric => ({
-    ...metric,
-    values: metric.values.map((value, index) => {
-      const change = value.after - value.before;
-       const households = Number(totalHouseholds[indexes[index]]);
-      return { ...value, change, points: households > 0 ? change / households * 100 : null };
-    }).filter(value => Number.isFinite(value.before) && Number.isFinite(value.after)),
-  })).filter(metric => metric.values.length);
-  if (!metricDefinitions.length) return null;
-   const fmt = (value: number) => `${(value * 1e6).toLocaleString('en-US', { maximumFractionDigits: 2 })} HH`;
-  const fmtSigned = (value: number) => `${value > 0 ? '+' : ''}${fmt(value)}`;
-  const lastYear = endYear;
-  const favorable = (kind: string, change: number) => kind === 'coverage' ? change >= 0 : change <= 0;
-  const exportRows = years.flatMap(year => metricDefinitions.map(metric => {
-    const value = metric.values.find(item => item.year === year);
-    return value ? [year, metric.label, value.before, value.after, value.change, value.points] : null;
-  }).filter((row): row is any[] => !!row));
-
-  return (
-      <div className="debt-gap-comparison">
-      <div className="debt-gap-heading">
-        <div><span className="debt-eyebrow">SIGNED DIFFERENCE · HOUSEHOLDS</span><h3>Access &amp; coverage comparison</h3></div>
-        <p>{LOAN_FUNDING_QUALIFICATION}</p>
-      </div>
-      <div className="debt-gap-grid">
-        {metricDefinitions.map(metric => {
-          const final = metric.values.find(item => item.year === lastYear)!;
-          return <div className="debt-gap-card" key={metric.label}>
-            <span>{metric.label}</span>
-            <small>Net {metric.kind === 'coverage' ? 'coverage' : 'access-gap'} difference at simulation end</small>
-            <strong className={favorable(metric.kind, final.change) ? 'is-favorable' : 'is-adverse'}>{fmtSigned(final.change)}</strong>
-            <small>{final.year} · {final.points == null ? 'percentage-point change unavailable' : `${final.points > 0 ? '+' : ''}${final.points.toFixed(3)} pp`}</small>
-            <small>Without loan funding {fmt(final.before)} → With indicative loan funding {fmt(final.after)}</small>
-          </div>;
-        })}
-      </div>
-      <div className="debt-gap-table-scroll">
-        <div className="debt-gap-export">
-          <TableExport filename="debt_servicing_access_comparison" sheetName="Coverage and gaps"
-          headers={['Year', 'Measure', 'Without loan funding (M HH)', 'With indicative loan funding (M HH)', 'Signed change (M HH)', 'Signed change (pp)', 'Qualification']}
-            rows={exportRows.map(row => [...row, LOAN_FUNDING_QUALIFICATION])} compact />
-        </div>
-        <table>
-          <thead><tr><th>Year</th><th>Measure</th><th>Without loan funding</th><th>With indicative loan funding</th><th>Signed HH change</th><th>Signed pp change</th></tr></thead>
-          <tbody>{years.flatMap(year => metricDefinitions.map(metric => {
-            const value = metric.values.find(item => item.year === year);
-            if (!value) return null;
-            return <tr key={`${year}-${metric.label}`}>
-              <th>{year}</th><td>{metric.label}</td><td>{fmt(value.before)}</td><td>{fmt(value.after)}</td>
-              <td className={favorable(metric.kind, value.change) ? 'is-favorable' : 'is-adverse'}>{fmtSigned(value.change)}</td>
-              <td className={value.points == null ? '' : favorable(metric.kind, value.points) ? 'is-favorable' : 'is-adverse'}>
-                {value.points == null ? '—' : `${value.points > 0 ? '+' : ''}${value.points.toFixed(3)} pp`}
-              </td>
-            </tr>;
-          }))}</tbody>
-        </table>
-      </div>
-    </div>
-  );
+  </div>;
 }

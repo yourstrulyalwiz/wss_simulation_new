@@ -276,7 +276,7 @@ def frontend_defaults() -> dict:
 
 # Microfinance + means-based grant lever defaults, shared by both sectors (see WaterInterventionInputs).
 def _afford_defaults():
-    return {'mf_connection_fee':0.0,   # 0 → the engine uses the SM new-service cost (cost_sm)
+    return {'mf_connection_fee':0.0,   # Explicit zero fee; never substitute the SM cost.
             'mf_start_year':2028,'mf_end_year':2040,'mf_pct_income':0.05,'mf_interest_rate':0.10,'mf_tenor':10,
             'mf_partial_share':0.0,'mf_upfront_payable_ratio':0.0,'mf_takeup_rate':0.5,
             'mf_gap_shares':list(_GAP_SHARES_DEFAULT),'mf_selffinance_share':0.10,'grant_total':0.0}
@@ -486,6 +486,29 @@ def _income_distribution(fe: dict) -> IncomeDistribution:
 def to_engine(fe: dict) -> ModelInputs:
     """Translate the frontend-shaped inputs into a ModelInputs for the validated engine (BAU)."""
     from simulation_scope import effective_payload, sectors_of
+    # Public calculation/export boundaries validate the raw draft before calling
+    # this adapter. Internal counterfactual passes may deliberately omit levers.
+    # Malformed disabled drafts must remain savable without breaking unrelated
+    # calculations. Neutralize only the engine copy, never the stored draft.
+    import copy
+    from intervention_validation import INVENTORY, numeric
+    fe = copy.deepcopy(fe)
+    numeric_fields = {field[0] for fields in INVENTORY.values() for field in fields}
+    numeric_fields.update(('fin_injection_amount', 'fin_injection_start_year', 'fin_injection_end_year',
+                          'fin_growth_rate', 'fin_growth_start_year', 'fin_growth_end_year',
+                          'mf_upfront_payable_ratio', 'nrw_vol_growth', 'nrw_production_cost'))
+    for section in ('water_interventions', 'sanitation_interventions'):
+        for key, value in (fe.get(section) or {}).items():
+            if key in numeric_fields and isinstance(value, str):
+                fe[section][key] = numeric(value)
+        iv = fe.get(section) or {}
+        if isinstance(iv.get('mf_gap_shares'), list):
+            iv['mf_gap_shares'] = [numeric(value) for value in iv['mf_gap_shares']]
+        for key in ('techmix_sm_tech_mix', 'techmix_basic_tech_mix'):
+            for row in iv.get(key) or []:
+                for field in ('share', 'cost'):
+                    if isinstance(row.get(field), str):
+                        row[field] = numeric(row[field])
     selected_sectors = sectors_of(fe)
     fe = effective_payload(fe)
     from calculation_setup import restore_automatic_inputs, validate_country_inputs
@@ -600,10 +623,10 @@ def to_engine(fe: dict) -> ModelInputs:
     ws_intv = WaterInterventionInputs(
         **_financial_fields(wi),
         # null-safe: a cleared cell serialises to JSON null (dict.get returns None), so guard with `or default`.
-        nrw_treatment_cost_pct_capex=float(wi.get('nrw_treatment_cost_pct_capex', 0.40) or 0.40),
-        nrw_current_pct=float(wi.get('nrw_current_pct', 0.40) or 0.40),
-        nrw_target_pct=float(wi.get('nrw_target_pct', 0.15) or 0.15),
-        nrw_physical_loss_pct=float(wi.get('nrw_physical_loss_pct', 0.50) or 0.50),
+        nrw_treatment_cost_pct_capex=float(0.40 if wi.get('nrw_treatment_cost_pct_capex') is None else wi['nrw_treatment_cost_pct_capex']),
+        nrw_current_pct=float(0.40 if wi.get('nrw_current_pct') is None else wi['nrw_current_pct']),
+        nrw_target_pct=float(0.15 if wi.get('nrw_target_pct') is None else wi['nrw_target_pct']),
+        nrw_physical_loss_pct=float(0.50 if wi.get('nrw_physical_loss_pct') is None else wi['nrw_physical_loss_pct']),
         nrw_start_year=int(wi.get('nrw_start_year', 0) or 0),
         nrw_target_year=int(wi.get('nrw_target_year', 0) or 0),
         # Benefit lag (years): delay between the works/spend and the recovered water showing up. A cleared
@@ -630,10 +653,10 @@ def to_engine(fe: dict) -> ModelInputs:
         # Volume growth: blank/absent → None (scale with population); a number → fixed compound growth.
         ce_vol_growth=(float(wi['ce_vol_growth']) if wi.get('ce_vol_growth') not in (None, '') else None),
         capeff_start_year=int(wi.get('capeff_start_year', 2027) or 2027),
-        capeff_gains_pct=float(wi.get('capeff_gains_pct', 0.20) or 0.20),
+        capeff_gains_pct=float(0.20 if wi.get('capeff_gains_pct') is None else wi['capeff_gains_pct']),
         # test2 capex-efficiency (budget used ÷ budget): ramp baseline → target over start→target year.
         capeff_target_year=int(wi.get('capeff_target_year', 0) or 0),
-        capeff_target_pct=float(wi.get('capeff_target_pct', 1.0) or 1.0),
+        capeff_target_pct=float(1.0 if wi.get('capeff_target_pct') is None else wi['capeff_target_pct']),
         capeff_current_pct=float(wi.get('capeff_current_pct', 0.0) or 0.0),
         # Capex efficiency (unit-cost discount) — ramp the discount up from BAU (DISTINCT from capeff above).
         costeff_start_year=int(wi.get('costeff_start_year', 0) or 0),
@@ -666,9 +689,9 @@ def to_engine(fe: dict) -> ModelInputs:
         ce_wastewater_collected_pct=float(si.get('ce_wastewater_collected_pct', 0.80) or 0.0),
         ce_sewer_tariff_pct_water=float(si.get('ce_sewer_tariff_pct_water', 0.0) or 0.0),
         capeff_start_year=int(si.get('capeff_start_year', 2027) or 2027),
-        capeff_gains_pct=float(si.get('capeff_gains_pct', 0.20) or 0.20),
+        capeff_gains_pct=float(0.20 if si.get('capeff_gains_pct') is None else si['capeff_gains_pct']),
         capeff_target_year=int(si.get('capeff_target_year', 0) or 0),
-        capeff_target_pct=float(si.get('capeff_target_pct', 1.0) or 1.0),
+        capeff_target_pct=float(1.0 if si.get('capeff_target_pct') is None else si['capeff_target_pct']),
         capeff_current_pct=float(si.get('capeff_current_pct', 0.0) or 0.0),
         # Capex efficiency (unit-cost discount) + optimised technology selection (see water for the mechanic).
         costeff_start_year=int(si.get('costeff_start_year', 0) or 0),

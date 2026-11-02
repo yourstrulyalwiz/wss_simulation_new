@@ -38,7 +38,7 @@ async def project_access_boundary(request, call_next):
             if not user:
                 sid = request.headers.get('x-simulation-id')
                 # Anonymous readers may calculate/view the featured examples only.
-                if not sid or path not in ('/api/calculate','/api/projections','/api/revenue-bases') and not path.startswith('/api/export/'):
+                if not sid or path not in ('/api/calculate','/api/projections','/api/revenue-bases','/api/intervention-validation') and not path.startswith('/api/export/'):
                     identity(request)
                 with connect() as db:
                     from simulation_management.access import public_read_only
@@ -55,6 +55,14 @@ async def project_access_boundary(request, call_next):
 @app.exception_handler(ValueError)
 async def invalid_selection(request, exc):
     return JSONResponse(status_code=422, content={'detail': str(exc)})
+
+from intervention_validation import InterventionInputError, validate_interventions, require_valid_interventions
+
+
+@app.exception_handler(InterventionInputError)
+async def invalid_intervention_inputs(request, exc):
+    return JSONResponse(status_code=422, content={'detail': 'Intervention inputs are incomplete.',
+                                                 'intervention_issues': exc.issues})
 from model.utility_revenue import RevenueInputError, resolve_bases
 from model.utility_debt import UtilityDebtInputError
 from model.engine import build_context
@@ -203,7 +211,29 @@ def delete_profile(name: str):
 
 @app.post("/api/calculate")
 def run_calculation(inputs: dict = Body(...)):
-    return calculate(coerce_to_engine(inputs), allow_partial=True)
+    from simulation_scope import sectors_of
+    from calculation_setup import economic_projections
+    issues = validate_interventions(inputs)
+    invalid = {issue['sector'] for issue in issues if issue['severity'] == 'error'}
+    valid = [sector for sector in sectors_of(inputs) if sector not in invalid]
+    if not invalid:
+        result = calculate(coerce_to_engine(inputs), allow_partial=True)
+    elif valid:
+        result = calculate(coerce_to_engine({**inputs, 'calculation_scope': valid}), allow_partial=True)
+    else:
+        projection = economic_projections(inputs)
+        result = {k: projection[k] for k in ('years', 'population', 'total_hh', 'hh_size', 'gdp_real_local')}
+        result['sector_errors'] = {}
+    for sector in invalid:
+        result['water_supply' if sector == 'water' else sector] = None
+    result['intervention_issues'] = issues
+    result['incomplete'] = bool(invalid) or bool(result.get('sector_errors'))
+    return result
+
+
+@app.post("/api/intervention-validation")
+def intervention_validation(inputs: dict = Body(...)):
+    return {'issues': validate_interventions(inputs)}
 
 
 @app.post("/api/projections")
@@ -214,6 +244,7 @@ def project_economics(inputs: dict = Body(...)):
 
 @app.post("/api/export/csv")
 def export_csv(inputs: dict = Body(...)):
+    require_valid_interventions(inputs)
     # Enriched: per-year forecast for both sectors (BAU / target / with-interventions coverage, service gap,
     # investment need, and BOTH financing gaps) + the per-intervention contribution breakdown.
     from export_data import scenario_csv
@@ -236,6 +267,7 @@ def export_csv(inputs: dict = Body(...)):
 
 @app.post("/api/export/pptx")
 def export_pptx(inputs: dict = Body(...)):
+    require_valid_interventions(inputs)
     from export_pptx import create_pptx
     # The Results deck export sends the on-screen chart PNGs under `_charts` (the backend can't render
     # recharts). Pull them out before running the engine so they don't reach the input coercion.
@@ -257,8 +289,8 @@ def export_pptx(inputs: dict = Body(...)):
     )
 
 
-@app.post("/api/export/deck")
-def export_deck_api(payload: dict = Body(...)):
+def generated_deck(payload: dict, with_omissions=False):
+    payload = dict(payload)
     """Branded PowerPoint deck, built by filling the shipped .pptx template.
 
     Body: {"areas": {"urban": <inputs>, "rural": <inputs>, "national": <inputs>}}. Only the areas the
@@ -278,7 +310,9 @@ def export_deck_api(payload: dict = Body(...)):
         single.pop('_export_options', None)
         areas = {'national': single} if single else {}
     if not areas:
-        return {"error": "no area inputs supplied"}
+        raise HTTPException(status_code=422, detail="No area inputs supplied.")
+    from deck_completion import completed_deck_areas
+    areas, omitted = completed_deck_areas(areas)
     try:
         currency_display = validate_currency_display(currency_settings, [
             ((area.get('country_config') or {}).get('currency') or 'LCU') for area in areas.values()
@@ -288,9 +322,23 @@ def export_deck_api(payload: dict = Body(...)):
     # One line recording which scopes the deck was built from. A deck missing a scope is almost always
     # a payload that never carried it, and that is otherwise invisible from the output alone.
     print(f"[export/deck] areas={list(areas)}", flush=True)
-    out = build_deck(areas, contribution_view=contribution_view, currency_display=currency_display)
+    out = build_deck(areas, contribution_view=contribution_view, currency_display=currency_display, omitted_sections=omitted)
+    return (out.getvalue(), omitted) if with_omissions else out.getvalue()
+
+
+@app.post("/api/export/deck/preview")
+def preview_deck_api(payload: dict = Body(...)):
+    from deck_preview import preview_deck, preview_slot
+    # The existing export access boundary applies; no persistent URLs or shared files.
+    with preview_slot():
+        data, omitted = generated_deck(payload, with_omissions=True)
+        return {**preview_deck(data), "omitted_sections": omitted}
+
+
+@app.post("/api/export/deck")
+def export_deck_api(payload: dict = Body(...)):
     return StreamingResponse(
-        iter([out.getvalue()]),
+        iter([generated_deck(payload)]),
         media_type='application/vnd.openxmlformats-officedocument.presentationml.presentation',
         headers={'Content-Disposition': 'attachment; filename="wss_scenarios.pptx"'},
     )
@@ -298,6 +346,7 @@ def export_deck_api(payload: dict = Body(...)):
 
 @app.post("/api/export/xlsx")
 def export_xlsx(inputs: dict = Body(...)):
+    require_valid_interventions(inputs)
     # Enriched multi-sheet workbook: per-sector forecast (incl. both financing gaps) + per-intervention breakdown.
     from export_data import scenario_xlsx
     options = inputs.pop('_export_options', {})
@@ -316,8 +365,19 @@ def export_xlsx(inputs: dict = Body(...)):
     )
 
 
+def validate_export_inputs(payload):
+    areas = payload.get('_validation_inputs')
+    if not isinstance(areas, dict) or not areas:
+        raise HTTPException(status_code=422, detail='Current simulation inputs are required for calculated export.')
+    for area, inputs in areas.items():
+        issues = validate_interventions(inputs, area)
+        if any(issue['severity'] == 'error' for issue in issues):
+            raise InterventionInputError(issues)
+
+
 @app.post("/api/export/table")
 def export_table(payload: dict = Body(...)):
+    validate_export_inputs(payload)
     """Generic table → xlsx for the per-table export buttons. Body: {filename?, sheets:[{name,headers,rows}]}."""
     from export_data import table_xlsx
     sheets = payload.get('sheets') or []
@@ -339,6 +399,7 @@ def export_table(payload: dict = Body(...)):
 
 @app.post("/api/export/chart")
 def export_chart(payload: dict = Body(...)):
+    validate_export_inputs(payload)
     """Generic chart → xlsx with a NATIVE, data-linked Excel chart (edit the data → the chart redraws).
     Body: {filename?, title?, sheets:[{name,headers,rows}], chartSpec:{category,stacked,areas,lines,x/yTitle}}.
     `image` is still accepted as a legacy fallback (embeds the PNG when no chartSpec is given)."""

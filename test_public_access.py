@@ -53,7 +53,11 @@ class PublicAccessTests(unittest.TestCase):
                     self.assertEqual(client.get(f'/api/simulations/{private_id}/export').status_code, 404)
                     self.assertEqual(client.post(f'/api/simulations/{private_id}/calculate').status_code, 404)
                     self.assertEqual(client.get(f'/api/simulations/{sid}/export').status_code, 200)
-                    self.assertEqual(client.post(f'/api/simulations/{sid}/calculate').status_code, 200)
+                    calculation = client.post(f'/api/simulations/{sid}/calculate')
+                    # Published legacy inputs remain readable, but incomplete active
+                    # interventions may no longer calculate using hidden defaults.
+                    self.assertEqual(calculation.status_code, 422)
+                    self.assertTrue(calculation.json()['intervention_issues'])
                     self.assertEqual(client.post('/api/revenue-bases', json=record['bundle']['inputs'],
                                      headers={'x-simulation-id': sid}).status_code, 200)
                     self.assertEqual(client.post('/api/revenue-bases',

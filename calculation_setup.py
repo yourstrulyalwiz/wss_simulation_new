@@ -142,5 +142,31 @@ def economic_projections(inputs):
         population=PopulationInputs(**(inputs.get("population") or {})),
     )
     ctx = build_context(model)
-    return {key: ctx[key].tolist() for key in
-            ("years", "population", "total_hh", "hh_size", "gdp_real_local")}
+    result = {key: ctx[key].tolist() for key in
+              ("years", "population", "total_hh", "hh_size", "gdp_real_local")}
+    # Budget forecasts depend only on observed budgets and GDP, not on service
+    # costs, revenue calibration, or intervention validation.
+    from model.budget_forecast import resolve_budget, BudgetInputError
+    from simulation_scope import sectors_of
+    selected = sectors_of(inputs)
+    result['budget_errors'] = {}
+    bau = inputs.get('bau') or {}
+    for sector, prefix, key in [('water', 'ws', 'water_supply'),
+                                ('sanitation', 'san', 'sanitation')]:
+        if sector not in selected:
+            continue
+        try:
+            executed, allocated, rates, metadata = resolve_budget(
+                bau.get(prefix + '_expend_ts') or [],
+                bau.get(prefix + '_alloc_ts') or [],
+                ctx['years'], ctx['gdp_real_local'], per['baseline_year'],
+                sector.title() + ' budget')
+            result[key] = {
+                'budget_executed_input_basis': executed,
+                'budget_allocated_input_basis': allocated,
+                'budget_execution_baseline': rates,
+                'budget_forecast_metadata': metadata,
+            }
+        except BudgetInputError as exc:
+            result['budget_errors'][key] = str(exc)
+    return result

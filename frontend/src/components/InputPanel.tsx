@@ -9,6 +9,11 @@ import { CurrencyDisplayControl, currencyRateNote, defaultCurrencyDisplay, type 
 
 // Keep the controls available for re-enabling; the engine independently ignores
 // these scalar overrides while the feature is paused. Never clear saved values.
+import { budgetExecutionRate } from '../budgetExecutionRate';
+import BudgetBaselineCards from './BudgetBaselineCards';
+import CountryProfileFields from './CountryProfileFields';
+import AreaFocusFields from './AreaFocusFields';
+
 const OPTIONAL_FORECAST_ASSUMPTIONS_ENABLED = false;
 
 // Explains why sanitation's safely-managed and basic rungs share ONE technology mix: the JMP service
@@ -51,7 +56,7 @@ function SanServiceLevelExplainer() {
   );
 }
 
-function Section({ title, children, cols = 3, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; cols?: number; sectionKey?: string; onFocus?: (key: string) => void; openSignal?: number }) {
+function Section({ title, children, cols = 3, sectionKey, onFocus, navigationOnly = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean; cols?: number; sectionKey?: string; onFocus?: (key: string) => void; openSignal?: number; navigationOnly?: boolean }) {
   const { readOnly } = useProjectScope();
   // Responsive columns: fields size to a min track and the column count adapts to the available
   // width (so the grid never stretches fields edge-to-edge on wide screens, nor cramps on a laptop).
@@ -64,7 +69,7 @@ function Section({ title, children, cols = 3, sectionKey, onFocus }: { title: st
         {titleParts && <span className="modern-input-section-heading__index">{titleParts[1]}</span>}
         <span>{titleParts?.[2] || title}</span>
       </h3>
-      <fieldset disabled={readOnly} onFocusCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} onClickCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} style={{ margin: 0, border: 0, minWidth: 0, padding: '10px 14px 12px', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${colMin}px, 1fr))`, gap: '12px 16px', alignItems: 'start' }}>{children}</fieldset>
+      <fieldset disabled={readOnly && !navigationOnly} onFocusCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} onClickCapture={() => { if (sectionKey && onFocus) onFocus(sectionKey); }} style={{ margin: 0, border: 0, minWidth: 0, padding: '10px 14px 12px', display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${colMin}px, 1fr))`, gap: '12px 16px', alignItems: 'start' }}>{children}</fieldset>
     </div>
   );
 }
@@ -137,8 +142,7 @@ function YearTable({ rows, years, baseYr2, colIsTarget, markTargets = false }: {
 // Color convention: blue text = editable input, green text = cross-linked, gray = computed/derived
 // Share of NEW investment (after replacement) directed at BASIC service. The remainder buys safely
 // managed service. Both fields edit the same underlying number, so they always total 100%.
-// It lives with the BUDGET inputs rather than the interventions because it drives the BAU projection,
-// not just the designed scenario.
+// This standalone Data Inputs section drives BAU as well as the designed scenario.
 function SplitControl({ inputs, onChange, section, sector }: {
   inputs: any; onChange: (i: any) => void; section: 'water_interventions' | 'sanitation_interventions'; sector: string;
 }) {
@@ -151,10 +155,8 @@ function SplitControl({ inputs, onChange, section, sector }: {
   };
   const cell: React.CSSProperties = { padding: '4px 6px', border: '1px solid #dce4e8', background: '#e5f4f5', borderRadius: 3, fontSize: 12, color: '#29343b', outline: 'none', width: 66 };
   return (
-    <div style={{ gridColumn: '1 / -1', border: '1px solid #bfdbfe', background: '#f8fbff',
-      borderRadius: 6, padding: '10px 14px', marginTop: 10 }}>
+    <div style={{ gridColumn: '1 / -1' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1e3a5f' }}>Investment split by service level</span>
         <span style={{ fontSize: 10.5, color: '#64748b' }}>
           How new {sector} investment is divided once replacement is funded. The safely-managed share
           upgrades households from basic and below; the basic share upgrades households from limited and
@@ -298,9 +300,9 @@ function YearField({ label, value, onCommit, min, max, tip }: {
   );
 }
 
-interface Props { scopeControls?: React.ReactNode; inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; calculationError?: string; projectionError?: string; }
+interface Props { setupNameControls?: React.ReactNode; scopeControls?: React.ReactNode; inputs: any; onChange: (i: any) => void; results?: any; onCalculate?: () => void; loading?: boolean; showSection?: string; geoScope?: string; bauSector?: 'water' | 'sanitation'; onBauSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (sectionKey: string) => void; currencyDisplay?: CurrencyDisplaySettings; onCurrencyDisplayChange?: (v: CurrencyDisplaySettings) => void; focusCurrencyRequest?: number; onEditCurrencyRate?: () => void; calculationError?: string; projectionError?: string; }
 
-export default function InputPanel({ scopeControls, inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate, calculationError, projectionError }: Props) {
+export default function InputPanel({ setupNameControls, scopeControls, inputs, onChange, results, onCalculate, loading, showSection = 'inputs', geoScope = 'urban', bauSector: bauSectorProp, onBauSectorChange, onSectionFocus, currencyDisplay, onCurrencyDisplayChange, focusCurrencyRequest = 0, onEditCurrencyRate, calculationError, projectionError }: Props) {
   const { sectors, readOnly, projectMode } = useProjectScope();
   const [costTemplates, setCostTemplates] = useState<CostMixTemplates>({});
   const [costTemplateError, setCostTemplateError] = useState('');
@@ -316,7 +318,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
   useEffect(() => {
     if (!focusCurrencyRequest) return;
     const timer = setTimeout(() => {
-      const section = document.querySelector('[data-section-key="country"]');
+      const section = document.querySelector('[data-section-key="currency"]');
       section?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       rateInputRef.current?.focus();
     }, 80);
@@ -324,8 +326,8 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
   }, [focusCurrencyRequest]);
   const selectedSector = bauSectorProp || bauSectorLocal;
   const bauSector = sectors.includes(selectedSector) ? selectedSector : sectors[0];
-  // The sector toggle is rendered in two places: above the Budget section on Data Inputs (so the split
-  // control below it follows the chosen sector) and above section 6 on the BAU tab. Defined once here.
+  // Data Inputs has a standalone sector-navigation section after Budget.
+  // The BAU placement remains unchanged.
   // A compact segmented control in a card, so it reads as part of the section stack rather than two
   // full-width slabs. Sized to its content, so it looks the same in the wide Data-Inputs column and
   // the narrow BAU panel.
@@ -482,6 +484,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
   };
 
   const isInputs = showSection === 'inputs';
+  const isSetup = showSection === 'setup';
   const isBAU = showSection === 'bau';
   const isInterventions = showSection === 'interventions';
 
@@ -518,24 +521,30 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
   const hhSizeCagr = cagr(avgHHSizeStart, avgHHSizeBase, nYears);
 
   return (
-    <SectionWorkspace label="Data Inputs sections" sections={isInputs ? [
-      {key:'country', label:'Country, Area of Focus & Currency'},
+    <SectionWorkspace key={showSection} label={isSetup ? 'Setup sections' : 'Data Inputs sections'} sections={isInputs ? [
       {key:'period', label:'Analysis Period'},
+      {key:'geographical_selection', label:'Geographical Scope Selection'},
       {key:'service_levels', label:'Service Levels'},
       {key:'econ_demo', label:'Economic & Demographic Data'},
       {key:'budget', label:'Budget'},
+      {key:'sector_selection', label:'Sector Selection'},
+      {key:'investment_split', label:'Investment Split by Service Level'},
       {key:'revenue_inputs', label:'Revenue Inputs'},
       {key:'unit_costs', label:'Unit Costs & Technical Parameters'},
+    ] : isSetup ? [
+      {key:'simulation_name', label:'Simulation Name'},
+      {key:'country', label:'Country Profile'},
+      {key:'coverage', label:'Simulation Coverage'},
+      {key:'currency', label:'Currency'},
     ] : []}>
     <div className="modern-input-panel" style={{ flex: 1, fontSize: 12, minWidth: 0 }}>
       {/* Content is capped to a consistent max width and centered, so section cards don't sprawl
           edge-to-edge on wide screens; the grey scroll container stays full-bleed behind it. */}
       <div>
-      <header className="modern-page-intro"><span className="modern-page-intro__eyebrow">{isInputs ? 'WORKFLOW 01 · SET THE EVIDENCE BASE' : 'BASELINE ASSUMPTIONS'}</span>
-        <h2>{isInputs ? 'Build the country baseline' : 'Review Baseline Information'}</h2>
-        <p>Set the shared analysis frame, then review the service, population, economic and budget evidence for the selected area.</p>
+      <header className="modern-page-intro"><span className="modern-page-intro__eyebrow">{isSetup ? 'WORKFLOW 00 · SET UP THE SIMULATION' : isInputs ? 'WORKFLOW 01 · SET THE EVIDENCE BASE' : 'BASELINE ASSUMPTIONS'}</span>
+        <h2>{isSetup ? 'Simulation setup' : isInputs ? 'Build the country baseline' : 'Review Baseline Information'}</h2>
+        <p>{isSetup ? 'Set the name, country, area of focus, currency and coverage for this simulation.' : 'Set the analysis period, select the area to view, then review service, population, economic and budget evidence. Country, currency and simulation coverage are in Setup.'}</p>
       </header>
-      {isInputs && scopeControls}
       <div style={{ display: 'flex', gap: 18, fontSize: 12, marginBottom: 12, color: '#3A4452', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid #F0D070', background: '#FFF9E6', display: 'inline-block' }} />
@@ -554,7 +563,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       {/* Area-scope banner. On BAU/intervention tabs it sits at the top (every field there is scope-specific).
           On the Data Inputs tab it is moved BELOW §2a instead (see the "every section below" flag there), since
           §1 Country and §2a Analysis Period apply to the whole analysis rather than to one area. */}
-      {!isInputs && (
+      {!isInputs && !isSetup && (
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, textAlign: 'left',
         padding: '8px 14px', borderRadius: 6, fontSize: 12.5,
@@ -593,10 +602,13 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
         </Section>
       </>}
 
-      {isInputs && <>
+      {isSetup && <>
 
       {/* ===== COUNTRY CONFIG ===== */}
-      <Section title="1. Country, Area of Focus & Currency" sectionKey="country" onFocus={onSectionFocus} openSignal={focusCurrencyRequest}>
+      <Section title="1. Simulation Name" sectionKey="simulation_name" onFocus={onSectionFocus}>
+        <div style={{ gridColumn: '1 / -1' }}>{setupNameControls}</div>
+      </Section>
+      <Section title="2. Country Profile" sectionKey="country" onFocus={onSectionFocus}>
         {inputs.country_config && <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
             <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Country</label>
@@ -609,13 +621,18 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
               {countries.map(c => <option key={c.name} value={c.name} />)}
             </datalist>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-            <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Area of focus</label>
-            <input type="text" value={inputs.country_config.area || ''}
-              onChange={e => setCountryConfig('area', e.target.value)}
-              style={{ width: '100%', padding: '7px 10px', border: '1px solid #F0D070', background: '#FFF9E6', borderRadius: 4, fontSize: 13, color: '#3A4452', boxSizing: 'border-box', outline: 'none' }}
-              placeholder="e.g. Kathmandu Valley" />
-          </div>
+          <CountryProfileFields countryName={inputs.country_config.country || ''} />
+          <AreaFocusFields config={inputs.country_config} readOnly={readOnly}
+            onChange={patch => {
+              if (!readOnly) onChange({ ...inputs, country_config: { ...inputs.country_config, ...patch } });
+            }} />
+        </>}
+      </Section>
+      <Section title="3. Simulation Coverage" sectionKey="coverage" onFocus={onSectionFocus}>
+        <div style={{ gridColumn: '1 / -1' }}>{scopeControls}</div>
+      </Section>
+      <Section title="4. Currency" sectionKey="currency" onFocus={onSectionFocus} openSignal={focusCurrencyRequest}>
+        {inputs.country_config && <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
             <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }}>Currency code</label>
             <input type="text" value={inputs.country_config.currency || ''}
@@ -658,23 +675,25 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
         </>}
       </Section>
 
-      {/* ===== 2. ANALYSIS PERIOD (key dates) ===== */}
-      <Section title="2. Analysis Period" sectionKey="period" onFocus={onSectionFocus}>
+      </>}
+      {isInputs && <>
+      <Section title="1. Analysis Period" sectionKey="period" onFocus={onSectionFocus}>
         <SubHead text="Key dates" />
         <YearField label="Model start year" value={inputs.period.model_start_year} onCommit={setModelStartYear} min={1950} max={inputs.period.baseline_year - 1} tip="First year of historical data; must be at least 3 years before the last year of historical data. Existing data keeps its year — newly added earlier years come in blank for you to fill." />
         <F label="Last year of historical data" value={inputs.period.baseline_year} onChange={v => u('period','baseline_year',v)} min={2023} tip="Last year with complete actual data; must be within the last three years" />
         <F label="Forecast end year" value={inputs.period.forecast_end_year} onChange={v => u('period','forecast_end_year',v)} min={inputs.period.baseline_year + 5} tip="Last year of projection" />
       </Section>
 
-      {/* ===== SCOPE-SPECIFICITY FLAG. §1 and §2a above apply to the whole analysis; every section below
-              (the year-by-year table and the cost/technical sections) is entered per the selected scope. ===== */}
+      <Section title="2. Geographical Scope Selection" sectionKey="geographical_selection" onFocus={onSectionFocus} navigationOnly>
+        <div style={{ gridColumn: '1 / -1' }}>{scopeControls}</div>
+      </Section>
       <div style={{
         display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8, textAlign: 'left',
         padding: '8px 14px', borderRadius: 6, fontSize: 12.5,
         background: '#EBF6FB', border: '1px solid #9fd3ec', borderLeft: '4px solid #0073A8', color: '#0073A8',
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontWeight: 600 }}>
-          <span>Every section below is <span style={{ display: 'inline-block', background: '#0073A8', color: '#fff', fontWeight: 700, padding: '1px 10px', borderRadius: 12, fontSize: 12, textTransform: 'capitalize', verticalAlign: 'baseline' }}>{scopeLabel}</span>-specific — enter {scopeLower} figures here. Sections 1 and 2 above apply to the whole analysis and are shared across areas.</span>
+          <span>Every section below is <span style={{ display: 'inline-block', background: '#0073A8', color: '#fff', fontWeight: 700, padding: '1px 10px', borderRadius: 12, fontSize: 12, textTransform: 'capitalize', verticalAlign: 'baseline' }}>{scopeLabel}</span>-specific — enter {scopeLower} figures here. The analysis period above is shared across areas. Country, currency and coverage are managed in Setup.</span>
         </div>
       </div>
 
@@ -934,22 +953,51 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
               return <span style={{ fontSize: 10, color: '#94a3b8' }}>{sz > 0 ? sz.toFixed(2) : 'n/a'}</span>;
             }) },
           ];
+          const executionRateRow = (prefix: 'ws' | 'san', sector: 'water_supply' | 'sanitation'): YRow => ({
+            label: `${prefix.toUpperCase()} budget execution rate (%)`,
+            tip: 'Calculated as executed budget ÷ allocated budget. Uses entered amounts or the calculated budgets for blank years. Not available when either amount is missing or allocated budget is zero.',
+            computed: true,
+            cells: years.map((_, i) => {
+              const executed = inputs.bau?.[`${prefix}_expend_ts`]?.[i]
+                ?? secRes(sector, 'budget_executed_input_basis', i);
+              const allocated = inputs.bau?.[`${prefix}_alloc_ts`]?.[i]
+                ?? secRes(sector, 'budget_allocated_input_basis', i);
+              const rate = budgetExecutionRate(executed, allocated);
+              return rate == null
+                ? grey('n/a', 'Requires an executed budget and a positive allocated budget')
+                : grey(`${(rate * 100).toFixed(1)}%`, 'Executed budget ÷ allocated budget × 100');
+            }),
+          });
           const budgetRows: YRow[] = [
-            { label: 'WS executed budget', tip: 'Entered executed spending. Forecast independently from annual spending/GDP shares: three-year initialization, then a two-year moving average. Blank restores the calculated value; zero is an observation.', cells: years.map((_: number, i: number) => budgetCostCell('ws_expend_ts', 'water_supply', i, 'budget_executed_input_basis')) },
             { label: 'WS allocated budget', tip: 'Entered allocated budget on the same basis as executed spending. Independently forecast from allocation/GDP shares; execution = executed ÷ allocated.', cells: years.map((_: number, i: number) => budgetCostCell('ws_alloc_ts', 'water_supply', i, 'budget_allocated_input_basis')) },
-            { label: 'SAN executed budget', tip: 'Entered executed spending. Forecast independently from annual spending/GDP shares: three-year initialization, then a two-year moving average. Blank restores the calculated value; zero is an observation.', cells: years.map((_: number, i: number) => budgetCostCell('san_expend_ts', 'sanitation', i, 'budget_executed_input_basis')) },
+            { label: 'WS executed budget', tip: 'Entered executed spending. Forecast independently from annual spending/GDP shares: three-year initialization, then a two-year moving average. Blank restores the calculated value; zero is an observation.', cells: years.map((_: number, i: number) => budgetCostCell('ws_expend_ts', 'water_supply', i, 'budget_executed_input_basis')) },
+            executionRateRow('ws', 'water_supply'),
             { label: 'SAN allocated budget', tip: 'Entered allocated budget on the same basis as executed spending. Independently forecast from allocation/GDP shares; execution = executed ÷ allocated.', cells: years.map((_: number, i: number) => budgetCostCell('san_alloc_ts', 'sanitation', i, 'budget_allocated_input_basis')) },
+            { label: 'SAN executed budget', tip: 'Entered executed spending. Forecast independently from annual spending/GDP shares: three-year initialization, then a two-year moving average. Blank restores the calculated value; zero is an observation.', cells: years.map((_: number, i: number) => budgetCostCell('san_expend_ts', 'sanitation', i, 'budget_executed_input_basis')) },
+            executionRateRow('san', 'sanitation'),
           ];
           return (
             <>
-              <Section title="3. Service levels" sectionKey="service_levels" onFocus={onSectionFocus}>
+              <Section title={`3. Service Levels (${scopeLabel})`} sectionKey="service_levels" onFocus={onSectionFocus}>
                 <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#64748b', marginBottom: 4, padding: '4px 8px', background: '#f8fafc', borderRadius: 4 }}>
                   Enter the historical share of households at each service level in neutral-fill cells. The five rungs in each year must add up to 100%. Blank years fill in automatically from the yearly growth rate. In each sector's band below, the <b>"BAU rate from"</b> dropdown sets the first historical year used to work out the business-as-usual trend: the tool averages year-on-year growth from that year to the last historical year and projects it forward, so pick the year whose trend best reflects the pace you expect to continue (or leave the default if unsure). To set a <b style={{ color: '#009CA7' }}>target</b>, fill in a teal-tinted forecast column so its five rungs add up to 100%. You can set as many target years as you like.
                 </div>
+                <dl aria-label="Service level simulation years" style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, margin: '4px 0 12px' }}>
+                  {[
+                    { label: 'Baseline Year', value: inputs.period.baseline_year },
+                    { label: 'Simulation Start Year', value: Number.isFinite(inputs.period.baseline_year) ? inputs.period.baseline_year + 1 : null },
+                    { label: 'Simulation End Year', value: inputs.period.forecast_end_year },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{ padding: '14px 16px', border: '1px solid #dce9ed', borderRadius: 8, background: '#f4f9fa' }}>
+                      <dt style={{ fontSize: 11, fontWeight: 600, color: '#526b76' }}>{label}</dt>
+                      <dd style={{ margin: '6px 0 0', fontSize: 24, fontWeight: 700, color: '#005675' }}>{Number.isFinite(value) ? value : '—'}</dd>
+                    </div>
+                  ))}
+                </dl>
                 <YearTable rows={serviceRows} years={years} baseYr2={baseYr2} markTargets colIsTarget={anyTarget} />
               </Section>
 
-              <Section title="4. Economic & demographic data" sectionKey="econ_demo" onFocus={onSectionFocus}>
+              <Section title={`4. Economic & demographic data (${scopeLabel})`} sectionKey="econ_demo" onFocus={onSectionFocus}>
                 {projectionError && <div role="alert" style={{ gridColumn: '1 / -1', color: '#b91c1c', fontSize: 11 }}>
                   Automatic economic projections could not run: {projectionError}
                 </div>}
@@ -980,11 +1028,8 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
                 </div>}
               </Section>
 
-              {/* Sector choice ahead of the budget, so the split control below follows one sector
-                  instead of showing a pair. */}
-              {sectorToggle}
-
-              <Section title="5. Budget" sectionKey="budget" onFocus={onSectionFocus}>
+              <Section title={`5. Budget (${scopeLabel})`} sectionKey="budget" onFocus={onSectionFocus}>
+                <BudgetBaselineCards results={results} baselineYear={inputs.period.baseline_year} sectors={sectors} />
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, color: '#475569', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 12px', marginBottom: 4 }}>
                   <b>Two independent budgets per sector.</b> Enter executed spending and allocated budgets. Each forecast starts with the mean annual budget/real-GDP share in its latest three-calendar-year observation window, then uses a two-year moving average of shares multiplied by forecast real GDP. Zero is an observation; blank means missing or calculated. Execution is executed ÷ allocated. Calculated values are not saved as observations.
                 </div>
@@ -1013,12 +1058,22 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
                     {calculationError && <div role="alert" style={{ color: '#9f1239' }}>{calculationError}</div>}
                   </div>;
                 })()}
+                {Object.entries(results?.budget_errors || {}).map(([sector, message]) => (
+                  <div role="alert" key={sector} style={{ gridColumn: '1 / -1', color: '#9f1239', fontSize: 11 }}>
+                    {String(message)}
+                  </div>
+                ))}
                 <YearTable rows={budgetRows} years={years} baseYr2={baseYr2} />
+              </Section>
+              <Section title={`6. Sector Selection (${scopeLabel})`} sectionKey="sector_selection" onFocus={onSectionFocus} navigationOnly>
+                <div style={{ gridColumn: '1 / -1' }}>{sectorToggle}</div>
+              </Section>
+              <Section title={`7. Investment Split by Service Level (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="investment_split" onFocus={onSectionFocus}>
                 <SplitControl inputs={inputs} onChange={onChange}
                   section={bauSector === 'water' ? 'water_interventions' : 'sanitation_interventions'}
                   sector={bauSector === 'water' ? 'water supply' : 'sanitation'} />
               </Section>
-              <Section title="6. Revenue Inputs" sectionKey="revenue_inputs" onFocus={onSectionFocus}>
+              <Section title={`8. Revenue Inputs (${scopeLabel} ${bauSector === 'water' ? 'Water Supply' : 'Sanitation'})`} sectionKey="revenue_inputs" onFocus={onSectionFocus}>
                 {calculationError && inputs.revenue_bases?.water && inputs.revenue_bases?.sanitation &&
                   <div role="alert" style={{ gridColumn: '1 / -1', padding: '8px 10px', color: '#9f1239', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 5 }}>
                     {calculationError}
@@ -1040,7 +1095,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
 
       {/* ===== UNIT COSTS + TECHNICAL (merged, sector-dependent). Targets are now set in the §2 table. ===== */}
       {bauSector === 'water' && (
-      <Section title={`7. ${scopeLabel} Water Supply — Unit Costs & Technical Parameters`} cols={2} sectionKey="ws_unit_costs" onFocus={onSectionFocus}>
+      <Section title={`9. Unit Costs & Technical Parameters (${scopeLabel} Water Supply)`} cols={2} sectionKey="ws_unit_costs" onFocus={onSectionFocus}>
         <SubHead text="Unit costs (nominal → real)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ws[0]}</b> and <b>{ws[1]}</b> weighted costs, built from the technology mixes below.
@@ -1067,7 +1122,7 @@ export default function InputPanel({ scopeControls, inputs, onChange, results, o
       )}
 
       {bauSector === 'sanitation' && (
-      <Section title={`7. ${scopeLabel} Sanitation — Unit Costs & Technical Parameters`} cols={2} sectionKey="san_unit_costs" onFocus={onSectionFocus}>
+      <Section title={`9. Unit Costs & Technical Parameters (${scopeLabel} Sanitation)`} cols={2} sectionKey="san_unit_costs" onFocus={onSectionFocus}>
         <SubHead text="Unit costs (nominal → real)" />
         <div style={{ gridColumn: '1 / -1', fontSize: 10, color: '#617078', padding: '4px 8px', background: '#e5f4f5', borderRadius: 4, border: '1px solid #dce4e8' }}>
           Enter technology costs as <b>nominal</b> prices for the price-index year below. The model uses the <b>real</b> price = nominal × price index ÷ 100. The engine consumes the <b>{ss[0]}</b> and <b>{ss[1]}</b> weighted costs, built from the technology mixes below.

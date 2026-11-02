@@ -14,6 +14,7 @@ const measures = [
   'currentCashShortfall','priorCashShortfall','accumulatedCashShortfall','householdExpansionPaid','noncashDeliveryHH',
   'noncashDeliveryCredit','cancelledExpansionCost','outstandingRepricing','ancillaryPaid','sectorExpansionPaid',
   'externalExpansionPaid','openingExpansionCost','advanceDeliveryCredit','newAncillaryCommitment','sectorHouseholdPaid',
+  'replacementBacklogOpening','replacementCurrentPaid','replacementBacklogPaid','replacementPaidTotal','replacementBacklogClosing',
 ];
 function snapshot(year, values) {
   const all = Object.fromEntries(measures.map(key => [key, [0, 0, 0]]));
@@ -33,6 +34,10 @@ function areaValues({ prefund, close, replacement, cash = 0, coverage = [2, 3], 
     currentUnpaidReplacement: [i === 1 ? 1 : 0, 0, i === 1 ? 1 : 0],
     priorReplacementShortfall: [i === 1 ? 3 : 0, 0, i === 1 ? 3 : 0],
     accumulatedReplacementShortfall: [i === 1 ? 4 : 0, 0, i === 1 ? 4 : 0],
+    replacementBacklogOpening: [i === 1 ? 3 : 0, 0, i === 1 ? 3 : 0],
+    replacementCurrentPaid: [i === 1 ? 2 : 0, 0, i === 1 ? 2 : 0],
+    replacementPaidTotal: [i === 1 ? 2 : 0, 0, i === 1 ? 2 : 0],
+    replacementBacklogClosing: [i === 1 ? 4 : 0, 0, i === 1 ? 4 : 0],
     accumulatedCashShortfall: [i === 1 ? cash : 0, 0, i === 1 ? cash : 0],
     scheduledExpansion: [i === 1 ? 12 : 0, 0, i === 1 ? 12 : 0],
     householdExpansionPaid: [i === 1 ? 0.5 : 0, 0, i === 1 ? 0.5 : 0],
@@ -66,11 +71,11 @@ const options = { metric: 'requirements', service: 'total', basis: 'annual', yea
 const requirements = ledgerRows(data, options);
 assert.equal(requirements[0].label, 'Requirements before this year’s funding — Combined scenario total');
 assert.equal(requirements[0].unit, 'B USD');
-assert.equal(requirements[0].values[1], 0.015); // M native currency displayed in billions: 15 M
+assert.equal(requirements[0].values[1], 0.021); // Includes 6 M opening replacement backlog, once.
 assert.equal(requirements[0].children.length, 2);
 assert.equal(requirements[0].children[0].children.length, 2);
 assert.equal(requirements[0].children[0].children[0].children[0].timing, 'Reference — annual flow');
-close(requirements[0].values[1], 0.015);
+close(requirements[0].values[1], 0.021);
 const scheduledOnlyChange = structuredClone(data);
 scheduledOnlyChange.scenario[1].values.scheduledExpansion = [999, 999, 1998];
 close(ledgerRows(scheduledOnlyChange, options)[0].values[1], requirements[0].values[1],
@@ -105,7 +110,7 @@ const paymentTree = ledgerRows({ ...paymentData, areas: undefined }, { ...option
 const householdPayment = paymentTree.children.find(row => row.component === 'householdExpansionPaid');
 close(householdPayment.values[1], householdPayment.children.reduce((sum, row) => sum + row.values[1], 0));
 assert.equal(gap[0].unit, 'B USD');
-close(gap[0].values[1], 0.014); // Household 1 + ancillary 2 + legacy replacement 8 + cash 3 = 14 M
+close(gap[0].values[1], 0.014); // Household 1 + ancillary 2 + closing replacement backlog 8 + cash 3 = 14 M
 // Source value and exact child amounts are derived from the same service-level fields.
 const urbanArea = gap[0].children[0];
 close(urbanArea.values[1], 0.0075);
@@ -113,10 +118,9 @@ const sm = urbanArea.children[0];
 assert.ok(sm.children.some(row => row.label.includes('SM upgrades: Basic → safely managed')));
 assert.ok(urbanArea.children[1].children.some(row =>
   row.label.includes('Basic access expansion: lower service → Basic')));
-const replacement = sm.children.find(row => row.component === 'accumulatedReplacementShortfall');
-assert.equal(replacement.label, 'Accumulated replacement shortfall — legacy measure');
-assert.equal(replacement.children.length, 2);
-close(replacement.values[1], replacement.children.reduce((sum, row) => sum + row.values[1], 0));
+const replacement = sm.children.find(row => row.component === 'replacementBacklogClosing');
+assert.equal(replacement.label, 'Closing replacement backlog — net of repayments');
+close(replacement.values[1], .004);
 const effect = ledgerRows(data, { ...options, metric: 'gap', basis: 'closing', view: 'effects' });
 close(effect.find(row => row.key === 'other').values[1], 0.003);
 assert.equal(effect.find(row => row.key === 'other').unit, 'B USD');

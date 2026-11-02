@@ -5,6 +5,7 @@ import { useProjectScope } from '../projectScope';
 import type { ContributionView } from '../contributionView';
 import type { CurrencyDisplaySettings } from '../currencyDisplay';
 import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
+import { validateInterventions } from '../interventionValidation';
 
 // Download the current scenario (`inputs`) as Excel / PowerPoint / CSV (PowerPoint only where `pptx`
 // is left on — the Results Dashboard). All three endpoints run the
@@ -31,9 +32,22 @@ export default function ExportButtons({ inputs, label = 'Export', pptxCharts, ar
   const formats = pptx ? FORMATS : FORMATS.filter(f => f.ext !== 'pptx');
   const { projectId } = useProjectScope();
   const [busy, setBusy] = useState<string | null>(null);
+  const revision = React.useRef('');
+  revision.current = JSON.stringify({inputs, areas});
   const download = async (fmt: typeof FORMATS[number]) => {
+    const started = revision.current;
     setBusy(fmt.ext);
     try {
+      const missingAreas = Object.entries(areas || {}).filter(([, value]) => !value).map(([area]) => area);
+      if (missingAreas.length) throw new Error(`Complete the selected ${missingAreas.join(' and ')} area inputs before exporting. Missing areas cannot be substituted or omitted.`);
+      const sources = Object.entries(areas || {}).filter(([, value]) => value);
+      for (const [area, value] of (sources.length ? sources : [['current', inputs]])) {
+        const issues = await validateInterventions(value);
+        if (issues.some(issue => issue.severity === 'error')) {
+          window.dispatchEvent(new CustomEvent('intervention-validation-navigation', {detail: {area, issues}}));
+          return;
+        }
+      }
       const sourceCurrency = currencyDisplay?.sourceCurrency || inputs?.country_config?.currency || 'LCU';
       const options = { contribution_view: contributionView, loan_funding_qualification: LOAN_FUNDING_QUALIFICATION, currency_display: currencyDisplay || {
         mode: 'local', sourceCurrency, localPerUsd: null, rateReferenceYear: null, sourceNote: '',
@@ -55,12 +69,18 @@ export default function ExportButtons({ inputs, label = 'Export', pptxCharts, ar
           try { body = { ...body, _charts: await pptxCharts() }; } catch { /* chart-less deck */ }
         }
       }
+      if (revision.current !== started) return;
       const r = await fetch(endpoint, { method: 'POST', credentials: 'include', headers: simulationHeaders(inputs || { areas }, projectId), body: JSON.stringify(body) });
       if (!r.ok) {
         const payload = await r.json().catch(() => ({}));
+        if (payload.intervention_issues) {
+          window.dispatchEvent(new CustomEvent('intervention-validation-navigation', {detail: {issues: payload.intervention_issues}}));
+          return;
+        }
         throw new Error(payload.detail || payload.error || `Export failed (${r.status}).`);
       }
       const b = await r.blob();
+      if (revision.current !== started) return;
       const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u;
       const currencySuffix = options.currency_display.mode === 'usd' ? 'USD' : sourceCurrency.toUpperCase();
       a.download = `wss_scenario_${contributionView === 'category' ? 'categories' : 'individual'}_${currencySuffix}.${fmt.ext}`; a.click(); URL.revokeObjectURL(u);

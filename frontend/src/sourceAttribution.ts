@@ -15,10 +15,12 @@ export type CoverageAttribution = {
   baseline_difference_from_bau: { sm: number[]; basic: number[] };
   reconciliation_error: { sm: number[]; basic: number[] };
 };
-export const SOURCE_FUNDING_FIELDS = ['signed_contribution', 'loss_charge', 'debt_charge', 'replacement_charge',
+export const SOURCE_FUNDING_FIELDS = ['signed_contribution', 'loss_charge', 'debt_charge',
+  'replacement_current_charge', 'replacement_backlog_charge', 'replacement_charge',
   'expansion_available', 'basic_capital_spent', 'sm_capital_spent', 'ancillary_spent', 'unused'] as const;
 export const SOURCE_FUNDING_TOTALS = ['loss_unfunded', 'debt_service_due', 'debt_service_paid', 'debt_service_unfunded',
-  'replacement_due', 'replacement_paid', 'replacement_unfunded'] as const;
+  'replacement_due', 'replacement_paid', 'replacement_unfunded', 'eligible_capital_after_losses_debt',
+  'replacement_backlog_opening', 'replacement_backlog_paid', 'replacement_backlog_closing', 'replacement_paid_total'] as const;
 export type SourceFunding = { version: number; method: string; source_keys: string[]; [field: string]: any };
 export function sourceDefinition(key: string, sector: 'water' | 'sanitation'): ViewBand {
   const prefix = sector === 'water' ? 'ws' : 'san';
@@ -68,26 +70,32 @@ export function aggregateCoverage(results: any[], sector: 'water_supply' | 'sani
 export function aggregateSourceFunding(results: any[], sector: 'water_supply' | 'sanitation', withoutDebt = false): SourceFunding | undefined {
   const field = withoutDebt ? 'scenario_without_utility_debt_source_funding' : 'scenario_source_funding';
   const sources = results.map(r => r[sector]?.[field]);
-  if (!sources.length || sources.some(s => s?.version !== 1 || s?.method !== 'actual_source_funding' ||
+  if (!sources.length || sources.some(s => ![1, 2].includes(s?.version) || s?.method !== 'actual_source_funding' ||
       !Array.isArray(s?.source_keys) || !s.source_keys.includes('baseline'))) return undefined;
   const source_keys = [...new Set<string>(sources.flatMap(s => s.source_keys))];
   const add = (values: any[]) => values.every(v => typeof v === 'number' && Number.isFinite(v)) ? values.reduce((a, v) => a + v, 0) : null;
-  const out: SourceFunding = { version: 1, method: 'actual_source_funding', source_keys };
+  // Never turn missing v2 data into zero, or silently mix incompatible charge semantics.
+  if (sources.some(s => s.version !== sources[0].version)) return undefined;
+  const out: SourceFunding = { version: sources[0].version, method: 'actual_source_funding', source_keys };
   for (const name of SOURCE_FUNDING_FIELDS) out[name] = Object.fromEntries(source_keys.map(key =>
     [key, results[0].years.map((_: number, i: number) => add(sources.map(s => s.source_keys.includes(key) ? s[name]?.[key]?.[i] : 0)))]));
   for (const name of SOURCE_FUNDING_TOTALS) out[name] = results[0].years.map((_: number, i: number) => add(sources.map(s => s[name]?.[i])));
   return out;
 }
-export function sourceCoverageRows(years: number[], totals: number[], attribution: CoverageAttribution, sector: 'water' | 'sanitation', rung: 'sm' | 'basic' | 'at_least_basic' = 'sm') {
-  const rungs: ('sm' | 'basic')[] = rung === 'at_least_basic' ? ['sm', 'basic'] : [rung];
-  const stock = (key: string, i: number) => rungs.reduce((sum, level) =>
-    sum + (level === 'sm' ? attribution.sm_stock : attribution.basic_stock)[key][i], 0);
-  const reference = (values: { sm: number[]; basic: number[] }, i: number) =>
-    rungs.reduce((sum, level) => sum + values[level][i], 0);
+export function sourceCoverageRows(years: number[], totals: number[], attribution: CoverageAttribution,
+  sector: 'water' | 'sanitation', rung: 'sm' | 'basic' | 'at_least_basic' = 'sm') {
+  const rungs = rung === 'at_least_basic' ? ['sm', 'basic'] as const : [rung] as const;
+  const sumRungs = (pick: (name: 'sm' | 'basic') => number) => rungs.reduce((sum, name) => sum + pick(name), 0);
+  const stocksFor = (name: string, index: number) => sumRungs(r => {
+    const value = (r === 'sm' ? attribution.sm_stock : attribution.basic_stock)?.[name]?.[index];
+    return checked(value, `${r}_stock.${name}`);
+  });
   const rows = years.map((year, i) => ({
-    year, __total: totals[i], __baseline: reference(attribution.opening_baseline_stock, i),
-    __bau: reference(attribution.pure_bau_stock, i), __scenario: reference(attribution.combined_stock, i),
-    ...Object.fromEntries(attribution.source_keys.filter(key => key !== 'baseline').map(key => [key, stock(key, i)])),
+    year, __total: totals[i],
+    __baseline: sumRungs(r => checked(attribution.opening_baseline_stock[r]?.[i], `opening_baseline_stock.${r}`)),
+    __bau: sumRungs(r => checked(attribution.pure_bau_stock[r]?.[i], `pure_bau_stock.${r}`)),
+    __scenario: sumRungs(r => checked(attribution.combined_stock[r]?.[i], `combined_stock.${r}`)),
+    ...Object.fromEntries(attribution.source_keys.filter(key => key !== 'baseline').map(key => [key, stocksFor(key, i)])),
   }));
   const bands = attribution.source_keys.filter(key => key !== 'baseline' && rows.some(row => Math.abs(Number((row as any)[key])) > 1e-12))
     .map(key => sourceDefinition(key, sector));

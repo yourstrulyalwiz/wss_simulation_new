@@ -16,7 +16,7 @@ from model.gap_attribution import attribute_gap
 from model.water_supply import sector_bau
 
 
-def fixture(available, replacement, *, sanitation=False, years=2, fully_sm_target=False, opening_stock=300000):
+def fixture(available, replacement, *, sanitation=False, years=2, fully_sm_target=False, opening_stock=300000, debt_cash=None, capex_adder=0):
     # 100 SM + 200 Basic; target 200 SM + 100 Basic: exactly 100 upgrades.
     # All amounts are converted to the engine's millions convention.
     ctx = {
@@ -36,9 +36,10 @@ def fixture(available, replacement, *, sanitation=False, years=2, fully_sm_targe
         cost_sm=1000, cost_basic=1000,
         full_budget=np.zeros(years), capex_pct=1, growth_capex_pct=0,
         planned_list=[], nonhh_pct=0, asset_life=opening_stock/replacement if replacement else float('inf'),
-        capex_adder=0, hist_all_proportional=not sanitation,
+        capex_adder=capex_adder, hist_all_proportional=not sanitation,
         target_adjusted=sanitation, basic_share=0,
-        extra_cash=np.array([0.] + [available / 1e6] * (years - 1)),
+        extra_cash=np.array([0.] + (list(np.asarray(available) / 1e6) if isinstance(available, (list, tuple)) else [available / 1e6] * (years - 1))),
+        **({'utility_debt_execution': {'disbursement': np.asarray(debt_cash) / 1e6}} if debt_cash is not None else {}),
     )
 
 
@@ -68,7 +69,7 @@ class ResidualFinancingGapTests(unittest.TestCase):
                 self.assertAlmostEqual(sec['replacement_reserved'][i], reserve)
                 self.assertAlmostEqual(sec['replacement_credit'][i], credit)
                 self.assertAlmostEqual(sec['financing_gap'][i],
-                    sec['new_capex_total'][i] + max(sec['replacement_capex'][i] - credit, 0))
+                    sec['new_capex_total'][i] + sec['replacement_backlog_closing'][i])
             self.assertEqual(sec['bau_replacement_capex'][2], sec['replacement_capex'][2])
         self.assertEqual(sec['replacement_reserved'][2], sec['replacement_credit'][2])
 
@@ -97,11 +98,11 @@ class ResidualFinancingGapTests(unittest.TestCase):
         csv_data = scenario_csv(inputs)
         if isinstance(csv_data, bytes):
             csv_data = csv_data.decode()
-        self.assertIn('Replacement credit', csv_data)
+        self.assertIn('Current replacement credit', csv_data)
         self.assertIn('Cash deficit', csv_data)
         for sector in ('water_supply', 'sanitation'):
             headers, rows = per_year_table(result, inputs, sector)
-            for label, key in [('Replacement credit', 'replacement_credit'), ('Cash deficit', 'cash_deficit')]:
+            for label, key in [('Current replacement credit', 'replacement_credit'), ('Cash deficit', 'cash_deficit')]:
                 col = headers.index(f'{label} — BAU (NPR M)')
                 self.assertAlmostEqual(rows[-1][col], result[sector][key][-1], delta=0.000051)
             ws = wb[f"{'Water' if sector == 'water_supply' else 'Sanitation'} — forecast"]
@@ -114,23 +115,27 @@ class ResidualFinancingGapTests(unittest.TestCase):
         deck = Presentation(build_deck({'urban': inputs}))
         investment_tables = [
             sh.table for slide in deck.slides for sh in slide.shapes
-            if sh.has_table and any('Endline requirement incl.' in cell.text
+            if sh.has_table and any('Endline: expansion + replacement backlog' in cell.text
                                    for row in sh.table.rows for cell in row.cells)]
         self.assertGreaterEqual(len(investment_tables), 2)
         for table in investment_tables:
             labels = [row.cells[0].text for row in table.rows]
-            self.assertIn('Replacement credit — sum of flows', labels)
+            self.assertIn('Current replacement credit — sum of flows', labels)
+            self.assertIn('Opening backlog paid — sum of flows', labels)
+            self.assertIn('Total replacement paid — sum of flows (subtotal)', labels)
             self.assertIn('Negative cash — sum of flows', labels)
             # Values are displayed in billions, to one decimal.
             a, b, e, gap = [float(table.cell(labels.index(label), len(table.columns)-1).text.replace(',', ''))
                            for label in ('Closing outstanding expansion — end balance',
-                                         'Unpaid replacement — sum of flows',
+                                         'Closing replacement backlog — end balance, not sum',
                                          'Negative cash — sum of flows',
-                                         'Endline requirement incl. all prior shortfalls')]
+                                         'Endline: expansion + replacement backlog + accumulated cash')]
             self.assertAlmostEqual(gap, a + b + e, delta=0.21)
         texts = '\n'.join(sh.text for slide in deck.slides for sh in slide.shapes if sh.has_text_frame)
         self.assertNotIn('current spending covers', texts)
         self.assertNotIn('a gap of about', texts)
+        self.assertIn('closing replacement backlog', texts.lower())
+        self.assertNotIn('replacement requirement − replacement credit + cash deficit', texts)
 
 
 if __name__ == '__main__':

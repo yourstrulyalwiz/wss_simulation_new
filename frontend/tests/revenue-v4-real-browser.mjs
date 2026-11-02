@@ -206,13 +206,23 @@ try {
     .map(tr => [...tr.children].map(td => td.textContent.trim()))`);
   for (const row of displayed) {
     const index = lastLedger.years.indexOf(Number(row[0]));
+    assert.ok(Number(row[0]) > areaInputs[0].period.baseline_year, 'Only forecast years belong in the available funds table');
     const sec = lastLedger.water_supply;
-    const expected = [sec.scenario_connection_net_cash[index], sec.scenario_nrw_net[index],
-      sec.scenario_collection_cash[index], sec.scenario_tariff_cash[index]];
-    expected.push(expected.reduce((sum, value) => sum + value, 0));
+    const signed = sec.scenario_source_funding.signed_contribution;
+    const publicCash = signed.baseline[index] + signed.budget_execution[index] + signed.financial[index];
+    const external = signed.injection[index];
+    const revenues = [signed.connections[index], signed.nrw[index] + signed.nrw_link[index],
+      signed.collection[index], signed.tariff[index]];
+    const expected = [publicCash, external, publicCash + external, ...revenues,
+      revenues.reduce((sum, value) => sum + value, 0), sec.scenario_available_total[index]];
     expected.forEach((value, field) => {
       const rendered = Number(row[field + 1].replace(/,/g, '').replace(/−/g, '-'));
-      assert.ok(Math.abs(rendered - value) <= .000051, `Table ${row[0]} source ${field} differs from final real ledger`);
+      // Same three-significant-digit, billions presentation as the intervention table.
+      const rounded = Number((value / 1000).toPrecision(3));
+      const formatted = Number(rounded.toLocaleString('en-US', {
+        maximumFractionDigits: rounded !== 0 && Math.abs(rounded) < .01 ? 6 : 2,
+      }).replace(/,/g, ''));
+      assert.ok(Math.abs(rendered - formatted) <= .00000051, `Table ${row[0]} source ${field} differs from final real ledger`);
     });
   }
 

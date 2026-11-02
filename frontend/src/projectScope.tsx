@@ -47,5 +47,5 @@ export function preserveDormantInputs(previous: any, next: any, sectors: Sector[
   }
   return output;
 }
-export const ProjectScopeContext = createContext<{ sectors: Sector[]; readOnly: boolean; projectMode: boolean; projectId?: string }>({ sectors: ['water', 'sanitation'], readOnly: false, projectMode: false });
+export const ProjectScopeContext = createContext<{ sectors: Sector[]; readOnly: boolean; projectMode: boolean; projectId?: string; countryCode?: string; countryMetadata?: any; validationInputs?: Record<string, any> }>({ sectors: ['water', 'sanitation'], readOnly: false, projectMode: false });
 export const useProjectScope = () => useContext(ProjectScopeContext);

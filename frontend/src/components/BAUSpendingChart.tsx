@@ -5,9 +5,9 @@ import type { BauSpendingRow } from '../bauServiceView';
 import type { CurrencyDisplaySettings } from '../currencyDisplay';
 import { yearAxisInterval } from '../chartAxis';
 
-export default function BAUSpendingChart({ rows, moneyFactor, currency, scopeLabel, sectorLabel, currencyDisplay }: {
+export default function BAUSpendingChart({ rows, moneyFactor, currency, scopeLabel, sectorLabel, currencyDisplay, titlePrefix = 'BAU', chartHeight = 360 }: {
   rows: BauSpendingRow[]; moneyFactor: number; currency: string; scopeLabel?: string; sectorLabel: string;
-  currencyDisplay: CurrencyDisplaySettings;
+  currencyDisplay: CurrencyDisplaySettings; titlePrefix?: string; chartHeight?: number;
 }) {
   const chartRef = useRef<HTMLDivElement>(null);
   if (!rows.length) return null;
@@ -17,18 +17,20 @@ export default function BAUSpendingChart({ rows, moneyFactor, currency, scopeLab
   }));
   const units = `B ${currency}/yr`;
   const format = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 3 });
-  return <section className="modern-bau-spending modern-bau-plot-panel" aria-label="BAU capital requirements and available funds">
-    <h3>BAU capital requirements and available funds</h3>
-    <p>{scopeLabel} / {sectorLabel} / Both service levels. Annual target-path expansion and replacement requirements under BAU assumptions, compared with effective capital available. Operating costs are excluded.</p>
-    <p>All amounts: {units}. The bars show annual flows, not accumulated unmet obligations. The difference from available capital is not the model's closing financing balance; see the BAU table for that balance.</p>
+  const intervention = titlePrefix !== 'BAU';
+  const title = `${titlePrefix} capital requirements and available ${intervention ? 'funding' : 'funds'}`;
+  return <section className="modern-bau-spending modern-bau-plot-panel" aria-label={title}>
+    <h3>{title}</h3>
+    <p>{scopeLabel} / {sectorLabel} / Both service levels. Annual target-path expansion and replacement requirements under {intervention ? 'the combined intervention scenario' : 'BAU assumptions'}, compared with effective capital available. Operating costs are excluded.</p>
+    <p>All amounts: {units}. Bars show annual new requirements excluding opening replacement backlog, not accumulated unmet obligations. The difference from available capital is not the model's closing financing balance; see the {intervention ? 'intervention scenario' : 'BAU reconciliation'} table for that balance. Restricted expansion funding cannot settle replacement backlog.</p>
     <div className="modern-bau-chart-actions">
-      <ChartExport chartRef={chartRef} filename={`${scopeLabel || 'area'}_${sectorLabel}_bau_spending`}
-        title="BAU capital requirements and available funds" currencyDisplay={currencyDisplay}
-        sheets={[{ name: 'Annual capital', headers: ['Year', `Planned expansion (${units})`, `Replacement need (${units})`, `Available capital (${units})`],
+      <ChartExport chartRef={chartRef} filename={`${scopeLabel || 'area'}_${sectorLabel}_${intervention ? 'intervention' : 'bau'}_spending`}
+        title={title} currencyDisplay={currencyDisplay}
+        sheets={[{ name: 'Annual capital', headers: ['Year', `Planned expansion — excludes opening backlog (${units})`, `Current replacement need — excludes opening backlog (${units})`, `Available capital (${units})`],
           rows: data.map(row => [row.year, row.expansion, row.replacement, row.available]) }]} />
     </div>
     <div ref={chartRef} className="modern-bau-plot-canvas">
-      <ResponsiveContainer width="100%" height={360}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
         <ComposedChart data={data} margin={{ top: 16, right: 16, bottom: 8, left: 12 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis dataKey="year" tick={{ fontSize: 11 }} interval={yearAxisInterval(data)} />

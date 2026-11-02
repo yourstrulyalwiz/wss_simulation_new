@@ -70,11 +70,11 @@ function description(metric: LedgerMetric, service: LedgerService, basis: Ledger
     if (view === 'source') return 'Requirements before this year’s funding. Scheduled expansion is a reference flow; unpaid obligations are shown by source and are not inferred from available funding.';
     return basis === 'annual'
       ? 'Annual requirements are flows: planned expansion, replacement obligations and cash deficit.'
-      : 'Catch-up requirements are the pre-funding need, including replacement and cash deficit. Year-end balances below are shown separately and are not summed across years.';
+      : 'Catch-up includes pre-funding expansion, opening replacement backlog, current replacement and current cash deficit; historical cash shortfalls are excluded. Snapshots are not summed across years.';
   }
   if (view === 'source') return 'Remaining financing need at year-end. This is a closing balance; do not sum balances across years or subtract available funding again.';
   return basis === 'annual'
-    ? 'Current-year residual gap includes outstanding expansion and this year’s unpaid replacement and cash deficit. It is not a pure annual flow: do not add it across years.'
+    ? 'Financing gap includes closing expansion, closing replacement backlog and current-year cash deficit. It is not a pure annual flow: do not add it across years.'
     : 'Year-end requirement is a closing balance, not an annual flow. Do not add year-end balances across years.';
 }
 
@@ -243,7 +243,7 @@ export default function ResultsLedgerPanel({
                 </>
               ) : (
                 <>
-                  <option value="annual">Closing expansion plus current-year financial shortfall</option>
+                  <option value="annual">Closing expansion + replacement backlog + current cash deficit</option>
                   <option value="closing">Year-end requirement</option>
                 </>
               )}
@@ -277,9 +277,9 @@ export default function ResultsLedgerPanel({
         {selection.metric !== 'coverage' && <p>Financial reporting starts after baseline {data.baselineYear}. Earlier years are not applicable (—).</p>}
         {(selection.metric === 'requirements' || selection.metric === 'gap') && reportingView === 'source' && (
           <p>{selection.metric === 'requirements'
-            ? 'Requirements before this year’s funding use the exact pre-funding household, ancillary, current replacement and current cash-shortfall reports. Scheduled expansion is a reference annual flow, not added to the unpaid subtotal.'
-            : 'Remaining financing need at year-end is a closing balance, not a flow to sum over years. It uses the closing household, ancillary, accumulated legacy replacement and accumulated cash reports.'}
-            {' '}Replacement shortfall remains the unchanged legacy measure and is not a verified settleable backlog. Ancillary allocations retain the engine’s first-committed-expansion weighting and are not independently validated. Advance delivery, repricing, cancellations and noncash credit are separately labelled diagnostics, not additional cash spending.</p>
+            ? 'Requirements before this year’s funding include pre-funding household and ancillary expansion, opening replacement backlog, current replacement and current cash shortfall. Historical cash shortfalls are excluded. Scheduled expansion is a reference flow, not added again.'
+            : 'Remaining financing need at year-end includes closing household and ancillary expansion, net closing replacement backlog and accumulated cash shortfalls. It is a closing balance, not a flow to sum over years.'}
+            {' '}Current replacement is paid first, then opening replacement backlog, before ordinary expansion. Restricted loans, earmarked household finance and noncash delivery may still fund expansion while backlog remains. Backlog payments maintain existing assets without adding connections. Historical cash shortfalls are accumulated, not repaid. Ancillary allocations retain the engine’s first-committed-expansion weighting. Repricing, cancellations and noncash credits are diagnostics, not additional spending.</p>
         )}
         {selection.metric === 'requirements' && reportingView === 'effects' && (
           <p>Paid rows are positive recorded spending; household expansion separates sector cash from external finance. Noncash physical reuse and its credited value are reported separately; neither is cash spending.</p>
@@ -404,9 +404,9 @@ export default function ResultsLedgerPanel({
           {selection.metric === 'funding' ? (
              <p><strong>Funding.</strong> Ordinary source receipts are signed, before debt payments. Restricted loan proceeds and carryover are separate, not recurring revenue. Service source rows, category subtotals and Combined scenario all use actual service capital paid, excluding unsplit replacement and ancillary amounts. Expand a source to inspect allocation stages; they are not additive funding.</p>
           ) : selection.metric === 'requirements' ? (
-            <p><strong>Requirements.</strong> Annual requirement is a flow. Catch-up is the pre-funding expansion need with replacement and cash deficit. Paid rows show current-year cash spending: expansion includes sector and external household finance, including associated infrastructure, but excludes physical reuse without cash spending. Replacement paid maintains existing assets; it is not deducted from outstanding expansion. Closing expansion also reflects physical upgrades and changes in costs or targets. Outstanding expansion and accumulated shortfalls are end-of-year balances; do not sum them across years.</p>
+            <p><strong>Requirements.</strong> Annual new requirements exclude opening backlog. Catch-up includes pre-funding expansion, opening replacement backlog, current replacement and current cash deficit, excluding historical cash shortfalls. Payments are annual flows; opening and closing backlogs are snapshots. Replacement paid maintains existing assets and does not add connections. Expansion spending is already deducted from outstanding expansion; do not credit it again. Do not sum balances across years.</p>
           ) : selection.metric === 'gap' ? (
-            <p><strong>Gap.</strong> Current-year residual gap = outstanding expansion + replacement obligation − capped replacement credit + cash deficit. Funded expansion receives no second credit; cash deficits are allocated once. Year-end requirement = outstanding expansion + accumulated unpaid replacement and deficits. National sums remaining local obligations; unused or restricted funds elsewhere are not assumed transferable. This is not generally annual requirements minus all available funding. Both include balances: do not sum across years.</p>
+            <p><strong>Gap.</strong> Financing gap = closing outstanding expansion + closing replacement backlog + current cash deficit. Endline requirement uses accumulated cash shortfalls instead of current cash deficit. Current unpaid replacement is already inside closing backlog; do not add it again. Expansion payments are already deducted. National reporting sums local obligations without transferring funds across areas. Restricted expansion funding may coexist with backlog. Neither measure is a flow to sum across years.</p>
           ) : (
             <p><strong>Coverage.</strong> Safely Managed and Basic-only are exclusive; At least basic stock is their sum. Annual transitions report Basic entries and SM upgrades, not net Basic stock growth; entries plus upgrades are not unique households. Closing stocks carry funded origins forward and remove Basic households when upgraded. Signed gaps are Combined scenario minus Original target. Shares divide aggregated household counts by the selected scope’s households; gaps and the baseline difference are percentage points.</p>
           )}

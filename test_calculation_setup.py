@@ -82,7 +82,8 @@ class CalculationSetupTests(unittest.TestCase):
         for area in self.areas():
             full = calculate(coerce_to_engine(configured_fixture(area)))
             partial = economic_projections(area)
-            for key, values in partial.items():
+            for key in ("years", "population", "total_hh", "hh_size", "gdp_real_local"):
+                values = partial[key]
                 np.testing.assert_allclose(values, full[key])
                 self.assertEqual(len(values), 25)
                 self.assertTrue(np.isfinite(values).all())
@@ -107,7 +108,10 @@ class CalculationSetupTests(unittest.TestCase):
             self.assertIn("7. Unit Costs", detail)
             response = project_economics(area)
             self.assertEqual(len(response["years"]), 25)
-            self.assertNotIn("water_supply", response)
+            for sector in ("water_supply", "sanitation"):
+                if sector in response:
+                    self.assertNotIn("bau_hh", response[sector])
+                    self.assertNotIn("financing_gap", response[sector])
             self.assertNotIn("financing_gap", response)
 
     def test_supplied_future_gdp_and_household_values_are_honoured(self):

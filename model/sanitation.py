@@ -150,7 +150,7 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None, utility_debt_execu
         capeff_enabled=san_capeff_on,
         capeff_start=int(getattr(si, 'capeff_start_year', 0) or 0),
         capeff_target_year=int(getattr(si, 'capeff_target_year', 0) or 0),
-        capeff_target_pct=float(getattr(si, 'capeff_target_pct', 1.0) or 1.0),
+        capeff_target_pct=float(si.capeff_target_pct if si.capeff_target_pct is not None else 1.0),
         capeff_current_pct=float(getattr(si, 'capeff_current_pct', 0.0) or 0.0),
         allocated_series=getattr(b, 'san_budget_allocated', None),
         # Collection efficiency (sanitation): collected-ratio ramp is INHERITED from water (nrw.ce_*), the

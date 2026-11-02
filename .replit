@@ -2,7 +2,7 @@ modules = ["nodejs-20", "python-3.12", "web", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["freetype", "lcms2", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "openjpeg", "postgresql", "tcl", "tk", "zlib"]
+packages = ["freetype", "gumbo", "harfbuzz", "jbig2dec", "lcms2", "libimagequant", "libjpeg", "libjpeg_turbo", "libreoffice", "libtiff", "libwebp", "libxcrypt", "mupdf", "openjpeg", "postgresql", "swig", "tcl", "tk", "xcbuild", "zlib"]
 
 [agent]
 expertMode = true

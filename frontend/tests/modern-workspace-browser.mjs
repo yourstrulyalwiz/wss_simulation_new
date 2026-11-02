@@ -57,6 +57,8 @@ try {
   await w(`document.querySelectorAll('${nav} button').length===2`, 'Exactly two BAU sections required');
   assert.deepEqual(await e(`[...document.querySelectorAll('${nav} button')].map(n=>n.textContent.replace(/^\\d+/,''))`),
     ['BAU Graph','BAU Table']);
+  assert.equal(await e(`document.querySelector('[aria-label="BAU graph service level"] [aria-pressed="true"]').dataset.serviceLevel`), 'at_least_basic');
+  await e(`document.querySelector('[aria-label="BAU graph service level"] [data-service-level="safely_managed"]').click()`);
   await w(`document.querySelector('[data-bau-kpi="baseline"] strong')?.textContent==='30.0%'`, 'Urban water baseline KPI must come from the engine');
   for (let index=0; index<2; index++) await navigate(index);
   assert.equal(await e(`document.querySelectorAll('[data-section-key="table"] table').length`), 1);
@@ -79,7 +81,7 @@ try {
   assert.equal(await e(`document.querySelector('[data-bau-kpi="bau"] strong').textContent`), expected([combined]));
   assert.equal(await e(`document.querySelectorAll('[data-section-key="baseline"]').length`), 0);
   assert.ok(await e(`(()=>{const frame=document.querySelector('.bau-ledger-frame'); return frame.scrollWidth<=frame.clientWidth+1;})()`), 'BAU table fits without horizontal scrolling');
-  for (const [tab, selector] of [[2,'.modern-page-intro--intervention'],[3,'.debt-overview-strip'],[4,'.modern-results-intro']]) {
+  for (const [tab, selector] of [[2,'.intervention-settings-empty'],[3,'.debt-overview-strip'],[4,'.modern-results-intro']]) {
     await e(`document.querySelectorAll('.wb-tab')[${tab}].click()`);
     await w(`!!document.querySelector(${JSON.stringify(selector)})`, `Workflow ${tab + 1} presentation missing`);
   }

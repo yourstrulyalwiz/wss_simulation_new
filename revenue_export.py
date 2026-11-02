@@ -123,7 +123,9 @@ def append_revenue_slides(prs, results, currency, money_factor=1.0, display_curr
             'eligible_nrw_link_cash', 'additional_net_cash')
     for scope, result in results.items():
         for sector, title in (('water_supply', 'Water'), ('sanitation', 'Sanitation')):
-            sec = result[sector]
+            sec = result.get(sector)
+            if sec is None:
+                continue
             status = sec.get('connection_revenue') or {}
             if not (status.get('requested') or status.get('mixed') or
                     any(sec.get('scenario_nrw_sales_volume') or []) or

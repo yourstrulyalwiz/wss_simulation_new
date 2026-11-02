@@ -13,6 +13,8 @@ export type LedgerMeasure =
   | 'fundingOperating' | 'fundingRestricted' | 'fundingExternal' | 'requirementsAnnual'
   | 'requirementsCatchUp' | 'requirementsResidual' | 'gapAnnual' | 'gapClosing'
   | 'plannedExpansion' | 'replacement' | 'replacementCredit' | 'cashDeficit'
+  | 'replacementBacklogOpening' | 'replacementCurrentPaid' | 'replacementBacklogPaid'
+  | 'replacementPaidTotal' | 'replacementBacklogClosing' | 'eligibleCapital' | 'ordinaryExpansionAvailable'
   | 'outstanding' | 'accumulatedShortfalls' | 'repayments' | 'repaymentsPaid' | 'repaymentsUnfunded' | 'replacementPaid' | 'expansionPaid'
   | 'scheduledExpansion' | 'prefundingHousehold' | 'closingHousehold' | 'prefundingAncillary'
   | 'closingAncillary' | 'currentUnpaidReplacement' | 'priorReplacementShortfall'
@@ -49,6 +51,8 @@ const measures: LedgerMeasure[] = [
   'coverage','target','accessGap','funding','fundingApplied','fundingShared','fundingBeforeDebt','fundingOperating','fundingRestricted',
   'fundingExternal','requirementsAnnual','requirementsCatchUp','requirementsResidual','gapAnnual','gapClosing',
   'plannedExpansion','replacement','replacementCredit','cashDeficit','outstanding','accumulatedShortfalls','repayments','repaymentsPaid','repaymentsUnfunded',
+  'replacementBacklogOpening','replacementCurrentPaid','replacementBacklogPaid','replacementPaidTotal',
+  'replacementBacklogClosing','eligibleCapital','ordinaryExpansionAvailable',
   'replacementPaid','expansionPaid','scheduledExpansion','prefundingHousehold','closingHousehold','prefundingAncillary',
   'closingAncillary','currentUnpaidReplacement','priorReplacementShortfall','accumulatedReplacementShortfall',
   'currentCashShortfall','priorCashShortfall','accumulatedCashShortfall','householdExpansionPaid','noncashDeliveryHH',
@@ -81,6 +85,11 @@ const sourceFields: Partial<Record<LedgerMeasure, string>> = {
   ancillaryPaid: 'ancillary_paid_by_service',
   replacement: 'replacement_by_service',
   replacementPaid: 'replacement_funding_applied_by_service',
+  replacementBacklogOpening: 'replacement_backlog_opening_by_service',
+  replacementCurrentPaid: 'replacement_current_paid_by_service',
+  replacementBacklogPaid: 'replacement_backlog_paid_by_service',
+  replacementPaidTotal: 'replacement_paid_total_by_service',
+  replacementBacklogClosing: 'replacement_backlog_closing_by_service',
   sectorExpansionPaid: 'sector_funded_expansion_by_service',
   externalExpansionPaid: 'externally_funded_expansion_by_service',
 };
@@ -143,9 +152,12 @@ export function ledgerSnapshots(results: any[], sector: 'water_supply' | 'sanita
         const deficit = optionalPair(sec, prefix + 'cash_deficit_by_service', index);
         const external = optionalPair(sec, prefix + 'externally_funded_expansion_by_service', index);
         const sectorPaid = optionalPair(sec, prefix + 'sector_funded_expansion_by_service', index);
-        const replacementPaid = optionalPair(sec, prefix + 'replacement_funding_applied_by_service', index);
+        const replacementPaid = optionalPair(sec, prefix + 'replacement_current_paid_by_service', index);
+        const replacementPaidTotal = optionalPair(sec, prefix + 'replacement_paid_total_by_service', index);
+        const openingBacklog = source('replacementBacklogOpening');
+        const closingBacklog = source('replacementBacklogClosing');
         const replacement = source('replacement');
-        const applied = [0, 1].map(i => addKnown(replacementPaid[i], sectorPaid[i], external[i])) as [number | null, number | null];
+        const applied = [0, 1].map(i => addKnown(replacementPaidTotal[i], sectorPaid[i], external[i])) as [number | null, number | null];
           const operatingCash = optionalAt(sec, prefix + 'available_total', index);
         const debtService = scenario ? optionalAt(sec, prefix + 'utility_debt_service', index) : 0;
         const debtPaid = scenario ? optionalAt(sec, prefix + 'debt_service_paid', index) : 0;
@@ -165,7 +177,8 @@ export function ledgerSnapshots(results: any[], sector: 'water_supply' | 'sanita
           const value = injectionRow?.[key];
           return typeof value === 'number' && Number.isFinite(value) ? value : null;
         };
-        const available = addKnown(operating == null ? null : Math.max(operating, 0), restricted, external[0], external[1]);
+        const eligibleCapital = optionalAt(sec, prefix + 'eligible_capital_after_losses_debt', index);
+        const available = addKnown(eligibleCapital, restricted, external[0], external[1]);
         const unapplied = available == null || applied[0] == null || applied[1] == null
           ? null : available - applied[0] - applied[1];
         Object.assign(local, {
@@ -173,10 +186,12 @@ export function ledgerSnapshots(results: any[], sector: 'water_supply' | 'sanita
           fundingShared: [null, null, unapplied],
           fundingBeforeDebt: [null, null, operatingCash], fundingOperating: [null, null, operating], fundingRestricted: [null, null, restricted],
           fundingExternal: vector(external), replacementPaid: vector(replacementPaid),
+          eligibleCapital: [null, null, eligibleCapital],
+          ordinaryExpansionAvailable: [null, null, optionalAt(sec, prefix + 'ordinary_expansion_available', index)],
           expansionPaid: vector([addKnown(sectorPaid[0], external[0]), addKnown(sectorPaid[1], external[1])]),
           requirementsAnnual: vector([0, 1].map(i => addKnown(planned[i], replacement[i], deficit[i])) as [number | null, number | null]),
-          requirementsCatchUp: vector([0, 1].map(i => addKnown(catchUp[i], replacement[i], deficit[i])) as [number | null, number | null]),
-          requirementsResidual: vector([0, 1].map(i => addKnown(residual[i], replacement[i], deficit[i])) as [number | null, number | null]),
+          requirementsCatchUp: vector([0, 1].map(i => addKnown(catchUp[i], openingBacklog[i], replacement[i], deficit[i])) as [number | null, number | null]),
+          requirementsResidual: vector([0, 1].map(i => addKnown(residual[i], closingBacklog[i], deficit[i])) as [number | null, number | null]),
           gapAnnual: vector(optionalPair(sec, prefix + 'financing_gap_by_service', index)),
           gapClosing: vector(optionalPair(sec, prefix + 'endline_financing_requirement_by_service', index)),
           plannedExpansion: vector(planned), replacement: vector(replacement),
@@ -247,8 +262,8 @@ function sourceRows(data: LedgerData, options: {
     if (!snap) return null;
     const v = snap.values;
     const keys: LedgerMeasure[] = metric === 'requirements'
-        ? ['prefundingHousehold','prefundingAncillary','replacement','currentCashShortfall']
-      : ['closingHousehold','closingAncillary','accumulatedReplacementShortfall','accumulatedCashShortfall'];
+         ? ['prefundingHousehold','prefundingAncillary','replacementBacklogOpening','replacement','currentCashShortfall']
+       : ['closingHousehold','closingAncillary','replacementBacklogClosing','accumulatedCashShortfall'];
     const amounts = keys.map(key => v[key]?.[rung] ?? null);
     return addKnown(...amounts);
   };
@@ -278,18 +293,19 @@ function sourceRows(data: LedgerData, options: {
             { key: 'prefundingHousehold', label: `Expansion still requiring funding — ${svc === 'sm' ? 'SM upgrades: Basic → safely managed' : 'Basic access expansion: lower service → Basic'}`, timing: 'Before funding' },
             { key: 'prefundingAncillary', label: 'Ancillary infrastructure still requiring funding', timing: 'Before funding', status: 'Existing model allocation — first committed expansion-cost weights; not validated' },
             { key: 'replacement', label: 'Current-year replacement requirement', timing: 'Before funding' },
+            { key: 'replacementBacklogOpening', label: 'Opening replacement backlog', timing: 'Opening balance' },
             { key: 'currentCashShortfall', label: 'Current-year cash shortfall', timing: 'Before funding', status: 'Legacy cash allocation assumption; not validated' },
           ]
           : [
             { key: 'closingHousehold', label: `Expansion remaining — ${svc === 'sm' ? 'SM upgrades: Basic → safely managed' : 'Basic access expansion: lower service → Basic'}`, timing: 'Year-end balance' },
             { key: 'closingAncillary', label: 'Ancillary infrastructure remaining', timing: 'Year-end balance', status: 'Existing model allocation — first committed expansion-cost weights; not validated' },
-            { key: 'accumulatedReplacementShortfall', label: 'Accumulated replacement shortfall — legacy measure', timing: 'Year-end balance', status: 'Unresolved allowance; not a verified settleable backlog' },
+            { key: 'replacementBacklogClosing', label: 'Closing replacement backlog — net of repayments', timing: 'Year-end balance' },
             { key: 'accumulatedCashShortfall', label: 'Accumulated cash shortfall', timing: 'Year-end balance', status: 'Legacy cash allocation assumption; not validated' },
           ]
         : [
           { key: 'householdExpansionPaid', label: 'Household expansion paid (sector + external)', timing: 'Annual flow' },
           { key: 'ancillaryPaid', label: 'Ancillary work paid', timing: 'Annual flow', status: 'Existing model allocation — first committed expansion-cost weights' },
-          { key: 'replacementPaid', label: 'Replacement paid', timing: 'Annual flow' },
+          { key: 'replacementPaidTotal', label: 'Replacement paid — current plus backlog', timing: 'Annual flow' },
         ];
       const children: LedgerRow[] = components.map(c => {
         const values = get(c.key);
@@ -308,14 +324,14 @@ function sourceRows(data: LedgerData, options: {
               geography: geography ?? 'Selected scope', service: row.service },
           ];
         }
-        if (kind === 'need' && c.key === 'accumulatedReplacementShortfall') {
+        if (kind === 'paid' && c.key === 'replacementPaidTotal') {
           row.children = [
-            { key: `${row.key}-current`, label: 'Current-year unpaid replacement', kind: 'component', unit,
-              values: get('currentUnpaidReplacement'), timing: 'Year-end balance', component: 'currentUnpaidReplacement',
+            { key: `${row.key}-current`, label: 'Current replacement paid', kind: 'component', unit,
+              values: get('replacementCurrentPaid'), timing: 'Annual flow', component: 'replacementCurrentPaid',
               geography: geography ?? 'Selected scope', service: row.service },
-            { key: `${row.key}-prior`, label: 'Prior replacement shortfall — legacy measure', kind: 'component', unit,
-              values: get('priorReplacementShortfall'), timing: 'Year-end balance', component: 'priorReplacementShortfall',
-              geography: geography ?? 'Selected scope', service: row.service, status: 'Legacy carry; not verified deferred replacement' },
+            { key: `${row.key}-prior`, label: 'Opening backlog paid', kind: 'component', unit,
+              values: get('replacementBacklogPaid'), timing: 'Annual flow', component: 'replacementBacklogPaid',
+              geography: geography ?? 'Selected scope', service: row.service },
           ];
         }
         if (kind === 'need' && c.key === 'accumulatedCashShortfall') {
@@ -371,7 +387,7 @@ function sourceRows(data: LedgerData, options: {
     kind: options.sourceKind === 'bau' ? 'baseline' as const : 'scenario' as const,
     unit, values: rootValues, children: rootChildren,
     timing: metric === 'requirements' ? 'Before funding' : 'Year-end balance',
-    status: metric === 'gap' ? 'Includes unresolved legacy replacement allowance where reported' : undefined,
+    status: metric === 'gap' ? 'Closing replacement backlog plus accumulated cash shortfalls; current unpaid replacement is already in backlog' : 'Includes opening replacement backlog; excludes historical cash shortfalls',
   };
   const rows: LedgerRow[] = [root];
   const coverageSnapshots = selected;
@@ -457,6 +473,12 @@ function sourceRows(data: LedgerData, options: {
     });
   }
   const diagnostics: { key: LedgerMeasure; label: string; status?: string }[] = [
+    { key: 'replacementBacklogOpening', label: 'Opening replacement backlog — snapshot' },
+    { key: 'replacement', label: 'Current replacement requirement — annual flow' },
+    { key: 'replacementCurrentPaid', label: 'Current replacement paid — annual flow' },
+    { key: 'replacementBacklogPaid', label: 'Opening backlog paid — annual flow' },
+    { key: 'replacementPaidTotal', label: 'Total replacement paid — annual flow, not additional to payments above' },
+    { key: 'replacementBacklogClosing', label: 'Closing replacement backlog — snapshot' },
     { key: 'openingExpansionCost', label: 'Opening household expansion cost — prior prices' },
     { key: 'advanceDeliveryCredit', label: 'Advance-delivery credit' },
     { key: 'newAncillaryCommitment', label: 'New ancillary commitment — fixed adder', status: 'Existing model allocation — first committed expansion-cost weights; not validated' },
@@ -473,7 +495,11 @@ function sourceRows(data: LedgerData, options: {
       children: diagnostics.map(item => ({
         key: `diagnostic-${svc}-${item.key}`, label: item.label, kind: 'component' as const,
         unit: item.key === 'noncashDeliveryHH' ? 'M households' : unit,
-        timing: item.key === 'newAncillaryCommitment' ? 'Reference — annual flow' : 'Reporting diagnostic — not included in balance',
+        timing: item.key === 'replacementBacklogOpening' ? 'Opening balance'
+          : item.key === 'replacementBacklogClosing' ? 'Year-end balance'
+          : ['replacement','replacementCurrentPaid','replacementBacklogPaid','replacementPaidTotal'].includes(item.key)
+            ? 'Annual flow — reconciliation, not additional to balances'
+          : item.key === 'newAncillaryCommitment' ? 'Reference — annual flow' : 'Reporting diagnostic — not included in balance',
         values: years.map(year => {
           const snap = selected.find(s => s.year === year);
           const value = snap?.values[item.key]?.[Number(rung)] ?? null;
@@ -491,6 +517,9 @@ function sourceRows(data: LedgerData, options: {
     { key: 'available-funding', label: 'Available funding — sector total', measure: 'funding' as any },
     { key: 'unapplied-funding', label: 'Available but not applied / restricted', measure: 'fundingShared' as any },
     { key: 'ordinary-cash', label: 'Ordinary net cash (signed)', measure: 'fundingOperating' as any },
+    { key: 'eligible-capital', label: 'Eligible pooled capital after current losses and debt service', measure: 'eligibleCapital' as any },
+    { key: 'ordinary-expansion', label: 'Ordinary capital remaining for expansion after current and backlog replacement', measure: 'ordinaryExpansionAvailable' as any },
+    { key: 'expansion-spent', label: 'Expansion and ancillary spending (sector + external)', measure: 'expansionPaid' as any },
   ].map(({ key, label, measure }: any) => ({
     key, label, kind: 'component', unit, timing: 'Availability context — not deducted from closing balance',
     values: years.map(year => {
@@ -518,7 +547,7 @@ function sourceRows(data: LedgerData, options: {
 }
 function kindHasSourceFields(snaps: LedgerSnapshot[], _kind: 'paid') {
   return snaps.some(s => [
-    s.values.householdExpansionPaid, s.values.ancillaryPaid, s.values.replacementPaid,
+    s.values.householdExpansionPaid, s.values.ancillaryPaid, s.values.replacementPaidTotal,
   ].some(vector => vector.some(v => v != null)));
 }
 
@@ -617,7 +646,7 @@ export function ledgerRows(data: LedgerData, options: {
       unit: isShare ? 'pp' : unit, values: valuesFor(a.baseline_difference_from_bau.sm, a.baseline_difference_from_bau.basic) });
   } else if (metric === 'funding') {
     const funding = data.sourceFunding;
-    if (!funding || funding.version !== 1 || funding.method !== 'actual_source_funding' ||
+    if (!funding || ![1, 2].includes(funding.version) || funding.method !== 'actual_source_funding' ||
         !Array.isArray(funding.source_keys) || !funding.source_keys.includes('baseline'))
       throw new Error('Actual source funding is unavailable in this result set.');
     const field = service === 'total' ? 'signed_contribution'
@@ -633,7 +662,9 @@ export function ledgerRows(data: LedgerData, options: {
       ['signed_contribution', 'Signed ordinary contribution'],
       ['loss_charge', 'Proportional loss charge'],
       ['debt_charge', 'Debt service funded — not contractual debt due'],
-      ['replacement_charge', 'Replacement allocation paid'],
+      ['replacement_current_charge', 'Current replacement charge'],
+      ['replacement_backlog_charge', 'Opening replacement backlog charge'],
+      ['replacement_charge', funding.version === 2 ? 'Total replacement charge — current plus backlog (not additional)' : 'Current replacement charge — legacy v1'],
       ['expansion_available', 'Expansion capacity before purchases'],
       ['basic_capital_spent', 'Basic capital spent'],
       ['sm_capital_spent', 'SM capital spent'],
@@ -672,10 +703,15 @@ export function ledgerRows(data: LedgerData, options: {
         ? null : sources.reduce((sum, row) => sum + row.values[i]!, 0)) });
     if (service === 'total') {
       for (const [name, label] of [['loss_unfunded', 'Uncovered negative cash'],
-        ['replacement_due', 'Replacement due'], ['replacement_paid', 'Replacement paid'],
-        ['replacement_unfunded', 'Replacement unfunded']]) {
+        ['eligible_capital_after_losses_debt', 'Eligible pooled capital after current losses and debt service'],
+        ['replacement_backlog_opening', 'Opening replacement backlog'],
+        ['replacement_due', 'Current replacement due'], ['replacement_paid', 'Current replacement paid'],
+        ['replacement_backlog_paid', 'Opening replacement backlog paid'],
+        ['replacement_paid_total', 'Total replacement paid — current plus backlog'],
+        ['replacement_backlog_closing', 'Closing replacement backlog'],
+        ['replacement_unfunded', 'Current replacement unpaid — already included in closing backlog']]) {
         rows.push({ key: `funding-total-${name}`, label, kind: 'detail', unit, component: name,
-          timing: 'Annual flow — not additional receipts',
+          timing: name.endsWith('_opening') ? 'Opening balance' : name.endsWith('_closing') ? 'Year-end balance' : 'Annual flow — not additional receipts',
           values: years.map(year => {
             const v = year > data.baselineYear ? funding[name]?.[data.years.indexOf(year)] : null;
             return typeof v === 'number' && Number.isFinite(v) ? v * moneyFactor / 1000 : null;
@@ -706,7 +742,8 @@ export function ledgerRows(data: LedgerData, options: {
   if (!isCoverage && metric !== 'funding') rows.push({ key: 'scenario', label: 'Combined scenario', kind: 'scenario', unit, values: series(data.scenario) });
   const detail = (key: LedgerMeasure, label: string) => {
     const timing = key === 'requirementsCatchUp' ? 'Before funding'
-      : key === 'outstanding' || key === 'accumulatedShortfalls' || key === 'fundingShared' || key === 'fundingRestricted'
+      : key === 'replacementBacklogOpening' ? 'Opening balance'
+      : key === 'outstanding' || key === 'replacementBacklogClosing' || key === 'accumulatedShortfalls' || key === 'fundingShared' || key === 'fundingRestricted'
         ? 'Year-end balance'
         : key === 'plannedExpansion' ? 'Reference — annual flow' : 'Annual flow';
     rows.push({ key, label, kind: 'detail', unit, timing, component: key, values: series(data.scenario, key) });
@@ -808,18 +845,25 @@ export function ledgerRows(data: LedgerData, options: {
     detail('expansionPaid', 'Expansion paid — current year (household and ancillary)');
     detail('replacement', 'Current-year replacement requirement');
     detail('replacementPaid', 'Replacement paid — current year');
+    detail('replacementBacklogOpening', 'Opening replacement backlog');
+    detail('replacementBacklogPaid', 'Opening replacement backlog paid — annual flow');
+    detail('replacementPaidTotal', 'Total replacement paid — annual flow');
+    detail('replacementBacklogClosing', 'Closing replacement backlog — snapshot');
     detail('cashDeficit', 'Cash deficit — annual flow');
     detail('requirementsCatchUp', 'Requirements before this year’s funding');
     detail('outstanding', 'Outstanding expansion — year-end balance');
-    detail('accumulatedShortfalls', 'Accumulated replacement shortfall — legacy measure plus cash shortfall');
+    detail('accumulatedShortfalls', 'Closing replacement backlog plus accumulated cash shortfalls');
   } else if (metric === 'gap') {
     detail('outstanding', basis === 'annual'
-      ? 'Closing expansion plus current-year financial shortfall — advanced residual; not an annual flow'
+      ? 'Closing outstanding expansion — payments already deducted'
       : 'Outstanding expansion — year-end balance');
     detail('replacement', 'Current-year replacement requirement');
     detail('replacementCredit', 'Capped replacement credit — annual flow');
+    detail('replacementBacklogOpening', 'Opening replacement backlog');
+    detail('replacementBacklogPaid', 'Opening replacement backlog paid — annual flow');
+    detail('replacementBacklogClosing', 'Closing replacement backlog — snapshot');
     detail('cashDeficit', 'Current-year cash shortfall');
-    detail('accumulatedShortfalls', 'Accumulated replacement shortfall — legacy measure plus cash shortfall');
+    detail('accumulatedShortfalls', 'Closing replacement backlog plus accumulated cash shortfalls');
   }
   return rows;
 }

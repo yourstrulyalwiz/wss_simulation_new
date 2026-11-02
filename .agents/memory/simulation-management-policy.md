@@ -2,6 +2,17 @@
 name: Simulation management product requirements
 description: Seed preservation, institutional identity, scope and publication rules for the requested landing page.
 ---
+## Temporary header actions
+
+Save comparison and Archive are temporarily hidden from the simulation header,
+not shown as disabled buttons.
+Save version is labelled Save as, without changing its checkpoint behavior.
+The action order is Edit setup, Save progress, Save as, Duplicate.
+
+**Why:** The user requested this temporary simplification of the top-right controls.
+**How to apply:** Preserve existing data and backend capabilities; do not
+reactivate the paused header actions unless requested.
+
 Feature the saved DRC October 12 and October 13 bundles as TWO separate DRC
 simulations, alongside the saved Nepal Kathmandu Valley profile, as read-only
 examples with private owned copies for editing. Do not substitute one DRC

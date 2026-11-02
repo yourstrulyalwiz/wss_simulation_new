@@ -66,9 +66,9 @@ def per_year_table(result, inputs, sector_key):
         ('Collection cash — annual flow', 'collection_cash'),
         ('Tariff cash incl. collection interaction — annual flow', 'tariff_cash'),
         ('Annual planned expansion cost — flow', 'annual_planned_expansion_cost'),
-        ('Catch-up requirement before funding — snapshot', 'catch_up_requirement'),
+        ('Catch-up incl. opening replacement backlog, excluding historical cash shortfalls — snapshot', 'catch_up_requirement'),
         ('Closing outstanding expansion — balance', 'closing_outstanding_expansion'),
-        ('Endline financing requirement — balance plus accumulated shortfalls', 'endline_financing_requirement'),
+        ('Endline requirement — closing expansion + closing replacement backlog + accumulated cash shortfalls', 'endline_financing_requirement'),
         ('Gross funded asset stock — balance', 'funded_asset_stock'),
         ('Sector-funded expansion — flow', 'sector_funded_expansion'),
         ('Externally funded expansion — flow', 'externally_funded_expansion'),
@@ -78,9 +78,9 @@ def per_year_table(result, inputs, sector_key):
         ('Closing outstanding expansion (legacy residual new-service cost)', 'new_capex_total'),
         ('Reported replacement requirement', 'replacement_capex'),
         ('Coverage-stock replacement basis', 'bau_replacement_capex'),
-        ('Replacement funding reserved', 'replacement_reserved'),
-        ('Replacement credit', 'replacement_credit'),
-        ('Unfunded replacement', 'unfunded_replacement'),
+        ('Current replacement funding reserved — not total replacement spending', 'replacement_reserved'),
+        ('Current replacement credit', 'replacement_credit'),
+        ('Current replacement unpaid — annual flow, included in closing backlog', 'unfunded_replacement'),
         ('Cash deficit', 'cash_deficit'),
         ('Total available capital', 'available_total'),
         ('Ordinary funds after scheduled debt service', 'available_after_debt_service'),
@@ -165,6 +165,64 @@ def per_year_table(result, inputs, sector_key):
                 for label, unit, _ in columns]
     for i, row in enumerate(rows):
         row.extend(values[i] for _, _, values in columns)
+    # Authoritative settlement fields, not a second reconstruction of funding.
+    # Preserve blanks for older/missing contracts rather than inventing zero arrears.
+    waterfall_fields = [
+        ('Eligible pooled capital after current losses / debt service — availability', 'eligible_capital_after_losses_debt'),
+        ('Opening replacement backlog — snapshot', 'replacement_backlog_opening'),
+        ('Current replacement requirement — flow', 'replacement_capex'),
+        ('Current replacement paid — flow', 'replacement_current_paid'),
+        ('Opening replacement backlog paid — flow', 'replacement_backlog_paid'),
+        ('Total replacement paid — flow subtotal, not additional spending', 'replacement_paid_total'),
+        ('Closing replacement backlog — snapshot, never sum across years', 'replacement_backlog_closing'),
+        ('Ordinary capital remaining for expansion — availability', 'ordinary_expansion_available'),
+        ('Restricted loan cash including carry — availability', 'utility_debt_cash_available'),
+        ('Sector-funded expansion and ancillary spending — flow', 'sector_funded_expansion'),
+        ('Connection purchases — included in expansion, flow diagnostic', 'connection_purchase_capital'),
+        ('Ancillary spending — included in expansion, flow diagnostic', 'ancillary_paid'),
+        ('External household expansion spending — flow', 'externally_funded_expansion'),
+        ('Unused positive expansion capital — balance', 'unallocated_positive_capital'),
+        ('Closing expansion + replacement backlog + current cash deficit', 'financing_gap'),
+        ('Closing expansion + replacement backlog + accumulated cash shortfalls', 'endline_financing_requirement'),
+    ]
+    service_fields = [
+        ('Opening replacement backlog — snapshot', 'replacement_backlog_opening_by_service'),
+        ('Current replacement requirement — flow', 'replacement_by_service'),
+        ('Current replacement credit — not backlog payments', 'replacement_credit_by_service'),
+        ('Current replacement paid — flow', 'replacement_current_paid_by_service'),
+        ('Opening replacement backlog paid — flow', 'replacement_backlog_paid_by_service'),
+        ('Total replacement paid — flow subtotal', 'replacement_paid_total_by_service'),
+        ('Closing replacement backlog — snapshot', 'replacement_backlog_closing_by_service'),
+        ('Closing expansion + replacement backlog + current cash deficit', 'financing_gap_by_service'),
+        ('Closing expansion + replacement backlog + accumulated cash shortfalls', 'endline_financing_requirement_by_service'),
+    ]
+    for prefix, label in (('', 'BAU'), ('scenario_', 'Scenario'),
+                          ('scenario_without_utility_debt_', 'Scenario without utility debt')):
+        for description, key in waterfall_fields:
+            headers.append(f'{label}: {description} ({cur} M)')
+            for i, row in enumerate(rows):
+                series = sec.get(prefix + key)
+                value = series[i] if isinstance(series, list) and i < len(series) else None
+                if prefix == '' and key == 'utility_debt_cash_available':
+                    value = 0.0
+                row.append(value)
+        for rung, service in enumerate(('safely-managed', 'basic-only')):
+            for description, key in service_fields:
+                headers.append(f'{label} {service}: {description} ({cur} M)')
+                for i, row in enumerate(rows):
+                    matrix = sec.get(prefix + key)
+                    values = matrix[rung] if isinstance(matrix, list) and len(matrix) > rung else []
+                    row.append(values[i] if i < len(values) else None)
+        for field, description in (
+            ('investment_from_loan_proceeds', 'Restricted loan-funded investment — flow, included in expansion'),
+            ('closing_unspent_proceeds', 'Closing unspent restricted loan proceeds — snapshot'),
+        ):
+            headers.append(f'{label}: {description} ({cur} M)')
+            debt = sec.get(prefix + 'utility_debt') or {}
+            injection = {int(entry['year']): entry for entry in debt.get('annual_injection', [])}
+            for y, row in zip(years, rows):
+                row.append(0.0 if prefix != 'scenario_' or debt.get('enabled') is False
+                           else injection.get(y, {}).get(field))
     return headers, rows
 
 

@@ -16,6 +16,8 @@ service-level selector and uses the shared top selections.
 Intervention Table must retain all BAU Table headings and BAU statistics, adding
 intervention coverage and intervention available funding as two comparison
 columns, rather than replacing the underlying BAU financing statistics.
+Place intervention households immediately after target households in both the
+displayed table and exports.
 
 **Why:** The user approved the intervention functionality and refined the layout
 to match BAU's long-form Graph/Table page and numbered section navigation,

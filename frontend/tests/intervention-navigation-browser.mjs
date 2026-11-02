@@ -31,8 +31,10 @@ try {
   assert.equal(await evaluate(`window.__workspaceBackground(document.querySelector('.intervention-reading-content')) === window.__bauBackground`), true, 'Intervention background must match BAU');
   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Intervention table geography"], [aria-label="Intervention table sector"]').length`), 0, 'Table must use the top geography and sector selectors');
   await browser.waitFor('!!document.querySelector(".modern-intv-table tbody tr")', 'Live scenario table did not load');
-  assert.equal(await evaluate(`JSON.stringify([...document.querySelectorAll('.modern-intv-table thead th')].slice(0,12).map(node=>node.textContent)) === JSON.stringify(window.__bauForecast.headers)`), true, 'Intervention table must retain all BAU column headings');
-  assert.equal(await evaluate(`JSON.stringify([...document.querySelectorAll('.modern-intv-table tbody tr')].map(row=>[...row.children].slice(0,12).map(node=>node.textContent))) === JSON.stringify(window.__bauForecast.rows)`), true, 'Every BAU statistic must agree with BAU Table');
+  assert.equal(await evaluate(`JSON.stringify([...document.querySelectorAll('.modern-intv-table thead th')].filter((_,index)=>index!==4 && index!==13).map(node=>node.textContent)) === JSON.stringify(window.__bauForecast.headers)`), true, 'Intervention table must retain all BAU column headings');
+  assert.equal(await evaluate(`JSON.stringify([...document.querySelectorAll('.modern-intv-table tbody tr')].map(row=>[...row.children].filter((_,index)=>index!==4 && index!==13).map(node=>node.textContent))) === JSON.stringify(window.__bauForecast.rows)`), true, 'Every BAU statistic must agree with BAU Table');
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.modern-intv-table thead th')].slice(3,5).map(node=>node.textContent)`),
+    ['Target households (M)', 'Intervention coverage (M)'], 'Intervention households must immediately follow target households');
   assert.equal(await evaluate(`document.querySelectorAll('.modern-intv-table thead th').length`), 14, 'Add intervention coverage and funding columns');
   await browser.waitFor('document.querySelectorAll(\'[data-section-key="graph"] .modern-intv-kpi\').length === 3', 'Coverage KPI cards must stay above the graphs');
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('.intervention-section-nav button')].map(node => node.textContent.replace(/^\\d+/, '').trim())`),

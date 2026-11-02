@@ -1,14 +1,14 @@
 import { INTV_PALETTE as P } from './chartColors';
 
-export type InterventionDefinition = { key: string; label: string; color: string; resourceKey?: string };
+export type InterventionDefinition = { key: string; label: string; color: string; resourceKey?: string; controlLabel?: string };
 export const WATER_INTERVENTIONS: InterventionDefinition[] = [
   { key: 'ws_connections_enabled', label: 'Revenue from new connections', color: P.connections, resourceKey: 'scenario_connection_net_cash' },
   { key: 'ws_financial_commitment_enabled', label: 'Increase in Public Spending', color: P.financial, resourceKey: 'scenario_financial_commitment_cash' },
   { key: 'ws_exogenous_injection_enabled', label: 'External Funding (Private Sector, Donor, Foreign Direct Investment)', color: P.injection, resourceKey: 'scenario_exogenous_injection_cash' },
   { key: 'ws_collection_efficiency_enabled', label: 'Collection efficiency', color: P.collection, resourceKey: 'scenario_collection_cash' },
-  { key: 'ws_capital_efficiency_enabled', label: 'Budget execution', color: P.budgetExec },
-  { key: 'ws_costeff_enabled', label: 'Capex efficiency', color: P.capex },
-  { key: 'ws_techmix_enabled', label: 'Optimised technology', color: P.techmix },
+  { key: 'ws_capital_efficiency_enabled', label: 'Budget execution', controlLabel: 'Budget execution improvement', color: P.budgetExec },
+  { key: 'ws_costeff_enabled', label: 'Capex efficiency', controlLabel: 'Capex efficiency (unit cost)', color: P.capex },
+  { key: 'ws_techmix_enabled', label: 'Optimised technology', controlLabel: 'Optimised technology selection', color: P.techmix },
   { key: 'ws_nrw_enabled', label: 'NRW reduction', color: P.nrw, resourceKey: 'scenario_nrw_net' },
   { key: 'ws_tariff_enabled', label: 'Tariff reform', color: P.tariff, resourceKey: 'scenario_tariff_cash' },
   { key: 'ws_microfinance_enabled', label: 'Microfinance', color: P.microfinance, resourceKey: 'scenario_mf_loan_volume' },
@@ -18,9 +18,9 @@ export const SANITATION_INTERVENTIONS: InterventionDefinition[] = [
   { key: 'san_financial_commitment_enabled', label: 'Increase in Public Spending', color: P.financial, resourceKey: 'scenario_financial_commitment_cash' },
   { key: 'san_exogenous_injection_enabled', label: 'External Funding (Private Sector, Donor, Foreign Direct Investment)', color: P.injection, resourceKey: 'scenario_exogenous_injection_cash' },
   { key: 'san_collection_efficiency_enabled', label: 'Collection efficiency', color: P.collection, resourceKey: 'scenario_collection_cash' },
-  { key: 'san_capital_efficiency_enabled', label: 'Budget execution', color: P.budgetExec },
-  { key: 'san_costeff_enabled', label: 'Capex efficiency', color: P.capex },
-  { key: 'san_techmix_enabled', label: 'Optimised technology', color: P.techmix },
+  { key: 'san_capital_efficiency_enabled', label: 'Budget execution', controlLabel: 'Budget execution improvement', color: P.budgetExec },
+  { key: 'san_costeff_enabled', label: 'Capex efficiency', controlLabel: 'Capex efficiency (unit cost)', color: P.capex },
+  { key: 'san_techmix_enabled', label: 'Optimised technology', controlLabel: 'Optimised technology selection', color: P.techmix },
   { key: 'san_nrw_link_enabled', label: 'NRW-linked sanitation revenue', color: P.nrw, resourceKey: 'scenario_eligible_nrw_link_cash' },
   { key: 'san_tariff_enabled', label: 'Tariff reform', color: P.tariff, resourceKey: 'scenario_tariff_cash' },
   { key: 'san_microfinance_enabled', label: 'Microfinance', color: P.microfinance, resourceKey: 'scenario_mf_loan_volume' },

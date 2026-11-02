@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useProjectScope } from '../projectScope';
 import PublicSpendingTargets from './PublicSpendingTargets';
-import InterventionCategories from './InterventionCategories';
+import InterventionCategories, { InterventionNavigation, type InterventionReveal } from './InterventionCategories';
 import LiveInterventionChart from './LiveInterventionChart';
 import InterventionScenarioTable from './InterventionScenarioTable';
 import InterventionFundingChart from './InterventionFundingChart';
@@ -251,6 +251,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
   React.useEffect(() => () => pendingNavigation.current?.(), []);
   const [expandedChartGroup, setExpandedChartGroup] = useState(false);
   const [selectedIntervention, setSelectedIntervention] = useState<string | null>(null);
+  const [interventionReveal, setInterventionReveal] = useState<InterventionReveal | null>(null);
   const [drawerTarget, setDrawerTarget] = useState<HTMLElement | null>(null);
   const selectedTrigger = React.useRef<HTMLButtonElement | null>(null);
   const drawerCloseButton = React.useRef<HTMLButtonElement | null>(null);
@@ -557,11 +558,19 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             ['design', 'Intervention Design'],
             ['graph', 'Intervention Graph'],
             ['table', 'Intervention Table'],
-          ] as const).map(([key, label], index) => <button key={key} type="button"
+          ] as const).map(([key, label], index) => <React.Fragment key={key}><button type="button"
             className="modern-inputs-nav__item" aria-current={activeSection === key ? 'location' : undefined}
             onClick={() => navigateWorkspace(key)}>
             <span className="modern-inputs-nav__number">{index + 1}</span>{label}
-          </button>)}
+          </button>
+          {key === 'design' && activeSection === 'design' && <InterventionNavigation
+            sector={sectorTab} inputs={inputs} waterAvailable={sectors.includes('water')} selected={selectedIntervention}
+            onSelect={(intervention, trigger) => {
+              setInterventionReveal({ label: intervention });
+              selectedTrigger.current = trigger;
+              setSelectedIntervention(intervention);
+            }} />}
+          </React.Fragment>)}
         </div>
         <select className="modern-inputs-nav__select" aria-label="Go to Intervention section"
           value={activeSection} onChange={event => navigateWorkspace(event.target.value as 'design' | 'graph' | 'table')}>
@@ -607,7 +616,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         {sectorTab === 'water' && <>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Water Supply Interventions</h3>
 
-          <InterventionCategories sector="water">
+          <InterventionCategories sector="water" reveal={interventionReveal}>
           <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="water" area={scopeLabel || 'Selected area'}
             drawerTarget={drawerTarget} drawerSelected={selectedIntervention === 'Revenue from new connections'}
             onOpenDrawer={trigger => selectIntervention('Revenue from new connections', trigger)} />
@@ -750,7 +759,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         {sectorTab === 'sanitation' && <>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Sanitation Interventions</h3>
 
-          <InterventionCategories sector="sanitation">
+          <InterventionCategories sector="sanitation" reveal={interventionReveal}>
           <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="sanitation" area={scopeLabel || 'Selected area'}
             drawerTarget={drawerTarget} drawerSelected={selectedIntervention === 'Revenue from new connections'}
             onOpenDrawer={trigger => selectIntervention('Revenue from new connections', trigger)} />
@@ -992,7 +1001,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         </div>}
       </div>
 
-      <aside className={`intervention-input-drawer${selectedIntervention && activeSection === 'design' ? ' is-open' : ''}`}
+      <aside id="intervention-input-drawer" className={`intervention-input-drawer${selectedIntervention && activeSection === 'design' ? ' is-open' : ''}`}
         hidden={activeSection !== 'design' || !selectedIntervention} aria-hidden={!selectedIntervention || activeSection !== 'design'} aria-label={`${selectedIntervention || 'Intervention'} inputs`}>
         {selectedIntervention && <>
           <header className="intervention-input-drawer__header">

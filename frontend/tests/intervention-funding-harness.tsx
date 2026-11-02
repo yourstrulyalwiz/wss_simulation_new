@@ -38,11 +38,14 @@ function Harness() {
   const [sector, setSector] = useState<'water' | 'sanitation'>('water');
   const [scope, setScope] = useState('Urban');
   const [readOnly, setReadOnly] = useState(false);
+  const [sectors, setSectors] = useState<('water' | 'sanitation')[]>(['water', 'sanitation']);
   testWindow.__inputs = inputs;
   testWindow.__setReadOnly = setReadOnly;
   testWindow.__setSector = setSector;
   testWindow.__setScope = setScope;
-  return <ProjectScopeContext.Provider value={{ sectors: ['water', 'sanitation'], readOnly, projectMode: true }}>
+  testWindow.__setInputs = setInputs;
+  testWindow.__setSectors = setSectors;
+  return <ProjectScopeContext.Provider value={{ sectors, readOnly, projectMode: true }}>
     <InterventionPanel inputs={inputs} onChange={setInputs} sectorTab={sector} onSectorChange={setSector}
       geoScope={scope.toLowerCase()} scopeLabel={scope} scopeChoices={['urban', 'rural', 'national']}
       contributionView="individual" onContributionViewChange={() => {}}

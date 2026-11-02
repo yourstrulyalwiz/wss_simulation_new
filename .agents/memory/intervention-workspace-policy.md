@@ -11,6 +11,10 @@ intervention inputs still push the main content right rather than overlaying it.
 Connection revenue belongs last in Funding Mobilization, after public spending
 and external funding, using the same compact enable row as public spending.
 **Why:** The user explicitly requested matching controls and this ordering.
+When Design is selected, expand lever-grouped interventions in the left navigation.
+Show teal right-end dots for enabled interventions, independently of which drawer
+is open; selecting an item must not enable it. Hide the list for Graph/Table.
+**Why:** The user wants to see active interventions grouped by lever in navigation.
 Keep coverage and available funding together, shared geography/sector/service
 selectors synchronized, and scenario KPI cards above the graph.
 The page background should match BAU Scenario. Geography and sector selectors

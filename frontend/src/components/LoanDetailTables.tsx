@@ -5,8 +5,8 @@ import { forecastCell } from '../forecastTablePresentation';
 import { LOAN_FUNDING_QUALIFICATION } from '../loanFunding';
 import TableExport from './TableExport';
 
-type Props = { detail: any; baseline: number; currency: string; currencyDisplay: CurrencyDisplaySettings };
-export default function LoanDetailTables({ detail, baseline, currency, currencyDisplay }: Props) {
+type Props = { detail: any; baseline: number; currency: string; currencyDisplay: CurrencyDisplaySettings; tableKey?: 'annual_injection' | 'repayment_schedule' };
+export default function LoanDetailTables({ detail, baseline, currency, currencyDisplay, tableKey }: Props) {
   const unit = `M ${displayCurrency(currencyDisplay, currency)}`;
   const tables = [
     { title: 'Annual Proceeds Use', key: 'annual_injection', filename: 'loan_annual_proceeds_use',
@@ -25,7 +25,7 @@ export default function LoanDetailTables({ detail, baseline, currency, currencyD
         ['funded_interest', 'Funded interest'], ['funded_principal', 'Funded principal'], ['unfunded_interest', 'Unfunded interest'],
         ['unfunded_principal', 'Unfunded principal'], ['closing_principal', 'Closing contractual principal']] },
   ];
-  return <>{tables.map(table => {
+  return <>{tables.filter(table => !tableKey || table.key === tableKey).map(table => {
     const ledger = loanForecastLedger(detail?.[table.key], baseline);
     const headers = ['Year', ...table.fields.map(([, label]) => `${label} (${unit})`)];
     const rows = ledger.map(row => [row.year, ...table.fields.map(([key]) => {
@@ -33,7 +33,7 @@ export default function LoanDetailTables({ detail, baseline, currency, currencyD
       return value === null ? null : convertMoney(value, currencyDisplay, currency);
     })]);
     return <details className="loan-optional" key={table.key} data-testid={`loan-${table.key}`}>
-      <summary>{table.title} · {rows.length} years</summary>
+      <summary>{tableKey ? 'Show / hide table' : table.title} · {rows.length} years</summary>
       <div className="loan-optional__body">
         <p className="loan-report-note">{table.note} {LOAN_FUNDING_QUALIFICATION}</p>
         <TableExport filename={table.filename} sheetName={table.title} headers={headers} rows={rows} compact currencyDisplay={currencyDisplay} />

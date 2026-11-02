@@ -23,7 +23,8 @@ type Props = {
   onEditCurrencyRate: () => void; onSectionFocus?: (key: string) => void; onRetry: () => void;
 };
 const scopeName = (scope: string) => scope === 'national' ? 'National' : scope === 'rural' ? 'Rural' : 'Urban';
-const sections = [{ key: 'design', title: 'Loan Settings' }, { key: 'graph', title: 'Loan Graph' }, { key: 'table', title: 'Coverage Comparison' }] as const;
+const sections = [{ key: 'design', title: 'Loan Settings' }, { key: 'graph', title: 'Loan Graph' }, { key: 'table', title: 'Coverage Comparison' },
+  { key: 'annual_injection', title: 'Annual Proceeds Use' }, { key: 'repayment_schedule', title: 'Repayment Schedule' }] as const;
 type Section = typeof sections[number]['key'];
 
 export default function DebtServicingPanel({
@@ -55,6 +56,8 @@ export default function DebtServicingPanel({
     requestAnimationFrame(() => {
       const host = reading.current, target = host?.querySelector<HTMLElement>(`[data-section-key="${section}"]`);
       if (!host || !target) return;
+      const disclosure = target.querySelector('details');
+      if (disclosure) disclosure.open = true;
       target.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true });
       const scroll = getComputedStyle(host).overflowY === 'visible' ? host.closest<HTMLElement>('.loan-workspace') || host : host;
       const align = () => scroll.scrollTo({ top: scroll.scrollTop + target.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 12 });
@@ -128,8 +131,13 @@ export default function DebtServicingPanel({
         {servicePicker('Loan comparison service level')}
         {results?.[key] && !error ? <LoanCoverageComparison result={results} inputs={inputs} sector={sectorTab} level={level} scopeLabel={area} currencyDisplay={currencyDisplay} /> :
           <p className="modern-intv-table-state">The comparison uses the same matched calculation as the graphs above.</p>}
-        <LoanDetailTables detail={!error ? detail : null} baseline={Number(inputs.period.baseline_year)} currency={currency} currencyDisplay={currencyDisplay} />
       </section>
+      {(['annual_injection', 'repayment_schedule'] as const).map((tableKey, index) => <section
+        key={tableKey} className="modern-bau-section intervention-reading-section" data-section-key={tableKey}>
+        {heading(index + 4, tableKey === 'annual_injection' ? 'Annual Proceeds Use' : 'Repayment Schedule')}
+        <LoanDetailTables detail={!error ? detail : null} baseline={Number(inputs.period.baseline_year)}
+          currency={currency} currencyDisplay={currencyDisplay} tableKey={tableKey} />
+      </section>)}
     </div>
   </div>;
 }

@@ -71,8 +71,11 @@ adjacent loan-settings panel, and an independent long-form graph/table body with
 matching background, contextual headings and coverage KPI cards. Hide settings
 when Graph or Coverage Comparison is selected, without clearing entered terms.
 Show coverage and Sector Available Funds with explicit marginal loan effects,
-then the loan-adjusted coverage comparison, then collapsed Annual Proceeds Use
-and Repayment Schedule. Do not include the requirements-versus-funds chart here.
+then the loan-adjusted coverage comparison, then Annual Proceeds Use and Repayment
+Schedule as their own numbered sections and navigation entries. Navigation opens
+the selected ledger; tables can still collapse. **Why:** The user promoted the
+optional tables into directly accessible sections with matching headings.
+Do not include the requirements-versus-funds chart here.
 Tables start after the baseline (2026 in the current example); retain repayment
 years beyond the forecast through full maturity.
 

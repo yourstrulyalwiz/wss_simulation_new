@@ -40,7 +40,7 @@ try {
   await e(`{const style=document.createElement('style');style.textContent=${JSON.stringify(css + '\n#root{height:100dvh;display:flex} *{box-sizing:border-box} body{font-family:system-ui,sans-serif}')} ;document.head.append(style)}`);
   await e(output.find(asset => asset.type === 'chunk').code);
   await w(`!!document.querySelector('[data-testid="loan-coverage-chart"] .recharts-surface')`, 'Coverage graph failed to mount');
-  assert.deepEqual(await e(`[...document.querySelectorAll('.modern-inputs-nav__item')].map(n=>n.textContent)`), ['1Loan Settings', '2Loan Graph', '3Coverage Comparison']);
+  assert.deepEqual(await e(`[...document.querySelectorAll('.modern-inputs-nav__item')].map(n=>n.textContent)`), ['1Loan Settings', '2Loan Graph', '3Coverage Comparison', '4Annual Proceeds Use', '5Repayment Schedule']);
   assert.equal(await e(`(()=>{
     const nav=document.querySelector('nav').getBoundingClientRect(), settings=document.querySelector('.loan-settings').getBoundingClientRect(), main=document.querySelector('.intervention-reading-content').getBoundingClientRect();
     return Math.abs(nav.right-settings.left)<2 && Math.abs(settings.right-main.left)<2 && main.width>500;
@@ -101,7 +101,9 @@ try {
   assert.ok(Math.abs(usd.rows[0][8] * 132.7 - exported.rows[0][8]) < 1e-8);
   assert.equal(usd.rows[0][4], exported.rows[0][4], 'Currency must not alter households');
   for (const key of ['annual_injection', 'repayment_schedule']) {
-    await e(`document.querySelector('[data-testid="loan-${key}"] summary').click()`);
+    await navigate(key === 'annual_injection' ? 3 : 4);
+    await w(`document.querySelector('[data-testid="loan-${key}"]').open`, 'Navigation opens the ledger');
+    assert.equal(await e(`document.querySelector('[data-section-key="${key}"] h2').classList.contains('modern-input-section-heading')`), true);
     assert.equal(await e(`[...document.querySelectorAll('[data-testid="loan-${key}"] tbody tr')].every(n=>+n.firstElementChild.textContent>2025)`), true);
     await clickExport(`[data-testid="loan-${key}"]`, 'Excel');
     const ledger = await e(`__requests.filter(r=>r.url.includes('/export/table')).at(-1).body.sheets[0]`);

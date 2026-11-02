@@ -934,7 +934,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             raise ValueError('Ordinary source contributions do not reconcile to available funding')
         allocation = allocate_sources(sources, max(bau_replacement[t], 0.),
                                       debt_service_arr[t], selected_sources,
-                                      replacement_backlog=float(ledger.replacement_shortfalls.sum()))
+                                      replacement_backlog=float(ledger.replacement_shortfalls.sum()),
+                                      treatment_backlog=float(ledger.ancillary.sum()))
+        priority_treatment_paid = allocation['treatment_backlog_paid']
         cash_after_debt_service = allocation['eligible_capital_after_losses_debt']
         ordinary_expansion_cash = sum(allocation['expansion_available'].values())
         after_debt_series[t] = cash_after_debt_service
@@ -1157,6 +1159,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             replacement=replacement[t], unpaid_by_service=unpaid_by_service,
             deficit_by_service=cash_deficit_by_service[:, t],
             ancillary_cost=capex_adder * (1 + nonhh_mult),
+            priority_ancillary_paid=priority_treatment_paid,
             spare_capital=unallocated_positive_capital[t], asset_stock=stock[t],
             sector_capital=connection_purchase_capital[t], external_capital=external_cost,
             replacement_settlement=dict(opening=opening_backlog,
@@ -1168,16 +1171,16 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         bau_stock[t] = stock[t]
         # The fixed shared ancillary asset retains its service attribution.
         need_stock_by_service[:, t] += ledger.series['ancillary_paid_by_service'][:, t]
-        unallocated_positive_capital[t] -= ancillary_paid
+        unallocated_positive_capital[t] -= ancillary_paid - priority_treatment_paid
         actual_sector_investment = connection_purchase_capital[t] + ancillary_paid
         debt_investment_used[t] = min(
-            debt_cash_available[t], max(0.0, actual_sector_investment - ordinary_expansion_cash))
+            debt_cash_available[t], max(0.0, actual_sector_investment - priority_treatment_paid - ordinary_expansion_cash))
         debt_cash_balance = max(0.0, debt_cash_available[t] - debt_investment_used[t])
         debt_cash_closing[t] = debt_cash_balance
         allocation = allocate_purchases(
             allocation, new_basic * cost_basic_t[t] / hh_share if hh_share > 0 else 0.,
             new_sm * cost_sm_t[t] / hh_share if hh_share > 0 else 0.,
-            ancillary_paid, debt_cash_available[t])
+            ancillary_paid - priority_treatment_paid, debt_cash_available[t])
         record(source_funding, t, allocation)
         coverage_origins.step(t, allocation, new_basic, new_sm, nrw_upg, mf_flow[t],
                               grant_flow[t], bau[0, t], bau[1, t])

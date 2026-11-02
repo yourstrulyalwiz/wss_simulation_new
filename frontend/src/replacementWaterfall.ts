@@ -7,6 +7,8 @@ export const REPLACEMENT_WATERFALL_FIELDS = [
   ['replacement_backlog_paid', 'Opening replacement backlog paid', 'Annual flow'],
   ['replacement_paid_total', 'Total replacement paid (current + backlog)', 'Annual flow — subtotal'],
   ['replacement_backlog_closing', 'Closing replacement backlog', 'Closing snapshot'],
+  ['treatment_backlog_opening', 'Opening unpaid treatment costs', 'Opening snapshot'],
+  ['treatment_backlog_paid', 'Prior treatment costs paid before expansion', 'Annual flow — included in ancillary spending'],
   ['ordinary_expansion_available', 'Ordinary capital remaining for expansion', 'Annual availability'],
   ['utility_debt_cash_available', 'Restricted expansion loan cash including carry', 'Annual availability'],
   ['sector_funded_expansion', 'Sector-funded expansion / ancillary spending', 'Annual flow'],

@@ -16,7 +16,7 @@ from model.gap_attribution import attribute_gap
 from model.water_supply import sector_bau
 
 
-def fixture(available, replacement, *, sanitation=False, years=2, fully_sm_target=False, opening_stock=300000, debt_cash=None):
+def fixture(available, replacement, *, sanitation=False, years=2, fully_sm_target=False, opening_stock=300000, debt_cash=None, capex_adder=0):
     # 100 SM + 200 Basic; target 200 SM + 100 Basic: exactly 100 upgrades.
     # All amounts are converted to the engine's millions convention.
     ctx = {
@@ -36,7 +36,7 @@ def fixture(available, replacement, *, sanitation=False, years=2, fully_sm_targe
         cost_sm=1000, cost_basic=1000,
         full_budget=np.zeros(years), capex_pct=1, growth_capex_pct=0,
         planned_list=[], nonhh_pct=0, asset_life=opening_stock/replacement if replacement else float('inf'),
-        capex_adder=0, hist_all_proportional=not sanitation,
+        capex_adder=capex_adder, hist_all_proportional=not sanitation,
         target_adjusted=sanitation, basic_share=0,
         extra_cash=np.array([0.] + (list(np.asarray(available) / 1e6) if isinstance(available, (list, tuple)) else [available / 1e6] * (years - 1))),
         **({'utility_debt_execution': {'disbursement': np.asarray(debt_cash) / 1e6}} if debt_cash is not None else {}),

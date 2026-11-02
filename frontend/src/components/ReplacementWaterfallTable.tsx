@@ -14,7 +14,7 @@ export default function ReplacementWaterfallTable({ rows, moneyFactor, currency,
   ]);
   return <details className="modern-bau-plot-panel">
     <summary>Annual replacement and expansion reconciliation{label ? ` — ${label}` : ''}</summary>
-    <p>Sector total, B {currency}. Current replacement is paid first, then opening backlog, then ordinary expansion. Restricted loans, earmarked household finance and noncash delivery may support expansion while backlog remains. Historical operating and debt cash shortfalls are not repaid here.</p>
+    <p>Sector total, B {currency}. After current losses and contractual debt service, available ordinary funding pays current-year replacement, unpaid replacement from prior years, then unpaid treatment costs from prior years, before current eligible expansion. Treatment settlement is included in ancillary spending, not an extra charge. Restricted loans, earmarked household finance and noncash delivery remain subject to their existing expansion restrictions. Historical operating and debt cash shortfalls are not repaid here.</p>
     <p>Opening and closing backlogs are snapshots: never sum them across years. Total paid is a subtotal, not an additional payment. — means the engine did not report the field.</p>
     <TableExport filename={filename} sheetName="Annual waterfall" headers={headers} rows={values} currencyDisplay={currencyDisplay} freezeColumns={2} />
     <div style={{ overflowX: 'auto' }}>

@@ -60,6 +60,7 @@ class ExpansionLedger:
             'closing_outstanding_expansion', 'endline_financing_requirement',
             'funded_asset_stock', 'sector_funded_expansion', 'externally_funded_expansion',
             'ancillary_outstanding', 'ancillary_paid', 'capital_credited_to_due_expansion',
+            'treatment_backlog_opening', 'treatment_backlog_paid',
         )})
         for key in ('replacement_backlog_opening', 'replacement_current_paid',
                     'replacement_backlog_paid', 'replacement_paid_total', 'replacement_backlog_closing'):
@@ -71,7 +72,7 @@ class ExpansionLedger:
     def step(self, t, target, costs, sector, external, physical, *,
              replacement, unpaid_by_service, deficit_by_service,
              ancillary_cost, spare_capital, asset_stock, sector_capital, external_capital,
-             replacement_settlement=None):
+             replacement_settlement=None, priority_ancillary_paid=0.0):
         required = np.maximum(np.array([target[0], sum(target[:2])]) - self.base, 0)
         planned = np.maximum(required - self.required, 0)
         reductions = np.maximum(self.required - required, 0)
@@ -81,6 +82,7 @@ class ExpansionLedger:
         cancelled = np.minimum(opening, reductions)
         costs = np.asarray(costs)
         new_ancillary = 0.0
+        treatment_opening = float(self.ancillary.sum())
         if not self.ancillary_committed and (np.any(planned > 0) or np.any(np.asarray(sector) > 0)):
             self.ancillary_committed = True
             new_ancillary = max(0.0, ancillary_cost)
@@ -103,7 +105,9 @@ class ExpansionLedger:
         sector_credit = np.minimum(np.maximum(due - physical_credit, 0), sector)
         self.delivered += delivered
         self.outstanding = np.maximum(required - self.delivered, 0)
-        paid = min(max(0.0, spare_capital), self.ancillary.sum())
+        if not np.isfinite(priority_ancillary_paid) or priority_ancillary_paid < 0 or priority_ancillary_paid > treatment_opening + 1e-7:
+            raise ValueError('Invalid priority treatment settlement')
+        paid = min(priority_ancillary_paid + max(0.0, spare_capital), self.ancillary.sum())
         paid_by_service = self.ancillary * paid / self.ancillary.sum() if self.ancillary.sum() > 0 else np.zeros(2)
         if self.ancillary.sum() > 0:
             self.ancillary *= 1 - paid / self.ancillary.sum()
@@ -145,6 +149,8 @@ class ExpansionLedger:
             'externally_funded_expansion': external_capital,
             'ancillary_outstanding': float(self.ancillary.sum()),
             'ancillary_paid': paid,
+            'treatment_backlog_opening': treatment_opening,
+            'treatment_backlog_paid': priority_ancillary_paid,
             'ancillary_paid_by_service': paid_by_service,
             'capital_credited_to_due_expansion': float(sector_credit @ costs + paid),
             'annual_planned_expansion_cost_by_service': planned_cost_by_service,

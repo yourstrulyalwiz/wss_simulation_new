@@ -14,6 +14,7 @@ import { CurrencyDisplayControl, type CurrencyDisplaySettings } from '../currenc
 import NRWDiagnostics from './NRWDiagnostics';
 import { nrwLinkBillableVolume, nrwRevenueMetadata, nrwRevenueVersion, setNrwLinkOverlapYear } from '../nrwRevenue';
 import ConnectionRevenue from './ConnectionRevenue';
+import InterventionControlRow from './InterventionControlRow';
 import RevenueSourceChart from './RevenueSourceChart';
 import { collectionBelowBaselineWarning } from '../collectionWarning';
 import { ValidationContext, FieldIssuesContext, IssueMessages, groupForLabel, useInterventionIssues } from '../interventionValidation';
@@ -137,25 +138,9 @@ function InterventionToggle({ label, checked, onChange, children, unavailable = 
     issue.field.endsWith('.tariff_target') && label.includes('Target') && label.includes('tariff')));
   return (
     <div style={{ marginBottom: 8, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-        background: checked ? '#eef2ff' : '#fafbfc', borderBottom: expanded ? '1px solid #c7d2fe' : 'none',
-      }}>
-        <label className="intervention-toggle__checkbox">
-          <input type="checkbox" aria-label={`Enable ${label}`} disabled={readOnly || unavailable} checked={checked && !unavailable} onChange={e => onChange(e.target.checked)}
-            style={{ width: 18, height: 18, accentColor: '#2563eb' }} />
-        </label>
-        <button type="button" className="intervention-toggle__name" aria-expanded={!!expanded}
-          onClick={event => drawer?.select(label, event.currentTarget)}
-          title={`Open ${label} inputs`}>
-          <span>{label}</span>
-          {issues.some(issue => issue.severity === 'error') && <span className="intervention-toggle__issue">Needs attention</span>}
-        </button>
-        <button type="button" aria-expanded={!!expanded} onClick={event => drawer?.select(label, event.currentTarget)}
-          style={{ border: '1px solid #c7d2fe', background: '#fff', cursor: 'pointer', fontSize: 11, color: '#2563eb', fontWeight: 600, padding: '3px 10px', borderRadius: 12 }}>
-          {expanded ? '▴ Hide' : '▾ Show'}
-        </button>
-      </div>
+      <InterventionControlRow label={label} checked={checked && !unavailable} disabled={readOnly || unavailable}
+        expanded={!!expanded} onChange={onChange} onOpen={event => drawer?.select(label, event.currentTarget)}
+        needsAttention={issues.some(issue => issue.severity === 'error')} />
       {unavailable && <p style={{ margin: '8px 12px', fontSize: 11, color: '#587681' }}>Add Water supply to use this linkage. Saved settings are retained but inactive.</p>}
       {expanded && (
         (drawer?.target ? createPortal(
@@ -898,15 +883,10 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           </InterventionCategories>
         </>}
 
-        {/* ===== CUSTOM INTERVENTIONS (always visible, no dropdown) ===== */}
-        <div style={{ marginTop: 16, border: '1px solid #ddd', borderRadius: 8, background: '#fff', padding: '12px 14px' }}>
+        {/* Paused controls stay unavailable without altering saved custom settings. */}
+        {CUSTOM_INTERVENTIONS_ENABLED && <div style={{ marginTop: 16, border: '1px solid #ddd', borderRadius: 8, background: '#fff', padding: '12px 14px' }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', margin: '0 0 8px' }}>Custom Interventions</h3>
-          {!CUSTOM_INTERVENTIONS_ENABLED && (
-            <p style={{ margin: 0, fontSize: 12, color: '#475569' }}>
-              Custom funding and cost-reduction interventions are temporarily disabled for both water and sanitation. Saved settings are preserved but do not affect calculations.
-            </p>
-          )}
-          {CUSTOM_INTERVENTIONS_ENABLED && <fieldset disabled={readOnly} style={{ margin: 0, padding: 0, border: 0, minWidth: 0 }} onClick={() => onSectionFocus?.('custom_interventions')}>
+          <fieldset disabled={readOnly} style={{ margin: 0, padding: 0, border: 0, minWidth: 0 }} onClick={() => onSectionFocus?.('custom_interventions')}>
             <div style={{ fontSize: 11, color: '#155e75', background: '#ecfeff', border: '1px solid #a5f3fc', padding: '6px 8px', borderRadius: 4, marginBottom: 8, lineHeight: 1.5 }}>
               You can add interventions not covered above as custom interventions. Two types are supported: <b>New revenue source</b> — invest to produce an output whose net value funds new safely-managed service — and <b>Cost reduction</b> — lower the per-household service cost. Pick each one's sector and tick its box to switch it on.
             </div>
@@ -1008,8 +988,8 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             }} style={{ width: '100%', padding: '8px', border: '1px dashed #9333ea', borderRadius: 6, background: 'none', cursor: 'pointer', fontSize: 12, color: '#9333ea', fontWeight: 500 }}>
               + Add Custom Intervention
             </button>
-          </fieldset>}
-        </div>
+          </fieldset>
+        </div>}
       </div>
 
       <aside className={`intervention-input-drawer${selectedIntervention && activeSection === 'design' ? ' is-open' : ''}`}

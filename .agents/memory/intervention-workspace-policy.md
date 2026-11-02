@@ -8,6 +8,9 @@ sections on one long scrollable page, with BAU's reading-column width and toggle
 placement. Selecting Design reveals the intervention list beside the navigation;
 selecting Graph or Table hides that list and its nested input drawer. Individual
 intervention inputs still push the main content right rather than overlaying it.
+Connection revenue belongs last in Funding Mobilization, after public spending
+and external funding, using the same compact enable row as public spending.
+**Why:** The user explicitly requested matching controls and this ordering.
 Keep coverage and available funding together, shared geography/sector/service
 selectors synchronized, and scenario KPI cards above the graph.
 The page background should match BAU Scenario. Geography and sector selectors

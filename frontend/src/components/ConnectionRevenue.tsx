@@ -4,6 +4,7 @@ import { migrateConnectionRevenueConfig, validateConnectionRevenueConfig, type C
 import { resolveRevenueBases } from '../api';
 import { ValidationContext, IssueMessages } from '../interventionValidation';
 import { useProjectScope } from '../projectScope';
+import InterventionControlRow from './InterventionControlRow';
 
 export function revenueBasesRequestBody(inputs: any) { return JSON.stringify(inputs); }
 export function connectionRevenueStatus(data: any, sector: 'water' | 'sanitation') {
@@ -65,6 +66,7 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area, draw
   const noticeKey = `${area}:${sector}`;
   const currency = inputs.country_config?.currency || 'LCU';
   const details = <>
+    <span role="status" style={{ fontSize: 11 }}>{interventionIssues.some(issue => issue.severity === 'error') ? 'Missing required inputs' : state}</span>
     <IssueMessages issues={interventionIssues} />
     {config.current_behavior_notice && !dismissed.includes(noticeKey) && <div role="status" style={{ fontSize: 11, padding: '8px 0' }}>
       {config.current_behavior_notice} <button type="button" disabled={readOnly} onClick={() => {
@@ -127,22 +129,15 @@ export default function ConnectionRevenue({ inputs, onChange, sector, area, draw
     </div>}
   </>;
   return <section data-testid="connection-revenue" aria-label={`Revenue from new connections — ${area} — ${sector}`}
-    style={{ marginTop: 12, border: '1px solid #c2d3da', borderRadius: 6, padding: 12, background: '#f3f8f9', minWidth: 0 }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-      <label htmlFor={`${id}-enabled`} style={{ fontSize: 13, fontWeight: 700, color: '#164e63' }}>
-        <input id={`${id}-enabled`} type="checkbox" disabled={readOnly} checked={config.enabled} onChange={e => update({ enabled: e.target.checked })} />
-        {' '}Include revenue from new connections
-      </label>
-      <span role="status" style={{ fontSize: 11 }}>{interventionIssues.some(issue => issue.severity === 'error') ? 'Missing required inputs' : state}</span>
-      <button type="button" aria-expanded={settingsVisible} aria-controls={`${id}-settings`}
-        onClick={event => {
+    style={{ marginBottom: 8, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', minWidth: 0 }}>
+      <InterventionControlRow label="Include revenue from new connections" checked={config.enabled} disabled={readOnly}
+        expanded={settingsVisible} onChange={enabled => update({ enabled })}
+        needsAttention={interventionIssues.some(issue => issue.severity === 'error') || errors.length > 0}
+        controls={!inDrawer || drawerSelected && drawerTarget ? `${id}-settings` : undefined}
+        onOpen={event => {
           if (onOpenDrawer) onOpenDrawer(event.currentTarget);
           else setShowSettings(value => !value);
-        }}
-        style={{ fontSize: 11, cursor: 'pointer', border: '1px solid #c2d3da', borderRadius: 4, padding: '4px 8px', background: '#fff', color: '#164e63' }}>
-        {inDrawer ? 'Revenue from new connections' : showSettings ? 'Hide settings' : 'Show settings'}
-      </button>
-    </div>
+        }} />
     {inDrawer
       ? drawerSelected && drawerTarget ? createPortal(<div id={`${id}-settings`}>{details}</div>, drawerTarget) : null
       : <div id={`${id}-settings`} hidden={!settingsVisible}>{details}</div>}

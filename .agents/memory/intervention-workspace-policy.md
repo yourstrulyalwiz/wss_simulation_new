@@ -7,7 +7,9 @@ Intervention Design, Intervention Graph, Intervention Table. Graph and Table are
 sections on one long scrollable page, with BAU's reading-column width and toggle
 placement. The left navigation is the only visible intervention list: there is
 no middle list/control panel. Selecting an intervention directly opens the separate
-rightmost settings panel; never place its settings in the main graph/table body.
+settings panel immediately right of navigation, with graph/table content to its
+right; never place settings in the main graph/table body. Do not include a
+service-level dropdown in settings; keep the graph/table service selectors.
 The settings panel contains the contextual Intervention Design heading, lever
 heading, activation control and existing settings. Keep shared scope selectors
 available even before an intervention is selected. Graph/Table hide the settings

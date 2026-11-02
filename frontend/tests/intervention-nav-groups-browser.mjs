@@ -45,7 +45,7 @@ try {
   assert.equal(await e(`document.querySelectorAll('.intervention-settings-mount input, .intervention-settings-mount button').length`), 0, 'Mounting plumbing contains no controls');
   assert.ok(await e(`!!document.querySelector('.intervention-settings-empty')`), 'Design starts with small empty settings state');
   assert.equal(await e(`getComputedStyle(document.querySelector('.intervention-section-workspace')).gridTemplateColumns.split(' ').length`), 3, 'Only nav, reading content and settings reserve width');
-  assert.ok(await e(`document.querySelector('#intervention-input-drawer').getBoundingClientRect().left >= document.querySelector('.intervention-reading-content').getBoundingClientRect().right - 1`), 'Settings are separate and rightmost');
+  assert.ok(await e(`Math.abs(document.querySelector('#intervention-input-drawer').getBoundingClientRect().left - document.querySelector('.intervention-section-nav').getBoundingClientRect().right) < 2`), 'Settings immediately follow navigation');
   for (const sector of ['water', 'sanitation']) {
     await e(`__setSector('${sector}')`);
     const prefix = sector === 'water' ? 'ws' : 'san';

@@ -120,7 +120,8 @@ try {
   await w(`document.querySelector('${drawer}').textContent.includes('Retry verification')`, 'Verification retry missing');
   await e(`__verificationError=false;[...document.querySelectorAll('${drawer} button')].find(n=>n.textContent==='Retry verification').click()`);
   await w(`!document.querySelector('${drawer}').textContent.includes('Retry verification')`, 'Retry did not recover');
-  await change('Intervention settings service level', 'basic');
+  assert.equal(await e(`!!document.querySelector('[aria-label="Intervention settings service level"]')`), false);
+  await e(`document.querySelector('[aria-label="Intervention graph service level"] [data-service-level="basic"]').click()`);
   assert.equal(await e(`document.querySelector('[aria-label="Intervention graph service level"] [data-service-level="basic"]').getAttribute('aria-pressed')`), 'true');
   assert.equal(await e(`document.querySelector('[aria-label="Intervention table service level"] [data-service-level="basic"]').getAttribute('aria-pressed')`), 'true');
   await b.call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });

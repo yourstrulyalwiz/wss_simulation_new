@@ -189,17 +189,17 @@
 }
 @media(prefers-reduced-motion:reduce) { .wb-app * { scroll-behavior:auto !important; transition:none !important; } }
 
-/* Navigation and settings flank the independent, long-page reading column.
+/* Navigation, adjacent settings, then the independent long-page reading column.
    The settings sources render portals only; they never reserve a layout column. */
 .intervention-section-workspace {
   display:grid; flex:1 1 auto; min-width:0; min-height:0; overflow:hidden;
   grid-template-columns:218px minmax(0,1fr);
 }
 .intervention-section-workspace--design {
-  grid-template-columns:218px minmax(0,1fr) minmax(300px,360px);
+  grid-template-columns:218px minmax(300px,360px) minmax(0,1fr);
 }
 .intervention-section-workspace--drawer-open {
-  grid-template-columns:218px minmax(0,1fr) minmax(300px,360px);
+  grid-template-columns:218px minmax(300px,360px) minmax(0,1fr);
 }
 .intervention-section-nav { grid-column:1; grid-row:1; }
 .intervention-nav-groups { margin:5px 0 14px 8px; padding-left:9px; border-left:1px solid #d5e2e6; }
@@ -216,17 +216,17 @@
 .intervention-nav-status[data-active="true"] { background:var(--modern-teal, #009ca7); border-color:var(--modern-teal, #009ca7); }
 .intervention-input-drawer[hidden] { display:none!important; }
 .intervention-section-workspace--design .intervention-input-drawer {
-  grid-column:3; grid-row:1; display:flex; flex-direction:column; min-width:0;
+  grid-column:2; grid-row:1; display:flex; flex-direction:column; min-width:0;
   width:auto; flex:none; border-left:1px solid #dce6e9; border-right:0;
 }
 .intervention-section-workspace--design .intervention-input-drawer.is-open {
   border-left:1px solid #dce6e9; border-right:1px solid #dce6e9;
 }
 .intervention-section-workspace--design:not(.intervention-section-workspace--drawer-open) .intervention-reading-content {
-  grid-column:2; grid-row:1;
+  grid-column:3; grid-row:1;
 }
 .intervention-section-workspace--drawer-open .intervention-reading-content {
-  grid-column:2; grid-row:1;
+  grid-column:3; grid-row:1;
 }
 .intervention-section-workspace:not(.intervention-section-workspace--design) .intervention-reading-content {
   grid-column:2; grid-row:1;
@@ -261,7 +261,7 @@
 
 @media(max-width:900px) and (min-width:768px) {
   .intervention-section-workspace--design,
-  .intervention-section-workspace--drawer-open { grid-template-columns:190px minmax(0,1fr) minmax(280px,34vw); }
+  .intervention-section-workspace--drawer-open { grid-template-columns:190px minmax(280px,34vw) minmax(0,1fr); }
   .intervention-reading-content { padding-inline:20px; }
 }
 @media(max-width:767px) {

@@ -984,10 +984,6 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
               onChange={event => onSectorChange?.(event.target.value as 'water' | 'sanitation')}>
               {sectors.map(value => <option key={value} value={value}>{value === 'water' ? 'Water Supply' : 'Sanitation'}</option>)}
             </select></label>
-            <label>Service level<select aria-label="Intervention settings service level" value={serviceLevel}
-              onChange={event => setServiceLevel(event.target.value as BauServiceLevel)}>
-              {BAU_SERVICE_LEVELS.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select></label>
           </div>
         {!selectedIntervention && <div className="intervention-settings-empty">
           <strong>Select an intervention</strong>

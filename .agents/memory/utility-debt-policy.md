@@ -73,7 +73,9 @@ when Graph or Coverage Comparison is selected, without clearing entered terms.
 Show coverage and Sector Available Funds with explicit marginal loan effects,
 then the loan-adjusted coverage comparison, then a single Loan Cash Flow &
 Repayment section combining proceeds use and the repayment schedule by year.
-Navigation opens the ledger; it can still collapse. Hide unfunded interest,
+The combined ledger is always expanded, with wrapping headings and a readable
+nonwrapping Year column. **Why:** The user removed the dropdown interaction.
+Hide unfunded interest,
 unfunded principal, unfunded debt service, new injection/disbursement and
 investment-from-proceeds columns in this combined table.
 **Why:** The user requested a simplified unified table without those repeated or

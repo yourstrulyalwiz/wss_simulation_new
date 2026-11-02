@@ -102,7 +102,10 @@ try {
   assert.equal(usd.rows[0][4], exported.rows[0][4], 'Currency must not alter households');
   for (const key of ['cash_flow']) {
     await navigate(3);
-    await w(`document.querySelector('[data-testid="loan-${key}"]').open`, 'Navigation opens the ledger');
+    await w(`!!document.querySelector('[data-testid="loan-${key}"] tbody tr')`, 'Ledger is always visible');
+    assert.equal(await e(`!!document.querySelector('[data-testid="loan-${key}"] summary')`), false);
+    assert.equal(await e(`(()=>{const t=document.querySelector('[data-testid="loan-${key}"] table');return t.scrollWidth<=t.parentElement.clientWidth+2})()`), true, 'Wrapped columns fit the content area');
+    assert.equal(await e(`getComputedStyle(document.querySelector('[data-testid="loan-${key}"] tbody th')).whiteSpace`), 'nowrap');
     assert.equal(await e(`document.querySelector('[data-section-key="${key}"] h2').classList.contains('modern-input-section-heading')`), true);
     assert.equal(await e(`[...document.querySelectorAll('[data-testid="loan-${key}"] tbody tr')].every(n=>+n.firstElementChild.textContent>2025)`), true);
     await clickExport(`[data-testid="loan-${key}"]`, 'Excel');

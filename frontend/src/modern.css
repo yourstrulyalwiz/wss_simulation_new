@@ -297,6 +297,8 @@
 .modern-intv-table td.forecast-value--surplus { color:#15803d; }
 .bau-forecast-table td.forecast-value--neutral,
 .modern-intv-table td.forecast-value--neutral { color:#1e3a5f; }
+.modern-intv-table tbody td:nth-child(4),
+.bau-forecast-table tbody td:nth-child(3) { color:#1e3a5f; font-weight:700; }
 /* Thirteen columns become labeled cards when the reading panel is narrow.
    Keep the year row heading visible; data-label supplies each value's heading. */
 @container intervention-ledger (max-width:700px) {

@@ -1080,7 +1080,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             </div>
           </section>
           <details className="modern-intv-revenue-details">
-            <summary>Additional revenue by source</summary>
+            <summary>Sector Available Funds</summary>
             <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} />
           </details>
         </section>

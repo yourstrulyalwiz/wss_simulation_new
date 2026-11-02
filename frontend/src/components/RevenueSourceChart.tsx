@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { runCalculation } from '../api';
-import { REVENUE_SOURCES, reconciliationVersion, revenueSourceRows } from '../revenueSources';
+import { REVENUE_SOURCES } from '../revenueSources';
+import { AVAILABLE_FUND_COLUMNS, MOBILIZED_SOURCES, sectorAvailableFundsRows } from '../sectorAvailableFunds';
 import { convertMoney, displayCurrency, type CurrencyDisplaySettings } from '../currencyDisplay';
-import { interventionEnabled } from '../interventionRegistry';
+import { forecastCell } from '../forecastTablePresentation';
 import TableExport from './TableExport';
+import './RevenueSourceChart.css';
 
 export default function RevenueSourceChart({ inputs, results, sector, currencyDisplay }: {
   inputs: any | any[]; results?: any | any[]; sector: 'water' | 'sanitation'; currencyDisplay: CurrencyDisplaySettings;
@@ -20,7 +22,7 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
       Promise.all(datasets.map(data => runCalculation(data, sector))).then(data => {
         if (!cancelled) setLoaded({ key, results: data, error: '' });
       }).catch(error => {
-        if (!cancelled) setLoaded({ key, results: [], error: error.message });
+        if (!cancelled) setLoaded({ key, results: [], error: String(error?.message || error) });
       });
     }, 250);
     return () => { cancelled = true; clearTimeout(timer); };
@@ -28,56 +30,92 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
   const current = loaded?.key === key ? loaded : null;
   const resultList = results ? (Array.isArray(results) ? results : [results]) : current?.results || [];
   const sectorKey = sector === 'water' ? 'water_supply' : 'sanitation';
-  if (resultList.some(result => !result?.[sectorKey])) return <section role="alert">
-    {sector === 'water' ? 'Water Supply' : 'Sanitation'} revenue unavailable: {resultList.map(result => result.sector_errors?.[sectorKey]).filter(Boolean).join(' ')}
-  </section>;
-  const currentVersion = resultList.length > 0 && resultList.every(result => reconciliationVersion(result, sectorKey) === 4);
   const currency = datasets[0]?.country_config?.currency || 'LCU';
-  const rows = revenueSourceRows(resultList, sectorKey);
-  const displayRows = rows.map(row => Object.fromEntries(Object.entries(row).map(([field, value]) =>
-    [field, field === 'year' || value == null ? value : convertMoney(value, currencyDisplay, currency)])));
-  const unit = `${displayCurrency(currencyDisplay, currency)} millions/year`;
-  const selected = (key: string) => datasets.some(input => interventionEnabled(input,
-    `${sector === 'water' ? 'ws' : 'san'}_${key === 'connections' ? 'connections' : key === 'collection' ? 'collection_efficiency' : key === 'nrw' && sector === 'sanitation' ? 'nrw_link' : key}_enabled`));
-  const fmt = (value: any) => value == null ? '—' : Number(value).toLocaleString(undefined, { maximumFractionDigits: 4 });
-  const headers = ['Year', ...REVENUE_SOURCES.map(source => `${source.label} (${unit})`), `Total (${unit})`];
-  const exportRows = displayRows.map(row => [row.year, ...REVENUE_SOURCES.map(source => row[source.key] ?? ''), row.total ?? '']);
-  return <section data-testid="revenue-source-chart" style={{ margin: '16px 0', padding: 12, border: '1px solid #cbd5e1', borderRadius: 6, background: '#f5f9fa' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-      <h3 style={{ fontSize: 14, margin: 0, color: '#164e63' }}>Additional revenue by source</h3>
-      {rows.length > 0 && <TableExport filename={`${sector}_additional_revenue_by_source`} sheetName="Revenue sources" headers={headers} rows={exportRows} compact />}
+  const baselines = resultList.map((_, index) => {
+    const value = (datasets[index] ?? (datasets.length === 1 ? datasets[0] : null))?.period?.baseline_year;
+    return value == null || value === '' ? NaN : Number(value);
+  });
+  const rows = sectorAvailableFundsRows(resultList, sectorKey, baselines);
+  // Convert the engine's millions to billions exactly as InterventionScenarioTable.
+  const money = (value: number | null) => {
+    if (value == null) return null;
+    const converted = convertMoney(value, currencyDisplay, currency);
+    return converted == null ? null : converted / 1000;
+  };
+  const displayRows = rows.map(row => ({
+    ...row, ...Object.fromEntries(AVAILABLE_FUND_COLUMNS.map(column => [column.key, money(row[column.key])])),
+  }));
+  const series = [...MOBILIZED_SOURCES, ...REVENUE_SOURCES];
+  const graphRows = displayRows.map(row => ({
+    ...row, ...Object.fromEntries(series.map(source => [source.key, row.reconciled ? row[source.key] : null])),
+  }));
+  const unit = `${displayCurrency(currencyDisplay, currency)} billions/year`;
+  const fmt = (value: any) => value == null ? '—' : Number(value).toLocaleString('en-US', { maximumFractionDigits: 3 });
+  const headers = ['Year', ...AVAILABLE_FUND_COLUMNS.map(source => `${source.label} (${unit})`)];
+  const exportRows = displayRows.map(row => [row.year, ...AVAILABLE_FUND_COLUMNS.map(source => row[source.key] ?? '')]);
+  const errors = resultList.map(result => !result?.[sectorKey]
+    ? result?.sector_errors?.[sectorKey] || `${sector === 'water' ? 'Water supply' : 'Sanitation'} results are unavailable.` : '').filter(Boolean);
+  const warnings = rows.filter(row => !row.reconciled);
+  return <section data-testid="revenue-source-chart" className="sector-funds" aria-label="Sector Available Funds">
+    <div className="sector-funds__heading">
+      <h3>Sector Available Funds</h3>
+      {rows.length > 0 && <TableExport filename={`${sector}_sector_available_funds`} sheetName="Sector available funds"
+        headers={headers} rows={exportRows} compact currencyDisplay={currencyDisplay} />}
     </div>
-    <p style={{ fontSize: 11, color: '#526a75', lineHeight: 1.5 }}>
-      {currentVersion ? 'Final-scenario ledger · baseline-rate connection and NRW sales; collection and tariff uplifts on full reconciled volume.' :
-        resultList.length ? 'Legacy or unversioned results · source cash retains its original attribution. Recalculate for version 4.' : 'Calculating final-scenario source cash…'}
-      {' '}Signed cash in {unit}. Funding injections and capital efficiencies are not revenue. Model estimates; uncertainty bounds are unavailable.
+    <p className="sector-funds__note">
+      Forecast years only · {unit}. Mobilized Funds + Additional Revenues Generated = Sector Available Funds.
+      Public Spending includes baseline capital, budget-execution changes and public-spending commitments.
+      External Funding is the separate capital injection. Revenue sources retain signed net cash, including NRW costs.
+      Loans, household financing and cost savings are not ordinary available funding. Losses are already signed;
+      debt and replacement charges are not deducted again. Model estimates; uncertainty bounds are unavailable.
     </p>
-    {current?.error && <div role="alert">{current.error} <button onClick={() => setAttempt(n => n + 1)}>Retry calculation</button></div>}
-    {!resultList.length && !current?.error && <div aria-label="Loading revenue sources" style={{ height: 90, background: '#e8f0f4', borderRadius: 4 }} />}
-    {!!resultList.length && !rows.length && <p>No annual source series returned. Recalculate to load the ledger.</p>}
+    {current?.error && <div role="alert">{current.error} <button type="button" onClick={() => setAttempt(n => n + 1)}>Retry calculation</button></div>}
+    {errors.length > 0 && <p role="alert">{errors.join(' ')}</p>}
+    {!resultList.length && !results && !current?.error && <div className="modern-intv-table-state" aria-label="Loading sector available funds">
+      <span className="modern-skeleton" /><span className="modern-skeleton" /><span className="modern-skeleton" />
+    </div>}
+    {(!!resultList.length || !!results) && !rows.length && <p className="modern-intv-data-note" role="status">
+      No forecast funding rows available. Check the baseline year and annual results; only years after the baseline are shown.
+    </p>}
+    {warnings.length > 0 && <details className="sector-funds__warnings" open>
+      <summary>Funding reconciliation needs attention · {warnings.length} forecast {warnings.length === 1 ? 'year' : 'years'}</summary>
+      <p>Missing values remain —, not zero. Unreconciled years are omitted from the graph; the table retains reported values and the engine total. Recalculate older results to load the signed source ledger.</p>
+      <ul>{warnings.map(row => <li key={row.year}><strong>{row.year}</strong>: {row.issues.join(' ')}</li>)}</ul>
+    </details>}
     {rows.length > 0 && <>
-      <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={displayRows} stackOffset="sign">
+      <div className="sector-funds__legend" aria-label="Funding source groups">
+        {[{ label: 'Mobilized Funds', sources: MOBILIZED_SOURCES }, { label: 'Additional Revenues Generated', sources: REVENUE_SOURCES }].map(group =>
+          <div key={group.label} className="sector-funds__legend-group"><strong>{group.label}</strong>
+            {group.sources.map(source => <span key={source.key} className="sector-funds__legend-item">
+              <span className="sector-funds__swatch" style={{ background: source.color }} />{source.label}
+            </span>)}
+          </div>)}
+      </div>
+      {rows.some(row => row.reconciled) && <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={graphRows} stackOffset="sign" accessibilityLayer>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="year" /><YAxis tickFormatter={value => fmt(value)} width={85} />
-          <Tooltip formatter={(value: any, name: any) => [`${fmt(value)} ${unit}`, name]} />
-          <Legend /><ReferenceLine y={0} stroke="#647b85" />
-          {REVENUE_SOURCES.map(source => <Bar key={source.key} dataKey={source.key} name={source.label}
-            fill={source.color} stackId="cash" isAnimationActive={false} />)}
+          <Tooltip filterNull formatter={(value: any, name: any) => [`${fmt(value)} ${unit}`, name]} />
+          <ReferenceLine y={0} stroke="#647b85" />
+          {series.map(source => <Bar key={source.key} dataKey={source.key} name={source.label}
+            fill={source.color} stackId="funds" isAnimationActive={false} />)}
         </BarChart>
-      </ResponsiveContainer>
-      <div style={{ overflowX: 'auto', maxHeight: 300 }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 11 }}>
-          <thead><tr><th>Year</th>{REVENUE_SOURCES.map(source => <th key={source.key} style={{ padding: 8 }}>
-            {source.label}<small style={{ display: 'block', fontWeight: 400 }}>{selected(source.key) ? 'Selected' : 'Off'}</small>
-          </th>)}<th>Total</th></tr></thead>
-          <tbody>{displayRows.map(row => <tr key={row.year} style={{ borderTop: '1px solid #d5e0e4' }}>
-            <th style={{ padding: 7 }}>{row.year}</th>
-            {REVENUE_SOURCES.map(source => <td key={source.key} style={{ textAlign: 'right', padding: 7 }}>{fmt(row[source.key])}</td>)}
-            <td style={{ textAlign: 'right', padding: 7, fontWeight: 700 }}>{fmt(row.total)}</td>
-          </tr>)}</tbody>
-        </table>
-      </div>
+      </ResponsiveContainer>}
+      <p className="sector-funds__note">Signed stack: negative contributions extend below zero. The sector total is the net sum, not the height of the positive stack. All table amounts are in {unit}.</p>
+      <div className="modern-intv-table-scroll"><table className="modern-intv-table">
+        <thead><tr>{headers.map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
+        <tbody>{displayRows.map(row => <tr key={row.year}>
+          <th scope="row">{row.year}</th>
+          {AVAILABLE_FUND_COLUMNS.map((source, index) => {
+            const value = row[source.key];
+            const total = ['mobilized', 'additional', 'total'].includes(source.key);
+            return <td key={source.key} data-label={headers[index + 1]} className={total ? 'sector-funds__total'
+              : `forecast-value--${value == null || value === 0 ? 'neutral' : value > 0 ? 'surplus' : 'deficit'}`}>
+              {forecastCell(value, !total)}
+            </td>;
+          })}
+        </tr>)}</tbody>
+      </table></div>
     </>}
   </section>;
 }

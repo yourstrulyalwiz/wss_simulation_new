@@ -1,0 +1,15 @@
+.sector-funds { margin:16px 0; padding:12px; border:1px solid #cbd5e1; border-radius:6px; background:#f5f9fa; min-width:0; }
+.sector-funds__heading { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.sector-funds__heading h3 { font-size:14px; margin:0; color:#164e63; }
+.sector-funds__note { font-size:11px; color:#526a75; line-height:1.5; }
+.sector-funds__legend { display:flex; flex-wrap:wrap; gap:12px 24px; margin:12px 0; font-size:11px; color:#295566; }
+.sector-funds__legend-group { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; }
+.sector-funds__legend-group strong { flex-basis:100%; color:#1e3a5f; }
+.sector-funds__legend-item { display:inline-flex; align-items:center; gap:6px; }
+.sector-funds__swatch { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+.sector-funds .modern-intv-table tbody td:nth-child(4) { font-weight:400; }
+.sector-funds .modern-intv-table td.sector-funds__total { color:#1e3a5f; font-weight:700; }
+.sector-funds__warnings { margin:8px 0; padding:10px 12px; border-left:3px solid #b45309; background:#fff7e8; color:#78521e; font-size:11px; line-height:1.5; }
+@media (max-width:767px) {
+  .sector-funds__legend { flex-direction:column; }
+}

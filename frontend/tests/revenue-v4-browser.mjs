@@ -71,6 +71,19 @@ try {
             ['nrw_net', inputs.toggles?.ws_nrw_enabled ? -.03 : 0], ['eligible_nrw_link_cash', 0]]) {
             sec['scenario_' + field] = data.years.map(() => value);
           }
+          // Explicit synthetic signed ledger in model millions. Ordinary source
+          // classification is tested without inferring any residual funding.
+          const contributions = Object.fromEntries(['baseline', 'budget_execution', 'financial', 'injection',
+            'connections', 'collection', 'tariff', 'nrw', 'nrw_link', 'custom'].map(source => [source,
+              data.years.map(() => 0)]));
+          contributions.baseline = data.years.map(() => 120);
+          for (const [source, field] of [['connections', 'connection_net_cash'], ['collection', 'collection_cash'],
+            ['tariff', 'tariff_cash'], ['nrw', 'nrw_net'], ['nrw_link', 'eligible_nrw_link_cash']]) {
+            contributions[source] = sec['scenario_' + field];
+          }
+          sec.scenario_source_funding = { signed_contribution: contributions, source_keys: Object.keys(contributions) };
+          sec.scenario_available_total = data.years.map((_, index) =>
+            Object.values(contributions).reduce((sum, series) => sum + series[index], 0));
         }
         return new Response(JSON.stringify(data), {status: 200});
       }
@@ -153,7 +166,7 @@ try {
   assert.equal(await browser.evaluate(`!![...document.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === 'all_recovered_sold'))`), false,
     'Sales-only scope must be hidden in avoided-production-cost mode');
   assert.equal(await browser.evaluate(`document.body.textContent.includes('Legacy NRW-only tariff (retained)')`), false);
-  await browser.waitFor(`document.querySelector('[data-testid="revenue-source-chart"]').textContent.includes('-0.03')`, 'Signed negative NRW cash was not rendered');
+  await browser.waitFor(`document.querySelector('[data-testid="revenue-source-chart"]').textContent.includes('-0.00003')`, 'Signed negative NRW cash in billions was not rendered');
   await tab('Loan funding');
   await browser.waitFor(`!!document.querySelector('[aria-label="Eligible source: Revenue from new connections"]')`, 'Connection loan source missing');
   assert.equal(await browser.evaluate(`document.querySelector('[aria-label="Eligible source: Revenue from new connections"]').checked`), false, 'Legacy loan selection cannot acquire new source');

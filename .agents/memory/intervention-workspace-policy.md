@@ -52,3 +52,11 @@ by subtracting already-applied funding from residual obligations.
 **Why:** The user requested explicit signs and consistent red/green/dark-blue
 formatting in both tables, plus wrapping Intervention columns to fit like BAU.
 **How to apply:** Keep this a reporting convention, not a model-accounting change.
+
+The former additional-revenue chart should report Sector Available Funds, grouped
+into Mobilized Funds (Public Spending + External Funding) and Additional Revenues
+Generated, retaining the revenue-source breakdown. Show forecast years after the
+baseline (2026 onward for the current scenario), and use Intervention Table styling.
+**Why:** The user wants the full sector funding picture, not revenues alone.
+**How to apply:** Reconcile against actual scenario available funding without
+counting loans, losses or already-applied funding twice.

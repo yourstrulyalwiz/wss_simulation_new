@@ -64,6 +64,30 @@ export function interventionTableRows(result: any, sectorKey: string, baselineYe
   });
 }
 
+/** The twelve BAU statistics, unchanged, followed by intervention coverage and annual funding. */
+export function interventionComparisonRows(result: any, sectorKey: string, baselineYear: number,
+  level: InterventionServiceLevel): (number | null)[][] {
+  if (!Array.isArray(result?.years)) throw new Error('Intervention table is unavailable: engine years are missing.');
+  const sector = result?.[sectorKey];
+  const accessKey = level === 'at_least_basic' ? 'at_least_basic_access_gap'
+    : level === 'basic' ? 'adjusted_basic_only_gap' : 'sm_access_gap';
+  return result.years.flatMap((year: number, index: number) => {
+    if (year <= baselineYear) return [];
+    const total = seriesValue(result, 'total_hh', index);
+    const coverage = (field: string) => {
+      const value = summedCoverage(sector, field, index, level);
+      return total === null || value === null ? null : Math.min(total, value);
+    };
+    const service = (field: string) => summedCoverage(sector, field, index, level);
+    return [[year, total, coverage('bau_hh'), coverage('target_hh'),
+      seriesValue(sector, accessKey, index),
+      service('new_capex_by_service'), service('replacement_by_service'), service('funded_by_service'),
+      service('replacement_backlog_closing_by_service'), service('financing_gap_by_service'),
+      seriesValue(sector, 'financing_gap', index), seriesValue(sector, 'available_total', index),
+      coverage('scenario_hh'), seriesValue(sector, 'scenario_available_total', index)]];
+  });
+}
+
 /** Forecast-end KPI values using engine coverage and household totals; absent data is unavailable. */
 export function interventionCoverageKpis(result: any, sectorKey: string, baselineYear: number,
   level: InterventionServiceLevel) {

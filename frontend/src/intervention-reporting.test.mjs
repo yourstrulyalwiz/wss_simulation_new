@@ -11,8 +11,9 @@ for (const ext of ['.ts', '.tsx']) {
     }).outputText, filename);
 }
 
-const { scenarioSpendingRows, interventionTableRows, interventionCoverageKpis } =
+const { scenarioSpendingRows, interventionTableRows, interventionCoverageKpis, interventionComparisonRows } =
   require('./interventionReporting.ts');
+const { forecastTableHeaders } = require('./forecastTableColumns.ts');
 const { sourceCoverageRows } = require('./sourceAttribution.ts');
 const sector = {
   // Deliberately distinct values expose accidental reads from the BAU path.
@@ -41,6 +42,35 @@ const incomplete = interventionTableRows({ ...result, water_supply: { ...sector,
   'water_supply', 2025, 'basic')[0];
 assert.equal(incomplete.available, null, 'missing scenario metric stays unavailable instead of becoming zero');
 assert.equal(incomplete.target, 25, 'target reads scenario_target_hh, not target_hh');
+
+const comparisonSector = {
+  ...sector, financing_gap: [0, 77],
+  at_least_basic_access_gap: [0, 19], sm_access_gap: [0, 9], adjusted_basic_only_gap: [0, 10],
+  new_capex_by_service: [[0, 7], [0, 3]], replacement_by_service: [[0, 6], [0, 4]],
+  funded_by_service: [[0, 2], [0, 1]], replacement_backlog_closing_by_service: [[0, 8], [0, 2]],
+  financing_gap_by_service: [[0, 12], [0, 5]],
+};
+const comparisonResult = { ...result, water_supply: comparisonSector };
+assert.deepEqual(interventionComparisonRows(comparisonResult, 'water_supply', 2025, 'at_least_basic'), [
+  [2026, 100, 54, 2, 19, 10, 10, 3, 10, 17, 77, 14, 75, 94],
+], 'BAU statistics stay unchanged; only the final two columns use the scenario');
+for (const [level, rung, gap] of [['safely_managed', 0, 9], ['basic', 1, 10]]) {
+  const row = interventionComparisonRows(comparisonResult, 'water_supply', 2025, level)[0];
+  assert.equal(row[4], gap, 'access gap is the engine-assessed gap, not target minus coverage');
+  assert.equal(row[5], comparisonSector.new_capex_by_service[rung][1]);
+  assert.equal(row[8], comparisonSector.replacement_backlog_closing_by_service[rung][1]);
+  assert.equal(row[12], comparisonSector.scenario_hh[rung][1]);
+  assert.equal(row[11], 14, 'sector available funding is not split by service level');
+  assert.equal(row[13], 94);
+  assert.equal(forecastTableHeaders(level, 'USD').length, 12);
+}
+const missingComparison = interventionComparisonRows({ ...result, water_supply: {
+  ...comparisonSector, scenario_available_total: [0, null], funded_by_service: [[0, 0], [0, null]],
+} }, 'water_supply', 2025, 'at_least_basic')[0];
+assert.equal(missingComparison[7], null, 'incomplete service metrics remain unavailable');
+assert.equal(missingComparison[13], null, 'missing intervention funding does not fall back to BAU');
+assert.deepEqual(interventionComparisonRows({ ...comparisonResult, sanitation: comparisonSector }, 'sanitation', 2025, 'at_least_basic'),
+  interventionComparisonRows(comparisonResult, 'water_supply', 2025, 'at_least_basic'), 'both sectors use identical reporting semantics');
 
 const attribution = {
   source_keys: ['baseline', 'injection'],

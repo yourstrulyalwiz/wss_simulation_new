@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { C } from '../chartColors';
 import { bauServiceValue, bauAccessGap, bauSpendingRows, type BauSpendingRow, type BauServiceLevel } from '../bauServiceView';
+import { forecastTableHeaders } from '../forecastTableColumns';
 import { yearAxisInterval } from '../chartAxis';
 import { resolveChartWindow } from '../chartWindow';
 import { linesFirstLegend } from './chartLegend';
@@ -444,12 +445,7 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
     `${rungLabel} service financing gaps (${displayCur} M)`,
     `Sector financing gaps (${displayCur} M)`,
     `Sector available funding (${displayCur} M/yr)`];
-  const displayTableHeaders = ['Year', 'Total households (M)', 'BAU households (M)', 'Target households (M)',
-    `${householdGapLabel} (M)`, `Residual new-service cost (B ${displayCur})`,
-    `Replacement need (B ${displayCur}/yr)`, `Replacement credit (B ${displayCur}/yr)`,
-    `Residual replacement cost (Cumulative) (B ${displayCur})`,
-    `Service financing gaps (B ${displayCur})`,
-    `Sector financing gaps (B ${displayCur})`, `Sector available funding (B ${displayCur}/yr)`];
+  const displayTableHeaders = forecastTableHeaders(serviceLevel, displayCur);
   const tableExportRows = tableRows.map((r: any) => [r.year, round3(r.total), round3(r.bau), round3(r.tgt), round3(r.gapHH),
     round3(r.newNeed * moneyFactor), round3(r.replacement * moneyFactor), round3(r.funded * moneyFactor), round3(r.replacementBacklog * moneyFactor), round3(r.serviceGap * moneyFactor),
     r.finGap == null ? '' : round3(r.finGap * moneyFactor), round3(r.available * moneyFactor)]);

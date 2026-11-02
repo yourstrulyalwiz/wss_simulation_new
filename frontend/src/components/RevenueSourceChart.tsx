@@ -107,7 +107,7 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
             </span>)}
           </div>)}
       </div>
-      {rows.some(row => row.reconciled) && <ResponsiveContainer width="100%" height={300}>
+      {rows.some(row => row.reconciled) && <ResponsiveContainer width="100%" height={390}>
         <BarChart data={graphRows} stackOffset="sign" accessibilityLayer>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="year" /><YAxis tickFormatter={value => fmt(value)} width={85} />

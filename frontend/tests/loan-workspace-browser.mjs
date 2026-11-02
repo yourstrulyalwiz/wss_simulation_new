@@ -119,16 +119,17 @@ try {
   await e(`document.querySelector('[aria-label="Include indicative borrowing"]').click()`);
   await change('.debt-controls input[type="number"]', 72, false);
   await w(`__inputs.urban.utility_debt.water.allocation_share===.72`, 'Loan settings not wired');
-  await change('[aria-label="Loan geography"]', 'rural');
+  await e(`[...document.querySelectorAll('[aria-label="Loan geography"] button')].find(n=>n.textContent==='Rural').click()`);
   await w(`document.querySelector('.loan-settings h2').textContent.includes('Rural')`, 'Scope heading not synchronized');
   assert.equal(await e('__inputs.rural.utility_debt.water.allocation_share'), .3, 'Separate areas retain independent assumptions');
   for (const sector of ['water', 'sanitation']) {
-    await e(`[...document.querySelectorAll('[aria-label="Loan sector"] button')].find(n=>n.textContent==='${sector === 'water' ? 'Water supply' : 'Sanitation'}').click()`);
+    await e(`[...document.querySelectorAll('[aria-label="Loan sector"] button')].find(n=>n.textContent==='${sector === 'water' ? 'Water Supply' : 'Sanitation'}').click()`);
     assert.equal(await e(`document.querySelector('[data-section-key="graph"] h2').textContent.includes('${sector === 'water' ? 'Water Supply' : 'Sanitation'}')`), true);
   }
   await e(`__setReadOnly(true)`);
   await w(`document.querySelector('.debt-controls fieldset').disabled`, 'Saved read-only loan controls remain editable');
-  assert.equal(await e(`document.querySelector('[aria-label="Loan geography"]').disabled`), false, 'Read-only presentation scope remains usable');
+  assert.equal(await e(`[...document.querySelectorAll('[aria-label="Loan geography"] button')].every(n=>!n.disabled)`), true, 'Read-only presentation scope remains usable');
+  assert.equal(await e(`document.querySelector('[aria-label="Loan geography"] button[aria-pressed="true"]').textContent`), 'Rural');
   await capture('saved-read-only.png');
   await browser.call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await sleep(150);

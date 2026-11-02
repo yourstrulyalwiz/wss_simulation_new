@@ -109,11 +109,13 @@ export default function DebtServicingPanel({
     <div className="modern-inputs-content intervention-reading-content" ref={reading}>
       <section className="modern-bau-section intervention-reading-section" data-section-key="graph">
         {heading(2, 'Loan Graph')}
-        <div className="modern-intv-graph-controls" style={{ marginTop: 16 }}>
-          <label className="modern-bau-service-picker">Geography <select aria-label="Loan geography" className="wb-scope-select" value={geoScope}
-            onChange={event => onScopeChange?.(event.target.value)}>{scopeChoices.map(scope => <option key={scope} value={scope}>{scopeName(scope)}</option>)}</select></label>
+          <div className="modern-bau-toggles" role="group" aria-label="Loan geography">
+            {scopeChoices.map(scope => <button key={scope} type="button" aria-pressed={geoScope === scope}
+              onClick={() => onScopeChange?.(scope)}>{scopeName(scope)}</button>)}
+          </div>
           <div className="modern-bau-toggles" role="group" aria-label="Loan sector">{sectors.map(sector => <button type="button" key={sector}
-            aria-pressed={sectorTab === sector} onClick={() => onSectorChange(sector)}>{sector === 'water' ? 'Water supply' : 'Sanitation'}</button>)}</div>
+            aria-pressed={sectorTab === sector} onClick={() => onSectorChange(sector)}>{sector === 'water' ? 'Water Supply' : 'Sanitation'}</button>)}</div>
+        <div className="modern-intv-graph-controls">
           <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={currency}
             onModeChange={mode => onCurrencyDisplayChange({ ...currencyDisplay, mode, sourceCurrency: currency })} onEditRate={onEditCurrencyRate} />
           <ContributionViewToggle value={contributionView} onChange={onContributionViewChange} />

@@ -15,6 +15,12 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
   const key = JSON.stringify(datasets) + sector;
   const [loaded, setLoaded] = useState<{ key: string; results: any[]; error: string } | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [view, setView] = useState<'all' | 'mobilized' | 'additional'>('all');
+  const views = [
+    { key: 'all', label: 'All Funds' },
+    { key: 'mobilized', label: 'Mobilized Funds' },
+    { key: 'additional', label: 'Additional Revenues Generated' },
+  ] as const;
   useEffect(() => {
     if (results) return;
     let cancelled = false;
@@ -45,22 +51,32 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
   const displayRows = rows.map(row => ({
     ...row, ...Object.fromEntries(AVAILABLE_FUND_COLUMNS.map(column => [column.key, money(row[column.key])])),
   }));
-  const series = [...MOBILIZED_SOURCES, ...REVENUE_SOURCES];
+  const groups = [
+    { key: 'mobilized', label: 'Mobilized Funds', sources: MOBILIZED_SOURCES },
+    { key: 'additional', label: 'Additional Revenues Generated', sources: REVENUE_SOURCES },
+  ].filter(group => view === 'all' || group.key === view);
+  const series = groups.flatMap(group => [...group.sources]);
+  const columns = AVAILABLE_FUND_COLUMNS.filter(column => view === 'all' ||
+    column.key === view || series.some(source => source.key === column.key));
   const graphRows = displayRows.map(row => ({
     ...row, ...Object.fromEntries(series.map(source => [source.key, row.reconciled ? row[source.key] : null])),
   }));
   const unit = `${displayCurrency(currencyDisplay, currency)} billions/year`;
   const fmt = (value: any) => value == null ? '—' : Number(value).toLocaleString('en-US', { maximumFractionDigits: 3 });
-  const headers = ['Year', ...AVAILABLE_FUND_COLUMNS.map(source => `${source.label} (${unit})`)];
-  const exportRows = displayRows.map(row => [row.year, ...AVAILABLE_FUND_COLUMNS.map(source => row[source.key] ?? '')]);
+  const headers = ['Year', ...columns.map(source => `${source.label} (${unit})`)];
+  const exportRows = displayRows.map(row => [row.year, ...columns.map(source => row[source.key] ?? '')]);
   const errors = resultList.map(result => !result?.[sectorKey]
     ? result?.sector_errors?.[sectorKey] || `${sector === 'water' ? 'Water supply' : 'Sanitation'} results are unavailable.` : '').filter(Boolean);
   const warnings = rows.filter(row => !row.reconciled);
   return <section data-testid="revenue-source-chart" className="sector-funds" aria-label="Sector Available Funds">
     <div className="sector-funds__heading">
       <h3>Sector Available Funds</h3>
-      {rows.length > 0 && <TableExport filename={`${sector}_sector_available_funds`} sheetName="Sector available funds"
+      {rows.length > 0 && <TableExport filename={`${sector}_sector_available_funds_${view}`} sheetName="Sector available funds"
         headers={headers} rows={exportRows} compact currencyDisplay={currencyDisplay} />}
+    </div>
+    <div className="modern-bau-service-switch" role="group" aria-label="Funding view" style={{ display: 'flex', flexWrap: 'wrap', marginTop: 12 }}>
+      {views.map(item => <button key={item.key} type="button" aria-pressed={view === item.key}
+        onClick={() => setView(item.key)}>{item.label}</button>)}
     </div>
     <p className="sector-funds__note">
       Forecast years only · {unit}. Mobilized Funds + Additional Revenues Generated = Sector Available Funds.
@@ -84,7 +100,7 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
     </details>}
     {rows.length > 0 && <>
       <div className="sector-funds__legend" aria-label="Funding source groups">
-        {[{ label: 'Mobilized Funds', sources: MOBILIZED_SOURCES }, { label: 'Additional Revenues Generated', sources: REVENUE_SOURCES }].map(group =>
+        {groups.map(group =>
           <div key={group.label} className="sector-funds__legend-group"><strong>{group.label}</strong>
             {group.sources.map(source => <span key={source.key} className="sector-funds__legend-item">
               <span className="sector-funds__swatch" style={{ background: source.color }} />{source.label}
@@ -101,12 +117,12 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
             fill={source.color} stackId="funds" isAnimationActive={false} />)}
         </BarChart>
       </ResponsiveContainer>}
-      <p className="sector-funds__note">Signed stack: negative contributions extend below zero. The sector total is the net sum, not the height of the positive stack. All table amounts are in {unit}.</p>
+      <p className="sector-funds__note">Showing {views.find(item => item.key === view)?.label}. Signed stack: negative contributions extend below zero. The selected total is the net sum, not the height of the positive stack. All table amounts are in {unit}.</p>
       <div className="modern-intv-table-scroll"><table className="modern-intv-table">
         <thead><tr>{headers.map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
         <tbody>{displayRows.map(row => <tr key={row.year}>
           <th scope="row">{row.year}</th>
-          {AVAILABLE_FUND_COLUMNS.map((source, index) => {
+          {columns.map((source, index) => {
             const value = row[source.key];
             const total = ['mobilized', 'additional', 'total'].includes(source.key);
             return <td key={source.key} data-label={headers[index + 1]} className={total ? 'sector-funds__total'

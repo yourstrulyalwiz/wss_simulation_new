@@ -27,12 +27,15 @@ test('graph and table stay mounted together with shared selector state', () => {
   assert.doesNotMatch(panel, /aria-label="Intervention table (geography|sector)"/);
 });
 
-test('design controls and nested input drawer hide without unmounting their state/portal target', () => {
-  assert.match(panel, /intervention-workspace__controls" hidden=\{activeSection !== 'design'\}/);
-  assert.match(panel, /hidden=\{activeSection !== 'design' \|\| !selectedIntervention\}/);
+test('hidden producers portal into a full-width settings area with an empty selection prompt', () => {
+  assert.match(panel, /intervention-workspace__controls" hidden>/);
+  assert.match(panel, /hidden=\{activeSection !== 'design'\} aria-label="Intervention Design settings"/);
+  assert.match(panel, /hidden=\{activeSection === 'design'\} ref=\{readingContent\}/);
+  assert.match(panel, /Select an intervention<\/h3>/);
   assert.match(panel, /intervention-input-drawer__body" ref=\{node => setDrawerTarget\(node\)\}/);
   assert.match(panel, /setSelectedIntervention\(null\);\s*selectedTrigger\.current = null;/);
-  assert.match(styles, /\.intervention-section-workspace--drawer-open/);
+  assert.match(styles, /\.intervention-section-workspace--design \{\s*grid-template-columns:218px minmax\(0,1fr\);/);
+  assert.doesNotMatch(styles, /grid-template-columns:218px minmax\(300px,360px\)/);
 });
 
 test('intervention layout styles are scoped so BAU and Data Inputs workspaces remain independent', () => {

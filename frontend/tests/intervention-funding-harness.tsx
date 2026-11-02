@@ -24,7 +24,7 @@ testWindow.__initial = structuredClone(initial);
 testWindow.__requests = [];
 testWindow.fetch = async (url: string, options: any = {}) => {
   testWindow.__requests.push({ url, body: options.body && JSON.parse(options.body) });
-  if (url.includes('intervention-validation')) return new Response(JSON.stringify({ issues: [] }));
+  if (url.includes('intervention-validation')) return new Response(JSON.stringify({ issues: testWindow.__validationIssues || [] }));
   if (url.includes('revenue-bases')) {
     if (testWindow.__verificationError) throw new Error('Fixture verification unavailable');
     return new Response(JSON.stringify({ water: { connection: { effective: true, calibration: {} } },
@@ -48,6 +48,7 @@ function Harness() {
   return <ProjectScopeContext.Provider value={{ sectors, readOnly, projectMode: true }}>
     <InterventionPanel inputs={inputs} onChange={setInputs} sectorTab={sector} onSectorChange={setSector}
       geoScope={scope.toLowerCase()} scopeLabel={scope} scopeChoices={['urban', 'rural', 'national']}
+      onScopeChange={value => setScope(value[0].toUpperCase() + value.slice(1))}
       contributionView="individual" onContributionViewChange={() => {}}
       currencyDisplay={{ mode: 'local', sourceCurrency: 'LCU', localPerUsd: 1, rateReferenceYear: 2025 }}
       onCurrencyDisplayChange={() => {}} onEditCurrencyRate={() => {}} />

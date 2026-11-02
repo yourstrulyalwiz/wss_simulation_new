@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
 import { openChromium } from './chromium-client.mjs';
 
 const base = process.env.WSS_TEST_URL || `https://${process.env.REPLIT_DEV_DOMAIN}`;
@@ -43,6 +44,8 @@ try {
     }; true`);
   await evaluate(`Array.from(document.querySelectorAll('.wb-tab')).find(node => /intervention/i.test(node.textContent)).click()`);
   await browser.waitFor('!!document.querySelector(".intervention-section-nav")', 'Numbered navigation is missing');
+  await navigate(1);
+  await browser.waitFor('!document.querySelector(".intervention-reading-content").hidden', 'Graph reading content did not open');
   assert.equal(await evaluate(`window.__workspaceBackground(document.querySelector('.intervention-reading-content')) === window.__bauBackground`), true, 'Intervention background must match BAU');
   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Intervention table geography"], [aria-label="Intervention table sector"]').length`), 0, 'Table must use the top geography and sector selectors');
   // The funding breakdown shares the table styling; inspect only the scenario ledger.
@@ -81,16 +84,40 @@ try {
   await browser.waitFor('document.querySelectorAll(\'[data-section-key="graph"] .modern-intv-kpi\').length === 3', 'Coverage KPI cards must stay above the graphs');
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('.intervention-section-nav .modern-inputs-nav__item')].map(node => node.textContent.replace(/^\\d+/, '').trim())`),
     ['Intervention Design', 'Intervention Graph', 'Intervention Table']);
-  assert.equal(await evaluate('document.querySelector(".intervention-workspace__controls").hidden'), false);
+  // Exercise LiveInterventionChart's local React state while it is visible.
+  // ResponsiveContainer may remove/recreate its chart wrapper at zero width;
+  // that implementation detail is not the chart component's mount identity.
+  await browser.waitFor(`document.querySelector('[data-section-key="graph"] [aria-label="Chart start year"]')?.options.length > 2 &&
+    !!document.querySelector('[data-section-key="graph"] .recharts-wrapper')`, 'Coverage chart did not finish loading');
+  await evaluate(`{
+    const graph = document.querySelector('[data-section-key="graph"]');
+    [...graph.querySelectorAll('button')].find(node => node.textContent === '% of population').click();
+    const start = graph.querySelector('[aria-label="Chart start year"]');
+    start.value = start.options[1].value;
+    start.dispatchEvent(new Event('change', {bubbles:true}));
+    const end = graph.querySelector('[aria-label="Chart end year"]');
+    end.value = end.options[end.options.length-2].value;
+    end.dispatchEvent(new Event('change', {bubbles:true}));
+    window.__chartWindowBeforeNavigation = {start:start.value,end:end.value};
+    window.__chartStartBeforeNavigation = start;
+    window.__coverageContainerBeforeNavigation = graph.querySelector('.recharts-responsive-container');
+    window.__tableBeforeNavigation = document.querySelector('.modern-intv-table-wrap .modern-intv-table');
+    true;
+  }`);
+  await navigate(0);
+  assert.equal(await evaluate('document.querySelector(".intervention-workspace__controls").hidden'), true);
+  assert.equal(await evaluate('document.querySelector(".intervention-input-drawer").hidden'), false);
+  assert.equal(await evaluate('!!document.querySelector(".intervention-settings-empty")'), true);
   const groupedNavigation = await evaluate(`({
     groups: document.querySelectorAll('.intervention-nav-group').length,
     rows: [...document.querySelectorAll('.intervention-nav-link')].map(row => {
       const label = row.querySelector('span').textContent;
-      const controlLabel = label === 'Revenue from new connections' ? 'Include revenue from new connections' : label;
-      const control = [...document.querySelectorAll('.intervention-workspace__controls input[type="checkbox"]')]
-        .find(input => input.getAttribute('aria-label') === 'Enable ' + controlLabel);
+      const key = row.dataset.interventionKey;
+      const inputs = window.__scenarioInputs;
+      const checked = typeof inputs.toggles?.[key] === 'boolean' ? inputs.toggles[key] :
+        key.endsWith('_connections_enabled') ? !!inputs.connection_revenue?.water?.enabled : false;
       const dot = row.querySelector('.intervention-nav-status');
-      return { label, active: dot.dataset.active === 'true', checked: control?.checked,
+      return { label, active: dot.dataset.active === 'true', checked,
         color: getComputedStyle(dot).backgroundColor, status: row.getAttribute('aria-label') };
     })
   })`);
@@ -102,9 +129,13 @@ try {
     if (row.active) assert.equal(row.color, 'rgb(0, 156, 167)', `${row.label}: enabled dot is teal`);
   }
   console.log(`PASS: live grouped navigation has five categories, ten interventions, and ${groupedNavigation.rows.filter(row => row.active).length} teal active dots matching enable controls.`);
-  await evaluate(`window.__tableBeforeNavigation = document.querySelector('.modern-intv-table-wrap .modern-intv-table'); window.__coverageBeforeNavigation = document.querySelector('[data-section-key="graph"] .recharts-wrapper'); true`);
-  await evaluate(`Array.from(document.querySelectorAll('.intervention-workspace__controls button')).find(node => node.textContent === 'Collection efficiency').click()`);
+  await evaluate(`document.querySelector('[data-intervention-key="ws_collection_efficiency_enabled"]').click()`);
   await browser.waitFor('!!document.querySelector(".intervention-input-drawer.is-open input")', 'Intervention inputs did not open');
+  if (process.env.WSS_DESIGN_SCREENSHOT) {
+    const { data } = await browser.call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    writeFileSync(process.env.WSS_DESIGN_SCREENSHOT, Buffer.from(data, 'base64'));
+    console.log(`Design selected-lever screenshot saved: ${process.env.WSS_DESIGN_SCREENSHOT}`);
+  }
   await navigate(2);
   await browser.waitFor(`(()=>{
     const host = document.querySelector('.intervention-reading-content');
@@ -115,11 +146,23 @@ try {
   })()`, 'Table navigation did not scroll');
   assert.equal(await evaluate('document.querySelector(".intervention-workspace__controls").hidden'), true);
   assert.equal(await evaluate('document.querySelector(".intervention-input-drawer").hidden'), true);
-  assert.equal(await evaluate(`window.__tableBeforeNavigation === document.querySelector('.modern-intv-table-wrap .modern-intv-table') && window.__coverageBeforeNavigation === document.querySelector('[data-section-key="graph"] .recharts-wrapper')`), true);
+  assert.equal(await evaluate(`window.__tableBeforeNavigation === document.querySelector('.modern-intv-table-wrap .modern-intv-table')`),
+    true, 'Table DOM remains mounted while Design hides the reading column');
+  assert.equal(await evaluate(`window.__coverageContainerBeforeNavigation === document.querySelector('[data-section-key="graph"] .recharts-responsive-container') &&
+    window.__chartStartBeforeNavigation === document.querySelector('[data-section-key="graph"] [aria-label="Chart start year"]')`),
+    true, 'Coverage component controls and responsive container remain mounted');
+  assert.deepEqual(await evaluate(`({
+    start:document.querySelector('[data-section-key="graph"] [aria-label="Chart start year"]').value,
+    end:document.querySelector('[data-section-key="graph"] [aria-label="Chart end year"]').value
+  })`), await evaluate('window.__chartWindowBeforeNavigation'), 'Chart year overrides survive Design/Table navigation');
+  assert.equal(await evaluate(`[...document.querySelectorAll('[data-section-key="graph"] button')]
+    .find(node=>node.textContent==='% of population').style.fontWeight`), '700', 'Chart unit-mode state survives Design/Table navigation');
   await evaluate(`document.querySelector('[aria-label="Intervention table service level"] [data-service-level="basic"]').click()`);
   assert.equal(await evaluate(`document.querySelector('[aria-label="Intervention graph service level"] [data-service-level="basic"]').getAttribute('aria-pressed')`), 'true');
   await navigate(0);
-  assert.equal(await evaluate('document.querySelector(".intervention-workspace__controls").hidden'), false);
+  assert.equal(await evaluate('document.querySelector(".intervention-workspace__controls").hidden'), true);
+  assert.equal(await evaluate('document.querySelector(".intervention-input-drawer").hidden'), false);
+  assert.equal(await evaluate('!!document.querySelector(".intervention-settings-empty")'), true);
   await browser.call('Emulation.setDeviceMetricsOverride', { width: 402, height: 874, deviceScaleFactor: 1, mobile: true });
   await evaluate(`(()=>{ const select = document.querySelector('.intervention-section-nav select'); select.value = 'table'; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
   await browser.waitFor(`(()=>{
@@ -131,7 +174,7 @@ try {
   })()`, 'Mobile Table navigation did not scroll');
   assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Mobile page overflows horizontally');
   assert.deepEqual(browser.errors, []);
-  console.log('PASS: numbered navigation, persistent long-page graph/table, conditional design rail, shared selectors, and mobile section scrolling.');
+  console.log('PASS: numbered navigation, persistent long-page graph/table, two-panel Design settings, shared selectors, and mobile section scrolling.');
 } finally {
   browser.close();
 }

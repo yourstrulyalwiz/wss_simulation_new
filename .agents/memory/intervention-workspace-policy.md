@@ -13,6 +13,10 @@ selectors synchronized, and scenario KPI cards above the graph.
 The page background should match BAU Scenario. Geography and sector selectors
 belong at the top only, not repeated in Intervention Table; the table retains its
 service-level selector and uses the shared top selections.
+Use “BAU Scenario” and “Intervention Design” as the workflow page titles.
+Numbered sections in both workspaces must match Data Inputs headings, including
+number badges, uppercase bold type, matching font size and underline.
+**Why:** The user explicitly requested heading consistency across these workflows.
 Intervention Table keeps BAU's structure but uses intervention-adjusted access
 gaps, costs, replacement balances, financing gaps and available funding.
 Retain BAU households as the comparison, immediately followed by intervention

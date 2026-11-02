@@ -588,9 +588,12 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
       <div className="intervention-workspace__controls" hidden={activeSection !== 'design'} style={{ minWidth: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', borderRight: '1px solid #e0e0e0', fontSize: 12 }}>
         <header className="modern-page-intro modern-page-intro--intervention">
           <span className="modern-page-intro__eyebrow">WORKFLOW 03 · TEST POLICY LEVERS</span>
-          <h2>Design the intervention package</h2>
+          <h2>Intervention Design</h2>
           <p>Switch a lever on to include its impact, then open its parameters only when you need to adjust them. Results update alongside your design.</p>
         </header>
+        <h3 className="modern-input-section-heading" tabIndex={-1}>
+          <span className="modern-input-section-heading__index">1</span><span>Intervention Design</span>
+        </h3>
 
         {/* Sector toggle */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
@@ -1033,9 +1036,12 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         <section className="modern-bau-section intervention-reading-section" data-section-key="graph">
           <header className="modern-page-intro">
             <span className="modern-page-intro__eyebrow">WORKFLOW 03 · INTERVENTION DESIGN</span>
-            <h2 tabIndex={-1}>Intervention Graph</h2>
+            <h2 tabIndex={-1}>Intervention Design</h2>
             <p>Review the combined intervention scenario using live engine results for the selected area and service level.</p>
           </header>
+          <h3 className="modern-input-section-heading" tabIndex={-1}>
+            <span className="modern-input-section-heading__index">2</span><span>Intervention Graph</span>
+          </h3>
           <div className="modern-bau-toggles" role="group" aria-label="Intervention graph geography">
             {scopeChoices.map(value => <button type="button" key={value} aria-pressed={scopeLabel.toLowerCase() === value.toLowerCase()}
               onClick={() => onScopeChange?.(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}
@@ -1085,7 +1091,9 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           </details>
         </section>
         <section className="modern-bau-section intervention-reading-section" data-section-key="table">
-          <h2 className="modern-bau-heading" tabIndex={-1}>Intervention Table</h2>
+          <h2 className="modern-input-section-heading" tabIndex={-1}>
+            <span className="modern-input-section-heading__index">3</span><span>Intervention Table</span>
+          </h2>
           <div className="modern-bau-service-picker modern-intv-service-picker">
             <span>Service level</span><div className="modern-bau-service-switch" role="group" aria-label="Intervention table service level">
               {BAU_SERVICE_LEVELS.map(item => <button key={item.value} type="button" data-service-level={item.value}

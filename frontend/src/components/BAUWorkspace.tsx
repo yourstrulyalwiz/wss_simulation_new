@@ -34,8 +34,11 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
   ]}>
     <section className="modern-bau-section" data-section-key="graph">
       <header className="modern-page-intro"><span className="modern-page-intro__eyebrow">WORKFLOW 02 · BUSINESS-AS-USUAL</span>
-        <h2 tabIndex={-1}>BAU Graph</h2><p>Review the status quo before designing interventions. Coverage is calculated from the selected area's live engine results.</p>
+        <h2 tabIndex={-1}>BAU Scenario</h2><p>Review the status quo before designing interventions. Coverage is calculated from the selected area's live engine results.</p>
       </header>
+      <h3 className="modern-input-section-heading" tabIndex={-1}>
+        <span className="modern-input-section-heading__index">1</span><span>BAU Graph</span>
+      </h3>
       <div className="modern-bau-toggles" role="group" aria-label="BAU graph area">
         {scopeChoices.map(value => <button key={value} aria-pressed={scopeLabel.toLowerCase() === value} onClick={() => { if (scopeLabel.toLowerCase() !== value) { setCoverage(null); onScopeChange(value); } }}>{value[0].toUpperCase() + value.slice(1)}</button>)}
       </div>
@@ -67,7 +70,9 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
       </div>
     </section>
     <section className="modern-bau-section" data-section-key="table">
-      <h2 className="modern-bau-heading" tabIndex={-1}>BAU Table</h2>
+      <h2 className="modern-input-section-heading" tabIndex={-1}>
+        <span className="modern-input-section-heading__index">2</span><span>BAU Table</span>
+      </h2>
       {serviceSelector('table')}
       <p className="modern-bau-service-note">{scopeLabel} · {sector === 'water' ? 'Water supply' : 'Sanitation'} · {serviceLabel}.
         {serviceLevel === 'at_least_basic' && ' Financing combines both service levels, including safely managed upgrades; it is not the cost of basic access alone.'}

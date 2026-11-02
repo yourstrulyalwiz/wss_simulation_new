@@ -10,6 +10,7 @@ import { yearAxisInterval } from '../chartAxis';
 import { resolveChartWindow } from '../chartWindow';
 import { runCalculation } from '../api';
 import { resultsInputs } from '../resultsDebtMode';
+import { deckExportAreas } from '../useDeckPreview';
 import { ledgerSnapshots, ledgerCategory, type LedgerSnapshot, type LedgerContribution, type LedgerMetric, type LedgerService, type LedgerBasis, type LedgerData } from '../resultsLedger';
 import ResultsLedgerPanel from './ResultsLedgerPanel';
 import { linesFirstLegend } from './chartLegend';
@@ -82,6 +83,8 @@ interface Props {
   sectorTab?: 'water' | 'sanitation';
   onSectorChange?: (sector: 'water' | 'sanitation') => void;
   initialViewScope?: 'urban' | 'rural' | 'national';
+  includeDebt?: boolean;
+  onIncludeDebtChange?: (value: boolean) => void;
 }
 
 type InvTable = { periods: { label: string; lo: number; hi: number }[]; rows: { label: string; vals: number[]; strong?: boolean }[] };
@@ -241,10 +244,12 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
   );
 }
 
-export default function ResultsDashboard({ geoScope, scenarios, inputs, altInputs, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate, sectorTab: suppliedSector, onSectorChange, initialViewScope }: Props) {
+export default function ResultsDashboard({ geoScope, scenarios, inputs, altInputs, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate, sectorTab: suppliedSector, onSectorChange, initialViewScope, includeDebt: suppliedDebt, onIncludeDebtChange }: Props) {
   const { sectors, projectId } = useProjectScope();
   const scenarioAreas = (bundle: any) => comparisonAreas(bundle, { sectors, scopeMode: geoScope === 'national' ? 'national' : 'urban_rural', areaUrban: geoScope === 'urban' || geoScope === 'urban_rural', areaRural: geoScope === 'rural' || geoScope === 'urban_rural' });
-  const [includeDebt, setIncludeDebt] = useState(true);
+  const [localDebt, setLocalDebt] = useState(true);
+  const includeDebt = suppliedDebt ?? localDebt;
+  const setIncludeDebt = onIncludeDebtChange ?? setLocalDebt;
   const [sectorTab, setSectorTab] = useState<'water' | 'sanitation'>(sectors[0] || 'water');
   const requestedSector = suppliedSector ?? sectorTab;
   const activeSector = sectors.includes(requestedSector) ? requestedSector : sectors[0];
@@ -300,9 +305,8 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
   // the ENTRY mode (how the user filled the data in), not the Scope dropdown above, which only
   // chooses what this tab displays. In national-entry mode the national dataset lives in altInputs
   // and `inputs` is still the urban primary, so read it explicitly rather than exporting urban.
-  const deckAreas = React.useMemo(() => Object.fromEntries(
-    Object.entries(liveAreas(geoScope, inputs, altInputs)).map(([area, data]) => [area, resultsInputs(data, includeDebt)])),
-    [geoScope, inputs, altInputs, includeDebt]);
+  const deckAreas = React.useMemo(() => deckExportAreas(geoScope, inputs, altInputs, sectors, includeDebt),
+    [geoScope, inputs, altInputs, sectors, includeDebt]);
   const [both, setBoth] = useState<Both>(null);
   const [contrib, setContrib] = useState<Contrib>(null);   // per-intervention stacked series
   const [error, setError] = useState<string | null>(null);

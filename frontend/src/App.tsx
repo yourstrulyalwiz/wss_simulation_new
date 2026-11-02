@@ -6,6 +6,7 @@ import InterventionPanel from './components/InterventionPanel';
 import DebtServicingPanel from './components/DebtServicingPanel';
 import RevenueReconciliation from './components/RevenueBase';
 import ResultsDashboard from './components/ResultsDashboard';
+import SlideDeckWorkspace from './components/SlideDeckWorkspace';
 import BAUWorkspace from './components/BAUWorkspace';
 import { runCalculation, runEconomicProjections } from './api';
 import { type ContributionView } from './contributionView';
@@ -37,7 +38,8 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
   const notify = useRef(onDraftChange); notify.current = onDraftChange;
   const [inputs, setInputs] = useState<any>(() => migrateInjectionToggle(withSimulationId(initialBundle.inputs, projectId)));
   // Keep existing saved tab IDs stable; Setup is -1 internally and step 0 visually.
-  const [activeTab, setActiveTab] = useState(Number.isInteger(initialLocation.activeTab) && initialLocation.activeTab >= -1 && initialLocation.activeTab <= 4 ? initialLocation.activeTab : 0);
+  const [activeTab, setActiveTab] = useState(Number.isInteger(initialLocation.activeTab) && initialLocation.activeTab >= -1 && initialLocation.activeTab <= 5 ? initialLocation.activeTab : 0);
+  const [includeDebt, setIncludeDebt] = useState(true);
   useEffect(() => {
     const openSetup = () => setActiveTab(-1);
     window.addEventListener('simulation-setup-navigation', openSetup);
@@ -383,9 +385,7 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
     }
   }
 
-  // Exports now live throughout the tool (per-table, per-chart, and the whole-scenario Export buttons on
-  // the Intervention Design and Results tabs), so there is no separate Export tab.
-  const tabs = ['Setup', 'Data Inputs', 'BAU Scenario', 'Intervention Design', 'Loan funding', 'Results Dashboard'];
+  const tabs = ['Setup', 'Data Inputs', 'BAU Scenario', 'Intervention Design', 'Loan funding', 'Results Dashboard', 'Slide Deck'];
 
   return (
     <ProjectScopeContext.Provider value={{ sectors: initialScope.sectors, readOnly, projectMode: true, projectId, countryCode, countryMetadata,
@@ -548,8 +548,15 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
           <ResultsDashboard geoScope={chartScope} scenarios={scenarios} inputs={inputs} altInputs={altInputs} contributionView={contributionView} onContributionViewChange={setContributionView}
             sectorTab={sectorTab} onSectorChange={setSectorTab}
             initialViewScope={inputScope}
+            includeDebt={includeDebt} onIncludeDebtChange={setIncludeDebt}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
         )}
+        {/* Keep only this in-memory viewer mounted so navigation survives tab changes.
+            Input changes invalidate its artifacts even while the tab is hidden. */}
+        <SlideDeckWorkspace active={activeTab === 5} geoScope={chartScope} inputs={inputs} altInputs={altInputs}
+          includeDebt={includeDebt} onIncludeDebtChange={setIncludeDebt}
+          contributionView={contributionView} onContributionViewChange={setContributionView}
+          currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
 
         </div>
       </div>

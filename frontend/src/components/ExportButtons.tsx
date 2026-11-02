@@ -38,6 +38,8 @@ export default function ExportButtons({ inputs, label = 'Export', pptxCharts, ar
     const started = revision.current;
     setBusy(fmt.ext);
     try {
+      const missingAreas = Object.entries(areas || {}).filter(([, value]) => !value).map(([area]) => area);
+      if (missingAreas.length) throw new Error(`Complete the selected ${missingAreas.join(' and ')} area inputs before exporting. Missing areas cannot be substituted or omitted.`);
       const sources = Object.entries(areas || {}).filter(([, value]) => value);
       for (const [area, value] of (sources.length ? sources : [['current', inputs]])) {
         const issues = await validateInterventions(value);

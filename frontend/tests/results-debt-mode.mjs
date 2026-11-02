@@ -30,5 +30,10 @@ assert.deepEqual(resultsInputs(ordinary, false), ordinary);
 assert.equal(resultsInputs(null, false), null);
 assert.equal(resultsInputs({ period: {} }, false).utility_debt.water.enabled, false);
 const dashboard = readFileSync(new URL('../src/components/ResultsDashboard.tsx', import.meta.url), 'utf8');
-assert.match(dashboard, /const \[includeDebt, setIncludeDebt\] = useState\(true\)/);
+assert.match(dashboard, /const \[localDebt, setLocalDebt\] = useState\(true\)/);
+assert.match(dashboard, /const includeDebt = suppliedDebt \?\? localDebt/);
+const workspace = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+assert.match(workspace, /const \[includeDebt, setIncludeDebt\] = useState\(true\)/);
+assert.equal((workspace.match(/includeDebt=\{includeDebt\} onIncludeDebtChange=\{setIncludeDebt\}/g) || []).length, 2,
+  'Results and Slide Deck share the same enabled-loan selection');
 console.log('Results defaults to saved enabled loans; optional exclusion, disabled/absent settings, unchanged interventions and immutability passed.');

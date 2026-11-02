@@ -289,8 +289,8 @@ def export_pptx(inputs: dict = Body(...)):
     )
 
 
-@app.post("/api/export/deck")
-def export_deck_api(payload: dict = Body(...)):
+def generated_deck(payload: dict):
+    payload = dict(payload)
     for area, inputs in (payload.get('areas') or {'current': payload.get('inputs', payload)}).items():
         issues = validate_interventions(inputs, area)
         if any(issue['severity'] == 'error' for issue in issues):
@@ -314,7 +314,7 @@ def export_deck_api(payload: dict = Body(...)):
         single.pop('_export_options', None)
         areas = {'national': single} if single else {}
     if not areas:
-        return {"error": "no area inputs supplied"}
+        raise HTTPException(status_code=422, detail="No area inputs supplied.")
     try:
         currency_display = validate_currency_display(currency_settings, [
             ((area.get('country_config') or {}).get('currency') or 'LCU') for area in areas.values()
@@ -325,8 +325,21 @@ def export_deck_api(payload: dict = Body(...)):
     # a payload that never carried it, and that is otherwise invisible from the output alone.
     print(f"[export/deck] areas={list(areas)}", flush=True)
     out = build_deck(areas, contribution_view=contribution_view, currency_display=currency_display)
+    return out.getvalue()
+
+
+@app.post("/api/export/deck/preview")
+def preview_deck_api(payload: dict = Body(...)):
+    from deck_preview import preview_deck, preview_slot
+    # The existing export access boundary applies; no persistent URLs or shared files.
+    with preview_slot():
+        return preview_deck(generated_deck(payload))
+
+
+@app.post("/api/export/deck")
+def export_deck_api(payload: dict = Body(...)):
     return StreamingResponse(
-        iter([out.getvalue()]),
+        iter([generated_deck(payload)]),
         media_type='application/vnd.openxmlformats-officedocument.presentationml.presentation',
         headers={'Content-Disposition': 'attachment; filename="wss_scenarios.pptx"'},
     )

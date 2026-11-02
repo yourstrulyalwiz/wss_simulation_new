@@ -13,3 +13,4 @@ anyio==4.15.1
 h11==0.16.0
 idna==3.20
 Pillow==13.0.0
+PyMuPDF==2.0

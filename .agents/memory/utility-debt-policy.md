@@ -51,18 +51,45 @@ Debt servicing is optional. Users may go straight from Intervention Design to
 Results without visiting the fourth stage. Disabled or absent borrowing must
 preserve all standard graphs, summaries, tables, scope controls and exports;
 unused blank loan settings must not become prerequisites for ordinary results.
-Results must open with debt excluded, even when an enabled loan is saved in
-either area. Including configured borrowing is an explicit view choice.
+Results now opens with configured indicative borrowing included. This uses only
+loans actually enabled in the saved area/sector; it must not enable absent or
+disabled loans. Excluding configured borrowing remains an explicit view choice.
 
 **Why:** The user explicitly clarified that tab 4 is an option and that, without
 it, "every outputs like previously should appear in results dashboard."
-They subsequently requested that Results default to without debt servicing.
+The later Results workspace redesign explicitly superseded the loan-excluded
+default: coverage, capital/funding, sector funds, ledger and exports should open
+with indicative loans included consistently.
 
 **How to apply:** Keep ordinary-input validation strict, but separate it from
 enabled-loan validation. Excluding debt from a Results view must not erase saved
 loan terms or interventions, and its live exports must use that same debt choice
 across all entered areas. Report genuine calculation failures clearly; do not
 silently keep stale charts or fabricate missing intervention contributions.
+
+## Results workspace
+
+Use Tab 3/4's numbered left navigation, long-form reading area, background,
+contextual headings and scope/sector toggles. Order: coverage graphs; final
+scenario capital requirements and available funding; sector available funds
+with a BAU-style table; sector ledger; attributed coverage by source; summary
+flows as collapsible tables. Remove separate financial-needs graphs and annual
+revenue details from Results without removing their underlying calculations.
+
+**Why:** The user requested a consistent Tab 5 workspace and this specific
+presentation order, with configured indicative borrowing included by default.
+**How to apply:** Keep all displayed outputs and exports on the same chosen loan
+mode. Preserve the sanitation counterpart, actual-source stock attribution,
+disabled-loan ordinary results and missing-data validation.
+
+Results initially follows the current editing area, rather than automatically
+switching multi-area projects to National; its subsequent scope selection is
+independent.
+
+**Why:** Otherwise a valid active sector can appear unavailable simply because
+another area's sector inputs are incomplete. National still requires both areas.
+**How to apply:** Show area-specific validation reasons for incomplete results,
+and never substitute an active area's partial totals for National.
 
 ## Loan Funding workspace
 

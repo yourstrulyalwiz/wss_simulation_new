@@ -14,7 +14,6 @@ import { normalizeScope, scopedBundle, preserveDormantInputs, ProjectScopeContex
 import type { Draft } from './projectApi';
 import { migrateNrwRevenueInputs } from './nrwRevenue';
 import { migrateConnectionRevenueInputs } from './connectionRevenueConfig';
-import { setInterventionEnabled } from './interventionRegistry';
 import { simulationHeaders, stripSimulationId, withSimulationId } from './simulationTransport';
 
 // Older saved sessions/profiles kept injection as an option under the financial master switch.
@@ -283,19 +282,6 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
     }
   }, [resizeMacroArrays, inputScope, inputs, shiftAreaArrays, readOnly, activeInputsRaw]);
 
-  // Flip one intervention toggle on/off across EVERY area (interventions are on/off globally, applied per
-  // area). Used by the Results dashboard's on/off toggles — the parameters still live on the Intervention tab.
-  const setToggle = useCallback((key: string, value: boolean) => {
-    if (readOnly || key.startsWith('ws_') && !initialScope.sectors.includes('water') || key.startsWith('san_') && !initialScope.sectors.includes('sanitation')) return;
-    modified.current = true;
-    if (scopeMode === 'urban_rural' && areaUrban) setInputs((prev: any) => prev ? setInterventionEnabled(prev, key, value) : prev);
-    setAltInputs(prev => {
-      const n: Record<string, any> = { ...prev };
-      for (const k of Object.keys(prev)) if (scopeMode === 'national' ? k === 'national' : k === 'rural' && areaRural) n[k] = setInterventionEnabled(prev[k], key, value);
-      return n;
-    });
-  }, [readOnly, scopeMode, areaUrban, areaRural]);
-
   // Geographical scope as ONE dropdown value: 'both' (Urban + Rural), 'urban', 'rural', 'national'.
   const scopeValue = scopeMode === 'national' ? 'national' : (areaUrban && areaRural) ? 'both' : areaRural ? 'rural' : 'urban';
   const setScopeValue = (v: string) => {
@@ -559,7 +545,9 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
         )}
 
         {activeTab === 4 && (
-          <ResultsDashboard geoScope={chartScope} scenarios={scenarios} inputs={inputs} altInputs={altInputs} onToggle={setToggle} contributionView={contributionView} onContributionViewChange={setContributionView}
+          <ResultsDashboard geoScope={chartScope} scenarios={scenarios} inputs={inputs} altInputs={altInputs} contributionView={contributionView} onContributionViewChange={setContributionView}
+            sectorTab={sectorTab} onSectorChange={setSectorTab}
+            initialViewScope={inputScope}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
         )}
 

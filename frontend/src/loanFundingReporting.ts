@@ -83,6 +83,26 @@ export function loanFundsRows(result: any, key: 'water_supply' | 'sanitation', b
   });
 }
 
+/** Sum matched area reports by year; missing area/field stays unavailable, never partial zero. */
+export function aggregateLoanFundsRows(results: any[], key: 'water_supply' | 'sanitation', baselines: number[]) {
+  if (!results.length || results.length !== baselines.length) return [];
+  const areas = results.map((result, index) => loanFundsRows(result, key, baselines[index]));
+  const years = [...new Set(areas.flatMap(rows => rows.map(row => row.year)))].sort((a, b) => a - b);
+  const fields = ['public', 'external', 'mobilized', 'connections', 'nrw', 'collection', 'tariff', 'additional', 'total',
+    'gross', 'injection', 'paid', 'payment', 'newFunds', 'net', 'ordinaryBefore', 'ordinaryAfter', 'openingCarry', 'closingCarry'] as const;
+  return years.map(year => {
+    const rows = areas.map(area => area.find(row => row.year === year));
+    return { year, ...Object.fromEntries(fields.map(field => [field,
+      loanSum(rows.map(row => row ? loanNumber(row[field]) : null))])),
+      reconciled: rows.every(row => row?.reconciled),
+      paymentReconciled: rows.every(row => row?.paymentReconciled),
+      issues: rows.flatMap((row, index) => row?.issues ?? [`Area ${index + 1}: report unavailable for ${year}.`]),
+    } as Record<typeof fields[number], number | null> & {
+      year: number; reconciled: boolean; paymentReconciled: boolean; issues: string[];
+    };
+  });
+}
+
 export function loanForecastLedger(rows: any, baseline: number) {
   return Array.isArray(rows) ? rows.filter(row => loanNumber(row?.year) !== null && row.year > baseline) : [];
 }

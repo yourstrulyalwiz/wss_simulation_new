@@ -10,7 +10,7 @@ const compile = (module, filename) => module._compile(ts.transpileModule(readFil
 }).outputText, filename);
 require.extensions['.ts'] = compile;
 require.extensions['.tsx'] = compile;
-const { loanCoverageRows, loanComparisonRows, loanFundsRows, loanForecastLedger, withoutLoanSector } = require('../src/loanFundingReporting.ts');
+const { loanCoverageRows, loanComparisonRows, loanFundsRows, aggregateLoanFundsRows, loanForecastLedger, withoutLoanSector } = require('../src/loanFundingReporting.ts');
 const { loanCashFlowRows, LOAN_CASH_FLOW_FIELDS } = require('../src/loanFundingReporting.ts');
 const merged = loanCashFlowRows({
   reference_year: 2027, maturity_year: 2029,
@@ -29,6 +29,28 @@ const { validateLoanFundingConfig } = require('../src/loanFunding.ts');
 const { defaultCurrencyDisplay, convertMoney } = require('../src/currencyDisplay.tsx');
 const fixtures = engineLoanFixtures();
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
+for (const sector of ['water_supply', 'sanitation']) {
+  // Mixed saved activation is deliberate: never enable the disabled rural loan.
+  const results = [fixtures.urban.enabled, fixtures.rural.disabled];
+  const combined = aggregateLoanFundsRows(results, sector, [2025, 2025]);
+  combined.forEach(row => {
+    const ordinary = results.reduce((sum, result) => sum + result[sector].scenario_available_total[result.years.indexOf(row.year)], 0);
+    const debt = results.map(result => result[sector].scenario_utility_debt.annual_injection.find(item => item.year === row.year));
+    const proceeds = debt.reduce((sum, item) => sum + item.disbursement, 0);
+    const paid = debt.reduce((sum, item) => sum + item.debt_service_paid, 0);
+    close(row.total, ordinary);
+    close(row.injection, proceeds);
+    close(row.newFunds, ordinary + proceeds);
+    close(row.net, ordinary + proceeds - paid);
+    close(row.openingCarry, debt.reduce((sum, item) => sum + item.opening_unspent_proceeds, 0));
+    assert.ok(row.reconciled && row.paymentReconciled);
+  });
+  const missing = structuredClone(results);
+  missing[1][sector].scenario_utility_debt.annual_injection.find(item => item.year === combined[0].year).disbursement = null;
+  assert.equal(aggregateLoanFundsRows(missing, sector, [2025, 2025])[0].net, null, 'Missing area proceeds must not create a partial national total');
+  missing[1].years = [];
+  assert.ok(aggregateLoanFundsRows(missing, sector, [2025, 2025]).every(row => row.net === null));
+}
 for (const area of Object.values(fixtures)) {
   const baseline = area.inputs.period.baseline_year;
   for (const sector of ['water_supply', 'sanitation']) for (const mode of ['enabled', 'disabled']) {

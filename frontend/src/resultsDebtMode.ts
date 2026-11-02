@@ -1,5 +1,5 @@
 // Results can exclude borrowing without changing the user's saved loan settings.
-export function resultsInputs(inputs: any, includeDebt: boolean) {
+export function resultsInputs(inputs: any, includeDebt = true) {
   if (!inputs || includeDebt) return inputs;
   return {
     ...inputs,

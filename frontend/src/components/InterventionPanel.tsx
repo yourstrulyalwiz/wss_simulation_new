@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useProjectScope } from '../projectScope';
 import PublicSpendingTargets from './PublicSpendingTargets';
 import InterventionCategories from './InterventionCategories';
 import LiveInterventionChart from './LiveInterventionChart';
+import InterventionScenarioTable from './InterventionScenarioTable';
+import InterventionFundingChart from './InterventionFundingChart';
 import NumInput from './NumInput';
 import ExportButtons from './ExportButtons';
 import { RevenueBaseEditor, REVENUE_ATTRIBUTION } from './RevenueBase';
@@ -14,8 +17,14 @@ import ConnectionRevenue from './ConnectionRevenue';
 import RevenueSourceChart from './RevenueSourceChart';
 import { collectionBelowBaselineWarning } from '../collectionWarning';
 import { ValidationContext, FieldIssuesContext, IssueMessages, groupForLabel, useInterventionIssues } from '../interventionValidation';
+import { BAU_SERVICE_LEVELS, type BauServiceLevel } from '../bauServiceView';
 
 const CUSTOM_INTERVENTIONS_ENABLED = false;
+const InterventionDrawerContext = React.createContext<{
+  selected: string | null;
+  target: HTMLElement | null;
+  select: (label: string, trigger: HTMLButtonElement) => void;
+} | null>(null);
 
 function Section({ title, children, defaultOpen = false, sectionKey, onFocus }: { title: string; children: React.ReactNode; defaultOpen?: boolean; sectionKey?: string; onFocus?: (key: string) => void }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -104,12 +113,13 @@ function F({ label, value, onChange, unit, step, isPercent, tip, fieldType, plac
 
 // Toggle with a parameter panel that is opened/closed only by its own Show/Hide button.
 // The checkbox just enables/disables the intervention (drives the graph) and never opens or closes the panel.
-function InterventionToggle({ label, checked, onChange, children, onFocus, unavailable = false }: {
+function InterventionToggle({ label, checked, onChange, children, unavailable = false }: {
   label: string; checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode; onFocus?: () => void;
   unavailable?: boolean;
 }) {
   const { readOnly } = useProjectScope();
-  const [expanded, setExpanded] = useState(false);
+  const drawer = React.useContext(InterventionDrawerContext);
+  const expanded = drawer?.selected === label;
   const validation = React.useContext(ValidationContext);
   const issues = checked && !unavailable ? validation.issues.filter(issue =>
     issue.sector === validation.sector && issue.intervention === groupForLabel(label)) : [];
@@ -131,25 +141,32 @@ function InterventionToggle({ label, checked, onChange, children, onFocus, unava
         display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
         background: checked ? '#eef2ff' : '#fafbfc', borderBottom: expanded ? '1px solid #c7d2fe' : 'none',
       }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}>
-          <input type="checkbox" disabled={readOnly || unavailable} checked={checked && !unavailable} onChange={e => onChange(e.target.checked)}
+        <label className="intervention-toggle__checkbox">
+          <input type="checkbox" aria-label={`Enable ${label}`} disabled={readOnly || unavailable} checked={checked && !unavailable} onChange={e => onChange(e.target.checked)}
             style={{ width: 18, height: 18, accentColor: '#2563eb' }} />
-          <span style={{ fontSize: 13, color: checked ? '#1e3a5f' : '#475569', fontWeight: checked ? 600 : 400 }}>{label}</span>
-          {issues.some(issue => issue.severity === 'error') && <span style={{color:'#b91c1c',fontSize:11}}>Missing required inputs or invalid values</span>}
         </label>
-        <button onClick={() => { const e = !expanded; setExpanded(e); if (e && onFocus) onFocus(); }}
+        <button type="button" className="intervention-toggle__name" aria-expanded={!!expanded}
+          onClick={event => drawer?.select(label, event.currentTarget)}
+          title={`Open ${label} inputs`}>
+          <span>{label}</span>
+          {issues.some(issue => issue.severity === 'error') && <span className="intervention-toggle__issue">Needs attention</span>}
+        </button>
+        <button type="button" aria-expanded={!!expanded} onClick={event => drawer?.select(label, event.currentTarget)}
           style={{ border: '1px solid #c7d2fe', background: '#fff', cursor: 'pointer', fontSize: 11, color: '#2563eb', fontWeight: 600, padding: '3px 10px', borderRadius: 12 }}>
           {expanded ? '▴ Hide' : '▾ Show'}
         </button>
       </div>
       {unavailable && <p style={{ margin: '8px 12px', fontSize: 11, color: '#587681' }}>Add Water supply to use this linkage. Saved settings are retained but inactive.</p>}
       {expanded && (
-        <fieldset disabled={readOnly || unavailable} style={{ margin: 0, border: 0, minWidth: 0, padding: '10px 14px', background: '#fff', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px', alignItems: 'start' }}>
+        (drawer?.target ? createPortal(
+        <fieldset disabled={readOnly || unavailable} style={{ margin: 0, border: 0, minWidth: 0, padding: '12px 16px 18px', background: '#fff', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px', alignItems: 'start' }}>
           <FieldIssuesContext.Provider value={issues}>
             {children}
             <IssueMessages issues={remaining} />
           </FieldIssuesContext.Provider>
-        </fieldset>
+        </fieldset>, drawer.target) : <fieldset disabled={readOnly || unavailable} style={{ margin: 0, border: 0, minWidth: 0, padding: '10px 14px', background: '#fff', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px', alignItems: 'start' }}>
+          <FieldIssuesContext.Provider value={issues}>{children}<IssueMessages issues={remaining} /></FieldIssuesContext.Provider>
+        </fieldset>)
       )}
     </div>
   );
@@ -235,11 +252,53 @@ function TechMixEditor({ inputs, onChange, section, CUR }: {
   );
 }
 
-interface Props { inputs: any; onChange: (i: any) => void; results?: any; calculationError?: string; sectorTab?: 'water' | 'sanitation'; onSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (key: string) => void; geoScope?: string; chartScope?: string; contributionView: ContributionView; onContributionViewChange: (v: ContributionView) => void; currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void; onEditCurrencyRate: () => void; }
+interface Props { inputs: any; onChange: (i: any) => void; results?: any; calculationError?: string; sectorTab?: 'water' | 'sanitation'; onSectorChange?: (v: 'water' | 'sanitation') => void; onSectionFocus?: (key: string) => void; geoScope?: string; chartScope?: string; contributionView: ContributionView; onContributionViewChange: (v: ContributionView) => void; currencyDisplay: CurrencyDisplaySettings; onCurrencyDisplayChange: (v: CurrencyDisplaySettings) => void; onEditCurrencyRate: () => void; scopeChoices?: string[]; scopeLabel?: string; onScopeChange?: (value: string) => void; }
 
-export default function InterventionPanel({ inputs, onChange, results, calculationError = '', sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate }: Props) {
+export default function InterventionPanel({ inputs, onChange, results, calculationError = '', sectorTab = 'water', onSectorChange, onSectionFocus, geoScope = 'urban', chartScope, contributionView, onContributionViewChange, currencyDisplay, onCurrencyDisplayChange, onEditCurrencyRate, scopeChoices = [geoScope], scopeLabel: providedScopeLabel, onScopeChange }: Props) {
   const validationIssues = useInterventionIssues(inputs);
   const { sectors, readOnly } = useProjectScope();
+  const scopeLabel = providedScopeLabel || (geoScope === 'national' ? 'National' : geoScope === 'rural' ? 'Rural' : 'Urban');
+  const [serviceLevel, setServiceLevel] = useState<BauServiceLevel>('at_least_basic');
+  const [activeSection, setActiveSection] = useState<'graph' | 'table'>('graph');
+  const [expandedChartGroup, setExpandedChartGroup] = useState(false);
+  const [selectedIntervention, setSelectedIntervention] = useState<string | null>(null);
+  const [drawerTarget, setDrawerTarget] = useState<HTMLElement | null>(null);
+  const selectedTrigger = React.useRef<HTMLButtonElement | null>(null);
+  const drawerCloseButton = React.useRef<HTMLButtonElement | null>(null);
+  const selectIntervention = (label: string, trigger: HTMLButtonElement) => {
+    if (selectedIntervention === label) {
+      setSelectedIntervention(null);
+      requestAnimationFrame(() => selectedTrigger.current?.focus());
+    } else {
+      selectedTrigger.current = trigger;
+      setSelectedIntervention(label);
+    }
+  };
+  const closeIntervention = () => {
+    setSelectedIntervention(null);
+    requestAnimationFrame(() => selectedTrigger.current?.focus());
+  };
+  const drawerContext = React.useRef({ sectorTab, scopeLabel });
+  React.useEffect(() => {
+    if (drawerContext.current.sectorTab !== sectorTab || drawerContext.current.scopeLabel !== scopeLabel) {
+      setSelectedIntervention(null);
+      selectedTrigger.current = null;
+      drawerContext.current = { sectorTab, scopeLabel };
+    }
+  }, [sectorTab, scopeLabel]);
+  React.useEffect(() => {
+    if (!selectedIntervention) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); closeIntervention(); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedIntervention]);
+  React.useEffect(() => {
+    if (!selectedIntervention || !drawerTarget) return;
+    const first = drawerTarget.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), button:not([disabled])');
+    (first || drawerCloseButton.current)?.focus();
+  }, [selectedIntervention, drawerTarget]);
   const [invalidNrwOverlapYear, setInvalidNrwOverlapYear] = useState<number | null>(null);
   // Budget execution (executed budget ÷ allocated budget) is COMPUTED by the live engine from the
   // historical budget rows — it is shown read-only as the current value in the Budget-execution
@@ -262,7 +321,6 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
       key, { ...(inputs.utility_debt?.[key] || {}), enabled: false },
     ])),
   };
-  const scopeLabel = geoScope === 'national' ? 'National' : geoScope === 'rural' ? 'Rural' : 'Urban';
   const scopeLower = scopeLabel.toLowerCase();
   const scheduleYear = (iv: any, field: string, end = false) =>
     iv[field];
@@ -461,6 +519,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
 
   return (
     <ValidationContext.Provider value={{issues: validationIssues, sector: sectorTab, onNavigate: () => window.dispatchEvent(new CustomEvent('intervention-source-navigation'))}}>
+    <InterventionDrawerContext.Provider value={{ selected: selectedIntervention, target: drawerTarget, select: selectIntervention }}>
     <div className="intervention-workspace" style={{ display: 'flex', flex: 1, minWidth: 0, overflow: 'hidden' }}>
       {/* Left: intervention controls */}
       <div className="intervention-workspace__controls" style={{ flex: '0 1 598px', minWidth: 0, overflowY: 'auto', padding: '16px 24px', background: '#fafbfc', borderRight: '1px solid #e0e0e0', fontSize: 12 }}>
@@ -482,7 +541,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         {/* Sector toggle */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
           {sectors.map(s => (
-            <button key={s} onClick={() => { onSectorChange?.(s); onSectionFocus?.(s === 'water' ? 'ws_interventions' : 'san_interventions'); }} style={{
+            <button key={s} onClick={() => onSectorChange?.(s)} style={{
               flex: 1, padding: '8px 16px', border: 'none', borderRadius: 6, cursor: 'pointer',
               background: sectorTab === s ? '#2563eb' : '#e5e7eb',
               color: sectorTab === s ? '#fff' : '#374151', fontWeight: 600, fontSize: 13,
@@ -506,7 +565,9 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Water Supply Interventions</h3>
 
           <InterventionCategories sector="water">
-          <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="water" area={scopeLabel || 'Selected area'} />
+          <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="water" area={scopeLabel || 'Selected area'}
+            drawerTarget={drawerTarget} drawerSelected={selectedIntervention === 'Revenue from new connections'}
+            onOpenDrawer={trigger => selectIntervention('Revenue from new connections', trigger)} />
           <InterventionToggle label="Increase in Public Spending" checked={inputs.toggles?.ws_financial_commitment_enabled ?? false} onChange={v => toggleIntv('ws_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('ws_financial_commitment')}>
             {financialFields('water_interventions')}
           </InterventionToggle>
@@ -647,7 +708,9 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e3a5f', marginBottom: 10 }}>{scopeLabel} Sanitation Interventions</h3>
 
           <InterventionCategories sector="sanitation">
-          <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="sanitation" area={scopeLabel || 'Selected area'} />
+          <ConnectionRevenue label="Revenue from new connections" inputs={inputs} onChange={onChange} sector="sanitation" area={scopeLabel || 'Selected area'}
+            drawerTarget={drawerTarget} drawerSelected={selectedIntervention === 'Revenue from new connections'}
+            onOpenDrawer={trigger => selectIntervention('Revenue from new connections', trigger)} />
           <InterventionToggle label="Increase in Public Spending" checked={inputs.toggles?.san_financial_commitment_enabled ?? false} onChange={v => toggleIntv('san_financial_commitment_enabled', v)} onFocus={() => onSectionFocus?.('san_financial_commitment')}>
             {financialFields('sanitation_interventions')}
           </InterventionToggle>
@@ -891,13 +954,48 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         </div>
       </div>
 
-      {/* Right: actual source-funded coverage for the area being edited. */}
+      <aside className={`intervention-input-drawer${selectedIntervention ? ' is-open' : ''}`}
+        aria-hidden={!selectedIntervention} aria-label={`${selectedIntervention || 'Intervention'} inputs`}>
+        {selectedIntervention && <>
+          <header className="intervention-input-drawer__header">
+            <div><span>INTERVENTION INPUTS</span><h3>{selectedIntervention}</h3></div>
+            <button ref={drawerCloseButton} type="button" aria-label="Close intervention inputs" onClick={closeIntervention}>Close</button>
+          </header>
+          <div className="intervention-input-drawer__body" ref={node => setDrawerTarget(node)} />
+        </>}
+      </aside>
+
+      {/* Right: live scenario workspace. */}
       <div className="intervention-workspace__charts" style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '24px 28px', background: '#fff', borderLeft: '1px solid #e2e8f0' }}>
         <header className="modern-page-intro">
-          <span className="modern-page-intro__eyebrow">LIVE SCENARIO VIEW</span>
-          <h2>{sectorTab === 'water' ? 'Water supply' : 'Sanitation'} · {scopeLabel}</h2>
-          <p>Compare revenue sources and safely-managed / basic coverage. The separate loan-funding comparison is on the next workflow tab.</p>
+          <span className="modern-page-intro__eyebrow">WORKFLOW 03 · INTERVENTION DESIGN</span>
+          <h2>{activeSection === 'graph' ? 'Intervention Graph' : 'Intervention Design Table'}</h2>
+          <p>Review the combined intervention scenario using live engine results for the selected area and service level.</p>
         </header>
+        <nav className="modern-workspace-sections" aria-label="Intervention Design sections">
+          <button type="button" aria-current={activeSection === 'graph' ? 'page' : undefined}
+            onClick={() => setActiveSection('graph')}>01 <span>Intervention Graph</span></button>
+          <button type="button" aria-current={activeSection === 'table' ? 'page' : undefined}
+            onClick={() => setActiveSection('table')}>02 <span>Intervention Design Table</span></button>
+        </nav>
+        <div className="modern-intv-graph-controls">
+          <div className="modern-bau-toggles" role="group" aria-label="Intervention graph area">
+            {scopeChoices.map(value => <button type="button" key={value} aria-pressed={scopeLabel.toLowerCase() === value}
+              onClick={() => onScopeChange?.(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}
+          </div>
+          <div className="modern-bau-toggles" role="group" aria-label="Intervention graph sector">
+            {sectors.map(value => <button type="button" key={value} aria-pressed={sectorTab === value}
+              onClick={() => onSectorChange?.(value)}>{value === 'water' ? 'Water Supply' : 'Sanitation'}</button>)}
+          </div>
+        </div>
+        <div className="modern-bau-service-picker modern-intv-service-picker">
+          <span>Service level</span><div className="modern-bau-service-switch" role="group" aria-label="Intervention service level">
+            {BAU_SERVICE_LEVELS.map(item => <button key={item.value} type="button" data-service-level={item.value}
+              aria-pressed={serviceLevel === item.value} onClick={() => setServiceLevel(item.value)}>{item.label}</button>)}
+          </div>
+        </div>
+        <InterventionScenarioTable inputs={interventionChartInputs} sector={sectorTab} level={serviceLevel} showTable={activeSection === 'table'} currencyDisplay={currencyDisplay} scopeLabel={scopeLabel} />
+        {activeSection === 'graph' && <>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
           <CurrencyDisplayControl settings={currencyDisplay} sourceCurrency={CUR}
             onModeChange={mode => onCurrencyDisplayChange({ ...currencyDisplay, mode, sourceCurrency: CUR })}
@@ -909,12 +1007,31 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
         <p data-testid="intervention-no-debt-note" style={{ fontSize: 12, color: '#475569', margin: '0 0 12px' }}>
           Live intervention preview — includes selected interventions, without borrowing or debt servicing. Custom interventions are temporarily disabled. Saved loan settings are applied separately in Debt servicing.
         </p>
-        <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} />
-        <LiveInterventionChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel} rung={0} contributionView={contributionView} currencyDisplay={currencyDisplay} />
-        <div style={{ height: 18 }} />
-        <LiveInterventionChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel} rung={1} contributionView={contributionView} currencyDisplay={currencyDisplay} />
+        <section className={`modern-intv-chart-group${expandedChartGroup ? ' modern-intv-chart-group--expanded' : ''}`}>
+          <div className="modern-bau-chart-actions">
+            <button type="button" aria-pressed={expandedChartGroup} onClick={() => setExpandedChartGroup(value => !value)}>
+              {expandedChartGroup ? 'Restore chart size' : 'Expand charts'}
+            </button>
+          </div>
+          <div className="modern-intv-chart-pair">
+            <div className="modern-intv-coverage-chart">
+              <LiveInterventionChart key={`${sectorTab}-${scopeLabel}-${serviceLevel}`}
+                inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel}
+                serviceLevel={serviceLevel} contributionView={contributionView} currencyDisplay={currencyDisplay}
+                chartHeight={expandedChartGroup ? 500 : undefined} />
+            </div>
+            <InterventionFundingChart inputs={interventionChartInputs} sector={sectorTab} scopeLabel={scopeLabel}
+              currencyDisplay={currencyDisplay} chartHeight={expandedChartGroup ? 500 : 360} />
+          </div>
+        </section>
+        <details className="modern-intv-revenue-details">
+          <summary>Additional revenue by source</summary>
+          <RevenueSourceChart inputs={interventionChartInputs} sector={sectorTab} currencyDisplay={currencyDisplay} />
+        </details>
+        </>}
       </div>
     </div>
+    </InterventionDrawerContext.Provider>
     </ValidationContext.Provider>
   );
 }

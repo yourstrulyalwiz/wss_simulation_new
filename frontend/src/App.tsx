@@ -463,7 +463,7 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
         {tabs.map((tab, index) => {
           const i = index - 1;
           return (
-          <button key={tab} onClick={() => { if (!readOnly) modified.current = true; if (i === -1) onSetup(); setActiveTab(i); if (i === 1 && both) setBauChartScope(subArea); }}
+          <button key={tab} onClick={() => { if (!readOnly) modified.current = true; if (i === -1) onSetup(); setActiveTab(i); if ((i === 1 || i === 2) && both) setBauChartScope(subArea); }}
             className={`wb-tab${activeTab === i ? ' wb-tab-active' : ''}`}>
             <span className="wb-tab-step">{i + 1}</span>
             <span className="wb-tab-label">
@@ -477,14 +477,14 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
       {/* Main Content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Scope bar. Full controls (mode + include) only on Data Inputs; BAU & Intervention get just the Editing switch. The dashboard has its own scope dropdown. */}
-        {activeTab >= 2 && activeTab <= 3 && (
+        {(activeTab === 1 || activeTab === 3) && (
           <div className="wb-scope-bar">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {both ? (
                   <>
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Entering data for:</span>
                     {(['urban', 'rural'] as const).map(a => (
-                      <button key={a} onClick={() => setSubArea(a)}
+                      <button key={a} onClick={() => { setSubArea(a); setBauChartScope(a); }}
                         className={`wb-scope-option${subArea === a ? ' wb-scope-option-active' : ''}`}>{a}</button>
                     ))}
                   </>
@@ -526,7 +526,10 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
         )}
         {activeTab === 2 && activeInputs && (
           <InterventionPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={results} calculationError={calculationError} sectorTab={sectorTab} onSectorChange={setSectorTab} geoScope={inputScope} chartScope={chartScope} onSectionFocus={focusGuideSection} contributionView={contributionView} onContributionViewChange={setContributionView}
-            currencyDisplay={currencyDisplay} onEditCurrencyRate={editCurrencyRate} onCurrencyDisplayChange={updateCurrencyDisplay} />
+            currencyDisplay={currencyDisplay} onEditCurrencyRate={editCurrencyRate} onCurrencyDisplayChange={updateCurrencyDisplay}
+            scopeChoices={both ? ['urban', 'rural'] : [inputScope]}
+            scopeLabel={both ? (bauChartScope === 'urban' ? 'Urban' : 'Rural') : inputScope[0].toUpperCase() + inputScope.slice(1)}
+            onScopeChange={value => { if (value === 'urban' || value === 'rural') { setBauChartScope(value); setSubArea(value); } }} />
         )}
         {activeTab === 3 && activeInputs && (
           <DebtServicingPanel inputs={activeInputs} onChange={handleSetActiveInputs} results={resultInputs.current === activeInputs ? results : null} calculationError={calculationError}

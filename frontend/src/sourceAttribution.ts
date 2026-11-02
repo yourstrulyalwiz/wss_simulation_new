@@ -82,12 +82,20 @@ export function aggregateSourceFunding(results: any[], sector: 'water_supply' | 
   for (const name of SOURCE_FUNDING_TOTALS) out[name] = results[0].years.map((_: number, i: number) => add(sources.map(s => s[name]?.[i])));
   return out;
 }
-export function sourceCoverageRows(years: number[], totals: number[], attribution: CoverageAttribution, sector: 'water' | 'sanitation', rung: 'sm' | 'basic' = 'sm') {
-  const stocks = rung === 'sm' ? attribution.sm_stock : attribution.basic_stock;
+export function sourceCoverageRows(years: number[], totals: number[], attribution: CoverageAttribution,
+  sector: 'water' | 'sanitation', rung: 'sm' | 'basic' | 'at_least_basic' = 'sm') {
+  const rungs = rung === 'at_least_basic' ? ['sm', 'basic'] as const : [rung] as const;
+  const sumRungs = (pick: (name: 'sm' | 'basic') => number) => rungs.reduce((sum, name) => sum + pick(name), 0);
+  const stocksFor = (name: string, index: number) => sumRungs(r => {
+    const value = (r === 'sm' ? attribution.sm_stock : attribution.basic_stock)?.[name]?.[index];
+    return checked(value, `${r}_stock.${name}`);
+  });
   const rows = years.map((year, i) => ({
-    year, __total: totals[i], __baseline: attribution.opening_baseline_stock[rung][i],
-    __bau: attribution.pure_bau_stock[rung][i], __scenario: attribution.combined_stock[rung][i],
-    ...Object.fromEntries(attribution.source_keys.filter(key => key !== 'baseline').map(key => [key, stocks[key][i]])),
+    year, __total: totals[i],
+    __baseline: sumRungs(r => checked(attribution.opening_baseline_stock[r]?.[i], `opening_baseline_stock.${r}`)),
+    __bau: sumRungs(r => checked(attribution.pure_bau_stock[r]?.[i], `pure_bau_stock.${r}`)),
+    __scenario: sumRungs(r => checked(attribution.combined_stock[r]?.[i], `combined_stock.${r}`)),
+    ...Object.fromEntries(attribution.source_keys.filter(key => key !== 'baseline').map(key => [key, stocksFor(key, i)])),
   }));
   const bands = attribution.source_keys.filter(key => key !== 'baseline' && rows.some(row => Math.abs(Number((row as any)[key])) > 1e-12))
     .map(key => sourceDefinition(key, sector));

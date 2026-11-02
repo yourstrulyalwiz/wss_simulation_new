@@ -49,26 +49,39 @@ const comparisonSector = {
   new_capex_by_service: [[0, 7], [0, 3]], replacement_by_service: [[0, 6], [0, 4]],
   funded_by_service: [[0, 2], [0, 1]], replacement_backlog_closing_by_service: [[0, 8], [0, 2]],
   financing_gap_by_service: [[0, 12], [0, 5]],
+  scenario_new_capex_by_service: [[0, 17], [0, 13]], scenario_replacement_by_service: [[0, 16], [0, 14]],
+  scenario_funded_by_service: [[0, 12], [0, 11]], scenario_replacement_backlog_closing_by_service: [[0, 18], [0, 12]],
+  scenario_financing_gap_by_service: [[0, 32], [0, 25]], scenario_financing_gap: [0, 57],
+  scenario_adjusted_basic_only_gap: [0, 8],
 };
 const comparisonResult = { ...result, water_supply: comparisonSector };
 assert.deepEqual(interventionComparisonRows(comparisonResult, 'water_supply', 2025, 'at_least_basic'), [
-  [2026, 100, 54, 2, 19, 10, 10, 3, 10, 17, 77, 14, 75, 94],
-], 'BAU statistics stay unchanged; only the final two columns use the scenario');
-for (const [level, rung, gap] of [['safely_managed', 0, 9], ['basic', 1, 10]]) {
+  [2026, 100, 54, 90, 15, 30, 30, 23, 30, 57, 57, 94, 75],
+], 'only BAU households remains BAU-derived; targets and finances come from the scenario');
+for (const [level, rung, gap] of [['safely_managed', 0, 7], ['basic', 1, 8]]) {
   const row = interventionComparisonRows(comparisonResult, 'water_supply', 2025, level)[0];
   assert.equal(row[4], gap, 'access gap is the engine-assessed gap, not target minus coverage');
-  assert.equal(row[5], comparisonSector.new_capex_by_service[rung][1]);
-  assert.equal(row[8], comparisonSector.replacement_backlog_closing_by_service[rung][1]);
+  assert.equal(row[5], comparisonSector.scenario_new_capex_by_service[rung][1]);
+  assert.equal(row[8], comparisonSector.scenario_replacement_backlog_closing_by_service[rung][1]);
   assert.equal(row[12], comparisonSector.scenario_hh[rung][1]);
-  assert.equal(row[11], 14, 'sector available funding is not split by service level');
-  assert.equal(row[13], 94);
+  assert.equal(row[11], 94, 'scenario sector funding is not split by service level');
   assert.equal(forecastTableHeaders(level, 'USD').length, 12);
 }
 const missingComparison = interventionComparisonRows({ ...result, water_supply: {
-  ...comparisonSector, scenario_available_total: [0, null], funded_by_service: [[0, 0], [0, null]],
+  ...comparisonSector, scenario_available_total: [0, null], scenario_funded_by_service: [[0, 0], [0, null]],
 } }, 'water_supply', 2025, 'at_least_basic')[0];
 assert.equal(missingComparison[7], null, 'incomplete service metrics remain unavailable');
-assert.equal(missingComparison[13], null, 'missing intervention funding does not fall back to BAU');
+assert.equal(missingComparison[11], null, 'missing intervention funding does not fall back to BAU');
+for (const targets of [[[0, 70], [0, 30]], [[0, 60], [0, 25]]]) {
+  const met = { ...comparisonSector, scenario_hh: [[0, 80], [0, 20]], scenario_target_hh: targets,
+    scenario_adjusted_basic_only_gap: [0, 0], scenario_new_capex_by_service: [[0, 0], [0, 0]] };
+  for (const level of ['safely_managed', 'basic', 'at_least_basic']) {
+    const row = interventionComparisonRows({ ...result, water_supply: met }, 'water_supply', 2025, level)[0];
+    assert.equal(row[4], 0, 'met/surplus coverage has no gap, including basic after SM credit');
+    assert.equal(row[5], 0, 'no outstanding new-service cost when covered');
+    assert.ok(row[6] > 0 && row[8] > 0, 'replacement obligations survive coverage surplus');
+  }
+}
 assert.deepEqual(interventionComparisonRows({ ...comparisonResult, sanitation: comparisonSector }, 'sanitation', 2025, 'at_least_basic'),
   interventionComparisonRows(comparisonResult, 'water_supply', 2025, 'at_least_basic'), 'both sectors use identical reporting semantics');
 

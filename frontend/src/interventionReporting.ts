@@ -64,7 +64,7 @@ export function interventionTableRows(result: any, sectorKey: string, baselineYe
   });
 }
 
-/** The twelve BAU statistics, unchanged, followed by intervention coverage and annual funding. */
+/** Scenario ledger statistics with pure BAU households retained only as a comparison. */
 export function interventionComparisonRows(result: any, sectorKey: string, baselineYear: number,
   level: InterventionServiceLevel): (number | null)[][] {
   if (!Array.isArray(result?.years)) throw new Error('Intervention table is unavailable: engine years are missing.');
@@ -78,13 +78,17 @@ export function interventionComparisonRows(result: any, sectorKey: string, basel
       const value = summedCoverage(sector, field, index, level);
       return total === null || value === null ? null : Math.min(total, value);
     };
-    const service = (field: string) => summedCoverage(sector, field, index, level);
-    return [[year, total, coverage('bau_hh'), coverage('target_hh'),
-      seriesValue(sector, accessKey, index),
+    const service = (field: string) => summedCoverage(sector, `scenario_${field}`, index, level);
+    const scenario = coverage('scenario_hh');
+    const target = coverage('scenario_target_hh');
+    // Basic-only is a diagnostic after SM credit, not an independent access minimum.
+    const gap = level === 'basic' ? seriesValue(sector, `scenario_${accessKey}`, index)
+      : scenario === null || target === null ? null : Math.max(0, target - scenario);
+    return [[year, total, coverage('bau_hh'), target, gap,
       service('new_capex_by_service'), service('replacement_by_service'), service('funded_by_service'),
       service('replacement_backlog_closing_by_service'), service('financing_gap_by_service'),
-      seriesValue(sector, 'financing_gap', index), seriesValue(sector, 'available_total', index),
-      coverage('scenario_hh'), seriesValue(sector, 'scenario_available_total', index)]];
+      seriesValue(sector, 'scenario_financing_gap', index), seriesValue(sector, 'scenario_available_total', index),
+      scenario]];
   });
 }
 

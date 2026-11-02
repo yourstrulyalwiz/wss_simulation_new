@@ -3,6 +3,7 @@ import { openChromium } from './chromium-client.mjs';
 
 const base = process.env.WSS_TEST_URL || `https://${process.env.REPLIT_DEV_DOMAIN}`;
 const route = process.env.WSS_TEST_PATH || '/simulations/2ecaa81d-b43e-55cc-9c33-e801444eb13f';
+const saved = await (await fetch(`${base}${route.replace('/simulations/', '/api/simulations/')}`)).json();
 const browser = await openChromium(`${base}${route}`);
 const evaluate = expression => browser.evaluate(expression);
 const navigate = index => evaluate(`document.querySelectorAll('.intervention-section-nav button')[${index}].click()`);
@@ -26,16 +27,50 @@ try {
     }
     return 'transparent';
   }; window.__bauBackground = window.__workspaceBackground(document.querySelector('.modern-section-workspace .modern-inputs-content')); true`);
+  await evaluate(`window.__savedCurrency = ${JSON.stringify(saved.bundle.presentation.currencyDisplay)};
+    window.__originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await window.__originalFetch(...args);
+      if (String(args[0]).includes('/calculate') && response.ok) {
+        const result = await response.clone().json();
+        if (result.water_supply) {
+          window.__scenarioResult = result;
+          window.__scenarioInputs = JSON.parse(args[1].body);
+        }
+      }
+      return response;
+    }; true`);
   await evaluate(`Array.from(document.querySelectorAll('.wb-tab')).find(node => /intervention/i.test(node.textContent)).click()`);
   await browser.waitFor('!!document.querySelector(".intervention-section-nav")', 'Numbered navigation is missing');
   assert.equal(await evaluate(`window.__workspaceBackground(document.querySelector('.intervention-reading-content')) === window.__bauBackground`), true, 'Intervention background must match BAU');
   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Intervention table geography"], [aria-label="Intervention table sector"]').length`), 0, 'Table must use the top geography and sector selectors');
   await browser.waitFor('!!document.querySelector(".modern-intv-table tbody tr")', 'Live scenario table did not load');
-  assert.equal(await evaluate(`JSON.stringify([...document.querySelectorAll('.modern-intv-table thead th')].filter((_,index)=>index!==4 && index!==13).map(node=>node.textContent)) === JSON.stringify(window.__bauForecast.headers)`), true, 'Intervention table must retain all BAU column headings');
-  assert.equal(await evaluate(`JSON.stringify([...document.querySelectorAll('.modern-intv-table tbody tr')].map(row=>[...row.children].filter((_,index)=>index!==4 && index!==13).map(node=>node.textContent))) === JSON.stringify(window.__bauForecast.rows)`), true, 'Every BAU statistic must agree with BAU Table');
-  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.modern-intv-table thead th')].slice(3,5).map(node=>node.textContent)`),
-    ['Target households (M)', 'Intervention coverage (M)'], 'Intervention households must immediately follow target households');
-  assert.equal(await evaluate(`document.querySelectorAll('.modern-intv-table thead th').length`), 14, 'Add intervention coverage and funding columns');
+  assert.equal(await evaluate(`JSON.stringify([...document.querySelectorAll('.modern-intv-table thead th')].filter((_,index)=>index!==3).map(node=>node.textContent)) === JSON.stringify(window.__bauForecast.headers)`), true, 'Keep BAU-style headings');
+  assert.equal(await evaluate(`JSON.stringify([...document.querySelectorAll('.modern-intv-table tbody tr')].map(row=>row.children[2].textContent)) === JSON.stringify(window.__bauForecast.rows.map(row=>row[2]))`), true, 'BAU households remains unchanged');
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.modern-intv-table thead th')].slice(2,5).map(node=>node.textContent)`),
+    ['BAU households (M)', 'Intervention households (M)', 'Target households (M)']);
+  assert.equal(await evaluate(`document.querySelectorAll('.modern-intv-table thead th').length`), 13, 'Do not duplicate scenario funding');
+  await browser.waitFor('!!window.__scenarioResult', 'Scenario response missing');
+  const expectedRows = await evaluate(`(()=>{
+    const r = window.__scenarioResult, s = r.water_supply, settings = window.__savedCurrency;
+    const usd = document.querySelector('.modern-intv-table thead').textContent.includes('(B USD');
+    const factor = usd && settings.sourceCurrency !== 'USD' ? 1/settings.localPerUsd : 1;
+    const fmt = value => Number(value.toPrecision(3)).toLocaleString('en-US', {maximumFractionDigits:2});
+    return r.years.flatMap((year,i)=>{
+      if(year <= window.__scenarioInputs.period.baseline_year) return [];
+      const sum = key => s[key][0][i] + s[key][1][i];
+      const bau = Math.min(r.total_hh[i],sum('bau_hh'));
+      const scenario = Math.min(r.total_hh[i],sum('scenario_hh'));
+      const target = Math.min(r.total_hh[i],sum('scenario_target_hh'));
+      const money = ['new_capex_by_service','replacement_by_service','funded_by_service',
+        'replacement_backlog_closing_by_service','financing_gap_by_service'].map(key=>sum('scenario_'+key));
+      money.push(s.scenario_financing_gap[i], s.scenario_available_total[i]);
+      return [[String(year), ...[r.total_hh[i],bau,scenario,target,Math.max(0,target-scenario)].map(fmt),
+        ...money.map(value=>fmt(value*factor/1000))]];
+    });
+  })()`);
+  assert.deepEqual(await evaluate(`[...document.querySelectorAll('.modern-intv-table tbody tr')].map(row=>[...row.children].map(node=>node.textContent))`),
+    expectedRows, 'Displayed financial values and gaps must match the intervention engine, not BAU');
   await browser.waitFor('document.querySelectorAll(\'[data-section-key="graph"] .modern-intv-kpi\').length === 3', 'Coverage KPI cards must stay above the graphs');
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('.intervention-section-nav button')].map(node => node.textContent.replace(/^\\d+/, '').trim())`),
     ['Intervention Design', 'Intervention Graph', 'Intervention Table']);

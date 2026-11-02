@@ -43,8 +43,8 @@ export default function InterventionScenarioTable({ inputs, sector, level, showT
   const reportingRows = interventionComparisonRows(result, key, baseline, level);
   const kpiValues = interventionCoverageKpis(result, key, baseline, level);
   const shownCurrency = displayCurrency(currencyDisplay, currency);
-  const moneyColumns = new Set([5, 6, 7, 8, 9, 10, 11, 13]);
-  const columnOrder = [0, 1, 2, 3, 12, 4, 5, 6, 7, 8, 9, 10, 11, 13];
+  const moneyColumns = new Set([5, 6, 7, 8, 9, 10, 11]);
+  const columnOrder = [0, 1, 2, 12, 3, 4, 5, 6, 7, 8, 9, 10, 11];
   const rows = reportingRows.map(row => row.map((value, index) => {
     if (value == null || !moneyColumns.has(index)) return value;
     const converted = convertMoney(value, currencyDisplay, currency);
@@ -60,8 +60,8 @@ export default function InterventionScenarioTable({ inputs, sector, level, showT
   ];
   const hasUnavailableValues = kpis.some(kpi => kpi.value == null) ||
     rows.some(row => row.some(value => value == null));
-  const exportHeaders = [...forecastTableHeaders(level, shownCurrency), 'Intervention coverage (M)',
-    `Intervention available funding (B ${shownCurrency}/yr)`].map((_, index, headers) => headers[columnOrder[index]]);
+  const exportHeaders = [...forecastTableHeaders(level, shownCurrency), 'Intervention households (M)']
+    .map((_, index, headers) => headers[columnOrder[index]]);
   const exportRows = rows;
   return <div className="modern-intv-table-wrap">
     {showKpis && <div className="modern-intv-kpis" aria-label="Intervention scenario coverage indicators">
@@ -72,11 +72,11 @@ export default function InterventionScenarioTable({ inputs, sector, level, showT
     {hasUnavailableValues && <p className="modern-intv-data-note" role="status">One or more engine metrics are unavailable. Affected values are shown as — and are not treated as zero.</p>}
     {showTable && <><div className="modern-intv-table-caption">
       <div className="modern-intv-table-caption__title">
-        <span>BAU and intervention comparison · {scopeLabel} · {sector === 'water' ? 'Water supply' : 'Sanitation'} · {level.replace(/_/g, ' ')}</span>
+        <span>Intervention scenario · {scopeLabel} · {sector === 'water' ? 'Water supply' : 'Sanitation'} · {level.replace(/_/g, ' ')}</span>
         <TableExport filename={`${scopeLabel}_${sector}_${level}_intervention_design`} sheetName="Intervention design"
           headers={exportHeaders} rows={exportRows} compact currencyDisplay={currencyDisplay} />
       </div>
-      <small>The BAU columns retain the same statistics as BAU Table; the intervention columns show the combined intervention scenario. Households are in millions and money is in billions of {shownCurrency}. Service costs and balances follow the selected service level; sector gaps and available funding cover both service levels. Replacement need, credit and funding are annual flows. Residual replacement cost is the outstanding year-end balance already included in financing gaps; do not add it again or sum balances across years.</small>
+      <small>BAU households is the comparison; targets, remaining access gaps and all financial columns reflect the combined intervention scenario without loans. Households are in millions and money is in billions of {shownCurrency}. Access gaps cannot be negative; Basic-only shortfall accounts for safely managed coverage meeting the basic minimum. Service costs and balances follow the selected service level; sector gaps and available funding cover both service levels. Replacement obligations can remain even when coverage exceeds target. Replacement need, credit and funding are annual flows. Residual replacement cost is the outstanding year-end balance already included in financing gaps; do not add it again or sum balances across years.</small>
     </div>
     <div className="modern-intv-table-scroll"><table className="modern-intv-table">
       <thead><tr>{exportHeaders.map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>

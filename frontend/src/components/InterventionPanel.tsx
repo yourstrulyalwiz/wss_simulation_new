@@ -969,7 +969,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
                 <span className="modern-input-section-heading__index">1</span><span>Intervention Design ({headingContext})</span>
               </h2>
               {selectedIntervention && <>
-                <span>{interventionGroups(sectorTab).find(group => group.labels.includes(selectedIntervention))?.title}</span>
+                <span>{interventionGroups(sectorTab).find(group => group.labels.includes(selectedIntervention))?.title.replace(/^\d+\.\s*/, '')}</span>
                 <h3>{selectedIntervention}</h3>
               </>}
             </div>

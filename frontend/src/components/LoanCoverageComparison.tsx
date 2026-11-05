@@ -1,7 +1,8 @@
 import React from 'react';
 import type { BauServiceLevel } from '../bauServiceView';
 import { convertMoney, displayCurrency, type CurrencyDisplaySettings } from '../currencyDisplay';
-import { interventionCoverageKpis } from '../interventionReporting';
+import { coverageIndicators } from '../coverageIndicators';
+import CoverageKpis from './CoverageKpis';
 import { loanComparisonRows } from '../loanFundingReporting';
 import { forecastTableHeaders } from '../forecastTableColumns';
 import { forecastCell, forecastValueClass } from '../forecastTablePresentation';
@@ -12,14 +13,9 @@ export default function LoanCoverageComparison({ result, inputs, sector, level, 
   const key = sector === 'water' ? 'water_supply' : 'sanitation';
   const baseline = Number(inputs.period.baseline_year);
   const currency = inputs.country_config?.currency || 'LCU', shown = displayCurrency(currencyDisplay, currency);
-  const values = interventionCoverageKpis(result, key, baseline, level);
-  if (kpisOnly) return <div className="modern-intv-kpis" aria-label="Loan scenario coverage indicators">
-    {[{ label: `Baseline · ${baseline}`, value: values.baseline },
-      { label: `With loan · ${values.endYear ?? 'forecast end'}`, value: values.scenario },
-      { label: `Entered target · ${values.endYear ?? 'forecast end'}`, value: values.target }].map(card =>
-      <div key={card.label} className="modern-intv-kpi"><span>{card.label}</span>
-        <strong>{card.value === null ? '—' : `${forecastCell(card.value)}%`}</strong><small>household coverage · live engine</small></div>)}
-  </div>;
+  const values = coverageIndicators([result], key, baseline, inputs.period.forecast_end_year, level);
+  if (kpisOnly) return <CoverageKpis values={values} scenarioLabel="With loan"
+    contextLabel="Loan scenario coverage indicators" />;
   const standard = forecastTableHeaders(level, shown);
   const headers = ['Year', 'Total households (M)', 'BAU households (M)', 'Intervention without loan households (M)',
     'With loan households (M)', 'Target households (M)', 'Marginal loan effect (M HH)',

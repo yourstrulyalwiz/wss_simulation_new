@@ -4,6 +4,7 @@ import LiveBAUChart, { type BauCoverage } from './LiveBAUChart';
 import SectionWorkspace from './SectionWorkspace';
 import { BAU_SERVICE_LEVELS, type BauServiceLevel } from '../bauServiceView';
 import type { CurrencyDisplaySettings } from '../currencyDisplay';
+import CoverageKpis from './CoverageKpis';
 
 export default function BAUWorkspace({ inputsList, scopeLabel, sector,
   onSectorChange, scopeChoices, onScopeChange, currencyDisplay }: {
@@ -19,7 +20,6 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
   const [expandedChart, setExpandedChart] = useState(false);
   const serviceLabel = BAU_SERVICE_LEVELS.find(level => level.value === serviceLevel)!.label;
   const headingContext = `${scopeLabel} · ${sector === 'water' ? 'Water Supply' : 'Sanitation'} · ${serviceLabel}`;
-  const format = (value: number | null | undefined) => value == null ? '—' : `${value.toFixed(1)}%`;
   const serviceSelector = (location: string) => <div className="modern-bau-service-picker">
     <span>Service level</span>
     <div className="modern-bau-service-switch" role="group" aria-label={`BAU ${location} service level`}>
@@ -49,13 +49,9 @@ export default function BAUWorkspace({ inputsList, scopeLabel, sector,
       {serviceSelector('graph')}
       <p className="modern-bau-service-note">At least basic combines safely managed and basic-only households. Changing either selector updates both the graph and table.</p>
       <div aria-label="Baseline and forecast-end service coverage">
-        <p>{scopeLabel} · {sector === 'water' ? 'Water supply' : 'Sanitation'} · {serviceLabel} · share of households</p>
-        <div className="modern-bau-kpis" aria-live="polite">
-          {(['baseline', 'bau', 'target'] as const).map(key => <div key={key} className="modern-bau-kpi" data-bau-kpi={key}>
-            <span>{key === 'baseline' ? 'BASELINE · LAST HISTORICAL YEAR' : key === 'bau' ? 'BUSINESS-AS-USUAL · FORECAST END' : 'ENTERED SERVICE TARGET · FORECAST END'} {key === 'baseline' ? coverage?.baselineYear : coverage?.endYear}</span>
-            <strong>{format(coverage?.[key])}</strong><small>{serviceLabel}</small>
-          </div>)}
-        </div>
+        <p>{scopeLabel} · {sector === 'water' ? 'Water supply' : 'Sanitation'} · {serviceLabel}</p>
+        <CoverageKpis values={coverage?.indicators ?? null} scenarioLabel="Business-as-usual"
+          contextLabel="BAU service coverage indicators" variant="bau" />
         {!coverage && <p role="status">Coverage pending. Calculation errors, if any, appear below.</p>}
       </div>
       <div className="modern-bau-chart-card modern-bau-analysis-container">

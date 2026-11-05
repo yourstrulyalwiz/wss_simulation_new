@@ -1,0 +1,136 @@
+.coverage-kpis {
+  min-width: 0;
+  color: #29343b;
+}
+
+.coverage-kpis__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 12px;
+}
+
+.coverage-kpis__context {
+  flex: 1 1 240px;
+  margin: 0;
+  color: #596b73;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.coverage-kpis__units {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid #c7d8df;
+  border-radius: 7px;
+  background: #edf3f5;
+}
+
+.coverage-kpis .coverage-kpis__units button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #014972;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+
+.coverage-kpis .coverage-kpis__units button:hover {
+  background: #dcebed;
+}
+
+.coverage-kpis .coverage-kpis__units button[aria-pressed="true"] {
+  border-color: #014972;
+  background: #014972;
+  color: #f8fcfc;
+}
+
+.coverage-kpis .coverage-kpis__units button:focus-visible {
+  outline: 3px solid #009ca7;
+  outline-offset: 2px;
+}
+
+.coverage-kpis .coverage-kpis__units button:active {
+  transform: translateY(1px);
+}
+
+.coverage-kpis .coverage-kpis__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+  margin: 14px 0 20px;
+}
+
+.coverage-kpis .coverage-kpis__card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  max-width: none;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+.coverage-kpis .coverage-kpis__card > span {
+  line-height: 1.5;
+}
+
+.coverage-kpis .coverage-kpis__card > strong {
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.coverage-kpis .coverage-kpis__card > small {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.coverage-kpis .coverage-kpis__comparison {
+  margin: 6px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid #dbe5e8;
+  color: #315868;
+  font-size: 11px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.coverage-kpis__pending {
+  margin: -8px 0 16px;
+  color: #596b73;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 767px) {
+  .coverage-kpis .coverage-kpis__cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .coverage-kpis__toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .coverage-kpis__context {
+    flex: 0 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coverage-kpis .coverage-kpis__units button {
+    transition: none;
+    transform: none;
+  }
+}

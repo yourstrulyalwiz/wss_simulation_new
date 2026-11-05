@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useProjectScope } from '../projectScope';
+import CoverageKpis from './CoverageKpis';
+import { coverageIndicators } from '../coverageIndicators';
 import { simulationHeaders } from '../simulationTransport';
 import { comparisonAreas, liveAreas } from '../areaBundle';
 import {
@@ -992,13 +994,25 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
         </div>
         <div className="modern-results-chart-group">
           <div className="modern-results-chart-grid modern-results-chart-grid--coverage">
+          <div style={{ minWidth: 0 }}>
+          <CoverageKpis values={coverageIndicators(s.nrwResults, secKey === 'water' ? 'water_supply' : 'sanitation',
+            datasets[0].period.baseline_year, datasets[0].period.forecast_end_year, 'safely_managed',
+            'scenario_hh', 'target_hh')} scenarioLabel="Final scenario"
+            contextLabel={`${label} safely managed coverage indicators`} />
           <StackChart title={`${label} — safely-managed coverage`} subtitle={contributionView === 'category' ? 'Categories sum actual source-funded and physical coverage; pure BAU is a separate line.' : 'Opening/baseline-funded stock + actual source-funded and physical coverage'}
             data={covData} yLabel={isShare ? '% of population' : '# households (millions)'}
             base={covBase} bands={csBands} lines={covLines} fmt={covFmt} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_coverage_${contributionView === 'category' ? 'categories' : 'individual'}`} captureKey={`${secKey === 'water' ? 'water' : 'san'}_coverage`} currencyDisplay={detailExportCurrency} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+          <CoverageKpis values={coverageIndicators(s.nrwResults, secKey === 'water' ? 'water_supply' : 'sanitation',
+            datasets[0].period.baseline_year, datasets[0].period.forecast_end_year, 'basic',
+            'scenario_hh', 'target_hh')} scenarioLabel="Final scenario"
+            contextLabel={`${label} basic-only coverage indicators`} />
           <BasicCoverageChart title={`${label} — basic coverage`} rows={basicData} isShare={isShare} domain={coverageDomain}
             filename={`${scopeName}_${secKey}_basic_coverage`}
             captureKey={`${secKey === 'water' ? 'water' : 'san'}_basic_coverage`} />
+          </div>
           </div>
         </div>
         </section>

@@ -24,3 +24,4 @@
 - [Intervention validation](intervention-validation-policy.md) — active blanks block dependent calculations; explicit zeros persist; messages stay inside the consuming box.
 - [Intervention workspace](intervention-workspace-policy.md) — BAU-aligned graph/table, push-out input drawer, shared selectors and scenario-only funding reports.
 - [Slide deck preview](slide-deck-preview-policy.md) — render the existing deck locally; download exact preview bytes, invalidate together and never silently omit invalid areas.
+- [Coverage KPI reporting](coverage-kpi-policy.md) — preserve existing coverage percentages; convert people within each area before aggregation, with explicit-unit target differences.

@@ -19,6 +19,7 @@ import TableExport from './TableExport';
 import { convertMoney, currencyRateNote, type CurrencyDisplaySettings, validRate } from '../currencyDisplay';
 import { runCalculation } from '../api';
 import { connectionRevenueAreaModes, connectionRevenueModeText } from '../connectionRevenueMode';
+import { coverageIndicators, type CoverageIndicators } from '../coverageIndicators';
 
 /**
  * BAU vs Target chart driven by the LIVE calculation engine (validated cell-by-cell against the
@@ -49,7 +50,7 @@ function sigB(vMillions: number): string {
   return sig3(vMillions / 1000);
 }
 
-export type BauCoverage = { baselineYear: number; endYear: number; baseline: number | null; bau: number | null; target: number | null };
+export type BauCoverage = { baselineYear: number; endYear: number; baseline: number | null; bau: number | null; target: number | null; indicators: CoverageIndicators };
 function TableLocation({ target, children }: { target?: HTMLElement | null; children: React.ReactNode }) {
   return target ? createPortal(children, target) : target === undefined ? <>{children}</> : null;
 }
@@ -251,7 +252,9 @@ export default function LiveBAUChart({ inputs, inputsList, sector, scopeLabel, r
         const share = (series: number[], index: number) => index >= 0 && total[index] > 0 && Number.isFinite(series[index])
           ? Math.min(total[index], series[index]) / total[index] * 100 : null;
         onCoverage?.({ baselineYear: baseYr, endYear: per.forecast_end_year,
-          baseline: share(bau, baseIndex), bau: share(bau, endIndex), target: share(tgt, endIndex) });
+          baseline: share(bau, baseIndex), bau: share(bau, endIndex), target: share(tgt, endIndex),
+          indicators: coverageIndicators(resList, sector === 'water' ? 'water_supply' : 'sanitation',
+            baseYr, per.forecast_end_year, serviceLevel, 'bau_hh', 'target_hh') });
         setAccessRows(serviceAccessRows(resList, sector === 'water' ? 'water_supply' : 'sanitation', baseYr, ['BAU']));
         const rows = years.map((y: number, i: number) => {
           const tot = +total[i].toFixed(4);

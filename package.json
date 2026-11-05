@@ -37,7 +37,7 @@
     "express-session": "^1.19.0",
     "fdir": "^6.5.0",
     "html-to-image": "^1.11.13",
-    "http-proxy-middleware": "^3.0.7",
+    "http-proxy-middleware": "^3.0.10",
     "immer": "^10.2.0",
     "internmap": "^2.0.3",
     "lightningcss": "^1.33.0",

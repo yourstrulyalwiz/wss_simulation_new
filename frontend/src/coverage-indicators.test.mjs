@@ -23,41 +23,46 @@ const fixture = {
   },
 };
 for (const [level, baseline, forecast, target] of [
-  ['safely_managed', 6, 40, 30], ['basic', 9, 20, 40], ['at_least_basic', 15, 60, 70],
+  ['safely_managed', 2, 8, 6], ['basic', 3, 4, 8], ['at_least_basic', 5, 12, 14],
 ]) {
   const values = coverageIndicators([fixture], 'water_supply', 2025, 2035, level);
-  assert.equal(values.baseline.people, baseline);
-  assert.equal(values.forecast.people, forecast);
-  assert.equal(values.target.people, target);
-  assert.equal(values.forecast.percent, forecast);
+  assert.equal(values.baseline.households, baseline);
+  assert.equal(values.forecast.households, forecast);
+  assert.equal(values.target.households, target);
+  assert.equal(values.forecast.percent, forecast / 20 * 100);
 }
 const bau = coverageIndicators([fixture], 'water_supply', 2025, 2035, 'at_least_basic', 'bau_hh', 'target_hh');
-assert.equal(bau.forecast.people, 50);
-assert.equal(bau.target.people, 80);
-const sanitation = { ...fixture, sanitation: fixture.water_supply };
-assert.equal(coverageIndicators([sanitation], 'sanitation', 2025, 2035, 'basic').forecast.people, 20);
-// Area-specific conversion, not an assumed household size or aggregate household ratio.
+assert.equal(bau.forecast.households, 10);
+assert.equal(bau.target.households, 16);
+const sanitation = { ...fixture, sanitation: { ...fixture.water_supply, scenario_hh: [[2, 4, 1], [3, 4, 2]] } };
+assert.equal(coverageIndicators([sanitation], 'sanitation', 2025, 2035, 'basic').forecast.households, 2);
+assert.equal(coverageIndicators([sanitation], 'water_supply', 2025, 2035, 'basic').forecast.households, 4);
+// Sum actual service households, regardless of differing area populations/household sizes.
 const rural = { ...fixture, total_hh: [20, 24, 40], population: [40, 60, 120] };
 const aggregate = coverageIndicators([fixture, rural], 'water_supply', 2025, 2035, 'at_least_basic');
-assert.equal(aggregate.forecast.people, 96);
+assert.equal(aggregate.forecast.households, 24);
 assert.equal(aggregate.forecast.percent, 40);
 assert.equal(coverageIndicators([fixture], 'water_supply', 2025, 2030, 'basic').endYear, 2030);
-assert.equal(coverageIndicators([fixture], 'water_supply', 2025, 2040, 'basic').forecast.people, null);
+assert.equal(coverageIndicators([fixture], 'water_supply', 2025, 2040, 'basic').forecast.households, null);
 assert.equal(coverageIndicators([], 'water_supply', 2025, 2035, 'basic').baseline.percent, null);
 const noPopulation = { ...fixture, population: undefined };
 assert.equal(coverageIndicators([noPopulation], 'water_supply', 2025, 2035, 'basic').forecast.percent, 20);
-assert.equal(coverageIndicators([fixture, noPopulation], 'water_supply', 2025, 2035, 'basic').forecast.people, null);
+assert.equal(coverageIndicators([fixture, noPopulation], 'water_supply', 2025, 2035, 'basic').forecast.households, 8);
 const noSector = { ...fixture, water_supply: undefined };
 assert.equal(coverageIndicators([fixture, noSector], 'water_supply', 2025, 2035, 'basic').forecast.percent, null);
 const excessive = { ...fixture, water_supply: { ...fixture.water_supply, scenario_hh: [[30, 30, 30], [30, 30, 30]] } };
-assert.equal(coverageIndicators([excessive], 'water_supply', 2025, 2035, 'at_least_basic').forecast.people, 100);
-for (const [forecast, target, difference] of [[70, 60, 10], [60, 70, -10], [70, 70, 0], [null, 70, null], [70, null, null]]) {
+assert.equal(coverageIndicators([excessive], 'water_supply', 2025, 2035, 'at_least_basic').forecast.households, 20);
+for (const [forecast, target, difference] of [[70, 60, -10], [60, 70, 10], [70, 70, 0], [null, 70, null], [70, null, null]]) {
   assert.equal(coverageTargetDifference(forecast, target), difference);
 }
-assert.equal(coverageNumber(null, 'people'), '—');
-assert.equal(coverageNumber(0, 'people'), '0 M');
-assert.equal(coverageNumber(12.3456, 'people'), '12.346 M');
-assert.equal(coverageNumber(.00001, 'people'), '0.00001 M');
+const shortfall = coverageIndicators([{ ...fixture, water_supply: { ...fixture.water_supply,
+  scenario_hh: [[2, 4, 5], [3, 4, 4]], scenario_target_hh: [[2, 3, 7.5], [3, 4, 8]] } }],
+  'water_supply', 2025, 2035, 'safely_managed');
+assert.equal(coverageTargetDifference(shortfall.forecast.households, shortfall.target.households), 2.5);
+assert.equal(coverageNumber(null, 'households'), '—');
+assert.equal(coverageNumber(0, 'households'), '0 M');
+assert.equal(coverageNumber(12.3456, 'households'), '12.346 M');
+assert.equal(coverageNumber(.00001, 'households'), '0.00001 M');
 assert.equal(coverageNumber(70.12, 'percent'), '70.1%');
 for (const [forecast, target, expected] of [[80, 70, 'Above target'], [60, 70, 'Below target'],
   [70, 70, 'On target'], [null, 70, 'Comparison unavailable'], [70, null, 'Comparison unavailable'],
@@ -70,5 +75,8 @@ for (const [forecast, target, expected] of [[80, 70, 'Above target'], [60, 70, '
   }));
   assert.ok(html.includes(expected), `${forecast} vs ${target} must show ${expected}`);
   assert.ok(html.includes('data-bau-kpi="bau"'));
+  assert.ok(html.includes('Households (millions)'));
+  assert.ok(!html.includes('million people'));
+  if (forecast !== null && target !== null) assert.ok(html.includes('Target − achieved:'));
 }
-console.log('Coverage indicators: sectors, service levels, years, people, aggregation, missing data and targets passed.');
+console.log('Coverage indicators: selected sectors/services/years, household counts, aggregation, missing data and target-minus-achieved differences passed.');

@@ -46,10 +46,10 @@ function comparisonText(
   const visibleMagnitude = magnitude !== 0 && Number(formatted.replace(/,/g, '')) === 0
     ? magnitude.toExponential(2)
     : formatted;
-  const status = onTarget ? 'On target' : difference > 0 ? 'Above target' : 'Below target';
+  const status = onTarget ? 'On target' : difference > 0 ? 'Below target' : 'Above target';
   const sign = onTarget ? '' : difference > 0 ? '+' : '−';
-  const units = unit === 'percent' ? 'percentage points' : 'million people';
-  return `${status} · ${sign}${visibleMagnitude} ${units}`;
+  const units = unit === 'percent' ? 'percentage points' : 'million households';
+  return `${status} · Target − achieved: ${sign}${visibleMagnitude} ${units}`;
 }
 
 export default function CoverageKpis({
@@ -64,7 +64,7 @@ export default function CoverageKpis({
   const { unit, setUnit } = sharedUnits ?? { unit: localUnit, setUnit: setLocalUnit };
   const isBau = variant === 'bau';
   const prefix = isBau ? 'modern-bau' : 'modern-intv';
-  const subtitle = unit === 'percent' ? '% coverage · share of households' : 'People served · millions';
+  const subtitle = unit === 'percent' ? '% coverage · share of households' : 'Households served · millions';
   const comparison = comparisonText(
     values?.forecast[unit] ?? null,
     values?.target[unit] ?? null,
@@ -102,8 +102,8 @@ export default function CoverageKpis({
           <button type="button" aria-pressed={unit === 'percent'} onClick={() => setUnit('percent')}>
             % coverage
           </button>
-          <button type="button" aria-pressed={unit === 'people'} onClick={() => setUnit('people')}>
-            People (millions)
+          <button type="button" aria-pressed={unit === 'households'} onClick={() => setUnit('households')}>
+            Households (millions)
           </button>
         </div>
       </div>

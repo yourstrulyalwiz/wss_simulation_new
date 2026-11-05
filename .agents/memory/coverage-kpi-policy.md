@@ -1,18 +1,18 @@
 ---
 name: Coverage KPI reporting
-description: Compatibility and population conversion decisions for graph coverage indicators.
+description: Household units and target-minus-achieved reporting for graph coverage indicators.
 ---
-Keep the existing household-share basis for percentage coverage when adding the
-millions-of-people view. Convert household coverage to people using each area's
-own population and household denominator before aggregating; do not assume one
-household size for Urban and Rural.
+Graph coverage KPIs toggle between the existing percentage coverage and
+millions of households, not people. Counts must follow the selected sector,
+service level and geography. At least basic combines safely managed and
+exclusive basic only once.
 
-**Why:** The user requested the percentage coverage "as it is now" alongside a
-people view. Changing percentage semantics incidentally would break comparison
-with existing graphs, while an assumed common household size would misstate
-people served across geographies.
+**Why:** The user corrected the earlier people view: "actually it should be
+number of households" and requested that it follow sector/service level, with
+the difference "between target and achieved."
 
 **How to apply:** Treat these as reporting choices only, not changes to delivery,
-targets, funding or saved inputs. Label target differences in percentage points
-or millions of people according to the selected view. Missing population makes
-people unavailable, not zero.
+targets, funding or saved inputs. Use target minus achieved: a shortfall is
+positive and above-target achievement is negative. Label the difference in
+percentage points or millions of households. Do not multiply by population or
+household size, or subtract baseline coverage from achieved endline coverage.

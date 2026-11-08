@@ -32,7 +32,7 @@ export function sourceDefinition(key: string, sector: 'water' | 'sanitation'): V
     connections: ['Revenue from new connections', P.connections, `${prefix}_connections_enabled`],
     collection: ['Collection efficiency', P.collection, `${prefix}_collection_efficiency_enabled`],
     tariff: ['Tariff reform', P.tariff, `${prefix}_tariff_enabled`],
-    nrw: ['NRW reduction', P.nrw, 'ws_nrw_enabled'],
+    nrw: ['NRW net cash benefit', P.nrw, 'ws_nrw_enabled'],
     nrw_link: ['NRW-linked sanitation revenue', P.nrw, 'san_nrw_link_enabled'],
     custom: ['Custom interventions', P.custom],
     loan: ['Indicative loan funding', P.utilityDebt, 'utility_debt_financing'],

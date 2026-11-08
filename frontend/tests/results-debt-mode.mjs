@@ -33,7 +33,7 @@ const dashboard = readFileSync(new URL('../src/components/ResultsDashboard.tsx',
 assert.match(dashboard, /const \[localDebt, setLocalDebt\] = useState\(true\)/);
 assert.match(dashboard, /const includeDebt = suppliedDebt \?\? localDebt/);
 const workspace = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
-assert.match(workspace, /const \[includeDebt, setIncludeDebt\] = useState\(true\)/);
-assert.equal((workspace.match(/includeDebt=\{includeDebt\} onIncludeDebtChange=\{setIncludeDebt\}/g) || []).length, 2,
-  'Results and Slide Deck share the same enabled-loan selection');
+assert.match(workspace, /const \[includeDebt, setIncludeDebt\] = useState\(initialBundle\.presentation\?\.includeDebt !== false\)/);
+assert.equal((workspace.match(/includeDebt=\{includeDebt\} onIncludeDebtChange=\{updateIncludeDebt\}/g) || []).length, 3,
+  'Results, Post-Intervention Options and Slide Deck share the same persisted enabled-loan selection');
 console.log('Results defaults to saved enabled loans; optional exclusion, disabled/absent settings, unchanged interventions and immutability passed.');

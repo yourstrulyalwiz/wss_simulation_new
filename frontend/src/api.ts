@@ -1,8 +1,11 @@
 import { withSpendingDrafts } from './publicSpendingSchedule';
 import { simulationHeaders, stripSimulationId } from './simulationTransport';
+import { nrwAllocationIssues } from './nrwAllocationValidation';
+import { hasCurrentNrwAllocation, migrateNrwRevenueInputs } from './nrwRevenue';
 const BASE_URL = '/api';
 
 export function calculationPayload(inputs: any) {
+  inputs = migrateNrwRevenueInputs(inputs);
   const sectors: string[] = Array.isArray(inputs?.calculation_scope) ? inputs.calculation_scope : ['water', 'sanitation'];
   return { ...stripSimulationId(inputs), calculation_scope: sectors,
     ...(!sectors.includes('water') ? { toggles: { ...inputs?.toggles, san_nrw_link_enabled: false } } : {}) };
@@ -27,6 +30,10 @@ export async function fetchCostMixTemplates() {
 }
 
 export async function runCalculation(inputs: any, required: 'water' | 'sanitation' | 'partial' | 'both' = 'both') {
+  const localErrors = nrwAllocationIssues(inputs).filter(issue => issue.severity === 'error');
+  if (localErrors.length) {
+    throw Object.assign(new Error(''), { intervention_issues: localErrors });
+  }
   // A recalculation must never reuse cached pre-v4/v3 attribution. Migrated configurations
   // also change every input-keyed chart/result request; saved legacy results retain their metadata.
   const res = await fetch(`${BASE_URL}/calculate`, {
@@ -55,6 +62,15 @@ export async function runCalculation(inputs: any, required: 'water' | 'sanitatio
     required === 'sanitation' ? ['sanitation'] : ['water_supply', 'sanitation']).filter(key => allowed.includes(key));
   const missing = keys.filter(key => errors[key] || !result[key]);
   if (missing.length) throw new Error(missing.map(key => errors[key] || `${key}: results unavailable`).join(' '));
+  // Keep intervention-level errors above; only complete returned sectors enter comparisons.
+  if (result.water_supply && allowed.includes('water_supply') && inputs?.toggles?.ws_nrw_enabled &&
+      (!hasCurrentNrwAllocation(result) ||
+       !hasCurrentNrwAllocation(result, '') ||
+       !hasCurrentNrwAllocation(result, 'scenario_without_utility_debt_') ||
+       (result.sanitation && allowed.includes('sanitation') && inputs?.toggles?.san_nrw_link_enabled &&
+         ['', 'scenario_', 'scenario_without_utility_debt_'].some(prefix => !hasCurrentNrwAllocation(result, prefix, 'sanitation'))))) {
+    throw new Error('Previous NRW method or incomplete allocation results. Recalculate with NRW allocation version 1 before comparison or export.');
+  }
   return result;
 }
 

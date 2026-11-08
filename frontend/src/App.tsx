@@ -16,6 +16,9 @@ import type { Draft } from './projectApi';
 import { migrateNrwRevenueInputs } from './nrwRevenue';
 import { migrateConnectionRevenueInputs } from './connectionRevenueConfig';
 import { simulationHeaders, stripSimulationId, withSimulationId } from './simulationTransport';
+import PostInterventionOptions from './components/PostInterventionOptions';
+import type { PostInterventionSettings } from './postIntervention';
+import { WORKSPACE_TABS, validWorkspaceTab } from './workspaceNavigation';
 
 // Older saved sessions/profiles kept injection as an option under the financial master switch.
 // Give each area an independent switch without altering settings that already use the new one.
@@ -38,8 +41,19 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
   const notify = useRef(onDraftChange); notify.current = onDraftChange;
   const [inputs, setInputs] = useState<any>(() => migrateInjectionToggle(withSimulationId(initialBundle.inputs, projectId)));
   // Keep existing saved tab IDs stable; Setup is -1 internally and step 0 visually.
-  const [activeTab, setActiveTab] = useState(Number.isInteger(initialLocation.activeTab) && initialLocation.activeTab >= -1 && initialLocation.activeTab <= 5 ? initialLocation.activeTab : 0);
-  const [includeDebt, setIncludeDebt] = useState(true);
+  const [activeTab, setActiveTab] = useState(validWorkspaceTab(initialLocation.activeTab) ? initialLocation.activeTab : 0);
+  const [includeDebt, setIncludeDebt] = useState(initialBundle.presentation?.includeDebt !== false);
+  const [postIntervention, setPostIntervention] = useState<PostInterventionSettings | undefined>(initialBundle.postIntervention);
+  const updateIncludeDebt = (value: boolean) => {
+    if (readOnly) return;
+    modified.current = true;
+    setIncludeDebt(value);
+  };
+  const updatePostIntervention = (value: PostInterventionSettings | undefined) => {
+    if (readOnly) return;
+    modified.current = true;
+    setPostIntervention(value);
+  };
   useEffect(() => {
     const openSetup = () => setActiveTab(-1);
     window.addEventListener('simulation-setup-navigation', openSetup);
@@ -106,8 +120,17 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
     inputs: stripSimulationId(inputs),
     altInputs: Object.fromEntries(Object.entries(altInputs).map(([key, area]) => [key, stripSimulationId(area)])),
     scope: { ...initialScope, scopeMode, areaUrban, areaRural },
-    presentation: { ...initialBundle.presentation, contributionView, currencyDisplay },
-  }), [inputs, altInputs, scopeMode, areaUrban, areaRural, contributionView, currencyDisplay, initialBundle]);
+    postIntervention,
+    presentation: { ...initialBundle.presentation, contributionView, currencyDisplay, includeDebt },
+  }), [inputs, altInputs, scopeMode, areaUrban, areaRural, contributionView, currencyDisplay, postIntervention, includeDebt, initialBundle]);
+
+  // Display-only selections never enter the solver payload or invalidate its results.
+  const postAnalysisBundle = React.useMemo(() => ({
+    [BUNDLE_KEY]: 1,
+    inputs: stripSimulationId(inputs),
+    altInputs: Object.fromEntries(Object.entries(altInputs).map(([key, area]) => [key, stripSimulationId(area)])),
+    scope: { ...initialScope, scopeMode, areaUrban, areaRural },
+  }), [inputs, altInputs, scopeMode, areaUrban, areaRural]);
 
   const sourceCurrency = inputs?.country_config?.currency || 'LCU';
   useEffect(() => {
@@ -156,6 +179,9 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
     const savedCurrency = obj.presentation?.currencyDisplay;
     setCurrencyDisplay(savedCurrency?.sourceCurrency === source ? savedCurrency : defaultCurrencyDisplay(source));
     if (obj.presentation?.contributionView) setContributionView(obj.presentation.contributionView);
+    // Legacy comparisons must not retain a previous scenario's analysis or loan choice.
+    setPostIntervention(obj.postIntervention);
+    setIncludeDebt(obj.presentation?.includeDebt !== false);
   }, [handleSetInputs, readOnly, scopeMode, areaUrban, areaRural, inputs]);
 
   // Resolve the scope into the concrete area being edited and what the graphs/outputs should show.
@@ -385,7 +411,7 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
     }
   }
 
-  const tabs = ['Setup', 'Data Inputs', 'BAU Scenario', 'Intervention Design', 'Loan funding', 'Results Dashboard', 'Slide Deck'];
+  const tabs = WORKSPACE_TABS;
 
   return (
     <ProjectScopeContext.Provider value={{ sectors: initialScope.sectors, readOnly, projectMode: true, projectId, countryCode, countryMetadata,
@@ -446,12 +472,11 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
 
       {/* Tab Navigation */}
       <nav className="wb-tab-nav" aria-label="Scenario workflow">
-        {tabs.map((tab, index) => {
-          const i = index - 1;
+        {tabs.map(({ label: tab, id: i, step }) => {
           return (
-          <button key={tab} onClick={() => { if (!readOnly) modified.current = true; if (i === -1) onSetup(); setActiveTab(i); if ((i === 1 || i === 2) && both) setBauChartScope(subArea); }}
+          <button key={tab} onClick={() => { if (!readOnly && i !== 6) modified.current = true; if (i === -1) onSetup(); setActiveTab(i); if ((i === 1 || i === 2) && both) setBauChartScope(subArea); }}
             className={`wb-tab${activeTab === i ? ' wb-tab-active' : ''}`}>
-            <span className="wb-tab-step">{i + 1}</span>
+            <span className="wb-tab-step">{step}</span>
             <span className="wb-tab-label">
               <span className="wb-tab-first">{tab.split(' ')[0]}</span>
               <span className="wb-tab-rest">{tab.includes(' ') ? tab.slice(tab.indexOf(' ') + 1) : ''}</span>
@@ -548,13 +573,19 @@ function App({ initialBundle, initialScenarios = [], initialLocation = {}, readO
           <ResultsDashboard geoScope={chartScope} scenarios={scenarios} inputs={inputs} altInputs={altInputs} contributionView={contributionView} onContributionViewChange={setContributionView}
             sectorTab={sectorTab} onSectorChange={setSectorTab}
             initialViewScope={inputScope}
-            includeDebt={includeDebt} onIncludeDebtChange={setIncludeDebt}
+            includeDebt={includeDebt} onIncludeDebtChange={updateIncludeDebt}
+            currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
+        )}
+        {activeTab === 6 && (
+          <PostInterventionOptions bundle={postAnalysisBundle} settings={postIntervention} onSettingsChange={updatePostIntervention}
+            includeDebt={includeDebt} onIncludeDebtChange={updateIncludeDebt}
+            sector={sectorTab} onSectorChange={setSectorTab} initialArea={inputScope}
             currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
         )}
         {/* Keep only this in-memory viewer mounted so navigation survives tab changes.
             Input changes invalidate its artifacts even while the tab is hidden. */}
         <SlideDeckWorkspace active={activeTab === 5} geoScope={chartScope} inputs={inputs} altInputs={altInputs}
-          includeDebt={includeDebt} onIncludeDebtChange={setIncludeDebt}
+          includeDebt={includeDebt} onIncludeDebtChange={updateIncludeDebt}
           contributionView={contributionView} onContributionViewChange={setContributionView}
           currencyDisplay={currencyDisplay} onCurrencyDisplayChange={updateCurrencyDisplay} onEditCurrencyRate={editCurrencyRate} />
 
@@ -965,7 +996,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
   },
   ws_nrw: {
     title: 'Water · NRW reduction',
-    content: "Cuts non-revenue water from its current level toward a target. Set the target at the economically optimal level of NRW — the point where the cost of further reduction outweighs the benefit; ~20% is a typical benchmark (chasing very low NRW rarely pays off). Allow a few years' lag before benefits appear. Only the physical (leak) share of NRW frees up deliverable water, which upgrades basic households to safely-managed service; the commercial share counts toward revenue only. Split NRW into commercial vs physical losses (they must total 100%). Value the recovered water either as tariff revenue from sales or as avoided production cost; the value net of the fixing capex flows into the budget.",
+    content: "The programme recovery-sizing target determines recovery potential, not an automatically achieved observed NRW ratio. Physical and commercial shares must total 100%; both follow the same reduction schedule and benefit lag. Commercial recovery adds billed volume. Annual physical capacity is allocated first to explicit additional billable demand through existing connections (constant MLD), then operational funded-connection demand, then the selected share of remaining capacity to production reduction. Unused capacity has no immediate monetary value. Connection receipts remain in the connection source. Shared tariff and collection rates value direct NRW sales; avoidable variable production costs value savings. NRW net cash benefit deducts fixing costs once and enters existing source funding. Recovery never directly upgrades households.",
   },
   ws_budget_exec: {
     title: 'Water · Budget execution improvement',
@@ -1025,7 +1056,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
   },
   san_nrw_link: {
     title: 'Sanitation · NRW-linked revenue',
-    content: 'Links sanitation revenue to physical water-loss recovery. Eligible linked volume = physical recovery × wastewater return ratio × explicit sewer-billable share. Enter overlap by year only when it is identified in raw sanitation connection billing; blank years remain unassigned—never infer overlap from all new connections. V2 uses the shared sanitation tariff and collection scenario rates. Legacy sewer charge/collection inputs remain saved for review, but do not replace those shared rates. Linked sanitation cash is signed and separate from water NRW net.',
+    content: 'Links sanitation revenue only to delivered physical water (existing-customer sales E + funded-connection supply N), multiplied by wastewater return ratio and explicit sewer-billable share. Commercial recovery, production avoided and unused capacity create no automatic wastewater. Missing delivered-water arrays remain incomplete; total physical recovery is never a fallback. Review migrated scenarios because the candidate basis has changed. Retain explicit annual overlap, subtracting identified overlap once; a saved zero remains an assumption. Shared sanitation rates remain authoritative. Linked sanitation cash is signed and separate from water NRW net cash benefit.',
   },
   san_tariff: {
     title: 'Sanitation · Tariff reform',

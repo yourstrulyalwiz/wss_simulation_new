@@ -2,7 +2,7 @@ import { INTV_PALETTE as P } from './chartColors';
 
 export const REVENUE_SOURCES = [
   { key: 'connections', label: 'Revenue from new connections', color: P.connections, fields: ['connection_revenue_cash', 'connection_net_cash', 'connections_cash'] },
-  { key: 'nrw', label: 'NRW signed cash', color: P.nrw, fields: ['nrw_net', 'eligible_nrw_link_cash', 'nrw_link_cash'] },
+  { key: 'nrw', label: 'NRW net cash benefit', color: P.nrw, fields: ['nrw_net', 'eligible_nrw_link_cash', 'nrw_link_cash'] },
   { key: 'collection', label: 'Collection improvement', color: P.collection, fields: ['collection_cash'] },
   { key: 'tariff', label: 'Tariff reform', color: P.tariff, fields: ['tariff_cash'] },
 ] as const;
@@ -15,7 +15,7 @@ export function reconciliationVersion(result: any, sector: 'water_supply' | 'san
 export function revenueSourceRows(results: any[], sector: 'water_supply' | 'sanitation', prefix = 'scenario_') {
   const years: number[] = results[0]?.years || [];
   return years.map((year, index) => {
-    const row: { year: number } & Record<string, number | null> = { year };
+    const row: Record<string, number | null> = { year };
     for (const source of REVENUE_SOURCES) {
       const values = results.map(result => {
         const sec = result?.[sector] ?? result;

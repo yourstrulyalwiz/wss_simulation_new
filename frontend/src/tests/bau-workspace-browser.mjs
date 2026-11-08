@@ -59,7 +59,7 @@ const select = async (level, location = 'graph') => {
 try {
   await b.call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await b.call('Page.navigate', { url: `${url}/simulations/${example.id}` });
-  await w(`document.querySelectorAll('.wb-tab').length===6`, 'Public workspace did not load');
+  await w(`document.querySelectorAll('.wb-tab').length===8`, 'Public workspace did not load');
   await tab('Setup');
   await w(`!!document.querySelector('[data-section-key="simulation_name"]')`, 'Setup is missing');
   assert.deepEqual(await e(`[...document.querySelectorAll('[data-section-key]')].map(node=>node.dataset.sectionKey)`),
@@ -113,7 +113,7 @@ try {
     });
   ` });
   await b.call('Page.reload');
-  await w(`Array.isArray(window.__bauResponses) && document.querySelectorAll('.wb-tab').length===6`, 'Fixture workspace did not load');
+  await w(`Array.isArray(window.__bauResponses) && document.querySelectorAll('.wb-tab').length===8`, 'Fixture workspace did not load');
   await tab('Data Inputs');
   assert.equal(await e(`document.querySelectorAll('${nav} button').length`), 9);
   for (let index = 0; index < 9; index++) await navigate(index);
@@ -141,9 +141,9 @@ try {
         assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:nth-child(9)').textContent`),
           moneyText(rungs.reduce((sum, rung) => sum + result[sectorKey].replacement_backlog_closing_by_service[rung][endIndex], 0)));
         assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:nth-child(10)').textContent`),
-          moneyText(rungs.reduce((sum, rung) => sum + result[sectorKey].financing_gap_by_service[rung][endIndex], 0)));
+          moneyText(-rungs.reduce((sum, rung) => sum + result[sectorKey].financing_gap_by_service[rung][endIndex], 0)));
         assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:nth-child(11)').textContent`),
-          moneyText(result[sectorKey].financing_gap[endIndex]));
+          moneyText(-result[sectorKey].financing_gap[endIndex]));
         assert.equal(await e(`document.querySelector('.bau-forecast-table tbody tr:last-child td:last-child').textContent`),
           Number((result[sectorKey].available_total[endIndex] / 1000).toPrecision(3)).toLocaleString('en-US', { maximumFractionDigits: 2 }),
           'Final column shows sector-wide annual funding in every service view');
@@ -154,10 +154,59 @@ try {
           const expected = `${(Math.min(result.total_hh[i], hh) / result.total_hh[i] * 100).toFixed(1)}%`;
           assert.equal(await e(`document.querySelector('[data-bau-kpi="${card}"] strong').textContent`), expected);
         }
+        await e(`document.querySelector('[aria-label="Coverage KPI units"] button:last-child').click()`);
+        for (const [card, series, year] of [['baseline', 'bau_hh', inputs.period.baseline_year],
+          ['bau', 'bau_hh', inputs.period.forecast_end_year], ['target', 'target_hh', inputs.period.forecast_end_year]]) {
+          const i = result.years.indexOf(year);
+          const hh = rungs.reduce((sum, rung) => sum + result[sectorKey][series][rung][i], 0);
+          const households = Math.min(result.total_hh[i], hh);
+          const expected = `${households.toLocaleString('en-US', { maximumFractionDigits: households !== 0 && Math.abs(households) < .001 ? 6 : 3 })} M`;
+          assert.equal(await e(`document.querySelector('[data-bau-kpi="${card}"] strong').textContent`), expected);
+        }
+        const difference = rungs.reduce((sum, rung) => sum +
+          result[sectorKey].target_hh[rung][endIndex] - result[sectorKey].bau_hh[rung][endIndex], 0);
+        assert.ok(await e(`document.querySelector('.coverage-kpis__comparison').textContent.includes(${JSON.stringify(
+          Math.abs(difference) < 1e-12 ? 'On target' : difference > 0 ? 'Below target' : 'Above target')})`));
+        assert.ok(await e(`document.querySelector('.coverage-kpis__comparison').textContent.includes('million households')`));
+        assert.ok(await e(`document.querySelector('.coverage-kpis__comparison').textContent.includes('Target − achieved:')`));
+        await e(`document.querySelector('[aria-label="Coverage KPI units"] button:first-child').click()`);
+        assert.ok(await e(`document.querySelector('.coverage-kpis__comparison').textContent.includes('percentage points')`));
       }
     }
   }
+  // KPI unit choice stays synchronized across the workflow without changing simulation inputs.
+  await e(`document.querySelector('[aria-label="Coverage KPI units"] button:last-child').click()`);
+  for (const label of ['Intervention Design', 'Loan funding', 'Results Dashboard']) {
+    await tab(label);
+    await w(`document.querySelector('.coverage-kpis strong')?.textContent.endsWith(' M')`, `${label} household KPIs did not load`);
+    assert.ok(await e(`[...document.querySelectorAll('.coverage-kpis__comparison')].every(node => /Target − achieved:.*million households/.test(node.textContent))`));
+    assert.ok(await e(`[...document.querySelectorAll('[aria-label="Coverage KPI units"] button:last-child')].every(node => node.getAttribute('aria-pressed')==='true')`));
+    if (process.env.BAU_SCREENSHOT_DIR) {
+      const image = await b.call('Page.captureScreenshot', { format: 'png' });
+      writeFileSync(`${process.env.BAU_SCREENSHOT_DIR}/coverage-kpis-${label.replaceAll(' ', '-')}.png`, Buffer.from(image.data, 'base64'));
+    }
+  }
+  await tab('BAU Scenario');
+  await w(`document.querySelector('[data-bau-kpi="bau"] strong')?.textContent.endsWith(' M')`, 'BAU retains household units');
+  await e(`document.querySelector('[aria-label="Coverage KPI units"] button:first-child').click()`);
   await w(`document.querySelectorAll('.modern-bau-chart-pair .recharts-wrapper').length===2`, 'Both charts must be populated');
+  if (process.argv.includes('--coverage-kpis-only')) {
+    await b.call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await e(`document.querySelector('.coverage-kpis').scrollIntoView({block:'start'})`);
+    await sleep(250);
+    assert.ok(await e(`document.querySelector('.coverage-kpis').scrollWidth <= document.querySelector('.coverage-kpis').clientWidth + 1`),
+      'Coverage cards and controls fit the mobile width');
+    if (process.env.BAU_SCREENSHOT_DIR) {
+      const image = await b.call('Page.captureScreenshot', { format: 'png' });
+      writeFileSync(`${process.env.BAU_SCREENSHOT_DIR}/coverage-kpis-mobile.png`, Buffer.from(image.data, 'base64'));
+    }
+    assert.deepEqual(await e(`window.__bauWrites`), []);
+    assert.equal(b.errors.length, 0, 'No browser runtime errors');
+    assert.equal(JSON.stringify(await get(`/api/simulations/${example.id}`)), snapshot, 'Published simulation remains unchanged');
+    console.log('PASS: coverage KPIs — 12 sector/area/service views, 36 percentages and 36 engine-derived household counts, target-minus-achieved comparisons, units shared across BAU/Intervention/Loan/Results, mobile layout and no persisted writes.');
+    b.close();
+    process.exit(0);
+  }
   assert.equal(await e(`document.querySelectorAll('[data-section-key="table"] .bau-forecast-table').length`), 1);
   assert.equal(await e(`document.querySelectorAll('[data-section-key="graph"] [data-bau-ledger]').length`), 0);
   assert.ok(await e(`getComputedStyle(document.querySelector('.modern-bau-chart-pair')).gridTemplateColumns.split(' ').length===2`), 'Wide charts should be side by side');

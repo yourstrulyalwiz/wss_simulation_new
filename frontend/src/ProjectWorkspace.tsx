@@ -6,11 +6,13 @@ import { ErrorMessage, PortalLayout, ScopeFields, Skeletons } from './Portal';
 import { projectMutation, projectRequest, type Identity, type SavedVersion, type Simulation } from './projectApi';
 import { geography, normalizeScope, scopedBundle, type ProjectScope } from './projectScope';
 import { useSimulation } from './useSimulation';
+import { useSessionStatus } from './sessionStatus';
 
 export default function ProjectWorkspace({ id, identity }: { id: string; identity?: Identity | null }) {
   const { user, publicReadOnly } = useAppAccess();
   const state = useSimulation(id, identity?.id);
-  const { project, loading, error, saving, dirty, conflict, saveError, recovery, editorEpoch, update, save, reload, acceptServer } = state;
+  const { project, loading, error, saving, dirty, conflict, saveError, editorEpoch, update, save, reload, acceptServer } = state;
+  const session = useSessionStatus();
   const [dialog, setDialog] = useState<'version' | 'history' | 'duplicate' | 'archive' | 'unpublish' | null>(new URLSearchParams(window.location.search).has('history') ? 'history' : null);
   const [name, setName] = useState('');
   const [setupName, setSetupName] = useState('');
@@ -27,7 +29,7 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
   const owner = !!project?.is_owner && !project.read_only && !!identity;
   const historyAllowed = !!identity && (!!project?.is_owner || identity.is_admin) && !project?.is_seed;
   useEffect(() => {
-    if (project) { setSetupName(project.name); setScope(normalizeScope(project.scope)); }
+    if (project) { setSetupName(state.recoveredSetup?.name ?? project.name); setScope(normalizeScope(state.recoveredSetup?.scope ?? project.scope)); }
   }, [project?.id, editorEpoch]);
   useEffect(() => {
     if (!dialog) return;
@@ -55,7 +57,7 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
     try { await action(); } catch (err) { setActionError((err as Error).message); } finally { setBusy(false); }
   };
   // Explicit actions must save ALL edits, including edits made while a prior request was pending.
-  const settled = async () => { let record = await save(); if (dirty) record = await save(); return record; };
+  const settled = state.saveAll;
   const saveSetup = async () => {
     if (!setupName.trim()) return;
     const latest = await settled();
@@ -67,24 +69,36 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
     }
     update({ name: setupName.trim(), scope, bundle: nextBundle, scenarios: latest.scenarios, location: { ...latest.location, activeTab: -1 } });
     const value = await save();
+    state.setPendingSetup(undefined);
     acceptServer(value); setDialog(null);
   };
   if (loading) return <PortalLayout identity={identity}><main className="portal-wrap portal-section"><span className="portal-eyebrow">Opening your simulation</span><h2>Loading the planning record…</h2><Skeletons /></main></PortalLayout>;
   if (error || !project) return <PortalLayout identity={identity}><main className="portal-wrap portal-section"><h1 style={{ fontSize: 35 }}>This simulation is not available.</h1><ErrorMessage message={error || 'The project could not be loaded.'} retry={() => void reload()} /><p>Private simulations are visible only to their owner and authorized administrators. Public viewers see only the selected published version.</p><Link href={user || publicReadOnly ? '/user-portal' : '/sign-in'} className="portal-btn">{user || publicReadOnly ? 'Back to simulations' : 'Sign in with your World Bank account'}</Link></main></PortalLayout>;
   return <div className="project-shell">
-    {saveError && <div className="project-alert" role="alert">{saveError}<button onClick={state.download}>Download recoverable draft</button>{conflict ? <button onClick={() => { if (window.confirm('Reload the newer server revision? Your local draft will remain available for recovery. Download it first if needed.')) void reload(); }}>Reload newer revision</button> : <button onClick={() => void save().catch(() => {})}>Retry save</button>}</div>}
+    {state.storageError && <div className="project-alert" role="alert">{state.storageError}{state.phase !== 'account' && <button onClick={() => state.download()}>Download recoverable draft</button>}</div>}
+    {state.phase === 'account' ? <div className="project-alert" role="alert">A different account is signed in. This draft is hidden and will not be uploaded. Sign in with the account that opened it.<a href="/api/login?next=%2Fauth%2Fcomplete" target="_blank" rel="opener" onClick={event => { event.preventDefault(); session.signIn(); }}>Sign in again</a></div>
+      : state.phase === 'auth' ? <div className="project-alert" role="alert">Session expired. {state.locallyStored ? 'Your changes are stored on this browser.' : 'Keep this page open; unsaved changes remain in this editor.'} Sign in again to save your changes.
+        {session.enabled ? <a href="/api/login?next=%2Fauth%2Fcomplete" target="_blank" rel="opener" onClick={event => { event.preventDefault(); session.signIn(); }}>Sign in again</a> : <a href="/sign-in" target="_blank">Sign in again</a>}
+        <button onClick={() => state.download()}>Download recoverable draft</button><button onClick={() => { if (session.enabled) void session.recheck(); else void save().catch(() => {}); }}>Check sign-in</button></div>
+      : saveError && <div className="project-alert" role={state.phase === 'retry' ? 'status' : 'alert'}>{state.phase === 'retry'
+        ? `Connection interrupted. ${state.locallyStored ? 'Your changes are stored on this browser.' : 'Keep this page open to retain your changes.'} Retrying…` : saveError}
+        <button onClick={() => state.download()}>Download recoverable draft</button>{conflict ? <button onClick={() => { if (window.confirm('Reload the newer server revision? Download your local draft first. Its browser recovery copy is retained.')) void reload(); }}>Reload newer revision</button>
+          : !['permission', 'account'].includes(state.phase) && <button onClick={() => void save().catch(() => {})}>Retry save</button>}</div>}
+    {session.warning && state.phase !== 'account' && <div className="project-alert" role="status">Your session will expire soon.<button onClick={session.staySignedIn}>Stay signed in</button></div>}
     {actionError && !dialog && <div className="project-alert" role="alert">{actionError}</div>}
-    {recovery && owner && <div className="project-alert">This browser has a pending or failed save for this account and simulation.<button onClick={state.restoreRecovery}>Recover draft</button><button onClick={() => { if (window.confirm('Discard the browser recovery draft? The server record is unchanged.')) state.dismissRecovery(); }}>Discard recovery</button></div>}
-    <div className="project-workspace"><App key={`${id}:${editorEpoch}`} projectId={id} initialBundle={project.bundle} initialScenarios={project.scenarios} initialLocation={project.location} readOnly={!owner} onDraftChange={update} onSetup={() => open('setup')}
+    {state.recoveries.length > 0 && owner && state.phase !== 'account' && <div className="project-alert" role="alert"><div>Pending browser drafts were found. Recover or explicitly discard each copy before saving. Other tabs' copies are kept separate.
+      {state.recoveries.map(entry => <div key={entry.key}>Draft from {new Date(entry.envelope.saved_at).toLocaleString()} · Base revision {entry.envelope.revision ?? 'unknown'}
+        <button onClick={() => state.restoreRecovery(entry)}>Recover draft</button><button onClick={() => state.download(entry)}>Download draft</button><button onClick={() => { if (window.confirm('Discard this browser recovery copy? Download it first if needed. The server record is unchanged.')) state.dismissRecovery(entry); }}>Discard recovery</button></div>)}</div></div>}
+    <div className="project-workspace" hidden={state.phase === 'account'} inert={state.phase === 'account'} style={state.phase === 'account' ? { display: 'none' } : undefined}><App key={`${id}:${editorEpoch}`} projectId={id} initialBundle={project.bundle} initialScenarios={project.scenarios} initialLocation={project.location} readOnly={!owner} onDraftChange={update} onSetup={() => open('setup')}
       countryCode={project.country_code} countryMetadata={project.country_metadata}
       setupNameControls={<div className="project-setup-name">
         <div className="project-setup-name__heading"><label htmlFor="setup-simulation-name">Simulation name</label><span id="setup-name-count">{setupName.length} / 160 characters</span></div>
-        <input id="setup-simulation-name" value={setupName} maxLength={160} disabled={!owner || busy} aria-required="true" aria-invalid={!setupName.trim()} aria-describedby={`setup-name-help setup-name-count${!setupName.trim() ? ' setup-name-error' : ''}`} onChange={event => setSetupName(event.target.value)} />
+        <input id="setup-simulation-name" value={setupName} maxLength={160} disabled={!owner || busy} aria-required="true" aria-invalid={!setupName.trim()} aria-describedby={`setup-name-help setup-name-count${!setupName.trim() ? ' setup-name-error' : ''}`} onChange={event => { const name = event.target.value; setSetupName(name); state.setPendingSetup(name !== project.name || JSON.stringify(scope) !== JSON.stringify(project.scope) ? { name, scope } : undefined); session.activity(); }} />
         <p id="setup-name-help">{owner ? 'Use a name you can recognize in your workspace and version history. Apply it with Save setup in Simulation Coverage below.' : 'The name identifies this planning record. Only the owner can change the setup.'}</p>
         {!setupName.trim() && <p className="project-setup-validation" id="setup-name-error">Enter a simulation name before saving setup.</p>}
       </div>}
       setupControls={<div className="project-setup-coverage" aria-busy={busy}>
-        <ScopeFields scope={scope} onChange={setScope} variant="setup" disabled={!owner || busy} />
+        <ScopeFields scope={scope} onChange={value => { setScope(value); state.setPendingSetup({ name: setupName, scope: value }); session.activity(); }} variant="setup" disabled={!owner || busy} />
         <p className="project-setup-note">Excluded sector and area data are retained, not deleted. Include them again to resume working with those inputs.</p>
         <div className="project-setup-save">
           <div className="project-setup-save__copy"><strong>{owner ? 'Save the name and coverage together' : 'Read-only simulation setup'}</strong>
@@ -105,7 +119,7 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
           </div>
         </div>
         <div className="wb-header-actions project-header-actions">
-          <small className="project-save-status" role="status" aria-live="polite">{owner ? saving ? 'Saving progress…' : conflict ? 'Conflict · Draft retained' : saveError ? 'Could not save' : dirty ? 'Unsaved changes' : `Saved ${new Date(project.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Read-only view'}</small>
+          <small className="project-save-status" role="status" aria-live="polite">{owner ? saving ? 'Saving progress…' : conflict ? 'Conflict · Draft retained' : state.phase === 'auth' ? 'Sign in again to save' : saveError ? 'Server save pending' : dirty ? state.locallyStored ? 'Changes stored on this browser; server save pending.' : 'Unsaved changes · keep this page open' : `Saved to server at ${new Date(project.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Read-only view'}</small>
           <Link href="/" className="wb-header-action">Return</Link>
           {user || publicReadOnly ? <Link href="/user-portal" className="wb-header-action">{publicReadOnly ? 'Browse simulations' : 'My simulations'}</Link> : <Link href="/sign-in" className="wb-header-action">Sign in</Link>}
           {owner && <><button className="wb-header-action" onClick={() => open('setup')}>Edit setup</button><button disabled={saving || conflict} className="wb-header-action" onClick={() => void act(async () => { await settled(); })}>Save progress</button><button disabled={saving || conflict} className="wb-header-action" onClick={() => open('version')}>Save as</button></>}
@@ -117,7 +131,7 @@ export default function ProjectWorkspace({ id, identity }: { id: string; identit
         </div>
       </header>
     )} /></div>
-    {dialog && <div className="project-modal" role="presentation" onClick={() => { if (!busy) setDialog(null); }}><section ref={dialogRef} tabIndex={-1} className="project-dialog" role="dialog" aria-modal="true" aria-labelledby="project-dialog-title" onClick={event => event.stopPropagation()} onKeyDown={event => {
+    {dialog && state.phase !== 'account' && <div className="project-modal" role="presentation" onClick={() => { if (!busy) setDialog(null); }}><section ref={dialogRef} tabIndex={-1} className="project-dialog" role="dialog" aria-modal="true" aria-labelledby="project-dialog-title" onClick={event => event.stopPropagation()} onKeyDown={event => {
       if (event.key === 'Escape' && !busy) { setDialog(null); return; }
       if (event.key !== 'Tab') return;
       const nodes = [...event.currentTarget.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex="0"]')];

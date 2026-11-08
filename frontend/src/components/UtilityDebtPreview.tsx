@@ -18,7 +18,7 @@ type Props = {
 const sources = [
   ['collection', 'Collection efficiency'],
   ['tariff', 'Tariff reform'],
-  ['nrw', 'NRW-related net cash'],
+  ['nrw', 'NRW net cash benefit'],
   ['connections', 'Revenue from new connections'],
 ] as const;
 

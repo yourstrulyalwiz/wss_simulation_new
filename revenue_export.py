@@ -1,4 +1,5 @@
 """Annual revenue diagnostics shared by spreadsheet and PowerPoint exports."""
+from model.nrw_allocation import ALLOCATION_FIELDS
 
 
 LEGACY_FIELDS = (
@@ -69,8 +70,18 @@ _OBSOLETE = {
     'connection_annual_cost_per_household', 'connection_equivalent_marginal_cost',
     'household_billed_volume_million_m3', 'nonhousehold_billed_volume_million_m3',
     'incremental_variable_operating_cost', 'nrw_operating_cost', 'connection_revenue_delta',
+    'nrw_origin_households', 'nrw_potential_upgrade_hh', 'nrw_delivered_upgrade_hh',
+    'nrw_capacity_committed', 'nrw_capacity_uncommitted', 'nrw_avoided_sales_adjustment',
 }
 FIELDS = (
+    ('NRW programme recovery potential', 'nrw_recovery_total', 'M m³/year'),
+    ('Physical sales through existing connections', 'nrw_physical_sales_existing', 'M m³/year'),
+    ('Physical water supplied to funded connections — already included in connection billing', 'nrw_physical_sales_connections', 'M m³/year'),
+    ('Physical water actually delivered', 'nrw_physical_delivered_volume', 'M m³/year'),
+    ('Production avoided relative to reference', 'nrw_production_avoided_volume', 'M m³/year'),
+    ('Unutilized recovered physical capacity', 'nrw_unused_physical_capacity', 'M m³/year'),
+    ('Direct NRW sales — commercial plus existing-customer sales', 'nrw_direct_sales_volume', 'M m³/year'),
+    ('Modeled production proxy', 'nrw_modeled_production_volume', 'M m³/year'),
     ('Signed connection candidate', 'connection_signed_candidate_volume_million_m3', 'million m³/year'),
     ('Addition-only volume adjustment', 'connection_addition_only_adjustment_million_m3', 'million m³/year'),
     ('Unapplied eligible overlap', 'connection_unapplied_overlap_volume_million_m3', 'million m³/year'),
@@ -78,7 +89,6 @@ FIELDS = (
     ('Connection volume before overlap', 'connection_raw_volume_million_m3', 'M m³'),
     ('Connection overlap exclusion', 'connection_overlap_volume_million_m3', 'M m³'),
     ('Connection volume after overlap', 'connection_volume_million_m3', 'M m³'),
-    ('Avoided-sales exclusion', 'nrw_avoided_sales_adjustment', 'M m³'),
     ('Aggregate volume scaling proxy', 'connection_aggregate_volume_proxy', 'm³/reference served HH'),
 ) + tuple(field for field in LEGACY_FIELDS if field[1] not in _OBSOLETE)
 
@@ -89,6 +99,10 @@ def revenue_table(result, sector, currency):
     sec = result[sector]
     rows = []
     for prefix, label in (('', 'BAU'), ('scenario_', 'Scenario')):
+        if sec.get(prefix+'nrw_allocation_version') != 1 or any(
+                not isinstance(sec.get(prefix+key), list) or len(sec[prefix+key]) != len(result['years'])
+                for key in ALLOCATION_FIELDS):
+            raise ValueError('Historical or incomplete NRW allocation outputs must be recalculated before revenue export.')
         status = sec.get(prefix + 'connection_revenue') or {}
         mode = 'Mixed (see area configurations)' if status.get('mixed') else (
             'Aggregate coverage expansion' if status.get('effective') else 'Exogenous')

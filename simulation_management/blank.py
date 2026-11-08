@@ -37,6 +37,11 @@ def blank_inputs(country=None, area_label='', shared=None):
         out[sector+'_interventions'] = cleared(defaults.get(sector+'_interventions', {}))
         out[sector+'_interventions'].update(fin_gdp_enabled=False, fin_growth_enabled=False)
     out['custom_interventions'] = []
+    # Explicit conservative assumptions only for genuinely new drafts. Saved
+    # legacy active NRW inputs remain missing until the user completes them.
+    out['water_interventions'].update(nrw_allocation_version=1,
+        nrw_existing_customer_sales_capacity_mld=0.,
+        nrw_unsold_production_reduction_share=0.)
     out['connection_revenue'] = {}
     out['revenue_bases'] = {}
     out['utility_debt'] = {'water': {'enabled': False}, 'sanitation': {'enabled': False}}

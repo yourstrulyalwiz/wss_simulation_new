@@ -312,7 +312,7 @@ def _sector_with_scenario(calc_fn, bau_inputs, scn_inputs, ctx, any_toggle_on, b
         bau['scenario_without_utility_debt_' + key] = scn_without_debt[key]
     from model.connection_revenue import DIAGNOSTIC_FIELDS
     from model.revenue_reconciliation import RECONCILIATION_FIELDS
-    for key in ('connection_revenue', 'revenue_reconciliation', *DIAGNOSTIC_FIELDS,
+    for key in ('connection_revenue', 'revenue_reconciliation', 'nrw_allocation_version', *DIAGNOSTIC_FIELDS,
                 *RECONCILIATION_FIELDS, 'nrw_origin_households', 'microfinance_cohort_offers',
                 'nrw_dynamic_system_input_million_m3', 'nrw_dynamic_works_capacity_m3day',
                 'microfinance_cohort_unserved', 'microfinance_cohort_self_excluded',
@@ -400,9 +400,9 @@ def calculate(inputs: ModelInputs, allow_partial=False) -> dict:
     water = independently('water', lambda: _sector_with_scenario(
         calculate_water_supply, bau_inputs, inputs, ctx, any_toggle_on,
         debt_config=water_debt, debt_asset_life=inputs.technical.ws_asset_life))
-    nrw_vol_bau = (water or {}).get('nrw_recovered_phys_vol', [])
-    nrw_vol_scn = (water or {}).get('scenario_nrw_recovered_phys_vol', nrw_vol_bau)
-    nrw_vol_reference = (water or {}).get('scenario_without_utility_debt_nrw_recovered_phys_vol', [])
+    nrw_vol_bau = (water or {}).get('nrw_physical_delivered_volume')
+    nrw_vol_scn = (water or {}).get('scenario_nrw_physical_delivered_volume')
+    nrw_vol_reference = (water or {}).get('scenario_without_utility_debt_nrw_physical_delivered_volume')
     def run_sanitation():
         if water is None and inputs.toggles.san_nrw_link_enabled:
             raise RevenueInputError('Sanitation requires valid water results while the water-to-sanitation NRW link is enabled.')

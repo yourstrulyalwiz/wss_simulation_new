@@ -95,6 +95,17 @@ def public_bundle(bundle):
                 area[key] = effective_payload({**area[key], 'calculation_scope': scope['sectors']})
         visible[name] = area
     first = next(iter(visible))
-    return {'__wss_bundle': 1, 'inputs': visible[first],
+    result = {'__wss_bundle': 1, 'inputs': visible[first],
             'altInputs': {k: v for k, v in visible.items() if k != 'urban'},
             'scope': scope, 'presentation': original.get('presentation', {})}
+    if isinstance(original.get('postIntervention'), dict):
+        settings = copy.deepcopy(original['postIntervention'])
+        settings['targetOverrides'] = {
+            a: {s: t for s, t in values.items() if s in scope['sectors']}
+            for a, values in settings.get('targetOverrides', {}).items() if a in visible}
+        prefixes = tuple('ws_' if s == 'water' else 'san_' for s in scope['sectors'])
+        settings['toggleOverrides'] = {
+            a: {k: v for k, v in values.items() if k.startswith(prefixes)}
+            for a, values in settings.get('toggleOverrides', {}).items() if a in visible}
+        result['postIntervention'] = settings
+    return result

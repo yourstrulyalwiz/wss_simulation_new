@@ -13,7 +13,7 @@ require.extensions['.tsx'] = (mod, filename) => mod._compile(ts.transpileModule(
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 },
 }).outputText, filename);
 require.extensions['.ts'] = require.extensions['.tsx'];
-const { aggregateNrwDiagnosticField, NRW_DIAGNOSTIC_FIELDS } = require('../src/nrwRevenue.ts');
+const { aggregateNrwDiagnosticField, NRW_DIAGNOSTIC_FIELDS, NRW_ALLOCATION_ARRAYS } = require('../src/nrwRevenue.ts');
 const filename = fileURLToPath(new URL('../src/components/NRWDiagnostics.tsx', import.meta.url));
 const mod = new Module(filename);
 mod.filename = filename;
@@ -37,7 +37,8 @@ const results = [
   } },
 ];
 const html = renderToStaticMarkup(React.createElement(NRWDiagnostics, { results, currency: 'LCU' }));
-assert.match(html, /NRW incremental billed sales/);
+assert.match(html, /Previous NRW method/);
+assert.doesNotMatch(html, /NRW incremental billed sales|Potential upgrades|NRW-delivered upgrades/);
 assert.match(html, /2/);
 assert.match(html, /legacy NRW-only tariff differs/);
 assert.match(html, /Test attribution/);
@@ -104,7 +105,28 @@ assert.match(v3Html, /Version 3 reconciliation/);
 assert.doesNotMatch(v3Html, /joint tariff\/collection effect|Version 2 reconciliation/);
 assert.match(v3Html, /Coverage-expansion volume before overlap/);
 assert.doesNotMatch(v3Html, /operating cost|Annual connection cost|Billed Basic household stock/);
-assert.match(v3Html, /-30/);
+assert.match(v3Html, /Previous NRW method/);
+assert.doesNotMatch(v3Html, /-30/, 'old NRW net cannot masquerade as a new allocation quantity');
 const legacyHtml = renderToStaticMarkup(React.createElement(NRWDiagnostics, { results }));
 assert.match(legacyHtml, /Version 2 reconciliation/);
 assert.doesNotMatch(legacyHtml, /Version 3 reconciliation/);
+const current = { years: [2028], water_supply: {
+  nrw_allocation_version: 1, scenario_nrw_allocation_version: 1,
+  scenario_revenue_reconciliation: { version: 4, nrw_allocation_version: 1, legacy_direct_delivery_active: false },
+  ...Object.fromEntries(NRW_ALLOCATION_ARRAYS.map(key => [`scenario_${key}`, [key === 'nrw_net' ? -2.75 : 0]])),
+  scenario_nrw_delivered_upgrade_hh: [0], scenario_nrw_potential_upgrade_hh: [0], scenario_nrw_origin_households: [0],
+  scenario_nrw_upgrade_hh: [0], scenario_nrw_upg: [0],
+  scenario_without_utility_debt_nrw_physical_delivered_volume: [0],
+} };
+const currentHtml = renderToStaticMarkup(React.createElement(NRWDiagnostics, { results: current }));
+assert.match(currentHtml, /NRW allocation version 1 is independent of revenue integration version 3 and reconciliation version 4/);
+assert.match(currentHtml, /NRW net cash benefit/);
+assert.match(currentHtml, /-2\.75/);
+assert.match(currentHtml, /Physical water supplied to funded connections/);
+assert.match(currentHtml, /already included in connection billing/);
+assert.match(currentHtml, /Download this table as CSV/);
+assert.doesNotMatch(currentHtml, /Potential upgrades|NRW-delivered upgrades|Physical NRW-origin households|NRW Upg|Without Utility Debt|Allocation Version/);
+const mixedHtml = renderToStaticMarkup(React.createElement(NRWDiagnostics, { results: [current, results[0]] }));
+assert.match(mixedHtml, /Previous NRW method/);
+assert.doesNotMatch(mixedHtml, /Download this table as CSV/);
+console.log('Current allocation diagnostics, signed cash and historical export isolation passed');

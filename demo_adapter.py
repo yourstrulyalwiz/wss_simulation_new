@@ -294,6 +294,8 @@ def _default_ws_intervention():
             'nrw_commercial_loss_pct':0.5,'nrw_physical_loss_pct':0.5,'nrw_capex_unit_cost_usd':500,'nrw_lag_years':1,
             'nrw_system_input_vol':146.0,'nrw_water_per_upgrade':100.0,'nrw_capex_unit_cost_local':73809.0,
             'nrw_value_basis':'tariff','nrw_tariff':32.0,'nrw_production_cost':20.0,
+            'nrw_allocation_version':1,'nrw_existing_customer_sales_capacity_mld':0.0,
+            'nrw_unsold_production_reduction_share':0.0,
             'capeff_start_year':2026,'capeff_target_year':2035,'capeff_target_pct':1.0,'capeff_current_pct':0.0,'capeff_gains_pct':0.20,
             # Capex efficiency (unit-cost discount): 20% cheaper SM connections by the target year (0 at start).
             'costeff_start_year':2026,'costeff_target_year':2035,'costeff_current_pct':0.0,'costeff_target_pct':0.20,
@@ -635,6 +637,7 @@ def to_engine(fe: dict) -> ModelInputs:
         # NRW reduction lever (simplified): recovered physical water → basic→SM upgrades + a money ledger.
         nrw_system_input_vol=float(wi.get('nrw_system_input_vol', 0.0) or 0.0),
         revenue_integration_version=wi.get('revenue_integration_version', 2),
+        nrw_commercial_loss_pct=wi.get('nrw_commercial_loss_pct'),
         nrw_sales_assumption=wi.get('nrw_sales_assumption') or 'all_recovered_sold',
         # Blank/absent → None (scale with population); a number → fixed compound growth.
         nrw_vol_growth=(float(wi['nrw_vol_growth']) if wi.get('nrw_vol_growth') not in (None, '') else None),
@@ -642,7 +645,10 @@ def to_engine(fe: dict) -> ModelInputs:
         nrw_capex_unit_cost_local=float(wi.get('nrw_capex_unit_cost_local', 0.0) or 0.0),
         nrw_value_basis=(wi.get('nrw_value_basis') or 'tariff'),
         nrw_tariff=float(wi.get('nrw_tariff', 0.0) or 0.0),
-        nrw_production_cost=float(wi.get('nrw_production_cost', 0.0) or 0.0),
+        nrw_production_cost=wi.get('nrw_production_cost'),
+        nrw_allocation_version=wi.get('nrw_allocation_version'),
+        nrw_existing_customer_sales_capacity_mld=wi.get('nrw_existing_customer_sales_capacity_mld'),
+        nrw_unsold_production_reduction_share=wi.get('nrw_unsold_production_reduction_share'),
         # Collection efficiency: collected-ratio ramp + billed volume (MLD) + tariff (price per m³).
         ce_start_year=int(wi.get('ce_start_year', 2028) or 0),
         ce_target_year=int(wi.get('ce_target_year', 0) or 0),

@@ -1,6 +1,6 @@
 import React from 'react';
 import { convertMoney, displayCurrency, type CurrencyDisplaySettings } from '../currencyDisplay';
-import { aggregateNrwDiagnosticField, hasNrwArray, NRW_DIAGNOSTIC_FIELDS, nrwRevenueMetadata, type NRWDiagnosticField } from '../nrwRevenue';
+import { aggregateNrwDiagnosticField, hasCurrentNrwAllocation, hasNrwArray, NRW_DIAGNOSTIC_FIELDS, nrwRevenueMetadata, type NRWDiagnosticField } from '../nrwRevenue';
 import TableExport from './TableExport';
 
 type Props = {
@@ -14,11 +14,13 @@ type Props = {
 export default function NRWDiagnostics({ results, currency = 'LCU', currencyDisplay, title = 'NRW & revenue reconciliation', sector = 'water_supply' }: Props) {
   const datasets = (Array.isArray(results) ? results : results ? [results] : []).filter(Boolean);
   const years: number[] = datasets[0]?.years || [];
+  const allocationCurrent = datasets.length > 0 && datasets.every(result => hasCurrentNrwAllocation(result, 'scenario_', sector));
   const knownFields: readonly NRWDiagnosticField[] = NRW_DIAGNOSTIC_FIELDS;
   const discoveredKeys = [...new Set(datasets.flatMap(result => {
     const sec = result?.[sector] ?? result;
     return Object.keys(sec || {}).filter(key => key.startsWith('scenario_'))
       .map(key => key.slice('scenario_'.length))
+      .filter(key => !/without_utility_debt_|allocation_version|revenue_reconciliation|nrw_.*(upgrade|upg|origin|tagged|capacity_committed|capacity_uncommitted|residual_recovery|avoided_sales_adjustment|sales_volume|overlap_volume)/.test(key))
       .filter(key => !/operating_cost|connection_.*cost|connection_billed|connection_reference_billed|nrw_tagged_billed/.test(key))
       .filter(key => /(nrw|cohort|eligible.*pool|microfinance|mf.*flow|grant.*flow|overachievement|mf.*offer|offer.*mf|mf.*unserved|unserved.*mf|mf.*self.*excluded|self.*excluded.*mf)/i.test(key));
   }))];
@@ -72,8 +74,14 @@ export default function NRWDiagnostics({ results, currency = 'LCU', currencyDisp
   return <section data-testid="nrw-diagnostics" style={{ marginTop: 12, border: '1px solid #cbd5e1', borderRadius: 6, background: '#fbfdfe', padding: '10px 11px' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
       <h3 style={{ margin: 0, color: '#164e63', fontSize: 13 }}>{title}</h3>
-      {exportRows.length > 0 && <TableExport filename="nrw_revenue_reconciliation" sheetName="NRW reconciliation" headers={headers} rows={exportRows} compact />}
+      {allocationCurrent && exportRows.length > 0 && <TableExport filename="nrw_revenue_reconciliation" sheetName="NRW reconciliation" headers={headers} rows={exportRows} compact />}
     </div>
+    {!allocationCurrent && <p role="status" style={{ margin: '6px 0', fontSize: 11, color: '#92400e' }}>
+      Previous NRW method / incomplete allocation results. Historical values below are not current allocation results and cannot be exported here. Recalculate before new-method comparisons or exports; missing allocation quantities are unavailable, not zero.
+    </p>}
+    {allocationCurrent && <p style={{ margin: '6px 0', fontSize: 10.5, color: '#475569' }}>
+      NRW allocation version 1 is independent of revenue integration version 3 and reconciliation version 4. Annual physical capacity is allocated to existing-customer sales, operational funded connections, production reduction and unused capacity, in that order. Connection receipts retain their own source attribution. NRW net cash benefit includes direct sales plus production savings, less implementation cost; no automatic physical household delivery is active.
+    </p>}
     {version4 && <p style={{ margin: '6px 0', fontSize: 10.5, color: '#475569' }}>
       Version 4 reconciliation: new-connection revenue is addition-only at baseline rates. Below-baseline weighted coverage adds zero and never deducts baseline revenue. Collection and tariff reforms apply to full reconciled volume.
       Identified overlap is removed only from the positive connection increment; NRW cash remains signed after implementation costs.
@@ -84,7 +92,7 @@ export default function NRWDiagnostics({ results, currency = 'LCU', currencyDisp
     </p>}
     {version2 && <p style={{ margin: '6px 0', fontSize: 10.5, color: '#475569' }}>
       {sector === 'sanitation'
-        ? 'Version 2 sanitation attribution: eligible linked volume is physical recovery × return ratio × explicit sewer-billable share, reconciled against only the supplied overlap series and valued at shared scenario sanitation rates.'
+        ? 'Previous version 2 sanitation attribution used physical recovery. Current allocation uses only delivered physical water (E + N), return ratio and explicit sewer-billable share.'
         : 'Version 2 reconciliation: connection sales are attributed at reference rates; collection is applied before tariff on non-NRW volume, and the full joint tariff/collection effect on NRW sales is assigned to NRW. Avoided-cost value is separate and is not tariff sales.'}
     </p>}
     {!version2 && !version3 && !version4 && <p style={{ margin: '6px 0', fontSize: 10.5, color: '#64748b' }}>Attribution is legacy, mixed, or unversioned; diagnostics below retain the returned calculation values. Recalculate for version 4.</p>}

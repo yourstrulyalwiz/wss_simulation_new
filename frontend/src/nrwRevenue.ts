@@ -1,6 +1,31 @@
 export const NRW_REVENUE_VERSION = 3;
 // Output reconciliation contract; distinct from the lower-level NRW input integration switches.
 export const REVENUE_RECONCILIATION_VERSION = 4;
+export const NRW_ALLOCATION_VERSION = 1;
+export const NRW_ALLOCATION_ARRAYS = [
+  'nrw_recovery_total', 'nrw_physical_recovery', 'nrw_commercial_recovery',
+  'nrw_physical_sales_existing', 'nrw_physical_sales_connections', 'nrw_physical_delivered_volume',
+  'nrw_production_avoided_volume', 'nrw_unused_physical_capacity', 'nrw_direct_sales_volume',
+  'nrw_sales_cash', 'nrw_avoided_cost_cash', 'nrw_implementation_cost', 'nrw_net',
+] as const;
+
+/** Strictly distinguish historical results; absent quantities are not zero. */
+export function hasCurrentNrwAllocation(result: any, prefix = 'scenario_', sector = 'water_supply') {
+  const sec = result?.[sector] ?? result;
+  const years = result?.years;
+  const metadata = sec?.[`${prefix}revenue_reconciliation`] ?? sec?.revenue_reconciliation;
+  return Number(sec?.nrw_allocation_version) === NRW_ALLOCATION_VERSION &&
+    Number(sec?.[`${prefix}nrw_allocation_version`]) === NRW_ALLOCATION_VERSION &&
+    Number(metadata?.version) >= REVENUE_RECONCILIATION_VERSION &&
+    Number(metadata?.nrw_allocation_version) === NRW_ALLOCATION_VERSION &&
+    metadata?.legacy_direct_delivery_active === false &&
+    (sector !== 'water_supply' || NRW_ALLOCATION_ARRAYS.every(key => {
+      const values = sec?.[`${prefix}${key}`];
+      return Array.isArray(values) && values.length > 0 &&
+        (!Array.isArray(years) || values.length === years.length) &&
+        values.every(value => typeof value === 'number' && Number.isFinite(value));
+    }));
+}
 
 /**
  * Version saved NRW revenue assumptions without replacing user-entered values.
@@ -13,18 +38,20 @@ export function migrateNrwRevenueInputs(inputs: any) {
   const sanitation = { ...(inputs.sanitation_interventions || {}) };
   const waterCurrent = Number(water.revenue_integration_version) >= NRW_REVENUE_VERSION;
   const sanitationCurrent = Number(sanitation.revenue_integration_version) >= NRW_REVENUE_VERSION;
-  if (waterCurrent && sanitationCurrent && water.nrw_sales_assumption != null && sanitation.nrw_link_eligible_share != null &&
-      sanitation.nrw_link_overlap_m3_series != null) return inputs;
-  const legacyValuation = water.nrw_value_basis || 'tariff';
-  const assumption = water.nrw_sales_assumption ||
-    (legacyValuation === 'tariff' ? 'all_recovered_sold' : 'household_only');
+  const allocationCurrent = Number(water.nrw_allocation_version) >= NRW_ALLOCATION_VERSION;
+  const legacy = { ...(water.legacy_metadata || {}) };
+  for (const key of ['nrw_value_basis', 'nrw_sales_assumption', 'nrw_tariff', 'nrw_water_per_upgrade']) {
+    if (Object.prototype.hasOwnProperty.call(water, key) && !Object.prototype.hasOwnProperty.call(legacy, key)) legacy[key] = water[key];
+  }
   return {
     ...inputs,
     water_interventions: {
       ...water,
       ...(!waterCurrent ? { revenue_integration_version: NRW_REVENUE_VERSION } : {}),
-      legacy_metadata: { ...(water.legacy_metadata || {}), ...(water.nrw_tariff != null ? { nrw_tariff: water.nrw_tariff } : {}) },
-      nrw_sales_assumption: assumption,
+      legacy_metadata: legacy,
+      ...(!allocationCurrent ? { nrw_allocation_version: NRW_ALLOCATION_VERSION } : {}),
+      nrw_existing_customer_sales_capacity_mld: water.nrw_existing_customer_sales_capacity_mld ?? null,
+      nrw_unsold_production_reduction_share: water.nrw_unsold_production_reduction_share ?? null,
     },
     sanitation_interventions: {
       ...sanitation,
@@ -34,6 +61,8 @@ export function migrateNrwRevenueInputs(inputs: any) {
         ...(sanitation.nrw_link_collection_rate != null ? { nrw_link_collection_rate: sanitation.nrw_link_collection_rate } : {}) },
       nrw_link_eligible_share: sanitation.nrw_link_eligible_share ?? 1,
       nrw_link_overlap_m3_series: sanitation.nrw_link_overlap_m3_series ?? {},
+      ...(!allocationCurrent && inputs.toggles?.san_nrw_link_enabled
+        ? { nrw_allocation_review_required: true } : {}),
     },
   };
 }
@@ -46,12 +75,12 @@ export function setNrwLinkOverlapYear(series: any, year: number | string, value:
   return next;
 }
 
-export function nrwLinkBillableVolume(physicalRecoveryMillionM3: number | null, returnRatio: number,
+export function nrwLinkBillableVolume(physicalDeliveredMillionM3: number | null, returnRatio: number,
   eligibleShare: number, explicitOverlapM3: number | null) {
-  if (physicalRecoveryMillionM3 == null || !Number.isFinite(physicalRecoveryMillionM3)) {
+  if (physicalDeliveredMillionM3 == null || !Number.isFinite(physicalDeliveredMillionM3)) {
     return { grossMillionM3: null, overlapMillionM3: explicitOverlapM3 == null ? null : explicitOverlapM3 / 1e6, netMillionM3: null };
   }
-  const grossMillionM3 = physicalRecoveryMillionM3 * returnRatio * eligibleShare;
+  const grossMillionM3 = physicalDeliveredMillionM3 * returnRatio * eligibleShare;
   const overlapMillionM3 = explicitOverlapM3 == null ? null : explicitOverlapM3 / 1e6;
   return { grossMillionM3, overlapMillionM3, netMillionM3: grossMillionM3 - (overlapMillionM3 ?? 0) };
 }
@@ -78,26 +107,25 @@ export const NRW_DIAGNOSTIC_FIELDS = [
   { key: 'connection_raw_volume_million_m3', label: 'Coverage-expansion volume before overlap', unit: 'million m³/year', kind: 'volume' },
   { key: 'connection_overlap_volume_million_m3', label: 'Identified connection/NRW overlap', unit: 'million m³/year', kind: 'volume' },
   { key: 'connection_volume_million_m3', label: 'Reconciled connection volume', unit: 'million m³/year', kind: 'volume' },
-  { key: 'nrw_avoided_sales_adjustment', label: 'Avoided-sales volume adjustment', unit: 'million m³/year', kind: 'volume' },
   { key: 'connection_scale', label: 'Aggregate coverage-expansion scale', unit: 'fraction', kind: 'rate' },
   { key: 'connection_signed_scale', label: 'Signed coverage-expansion scale before floor', unit: 'fraction', kind: 'rate' },
   { key: 'connection_signed_candidate_volume_million_m3', label: 'Signed connection-volume candidate before floor', unit: 'million m³/year', kind: 'volume' },
   { key: 'connection_addition_only_adjustment_million_m3', label: 'Addition-only volume adjustment', unit: 'million m³/year', kind: 'volume' },
   { key: 'connection_positive_candidate_volume_million_m3', label: 'Positive candidate before overlap', unit: 'million m³/year', kind: 'volume' },
   { key: 'connection_aggregate_volume_proxy', label: 'Aggregate volume-scaling proxy', unit: 'm³/reference served-household equivalent', kind: 'rate' },
-  { key: 'nrw_sales_volume', label: 'NRW incremental billed sales', unit: 'million m³/year', kind: 'volume' },
-  { key: 'nrw_overlap_volume', label: 'Identified connection overlap', unit: 'million m³/year', kind: 'volume' },
+  { key: 'nrw_recovery_total', label: 'Programme recovery potential', unit: 'million m³/year', kind: 'volume' },
+  { key: 'nrw_physical_sales_existing', label: 'Physical sales through existing connections (E)', unit: 'million m³/year', kind: 'volume' },
+  { key: 'nrw_physical_sales_connections', label: 'Physical water supplied to funded connections—already included in connection billing (N)', unit: 'million m³/year', kind: 'volume' },
+  { key: 'nrw_physical_delivered_volume', label: 'Delivered physical water (E + N)', unit: 'million m³/year', kind: 'volume' },
+  { key: 'nrw_production_avoided_volume', label: 'Production avoided (A)', unit: 'million m³/year', kind: 'volume' },
+  { key: 'nrw_unused_physical_capacity', label: 'Unused physical capacity (U)', unit: 'million m³/year', kind: 'volume' },
+  { key: 'nrw_direct_sales_volume', label: 'Direct NRW billed sales (commercial + E)', unit: 'million m³/year', kind: 'volume' },
   { key: 'nrw_physical_recovery', label: 'Physical-loss recovery', unit: 'million m³/year', kind: 'volume' },
   { key: 'nrw_commercial_recovery', label: 'Commercial-loss recovery', unit: 'million m³/year', kind: 'volume' },
-  { key: 'nrw_residual_recovery', label: 'Residual recovered volume', unit: 'million m³/year', kind: 'volume' },
-  { key: 'nrw_capacity_committed', label: 'Capacity committed to upgrades', unit: 'million m³/year', kind: 'volume' },
-  { key: 'nrw_capacity_uncommitted', label: 'Uncommitted recovered capacity', unit: 'million m³/year', kind: 'volume' },
   { key: 'nrw_sales_cash', label: 'NRW direct sales cash (baseline rates in v3)', unit: 'currency millions', kind: 'money' },
   { key: 'nrw_implementation_cost', label: 'NRW implementation cost', unit: 'currency millions', kind: 'money' },
   { key: 'nrw_avoided_cost_cash', label: 'Avoided production-cost value', unit: 'currency millions', kind: 'money' },
-  { key: 'nrw_net', label: 'NRW signed net cash (loan source)', unit: 'currency millions', kind: 'money' },
-  { key: 'nrw_potential_upgrade_hh', label: 'Potential upgrades', unit: 'million households', kind: 'households' },
-  { key: 'nrw_delivered_upgrade_hh', label: 'NRW-delivered upgrades', unit: 'million households', kind: 'households' },
+  { key: 'nrw_net', label: 'NRW net cash benefit', unit: 'currency millions', kind: 'money' },
   { key: 'funded_sm_upgrade_hh', label: 'Other funded SM upgrades', unit: 'million households', kind: 'households' },
   { key: 'funded_basic_entry_hh', label: 'Funded Basic entries', unit: 'million households', kind: 'households' },
   { key: 'eligible_basic_remaining_hh', label: 'Eligible Basic households remaining', unit: 'million households', kind: 'households' },
@@ -113,7 +141,6 @@ export const NRW_DIAGNOSTIC_FIELDS = [
   { key: 'applicable_collection_ratio', label: 'Applicable collection ratio', unit: 'fraction', kind: 'rate' },
   { key: 'connection_net_cash', label: 'Revenue from new connections', unit: 'currency millions', kind: 'money' },
   { key: 'additional_net_cash', label: 'Additional net cash', unit: 'currency millions', kind: 'money' },
-  { key: 'nrw_origin_households', label: 'Physical NRW-origin households', unit: 'million households', kind: 'households' },
   { key: 'collection_cash', label: 'Collection attribution', unit: 'currency millions', kind: 'money' },
   { key: 'tariff_cash', label: 'Tariff attribution', unit: 'currency millions', kind: 'money' },
   { key: 'eligible_nrw_link_cash', label: 'Eligible NRW-linked sanitation net cash', unit: 'currency millions', kind: 'money' },
@@ -132,6 +159,8 @@ export function aggregateNrwDiagnosticField(results: any[], field: NRWDiagnostic
   sector: 'water_supply' | 'sanitation' = 'water_supply'): number | null {
   const valueAt = (result: any, key: string) => {
     const sec = result?.[sector] ?? result;
+    if ((NRW_ALLOCATION_ARRAYS as readonly string[]).includes(key) &&
+        !hasCurrentNrwAllocation(result, 'scenario_', sector)) return null;
     const value = sec?.[`scenario_${key}`];
     if (Array.isArray(value)) return typeof value[index] === 'number' && Number.isFinite(value[index]) ? value[index] : null;
     return index === 0 && typeof value === 'number' && Number.isFinite(value) ? value : null;

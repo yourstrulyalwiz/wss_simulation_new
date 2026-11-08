@@ -27,11 +27,9 @@ test('graph and table stay mounted together with shared selector state', () => {
   assert.doesNotMatch(panel, /aria-label="Intervention table (geography|sector)"/);
 });
 
-test('direct settings drawer hides without unmounting its state/portal target', () => {
-  assert.doesNotMatch(panel, /intervention-workspace__controls/);
-  assert.match(panel, /<aside id="intervention-input-drawer"[\s\S]*?hidden=\{activeSection !== 'design'\}/);
-  assert.match(panel, /selectedIntervention && activeSection === 'design' \? ' is-open' : ''/);
-  assert.match(panel, /!selectedIntervention && <div className="intervention-settings-empty"/);
+test('design controls and nested input drawer hide without unmounting their state/portal target', () => {
+  assert.match(panel, /intervention-workspace__controls" hidden=\{activeSection !== 'design'\}/);
+  assert.match(panel, /hidden=\{activeSection !== 'design' \|\| !selectedIntervention\}/);
   assert.match(panel, /intervention-input-drawer__body" ref=\{node => setDrawerTarget\(node\)\}/);
   assert.match(panel, /setSelectedIntervention\(null\);\s*selectedTrigger\.current = null;/);
   assert.match(styles, /\.intervention-section-workspace--drawer-open/);

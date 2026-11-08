@@ -811,7 +811,7 @@ export function ledgerRows(data: LedgerData, options: {
         { key: 'connectionNetCash', label: 'Revenue from new connections' },
         { key: 'collectionCash', label: 'Collection attribution cash' },
         { key: 'tariffCash', label: 'Tariff attribution cash' },
-        { key: 'nrwNetCash', label: 'Water NRW signed net cash after implementation cost' },
+        { key: 'nrwNetCash', label: 'Water NRW net cash benefit after implementation cost' },
         { key: 'eligibleNrwLinkCash', label: 'Eligible NRW-linked sanitation signed net cash' },
         { key: 'additionalNetCash', label: 'Total additional net cash (identity check)' },
       ];
@@ -833,7 +833,7 @@ export function ledgerRows(data: LedgerData, options: {
       if (cashRows.some(row => row.values.some(value => value != null))) rows.push({
         key: 'revenue-source-cash-section', label: 'Reconciled revenue source cash — diagnostics, not additive to funding',
         kind: 'section', unit: '', values: years.map(() => null),
-        status: 'Water NRW net cash remains signed after implementation costs. Eligible linked sanitation cash is a separate sanitation source; total additional net cash includes it. Marginal service-effect bands are not source cash.',
+        status: 'Water NRW net cash benefit includes eligible direct sales and production savings, signed after implementation costs. Eligible linked sanitation cash is a separate sanitation source; total additional net cash includes it. Marginal service-effect bands are not source cash.',
         children: cashRows,
       });
       if (data.includesDebt) detail('fundingBeforeDebt', 'Ordinary funds before scheduled debt service');

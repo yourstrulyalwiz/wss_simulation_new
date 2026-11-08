@@ -356,15 +356,14 @@ class WaterInterventionInputs(BaseModel):
     # (the default); a number → fixed compound real growth rate (e.g. 0.03 = 3%/yr).
     ce_vol_growth: Optional[float] = None
 
-    # NRW reduction (#119-#126) — reduce non-revenue water; the recovered PHYSICAL water upgrades basic
-    # households to safely-managed (capped at the SM target), and a money ledger nets the water's value
-    # against the cost of fixing → drawn from / added to the connection budget.
+    # NRW recovery creates allocated capacity and signed cash, never free household upgrades.
     nrw_start_year: int = 2028
     nrw_target_year: int = 2034
     nrw_current_pct: float = 0.40
     nrw_target_pct: float = 0.15
     nrw_treatment_cost_pct_capex: float = 0.40   # #123 water treatment cost as % of total capex (BAU adder)
     nrw_physical_loss_pct: float = 0.50          # #124 physical losses as % of total NRW (only physical → new water)
+    nrw_commercial_loss_pct: Optional[float] = None
     nrw_lag_years: int = 1                       # #125 years between the works/spend and the recovered-water benefit
     nrw_capex_unit_cost_usd: float = 510.0       # #126 USD(2023) per m3/day (legacy; superseded by the local unit below)
     # test2 simplified NRW lever inputs:
@@ -376,7 +375,10 @@ class WaterInterventionInputs(BaseModel):
     nrw_capex_unit_cost_local: float = 73_809.0  # "cost of fixing" — local currency per m³/day of NRW recovered
     nrw_value_basis: str = 'tariff'              # value the recovered water at 'tariff' or 'production' cost
     nrw_tariff: float = 32.0                      # water tariff, local currency per m³ (value if basis='tariff')
-    nrw_production_cost: float = 20.0             # avoided production cost, local currency per m³ (if basis='production')
+    nrw_production_cost: Optional[float] = None  # avoidable variable cost per m³; required only with curtailment
+    nrw_allocation_version: Optional[int] = None
+    nrw_existing_customer_sales_capacity_mld: Optional[float] = None
+    nrw_unsold_production_reduction_share: Optional[float] = None
     revenue_integration_version: Literal[1, 2, 3] = 3
     nrw_sales_assumption: Literal['all_recovered_sold', 'household_only'] = 'all_recovered_sold'
 

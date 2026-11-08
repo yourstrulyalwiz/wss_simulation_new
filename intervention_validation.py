@@ -44,7 +44,8 @@ INVENTORY = {
         ('nrw_target_pct', 'Target NRW %', 'share'), ('nrw_commercial_loss_pct', 'Commercial losses % of NRW', 'share'),
         ('nrw_physical_loss_pct', 'Physical losses % of NRW', 'share'),
         ('nrw_system_input_vol', 'System input volume (at start year)', 'amount'),
-        ('nrw_water_per_upgrade', 'Water per basic→SM upgrade', 'amount'),
+        ('nrw_existing_customer_sales_capacity_mld', 'Additional billable demand through existing connections', 'amount'),
+        ('nrw_unsold_production_reduction_share', 'Share of remaining capacity used to reduce production', 'share'),
         ('nrw_capex_unit_cost_local', 'Cost of fixing', 'amount'),
         ('nrw_treatment_cost_pct_capex', 'Water treatment cost as % of total capex', 'share')],
     'microfinance': [('mf_connection_fee', 'Connection fee', 'amount'),
@@ -116,7 +117,7 @@ def validate_interventions(payload, area=None):
                 return check(sector, group, section + '.' + name, label, iv.get(name), kind, optional)
             for name, label, kind in INVENTORY.get(group, []):
                 field(name, label, kind)
-            if group in ('collection_efficiency', 'tariff', 'connections', 'nrw_link') or group == 'nrw' and iv.get('nrw_value_basis') == 'tariff':
+            if group in ('collection_efficiency', 'tariff', 'connections', 'nrw_link', 'nrw'):
                 base = (payload.get('revenue_bases') or {}).get(sector) or {}
                 for key, label, kind in [('volume_mld','Shared billed volume','amount'),
                         ('tariff','Shared tariff','amount'), ('collection_ratio','Shared collection ratio','share'),
@@ -159,11 +160,9 @@ def validate_interventions(payload, area=None):
                     field('fin_growth_end_year', 'End year', 'year')
             if group == 'nrw':
                 field('nrw_vol_growth', 'Volume growth rate', 'growth', True)
-                mode = iv.get('nrw_value_basis')
-                if mode not in ('tariff', 'production_cost'):
-                    issue(sector, group, section+'.nrw_value_basis', 'Valuation mode', 'required', 'Select the NRW valuation mode.')
-                if mode == 'production_cost':
-                    field('nrw_production_cost', 'Production cost')
+                reduction_share = numeric(iv.get('nrw_unsold_production_reduction_share'))
+                if reduction_share is not None and reduction_share > 0:
+                    field('nrw_production_cost', 'Avoidable variable production cost per m³')
                 losses = [numeric(iv.get(k)) for k in ('nrw_commercial_loss_pct','nrw_physical_loss_pct')]
                 if all(v is not None for v in losses) and abs(sum(losses)-1) > TOLERANCE:
                     issue(sector, group, section+'.nrw_physical_loss_pct', 'Physical losses % of NRW', 'sum', 'Commercial and physical loss shares must total 100%.')

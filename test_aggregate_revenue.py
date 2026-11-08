@@ -190,17 +190,17 @@ class AggregateRevenueTests(unittest.TestCase):
             self.assertEqual(sec['scenario_applicable_tariff'][result['years'].index(by+2)],p0)
             self.assertEqual(sec['scenario_applicable_collection_ratio'][result['years'].index(by+3)],.95)
 
-    def test_sales_modes_and_avoided_sales_exclusion(self):
+    def test_legacy_sales_modes_are_inactive(self):
         from test_consolidated_revenue import project
         args = dict(nrw_enabled=True,connection_config=config(),nrw_value_basis='tariff')
         all_sales = project(**args)
         restricted = project(**args,nrw_sales_assumption='household_only')
         self.assertGreater(all_sales['nrw_sales_volume'][1],0)
-        self.assertEqual(restricted['nrw_sales_volume'][1],0)  # no same-year origin billing
-        self.assertGreater(restricted['nrw_sales_volume'][2],0)
-        avoided = project(nrw_enabled=True,connection_config=config(),nrw_value_basis='production',nrw_value_unit=.1)
+        np.testing.assert_allclose(restricted['nrw_sales_volume'], all_sales['nrw_sales_volume'])
+        avoided = project(nrw_enabled=True, connection_config=config(), nrw_physical=1,
+                          nrw_production_reduction_share=1, nrw_production_cost=.1)
         self.assertEqual(max(avoided['nrw_sales_volume']),0)
-        self.assertGreater(max(avoided['nrw_avoided_sales_adjustment']),0)
+        self.assertEqual(max(avoided['nrw_avoided_sales_adjustment']),0)
         self.assertGreater(max(avoided['nrw_avoided_cost_cash']),0)
 
     def test_backend_frontend_comparison_order_agree(self):

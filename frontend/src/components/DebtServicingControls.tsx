@@ -5,7 +5,7 @@ import { FUNDING_RECALCULATION_NOTICE, migrateLoanFundingConfig, validateLoanFun
 const SOURCES = [
   ['collection', 'Collection efficiency'],
   ['tariff', 'Tariff reforms'],
-  ['nrw', 'Water NRW / eligible sanitation link'],
+  ['nrw', 'NRW net cash benefit / eligible sanitation link'],
   ['connections', 'Revenue from new connections'],
 ] as const;
 

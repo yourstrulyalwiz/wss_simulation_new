@@ -167,6 +167,13 @@ with open('profiles/DRC OCT 8.json') as handle:
 areas = [bundle['inputs'], bundle['altInputs']['rural']]
 for area in areas:
     controlled_budgets(area)
+    # Explicit conservative allocation assumptions for this calculation fixture;
+    # do not infer these values when migrating the actual saved profile.
+    area.setdefault('water_interventions', {}).update({
+        'nrw_allocation_version': 1,
+        'nrw_existing_customer_sales_capacity_mld': 0,
+        'nrw_unsold_production_reduction_share': 0,
+    })
 print(json.dumps({
     'baselines': [area['period']['baseline_year'] for area in areas],
     'results': [calculate(coerce_to_engine(area)) for area in areas]

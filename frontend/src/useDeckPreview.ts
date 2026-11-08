@@ -60,7 +60,16 @@ export function useDeckPreview(areas: Record<string, any>, contributionView: Con
     try {
       const response = await fetch('/api/export/deck/preview', { method: 'POST', credentials: 'include', cache: 'no-store',
         headers: simulationHeaders({ areas }, projectId), body, signal: controller.signal });
-      const data = await response.json().catch(() => ({}));
+      let data: any;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error(response.ok
+          ? 'The slide preview download was interrupted or incomplete. Please retry; your saved simulation has not changed.'
+          : response.status === 413
+          ? 'The slide preview transfer was rejected as too large. Please retry after updating the published app.'
+          : `The preview service returned an unreadable response (${response.status}). Please retry.`);
+      }
       if (!response.ok) {
         const messages = Array.isArray(data.intervention_issues) ? data.intervention_issues.map((issue: any) =>
           [issue.area, issue.sector, issue.intervention, issue.message].filter(Boolean).join(': ')) : [];
@@ -78,7 +87,10 @@ export function useDeckPreview(areas: Record<string, any>, contributionView: Con
         throw new Error('The renderer returned an incomplete preview. Please retry.');
       }
       const binary = atob(preview.pptx_base64);
-      const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+      // Array.from(string, mapper) creates a very large intermediate collection
+      // for real 20+ MB decks. Copy directly into the final byte buffer instead.
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }));
       const next = { filename: preview.filename, slides: preview.slides, rendered_with: preview.rendered_with,
         omitted_sections: preview.omitted_sections || [], url, key };

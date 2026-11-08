@@ -14,7 +14,10 @@ from .water_supply import (sector_bau, sector_full_budget, cost_with_treatment, 
 
 
 def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None, utility_debt_execution=None):
-    # `nrw_recovered_vol` (M m³/yr per year) is the PHYSICAL water the WATER NRW lever recovers, threaded in
+    if 'post_intervention' in ctx:
+        ctx = {**ctx, 'post_options': ctx['post_intervention'].get('sanitation', {})}
+    # Compatibility parameter name: this must be DELIVERED physical water E+N,
+    # not gross recovered capacity, production avoided or commercial recovery.
     # by the engine: 0 in the sanitation BAU pass and when the water NRW lever is off, the water scenario
     # volume otherwise. The NRW-linked sanitation-revenue lever charges a (partly-collected) sewer fee on it.
     sl, st, sc = inputs.sanitation_service, inputs.sanitation_targets, inputs.sanitation_costs
@@ -71,6 +74,10 @@ def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None, utility_debt_execu
     linked_volume = np.zeros(_n)
     linked_overlap = np.zeros(_n)
     if san_nrw_link_on:
+        if (nrw_recovered_vol is None or len(nrw_recovered_vol) != _n
+                or not np.isfinite(_rv).all() or np.any(_rv < 0)):
+            from model.utility_revenue import RevenueInputError
+            raise RevenueInputError('Sanitation NRW linkage requires recalculated delivered physical water (allocation version 1).')
         from model.utility_revenue import number
         _ret = number(si.nrw_link_return_ratio, 'NRW wastewater return ratio', 1)
         _eligible = number(si.nrw_link_eligible_share, 'NRW sewer-billable share', 1)

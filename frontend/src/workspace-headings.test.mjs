@@ -6,9 +6,10 @@ const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const bau = read('./components/BAUWorkspace.tsx');
 const intervention = read('./components/InterventionPanel.tsx');
 
-test('BAU workflow title and contextual intervention heading retain their identities', () => {
+test('workflow titles remain separate from numbered section headings', () => {
   assert.match(bau, /<h2 tabIndex=\{-1\}>BAU Scenario<\/h2>/);
-  assert.match(intervention, /<span className="modern-input-section-heading__index">1<\/span><span>Intervention Design \(\{headingContext\}\)<\/span>/);
+  assert.match(intervention, /<h2>Intervention Design<\/h2>/);
+  assert.match(intervention, /<h2 tabIndex=\{-1\}>Intervention Design<\/h2>/);
   for (const source of [bau, intervention]) {
     assert.doesNotMatch(source, /className="modern-bau-heading"/);
   }

@@ -1,6 +1,8 @@
 import base64
+import asyncio
 import copy
 import io
+import json
 import shutil
 import unittest
 from unittest.mock import patch
@@ -8,7 +10,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 from pptx import Presentation
 from app import generated_deck, preview_deck_api
-from deck_preview import preview_deck, preview_slot, slide_titles
+from deck_preview import preview_deck, preview_slot, preview_response, slide_titles, PREVIEW_CHUNK_BYTES
 from test_support import frontend_defaults
 from deck_completion import completed_deck_areas
 import deck_data
@@ -69,9 +71,28 @@ class DeckPreviewTests(unittest.TestCase):
         payload = {"areas": {"urban": {"test": True}}}
         with patch("app.generated_deck", return_value=(b"exact deck", [])) as generate, \
              patch("deck_preview.preview_deck", return_value={"slides": []}) as render:
-            self.assertEqual(preview_deck_api(payload), {"slides": [], "omitted_sections": []})
+            response = preview_deck_api(payload)
+            async def read():
+                return b''.join([chunk async for chunk in response.body_iterator])
+            self.assertEqual(json.loads(asyncio.run(read())), {"slides": [], "omitted_sections": []})
+            self.assertNotIn('content-length', response.headers)
             generate.assert_called_once_with(payload, with_omissions=True)
             render.assert_called_once_with(b"exact deck")
+
+    def test_large_response_is_streamed_in_bounded_chunks_without_changing_bytes(self):
+        # Larger than the deployed non-streamed HTTP/1 response ceiling.
+        payload = {'pptx_base64': 'A' * (33 * 1024 * 1024),
+                   'slides': [{'title': 'Urban — Water Supply'}], 'omitted_sections': []}
+        response = preview_response(payload)
+        self.assertNotIn('content-length', response.headers)
+        self.assertIn('private', response.headers['cache-control'])
+        self.assertEqual(response.headers['content-type'], 'application/json')
+        async def read():
+            chunks = [chunk async for chunk in response.body_iterator]
+            self.assertGreater(len(chunks), 500)
+            self.assertLessEqual(max(map(len, chunks)), PREVIEW_CHUNK_BYTES)
+            return b''.join(chunks)
+        self.assertEqual(json.loads(asyncio.run(read())), payload)
 
     @unittest.skipUnless(shutil.which("libreoffice"), "LibreOffice required for real rendering")
     def test_actual_template_round_trip(self):

@@ -121,22 +121,31 @@ try {
   assert.equal(await e(`document.querySelector('.slide-deck-pagination span').textContent`), 'Slide 3 of 4');
   assert.equal(await e(`document.documentElement.scrollWidth <= 390`), true, 'Mobile overflow');
   // Real App integration: tab IDs, shared debt setting and read-only safety.
-  await e(`__setSectors(['water','sanitation']);__setApp(true)`); await w(`document.querySelectorAll('.wb-tab').length===7`, 'Workflow tab missing');
+  await e(`__setSectors(['water','sanitation']);__setApp(true)`); await w(`document.querySelectorAll('.wb-tab').length===8`, 'Workflow tab missing');
   assert.equal(await e(`document.querySelector('.wb-tab-active').textContent.includes('Slide')`), true);
   await generate();
-  await select('Slide deck debt mode', 'without_debt'); await stale();
+  // The shared saved loan choice is immutable in the read-only App.
+  // Standalone preview-mode invalidation was tested above.
+  await select('Slide deck debt mode', 'without_debt');
+  assert.equal(await e(`document.querySelector('[aria-label="Slide deck debt mode"]').value`), 'with_debt');
   await e(`document.querySelectorAll('.wb-tab')[5].click()`);
   await w(`!!document.querySelector('[aria-label="Results debt mode"]')`, 'Results not mounted');
-  assert.equal(await e(`document.querySelector('[aria-label="Results debt mode"]').value`), 'without_debt');
-  await select('Results debt mode', 'with_debt');
-  await e(`document.querySelectorAll('.wb-tab')[6].click()`);
+  assert.equal(await e(`document.querySelector('[aria-label="Results debt mode"]').value`), 'with_debt');
+  await select('Results debt mode', 'without_debt');
+  await e(`document.querySelectorAll('.wb-tab')[7].click()`);
   assert.equal(await e(`document.querySelector('[aria-label="Slide deck debt mode"]').value`), 'with_debt');
-  await generate(); await click('Next');
+  await click('Next');
   await e(`document.querySelectorAll('.wb-tab')[5].click()`); await sleep(30);
-  await e(`document.querySelectorAll('.wb-tab')[6].click()`); await sleep(30);
+  await e(`document.querySelectorAll('.wb-tab')[7].click()`); await sleep(30);
   assert.equal(await e(`document.querySelector('.slide-deck-pagination span').textContent`), 'Slide 2 of 4');
   assert.equal(await e(`window.__writes || 0`), 0);
   assert.equal(await e(`__requests.some(r=>/save|draft|simulations/.test(r.url))`), false);
+  // Real decks contain tens of megabytes, not just the tiny ZIP prefix above.
+  await e(`__response={status:200,body:{...__preview,pptx_base64:btoa('Z'.repeat(21*1024*1024))}}`);
+  await click('Regenerate preview');
+  await w(`__blobs.at(-1)?.size===21*1024*1024 && !!document.querySelector('.slide-deck-frame')`, 'Large preview failed');
+  await click('Download PowerPoint');
+  assert.equal(await e(`__blobs.at(-1).arrayBuffer().then(buffer=>new Uint8Array(buffer).every(value=>value===90))`), true);
   assert.deepEqual(browser.errors, []);
   console.log('Slide deck browser contracts passed: snapshot bytes, navigation, stale/in-flight invalidation, errors/retry, area/sector/currency/debt settings, mobile and real read-only App integration.');
 } finally { browser.close(); }

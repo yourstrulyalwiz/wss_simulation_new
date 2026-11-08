@@ -49,7 +49,7 @@ export default function SlideDeckWorkspace({ active, geoScope, inputs, altInputs
     <div className="slide-deck-reading">
       <header className="slide-deck-heading">
         <div><h2 className="modern-input-section-heading"><span className="modern-input-section-heading__index">6</span><span>Slide Deck</span></h2>
-          <p>Review the branded presentation for all entered areas, then download the same deck. PowerPoint charts and tables are editable; presenter guidance is in speaker notes.</p></div>
+          <p>Review the branded presentation for all entered areas, then download the same deck.</p></div>
         <div className="slide-deck-actions">
           <button type="button" className="slide-deck-button" onClick={preview.generate} disabled={preview.busy || !!missing.length}>
             {preview.busy ? 'Generating preview…' : preview.artifact ? 'Regenerate preview' : 'Generate preview'}</button>

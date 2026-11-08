@@ -15,17 +15,36 @@ export type Country = { id: string; name: string; iso2Code: string; region: { id
 export type CountryMetadata = { countries: Country[]; retrieved_at: string | null; stale: boolean; error?: string };
 export class ProjectError extends Error {
   status: number;
-  constructor(message: string, status: number) { super(message); this.status = status; }
+  constructor(message: string, status: number, public code = '', public retryAfterMs = 0) { super(message); this.status = status; }
+  get retryable() { return this.status === 0 || this.status === 429 || this.status >= 500; }
 }
 export async function projectRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api${path}`, { ...options, credentials: 'include', cache: 'no-store',
-    headers: { 'Content-Type': 'application/json', ...options.headers } });
-  const invalidResponse = () => new ProjectError(
-    'Unexpected response from the simulation service. Reload the page or try again shortly.', 502);
-  const data = await response.json().catch(() => { throw invalidResponse(); });
-  if (data === null || typeof data !== 'object') throw invalidResponse();
-  if (!response.ok) throw new ProjectError(typeof data.detail === 'string' ? data.detail : typeof data.detail?.message === 'string' ? data.detail.message : typeof data.error === 'string' ? data.error : response.status === 409 ? 'This simulation changed in another session. Your work has been kept for recovery.' : response.status === 403 ? 'Access is limited to verified World Bank accounts with permission to view this simulation.' : response.status === 401 ? 'Please sign in to continue.' : 'The request could not be completed. Please try again.', response.status);
-  return data as T;
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  options.signal?.addEventListener('abort', abort, { once: true });
+  if (options.signal?.aborted) abort();
+  const timer = setTimeout(abort, options.method && options.method !== 'GET' ? 25_000 : 15_000);
+  try {
+    const response = await fetch(`/api${path}`, { ...options, signal: controller.signal, credentials: 'include', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', ...options.headers } });
+    if (response.status === 204) return undefined as T;
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      const retry = response.headers.get('Retry-After');
+      const delay = retry ? (/^\d+$/.test(retry) ? Number(retry) * 1000 : Math.max(0, Date.parse(retry) - Date.now())) : 0;
+      if (response.status === 401 && typeof window !== 'undefined') window.dispatchEvent(new Event('wss-auth-required'));
+      throw new ProjectError(typeof data?.detail === 'string' ? data.detail : typeof data?.detail?.message === 'string' ? data.detail.message : typeof data?.error === 'string' ? data.error : response.status === 409 ? 'This simulation changed in another session. Your draft has been retained.' : response.status === 403 ? 'Your permission to save this simulation has changed.' : response.status === 401 ? 'Session expired. Sign in again to save your changes.' : 'The request could not be completed. Please try again.',
+        response.status, data?.code || '', Number.isFinite(delay) ? delay : 0);
+    }
+    if (data === null) throw new ProjectError('The server response could not be verified. Your draft has been retained.', 0, 'UNVERIFIED_RESPONSE');
+    return data as T;
+  } catch (error) {
+    if (error instanceof ProjectError) throw error;
+    throw new ProjectError(controller.signal.aborted ? 'The save connection timed out. Your draft has been retained.' : 'Connection interrupted. Your draft has been retained.',
+      0, controller.signal.aborted ? 'TIMEOUT' : 'NETWORK');
+  } finally {
+    clearTimeout(timer); options.signal?.removeEventListener('abort', abort);
+  }
 }
 export const projectMutation = <T,>(path: string, body: unknown, method = 'POST') => projectRequest<T>(path, { method, body: JSON.stringify(body) });
 export const recoveryKey = (userId: string, projectId: string) => `wss:recovery:${userId}:${projectId}`;

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useId, useState } from 're
 import { simulationHeaders } from './simulationTransport';
 import { calculationPayload } from './api';
 import { withSpendingDrafts } from './publicSpendingSchedule';
+import { nrwAllocationIssues } from './nrwAllocationValidation';
 
 export type InterventionIssue = {
   area: string; sector: string; intervention: string; field: string; label: string;
@@ -12,12 +13,15 @@ export class InterventionValidationError extends Error {
   constructor(issues: InterventionIssue[]) { super(''); this.issues = issues; }
 }
 export async function validateInterventions(inputs: any, signal?: AbortSignal): Promise<InterventionIssue[]> {
+  const local = nrwAllocationIssues(inputs);
+  if (local.some(issue => issue.severity === 'error')) return local;
   const response = await fetch('/api/intervention-validation', {
     method: 'POST', credentials: 'include', cache: 'no-store',
     headers: simulationHeaders(inputs), body: JSON.stringify(calculationPayload(withSpendingDrafts(inputs))), signal,
   });
   if (!response.ok) throw new Error('Intervention validation is unavailable. Please retry.');
-  return (await response.json()).issues;
+  const remote: InterventionIssue[] = (await response.json()).issues;
+  return [...remote.filter(issue => !local.some(item => item.field === issue.field)), ...local];
 }
 export async function guardInterventionExport(areas?: Record<string, any>) {
   if (!areas) throw new Error('Current simulation inputs are required for export.');
@@ -42,7 +46,7 @@ export function useInterventionIssues(inputs: any) {
     }).catch(() => { /* Calculations and exports independently fail closed. */ });
     return () => controller.abort();
   }, [key]);
-  return state.key === key ? state.issues : [];
+  return state.key === key ? state.issues : nrwAllocationIssues(inputs);
 }
 export function IssueMessages({ issues }: {issues: InterventionIssue[]}) {
   const { onNavigate } = useContext(ValidationContext);

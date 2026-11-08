@@ -3,7 +3,7 @@ name: Slide deck preview fidelity
 description: Preview/download identity, temporary rendering and validation boundaries.
 ---
 
-Tab 6 previews the existing branded PowerPoint, not a separately authored HTML
+The Slide Deck tab previews the existing branded PowerPoint, not a separately authored HTML
 presentation. Its download must use the exact bytes that produced the displayed
 slides. Changing inputs, currency, contribution view or borrowing selection must
 invalidate both together. Use the same all-entered-area scope as Results export.
@@ -29,3 +29,15 @@ coverage remain essential. This permission does not relax model/UI validation.
 
 LibreOffice previews can differ in fonts/layout from Microsoft PowerPoint;
 identify the renderer rather than promising pixel-identical Office rendering.
+
+Large preview responses must remain streamed through the serving gateway.
+
+**Why:** Real decks can produce JSON responses above 32 MiB. Cloud Run's HTTP/1
+non-streamed response ceiling is 32 MiB; its documented exception is streaming
+or chunked transfer. Successful generation and an application-side HTTP 200 do
+not establish that the complete preview reached the browser.
+
+**How to apply:** Preserve streaming when changing serialization or proxies.
+Verify large-response delivery in a browser, not just successful rendering.
+Avoid string-to-array conversions that allocate an intermediate JavaScript
+collection for every byte of a large PowerPoint.

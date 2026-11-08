@@ -106,6 +106,11 @@ class DeckLayoutTests(unittest.TestCase):
             'billed_volume_million_m3': [0, 2, 3],
             'scenario_billed_volume_million_m3': [0, 4, 5],
             'nrw_net': [0, -50, 100], 'scenario_nrw_net': [0, -25, 200]}}
+        from revenue_export import ALLOCATION_FIELDS
+        for prefix in ('', 'scenario_'):
+            result['water_supply'][prefix + 'nrw_allocation_version'] = 1
+            for key in ALLOCATION_FIELDS:
+                result['water_supply'].setdefault(prefix + key, [0, 0, 0])
         append_revenue_slides(prs, {'urban': result}, 'NPR', .01, 'USD')
         out = io.BytesIO()
         prs.save(out)

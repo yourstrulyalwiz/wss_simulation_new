@@ -92,11 +92,12 @@ def allocate_purchases(allocation, basic_capital, sm_capital, ancillary, loan_av
     return allocation
 
 
-def new_ledger(years, debt_included):
+def new_ledger(years, debt_included, extra_sources=()):
     n = len(years)
+    keys = (*SOURCE_KEYS, *extra_sources)
     return dict(version=2, method='actual_source_funding', units='million local currency',
-                debt_included=debt_included, years=list(map(int, years)), source_keys=list(SOURCE_KEYS),
-                **{f: {s: [0.]*n for s in SOURCE_KEYS} for f in MAP_FIELDS},
+                debt_included=debt_included, years=list(map(int, years)), source_keys=list(keys),
+                **{f: {s: [0.]*n for s in keys} for f in MAP_FIELDS},
                 **{f: [0.]*n for f in TOTAL_FIELDS})
 
 

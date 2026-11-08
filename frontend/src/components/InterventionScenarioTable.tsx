@@ -3,7 +3,9 @@ import { runCalculation } from '../api';
 import type { BauServiceLevel } from '../bauServiceView';
 import { convertMoney, displayCurrency, type CurrencyDisplaySettings } from '../currencyDisplay';
 import TableExport from './TableExport';
-import { interventionCoverageKpis, interventionComparisonRows } from '../interventionReporting';
+import { interventionComparisonRows } from '../interventionReporting';
+import { coverageIndicators } from '../coverageIndicators';
+import CoverageKpis from './CoverageKpis';
 import { forecastTableHeaders } from '../forecastTableColumns';
 import { signedAccessBalance, signedFinancingBalance, forecastCell, forecastValueClass } from '../forecastTablePresentation';
 
@@ -42,7 +44,7 @@ export default function InterventionScenarioTable({ inputs, sector, level, showT
   const currency = inputs?.country_config?.currency || 'LCU';
   const baseline = Number(inputs?.period?.baseline_year);
   const reportingRows = interventionComparisonRows(result, key, baseline, level);
-  const kpiValues = interventionCoverageKpis(result, key, baseline, level);
+  const kpiValues = coverageIndicators([result], key, baseline, inputs.period.forecast_end_year, level);
   const shownCurrency = displayCurrency(currencyDisplay, currency);
   const moneyColumns = new Set([5, 6, 7, 8, 9, 10, 11]);
   const columnOrder = [0, 1, 2, 12, 3, 4, 5, 6, 7, 8, 9, 10, 11];
@@ -53,23 +55,14 @@ export default function InterventionScenarioTable({ inputs, sector, level, showT
     const converted = convertMoney(value, currencyDisplay, currency);
     return converted == null ? null : converted / 1000;
   })).map(row => columnOrder.map(index => row[index]));
-  const fmt = (value: number) => Number.isFinite(value) ? value.toLocaleString('en-US', { maximumFractionDigits: 3 }) : '—';
-  const kpis = [
-    { label: `Baseline · ${kpiValues.baselineYear}`, value: kpiValues.baseline },
-    { label: `Intervention · ${kpiValues.endYear ?? 'forecast end'}`, value: kpiValues.scenario },
-    { label: `Entered target · ${kpiValues.endYear ?? 'forecast end'}`, value: kpiValues.target },
-  ];
-  const hasUnavailableValues = kpis.some(kpi => kpi.value == null) ||
+  const hasUnavailableValues = [kpiValues.baseline, kpiValues.forecast, kpiValues.target].some(kpi => kpi.percent == null) ||
     rows.some(row => row.some(value => value == null));
   const exportHeaders = [...forecastTableHeaders(level, shownCurrency), 'Intervention households (M)']
     .map((_, index, headers) => headers[columnOrder[index]]);
   const exportRows = rows;
   return <div className="modern-intv-table-wrap">
-    {showKpis && <div className="modern-intv-kpis" aria-label="Intervention scenario coverage indicators">
-      {kpis.map(card => <div className="modern-intv-kpi" key={card.label}>
-        <span>{card.label}</span><strong>{card.value == null ? '—' : `${fmt(card.value)}%`}</strong><small>household coverage · live engine</small>
-      </div>)}
-    </div>}
+    {showKpis && <CoverageKpis values={kpiValues} scenarioLabel="Intervention"
+      contextLabel="Intervention scenario coverage indicators" />}
     {hasUnavailableValues && <p className="modern-intv-data-note" role="status">One or more engine metrics are unavailable. Affected values are shown as — and are not treated as zero.</p>}
     {showTable && <><div className="modern-intv-table-caption">
       <div className="modern-intv-table-caption__title">

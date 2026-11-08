@@ -26,3 +26,13 @@ A literal Lax assertion incorrectly reported that no secure cookie was set.
 cookie values. Allow for proxy rewriting when checking development responses.
 Do not weaken secure cookies or origin/state checks to satisfy an overly strict
 test of the proxy response.
+
+When retaining DOM references in a CDP test's browser context, end the evaluated
+expression with a primitive rather than returning the DOM node.
+
+**Why:** The helper evaluates with return-by-value; a React-owned DOM node can
+fail serialization with “Object reference chain is too long” even though the
+assignment and application behavior are valid.
+
+**How to apply:** Keep the reference in the browser context, return a boolean or
+simple observation, and distinguish transport/fixture failures from app failures.

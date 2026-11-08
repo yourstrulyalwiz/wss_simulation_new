@@ -3,6 +3,7 @@ import { Redirect, Route, Switch } from 'wouter';
 import { AccessContext } from './accessMode';
 import { Gallery, Home, NewSimulation, PortalLayout, ErrorMessage, Skeletons } from './Portal';
 import { projectRequest, type Identity } from './projectApi';
+import { SessionStatusProvider, type SessionStatus } from './sessionStatus';
 
 const ProjectWorkspace = lazy(() => import('./ProjectWorkspace'));
 function ReplitSignIn({ next = '/user-portal' }: { next?: string }) {
@@ -23,9 +24,10 @@ export default function ReplitAccess() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+  const [initialSession, setInitialSession] = useState<SessionStatus | null>(null);
   useEffect(() => {
     let live = true; setError(''); setLoading(true);
-    projectRequest<{ user: Identity | null }>('/session').then(data => { if (live) setIdentity(data.user); })
+    projectRequest<SessionStatus>('/session').then(data => { if (live) { setIdentity(data.user); setInitialSession(data); } })
       .catch(err => { if (live) setError(err.message); }).finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, [attempt]);
@@ -38,7 +40,7 @@ export default function ReplitAccess() {
   return <AccessContext.Provider value={{ publicReadOnly: false, user: identity, signOut: () => { void signOut(); } }}>
     {loading ? <PortalLayout><main className="portal-wrap portal-section"><Skeletons /></main></PortalLayout>
       : error ? <PortalLayout><main className="portal-wrap portal-section"><ErrorMessage message={error} retry={() => setAttempt(n => n + 1)} /></main></PortalLayout>
-      : <Switch key={identity?.id || 'anonymous'}>
+      : <SessionStatusProvider initial={initialSession!}><Switch>
         <Route path="/">{() => identity ? <Redirect to="/user-portal" /> : <Home />}</Route>
         <Route path="/sign-in">{() => identity ? <Redirect to="/user-portal" /> : <ReplitSignIn />}</Route>
         <Route path="/sign-up">{() => <Redirect to="/sign-in" />}</Route>
@@ -48,6 +50,6 @@ export default function ReplitAccess() {
           <ProjectWorkspace key={`${identity?.id || 'anonymous'}:${params.id}`} id={params.id} identity={identity} />
         </Suspense>}</Route>
         <Route>{() => <Redirect to="/" />}</Route>
-      </Switch>}
+      </Switch></SessionStatusProvider>}
   </AccessContext.Provider>;
 }

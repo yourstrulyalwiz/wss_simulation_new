@@ -74,5 +74,11 @@ development database and include its schema when publishing; startup imports the
 preserved examples idempotently and does not perform schema changes. Authentication
 sessions are stored server-side in PostgreSQL, not browser localStorage.
 
+For Replit session policy, token renewal, save/recovery safety and targeted
+verification commands, see `docs/session-renewal.md`. Default application limits
+are two hours of inactivity and twelve hours from interactive sign-in; legacy
+sessions may require one fresh sign-in. Do not extend expired identity or use
+passive polling to reset inactivity.
+
 The publishing build rebuilds the frontend rather than relying on an old static
 bundle. Restart the workflow after code or access-mode configuration changes.

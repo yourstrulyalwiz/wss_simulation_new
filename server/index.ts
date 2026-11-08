@@ -4,7 +4,7 @@ import { publishableKeyFromHost } from '@clerk/shared/keys';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { spawn } from 'node:child_process';
 import { CLERK_PROXY_PATH, clerkProxyMiddleware, getClerkProxyHost } from './middlewares/clerkProxyMiddleware';
-import { currentAccount, setupReplitAuth } from './replitAuth';
+import { setupReplitAuth } from './replitAuth';
 
 // A thin authentication gateway; all numerical and project services remain Python.
 if (!process.env.SESSION_SECRET) throw new Error('SESSION_SECRET is required');
@@ -37,7 +37,7 @@ app.use(async (req, res, next) => {
   // Never trust identity supplied by the browser, including on anonymous routes.
   if (req.path.startsWith('/api/')) {
     res.setHeader('Cache-Control', 'private, no-store');
-    const account = !publicReadOnly && provider === 'replit' ? currentAccount(req) : null;
+    const account = !publicReadOnly && provider === 'replit' ? res.locals.wssAccount : null;
     if (account) {
       req.headers['x-wss-user'] = account.subject;
       req.headers['x-wss-email'] = account.email;

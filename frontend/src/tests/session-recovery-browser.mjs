@@ -55,7 +55,7 @@ try {
     };
   ` });
   await b.call('Page.navigate', { url: `${url}/simulations/${fixture.id}` });
-  await wait(`document.querySelectorAll('.wb-tab').length===7`, 'Editor did not mount');
+  await wait(`document.querySelectorAll('.wb-tab').length===8`, 'Editor did not mount');
   await sleep(1800);
   await tab('Setup');
   await tab('Data Inputs');

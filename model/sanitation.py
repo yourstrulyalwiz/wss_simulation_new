@@ -14,6 +14,8 @@ from .water_supply import (sector_bau, sector_full_budget, cost_with_treatment, 
 
 
 def calculate_sanitation(inputs, ctx, nrw_recovered_vol=None, utility_debt_execution=None):
+    if 'post_intervention' in ctx:
+        ctx = {**ctx, 'post_options': ctx['post_intervention'].get('sanitation', {})}
     # `nrw_recovered_vol` (M m³/yr per year) is the PHYSICAL water the WATER NRW lever recovers, threaded in
     # by the engine: 0 in the sanitation BAU pass and when the water NRW lever is off, the water scenario
     # volume otherwise. The NRW-linked sanitation-revenue lever charges a (partly-collected) sewer fee on it.

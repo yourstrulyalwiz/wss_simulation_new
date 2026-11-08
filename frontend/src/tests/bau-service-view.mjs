@@ -87,6 +87,9 @@ assert.ok(workspace.indexOf('aria-label="BAU graph area"') < workspace.indexOf('
 assert.equal((workspace.match(/data-section-key=/g) || []).length, 2);
 assert.ok(workspace.includes("serviceSelector('graph')") && workspace.includes("serviceSelector('table')"));
 const app = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8');
-assert.ok(app.includes("const tabs = ['Setup', 'Data Inputs', 'BAU Scenario'"));
+assert.ok(app.includes('const tabs = WORKSPACE_TABS'));
+const { WORKSPACE_TABS } = require('../workspaceNavigation.ts');
+assert.deepEqual(WORKSPACE_TABS.slice(0, 3).map(tab => ({ id: tab.id, label: tab.label })),
+  [{ id: -1, label: 'Setup' }, { id: 0, label: 'Data Inputs' }, { id: 1, label: 'BAU Scenario' }]);
 assert.ok(!app.includes('<BAUWorkspace inputs='));
 console.log('PASS: all three BAU views, seven exclusive/combined series, engine access gaps, annual BAU funds, missing/non-finite data, currency/rate fallback, immutable results and main navigation invariants.');

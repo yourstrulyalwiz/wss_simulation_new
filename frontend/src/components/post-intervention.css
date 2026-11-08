@@ -1,0 +1,64 @@
+/* Section 6 extends the existing Tab 3–5 workspace, never the application theme. */
+.post-intervention-workspace { background:#eef3f5; color:#29343b; }
+.post-intervention-workspace .post-settings { min-width:0; min-height:0; overflow:auto; background:#f6fafb; border-right:1px solid #dce6e9; }
+.post-intervention-workspace .post-settings[hidden] { display:none; }
+.post-intervention-workspace .post-settings-body { padding:16px; }
+.post-intervention-workspace .post-intro h3 { margin:0 0 6px; color:#014972; font-size:16px; }
+.post-intervention-workspace .post-intro p,
+.post-intervention-workspace .post-note { color:#596b73; font-size:11px; line-height:1.6; }
+.post-intervention-workspace .post-card { min-width:0; margin:14px 0; padding:12px; border:1px solid #d1e1e5; border-radius:5px; background:#fbfdfd; }
+.post-intervention-workspace .post-card h3 { font-size:12px; color:#014972; margin:0 0 10px; }
+.post-intervention-workspace .post-field { display:flex; flex-direction:column; gap:5px; margin:12px 0; color:#46616c; font-size:12px; }
+.post-intervention-workspace .post-field input,
+.post-intervention-workspace .post-field select { width:100%; min-height:34px; box-sizing:border-box; padding:6px 8px; border:1px solid #f0d070; border-radius:4px; background:#fff9e6; color:#29343b; font:inherit; }
+.post-intervention-workspace .post-field input:disabled,
+.post-intervention-workspace .post-field select:disabled { background:#edf1f3; border-color:#d1e1e5; color:#596b73; }
+.post-intervention-workspace .post-field [aria-invalid="true"] { border-color:#b91c1c; }
+.post-intervention-workspace .post-error { color:#b91c1c; font-size:11px; line-height:1.5; }
+.post-intervention-workspace .post-target-context { display:block; margin-top:6px; color:#596b73; font-size:10.5px; line-height:1.6; }
+.post-intervention-workspace .post-toggle { display:flex; align-items:flex-start; gap:8px; padding:8px 0; border-bottom:1px solid #e3ecef; font-size:11px; line-height:1.45; }
+.post-intervention-workspace .post-toggle input { accent-color:#009ca7; flex-shrink:0; margin-top:2px; }
+.post-intervention-workspace .post-toggle small { display:block; color:#596b73; font-size:10px; }
+.post-intervention-workspace .post-button { padding:5px 10px; border:1px solid #c8dade; border-radius:5px; background:#f8fbfc; color:#014972; font:inherit; font-size:11px; cursor:pointer; }
+.post-intervention-workspace .post-button:disabled { opacity:.55; cursor:not-allowed; }
+.post-intervention-workspace .post-status { padding:10px 12px; margin:12px 0; border-left:3px solid #009ca7; background:#e5f1f3; color:#46616c; font-size:11px; line-height:1.6; overflow-wrap:anywhere; }
+.post-intervention-workspace .post-status[data-error="true"] { border-color:#b91c1c; background:#fcf2f0; }
+.post-intervention-workspace .post-summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:16px 0; }
+.post-intervention-workspace .post-kpi { min-width:0; border:1px solid #d1e1e5; border-top:2px solid #009ca7; padding:12px; background:#f8fbfc; }
+.post-intervention-workspace .post-kpi span { display:block; font-size:10px; color:#527684; line-height:1.5; }
+.post-intervention-workspace .post-kpi strong { display:block; margin:6px 0; color:#014972; font-size:19px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.post-intervention-workspace .post-kpi small { color:#596b73; font-size:10px; line-height:1.5; }
+.post-intervention-workspace .post-table-frame { overflow:auto; max-width:100%; margin:12px 0; }
+.post-intervention-workspace .post-table { width:100%; border-collapse:collapse; font-size:11px; }
+.post-intervention-workspace .post-table th,
+.post-intervention-workspace .post-table td { padding:9px 10px; border-bottom:1px solid #dce4e8; text-align:right; font-variant-numeric:tabular-nums; vertical-align:top; }
+.post-intervention-workspace .post-table th:first-child { text-align:left; }
+.post-intervention-workspace .post-table thead th { background:#e5eef2; color:#014972; }
+.post-intervention-workspace .post-table tbody th { color:#46616c; font-weight:500; }
+.post-intervention-workspace .post-table tbody tr:nth-child(even) { background:#f5f9fa; }
+.post-intervention-workspace .post-table tfoot { color:#014972; font-weight:700; background:#e5eef2; }
+.post-intervention-workspace .post-annual { min-width:690px; }
+.post-intervention-workspace [data-section-key="gdp"] { min-height:100dvh; }
+.post-intervention-workspace .post-tools { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:12px 0; }
+.post-intervention-workspace :is(button,input,select,summary):focus-visible { outline:3px solid #0073a8; outline-offset:3px; }
+.post-intervention-workspace h2:focus { outline:2px solid #0073a8; outline-offset:5px; }
+@media(min-width:1101px) {
+  .post-intervention-workspace.intervention-section-workspace--design { grid-template-columns:218px minmax(300px,360px) minmax(0,1fr); }
+  .post-intervention-workspace .post-settings { grid-column:2; grid-row:1; }
+}
+@media(min-width:768px) and (max-width:1100px) {
+  .post-intervention-workspace.intervention-section-workspace--design { grid-template-columns:190px minmax(0,1fr); grid-template-rows:max-content max-content; overflow:auto; align-content:start; align-items:start; }
+  .post-intervention-workspace .post-settings { grid-column:2; grid-row:1; overflow:visible; min-height:max-content; }
+  .post-intervention-workspace.loan-workspace.intervention-section-workspace--design .intervention-reading-content { grid-column:2; grid-row:2; overflow:visible; }
+  .post-intervention-workspace.intervention-section-workspace--design .intervention-section-nav { grid-row:1 / 3; }
+}
+@media(max-width:767px) {
+  .post-intervention-workspace .post-settings { grid-column:1; grid-row:auto; overflow:visible; border-bottom:1px solid #dce6e9; }
+  .post-intervention-workspace .modern-inputs-nav__items { display:none; }
+  .post-intervention-workspace .post-summary { grid-template-columns:minmax(0,1fr); }
+  .post-intervention-workspace .post-table { font-size:11px; }
+  .post-intervention-workspace .post-annual th:first-child { position:sticky; left:0; background:#edf3f5; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .post-intervention-workspace * { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
+}

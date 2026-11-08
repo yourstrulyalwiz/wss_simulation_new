@@ -776,8 +776,18 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     debt_cash_balance = 0.0
     from .source_funding import allocate_sources, allocate_purchases, new_ledger, record
     from .coverage_attribution import CoverageAttribution
-    source_funding = new_ledger(years, bool(np.any(debt_disbursement_arr)))
-    coverage_origins = CoverageAttribution(n)
+    post = {} if ctx.get('pure_bau') else ctx.get('post_options', {})
+    post_cash = np.asarray(post.get('funding', np.zeros(n)), dtype=float)
+    post_targets = np.asarray(post['targets'], dtype=float) if 'targets' in post else None
+    if post_cash.shape != (n,) or not np.isfinite(post_cash).all() or (post_cash < 0).any():
+        raise ValueError('Invalid post-intervention funding schedule')
+    if post_targets is not None and (post_targets.shape != (5, n) or not np.isfinite(post_targets).all()
+                                     or (post_targets < 0).any()
+                                     or not np.allclose(post_targets.sum(axis=0), total_hh)):
+        raise ValueError('Invalid post-intervention target pathway')
+    extra_sources = ('post_intervention_funding',) if post else ()
+    source_funding = new_ledger(years, bool(np.any(debt_disbursement_arr)), extra_sources)
+    coverage_origins = CoverageAttribution(n, extra_sources)
     selected_sources = set(debt_execution.get('servicing_sources', ()))
     if 'nrw' in selected_sources:
         selected_sources.add('nrw_link')
@@ -918,6 +928,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             nrw_net[t] = 0.0
             flow_diagnostics['nrw_net'][t] = 0.0
         avail = bau_available[t] + execution_interaction[t] + collection_cash[t] + tariff_cash[t] + revenue_diagnostics['connection_net_cash'][t] + nrw_net[t] + financial_cash[t] + injection_cash[t] + extra_cash_arr[t] + (eligible_nrw_cash_arr[t] if linked_nrw_volume is not None else 0.0)
+        avail += post_cash[t]
         available_total[t] = avail
         debt_cash_opening[t] = debt_cash_balance
         debt_cash_available[t] = max(0.0, debt_cash_balance + debt_disbursement_arr[t])
@@ -930,6 +941,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             custom=custom_cash_arr[t],
             nrw_link=extra_cash_arr[t]-custom_cash_arr[t] +
                      (eligible_nrw_cash_arr[t] if linked_nrw_volume is not None else 0.))
+        if post:
+            sources['post_intervention_funding'] = float(post_cash[t])
         if not np.isclose(sum(sources.values()), avail, rtol=1e-10, atol=1e-8):
             raise ValueError('Ordinary source contributions do not reconcile to available funding')
         allocation = allocate_sources(sources, max(bau_replacement[t], 0.),
@@ -1135,6 +1148,9 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                     tgt[r, t] = remaining * (prior_lower[j] / psum) if psum > 0 else 0.0
                 tgt[0, t], tgt[1, t] = sm, basic
 
+        if post_targets is not None:
+            tgt[:, t] = post_targets[:, t]
+            tgt_unadj[:, t] = post_targets[:, t]
         # 4d — residual new-service costs; expansion funding has already bought connections.
         gap = max(0.0, tgt[0, t] - bau[0, t]); hh_gap[t] = gap
         # Retain the legacy raw exclusive-category diagnostic for API compatibility.
@@ -1355,6 +1371,8 @@ def _target_points(tgt_inputs, per):
 
 
 def calculate_water_supply(inputs, ctx, utility_debt_execution=None):
+    if 'post_intervention' in ctx:
+        ctx = {**ctx, 'post_options': ctx['post_intervention'].get('water', {})}
     sl, wt, wc = inputs.water_service, inputs.water_targets, inputs.water_costs
     nrw = inputs.water_interventions
     b = inputs.wss_budget

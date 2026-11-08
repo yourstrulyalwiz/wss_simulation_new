@@ -59,7 +59,7 @@ const select = async (level, location = 'graph') => {
 try {
   await b.call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await b.call('Page.navigate', { url: `${url}/simulations/${example.id}` });
-  await w(`document.querySelectorAll('.wb-tab').length===7`, 'Public workspace did not load');
+  await w(`document.querySelectorAll('.wb-tab').length===8`, 'Public workspace did not load');
   await tab('Setup');
   await w(`!!document.querySelector('[data-section-key="simulation_name"]')`, 'Setup is missing');
   assert.deepEqual(await e(`[...document.querySelectorAll('[data-section-key]')].map(node=>node.dataset.sectionKey)`),
@@ -113,7 +113,7 @@ try {
     });
   ` });
   await b.call('Page.reload');
-  await w(`Array.isArray(window.__bauResponses) && document.querySelectorAll('.wb-tab').length===7`, 'Fixture workspace did not load');
+  await w(`Array.isArray(window.__bauResponses) && document.querySelectorAll('.wb-tab').length===8`, 'Fixture workspace did not load');
   await tab('Data Inputs');
   assert.equal(await e(`document.querySelectorAll('${nav} button').length`), 9);
   for (let index = 0; index < 9; index++) await navigate(index);

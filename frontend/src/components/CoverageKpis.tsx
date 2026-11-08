@@ -10,6 +10,11 @@ type CoverageUnitContextValue = {
 
 const CoverageUnitContext = createContext<CoverageUnitContextValue | null>(null);
 
+/** The same provider coordinates Section 6 chart axes with the existing KPI unit control. */
+export function useCoverageKpiUnits() {
+  return useContext(CoverageUnitContext);
+}
+
 /** Mount above the workspace tabs so all coverage displays share their units. */
 export function CoverageKpiProvider({ children }: { children: React.ReactNode }) {
   const [unit, setUnit] = useState<CoverageUnit>('percent');

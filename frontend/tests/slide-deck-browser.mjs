@@ -121,7 +121,7 @@ try {
   assert.equal(await e(`document.querySelector('.slide-deck-pagination span').textContent`), 'Slide 3 of 4');
   assert.equal(await e(`document.documentElement.scrollWidth <= 390`), true, 'Mobile overflow');
   // Real App integration: tab IDs, shared debt setting and read-only safety.
-  await e(`__setSectors(['water','sanitation']);__setApp(true)`); await w(`document.querySelectorAll('.wb-tab').length===7`, 'Workflow tab missing');
+  await e(`__setSectors(['water','sanitation']);__setApp(true)`); await w(`document.querySelectorAll('.wb-tab').length===8`, 'Workflow tab missing');
   assert.equal(await e(`document.querySelector('.wb-tab-active').textContent.includes('Slide')`), true);
   await generate();
   await select('Slide deck debt mode', 'without_debt'); await stale();
@@ -129,11 +129,11 @@ try {
   await w(`!!document.querySelector('[aria-label="Results debt mode"]')`, 'Results not mounted');
   assert.equal(await e(`document.querySelector('[aria-label="Results debt mode"]').value`), 'without_debt');
   await select('Results debt mode', 'with_debt');
-  await e(`document.querySelectorAll('.wb-tab')[6].click()`);
+  await e(`document.querySelectorAll('.wb-tab')[7].click()`);
   assert.equal(await e(`document.querySelector('[aria-label="Slide deck debt mode"]').value`), 'with_debt');
   await generate(); await click('Next');
   await e(`document.querySelectorAll('.wb-tab')[5].click()`); await sleep(30);
-  await e(`document.querySelectorAll('.wb-tab')[6].click()`); await sleep(30);
+  await e(`document.querySelectorAll('.wb-tab')[7].click()`); await sleep(30);
   assert.equal(await e(`document.querySelector('.slide-deck-pagination span').textContent`), 'Slide 2 of 4');
   assert.equal(await e(`window.__writes || 0`), 0);
   assert.equal(await e(`__requests.some(r=>/save|draft|simulations/.test(r.url))`), false);

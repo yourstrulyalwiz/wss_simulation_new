@@ -38,7 +38,7 @@ async def project_access_boundary(request, call_next):
             if not user:
                 sid = request.headers.get('x-simulation-id')
                 # Anonymous readers may calculate/view the featured examples only.
-                if not sid or path not in ('/api/calculate','/api/projections','/api/revenue-bases','/api/intervention-validation') and not path.startswith('/api/export/'):
+                if not sid or path not in ('/api/calculate','/api/post-intervention','/api/projections','/api/revenue-bases','/api/intervention-validation') and not path.startswith('/api/export/'):
                     identity(request)
                 with connect() as db:
                     from simulation_management.access import public_read_only
@@ -229,6 +229,12 @@ def run_calculation(inputs: dict = Body(...)):
     result['intervention_issues'] = issues
     result['incomplete'] = bool(invalid) or bool(result.get('sector_errors'))
     return result
+
+
+@app.post("/api/post-intervention")
+def post_intervention_analysis(payload: dict = Body(...)):
+    from post_intervention_api import run_analysis
+    return run_analysis(payload)
 
 
 @app.post("/api/intervention-validation")

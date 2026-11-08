@@ -5,6 +5,7 @@ rendering service. The caller receives images plus the original bytes for downlo
 """
 import base64
 import io
+import json
 import os
 from pathlib import Path
 import shutil
@@ -15,12 +16,33 @@ import threading
 from contextlib import contextmanager
 
 from fastapi import HTTPException
+from fastapi.responses import StreamingResponse
 from pptx import Presentation
 
 _slot = threading.BoundedSemaphore(1)
 MAX_SLIDES = 160
 MAX_PPTX_BYTES = 30 * 1024 * 1024
 MAX_RESPONSE_BYTES = 60 * 1024 * 1024
+PREVIEW_CHUNK_BYTES = 64 * 1024
+
+
+def preview_response(preview):
+    """Do not buffer a large preview as a Content-Length JSON response.
+
+    Autoscale's Cloud Run HTTP/1 limit is 32 MiB for non-streamed responses.
+    Keep the existing JSON contract and exact PowerPoint bytes, but yield bounded
+    chunks so the gateway can transfer it without that buffered-response limit.
+    No persistent cache or publicly accessible artifact URL is introduced.
+    """
+    def chunks():
+        encoder = json.JSONEncoder(ensure_ascii=False, allow_nan=False, separators=(',', ':'))
+        for part in encoder.iterencode(preview):
+            encoded = part.encode('utf-8')
+            for offset in range(0, len(encoded), PREVIEW_CHUNK_BYTES):
+                yield encoded[offset:offset + PREVIEW_CHUNK_BYTES]
+    return StreamingResponse(chunks(), media_type="application/json",
+                             headers={"Cache-Control": "private, no-store",
+                                      "X-Accel-Buffering": "no"})
 
 
 @contextmanager

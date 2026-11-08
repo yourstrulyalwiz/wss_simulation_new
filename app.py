@@ -334,11 +334,11 @@ def generated_deck(payload: dict, with_omissions=False):
 
 @app.post("/api/export/deck/preview")
 def preview_deck_api(payload: dict = Body(...)):
-    from deck_preview import preview_deck, preview_slot
+    from deck_preview import preview_deck, preview_slot, preview_response
     # The existing export access boundary applies; no persistent URLs or shared files.
     with preview_slot():
         data, omitted = generated_deck(payload, with_omissions=True)
-        return {**preview_deck(data), "omitted_sections": omitted}
+        return preview_response({**preview_deck(data), "omitted_sections": omitted})
 
 
 @app.post("/api/export/deck")

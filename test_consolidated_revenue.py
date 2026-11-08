@@ -36,6 +36,7 @@ def project(n=4, initial=(.6, .3, .1, 0, 0), **overrides):
         nrw_start=2026, nrw_target_year=2026, nrw_current=.5, nrw_target=0,
         nrw_physical=.5, nrw_vol_m3yr=100, nrw_vol_m3day=100e6/365,
         nrw_water_per_upgrade=100, nrw_value_basis='production', nrw_value_unit=0)
+    args.update(nrw_existing_demand=0., nrw_production_reduction_share=0., nrw_production_cost=0.)
     args['connection_config'] = dict(enabled=False, new_billed_share_basic=0., new_billed_share_sm=0.)
     args.update(overrides)
     return sector_bau(ctx, **args)
@@ -66,9 +67,12 @@ class ConsolidatedRevenueTests(unittest.TestCase):
         self.assertAlmostEqual(row['nrw_sales_cash'], 16)
 
     def test_850k_sm_target_is_not_a_ceiling(self):
-        sec = project(nrw_enabled=True)
+        sec = project(nrw_enabled=True, nrw_physical=1, nrw_existing_demand=25,
+                      revenue_base=dict(version=1, volume_mld=100000/365, tariff=1,
+                                        collection_ratio=1, reference_year=2025, growth_rate=0))
         self.assertAlmostEqual(sec['bau_hh'][0][1], .85)
-        self.assertAlmostEqual(sec['nrw_delivered_upgrade_hh'][1], .25)
+        self.assertAlmostEqual(sec['funded_sm_upgrade_hh'][1], .25)
+        self.assertEqual(sec['nrw_delivered_upgrade_hh'][1], 0)
         self.assertAlmostEqual(sec['target_sm_overachievement_hh'][1], .05)
         self.assertAlmostEqual(sec['sm_access_gap'][1], 0)
         self.assertAlmostEqual(sec['nrw_delivered_upgrade_hh'][2], 0)
@@ -94,12 +98,15 @@ class ConsolidatedRevenueTests(unittest.TestCase):
         self.assertAlmostEqual(sec['microfinance_cohort_unserved'][-1], .2)
         self.assertAlmostEqual(sec['eligible_basic_remaining_hh'][1], .15)
 
-    def test_spare_capacity_can_serve_later_basic_entries(self):
+    def test_capacity_can_supply_later_funded_demand_but_never_upgrade_households(self):
         sec = project(initial=(.9, 0, .1, 0, 0), nrw_enabled=True,
-                      full_budget=np.array([0, 5., 0, 0]), basic_share=1)
-        np.testing.assert_allclose(sec['nrw_delivered_upgrade_hh'], [0, 0, .1, 0], atol=1e-15)
-        self.assertAlmostEqual(sec['nrw_capacity_uncommitted'][1], 25)
-        self.assertAlmostEqual(sec['nrw_capacity_uncommitted'][2], 15)
+                      nrw_physical=1, full_budget=np.array([0, 5., 0, 0]), basic_share=1,
+                      connection_config=dict(enabled=False, new_billed_share_basic=.5, new_billed_share_sm=1))
+        np.testing.assert_allclose(sec['nrw_delivered_upgrade_hh'], 0)
+        np.testing.assert_allclose(sec['bau_hh'][0], .9)
+        self.assertEqual(sec['nrw_physical_sales_connections'][1], 0)
+        self.assertGreater(sec['nrw_physical_sales_connections'][2], 0)
+        self.assertEqual(sum(sec['nrw_net']), 0)
         np.testing.assert_allclose(np.asarray(sec['bau_hh']).sum(axis=0), 1)
         self.assertGreaterEqual(np.asarray(sec['bau_hh']).min(), 0)
 
@@ -111,8 +118,8 @@ class ConsolidatedRevenueTests(unittest.TestCase):
         q = sec['connection_revenue']['calibration']['aggregate_volume_proxy_m3']
         self.assertEqual(sec['nrw_overlap_volume'][1], 0)
         self.assertEqual(sec['nrw_overlap_volume'][2], 0)
-        expected = sec['nrw_origin_households'][2] * q * .5
-        self.assertAlmostEqual(sec['nrw_overlap_volume'][3], min(50, expected))
+        np.testing.assert_allclose(sec['nrw_origin_households'], 0)
+        np.testing.assert_allclose(sec['nrw_overlap_volume'], 0)
         for t in range(1, 4):
             self.assertAlmostEqual(sec['billed_volume_million_m3'][t],
                 sec['raw_billed_volume_million_m3'][t]-sec['nrw_overlap_volume'][t]+sec['nrw_sales_volume'][t])
@@ -120,6 +127,7 @@ class ConsolidatedRevenueTests(unittest.TestCase):
     def test_signed_cost_and_no_physical_funding_gate(self):
         for budget, expected in ((50, -30), (200, 120)):
             sec = project(nrw_enabled=True, nrw_value_basis='tariff',
+                          nrw_existing_demand=5,
                           nrw_vol_m3yr=20, nrw_vol_m3day=20e6/365,
                           nrw_capex_unit_m3day=3650,
                           revenue_base=dict(version=1, volume_mld=100000/365, tariff=2,
@@ -128,10 +136,12 @@ class ConsolidatedRevenueTests(unittest.TestCase):
             self.assertAlmostEqual(sec['nrw_implementation_cost'][1], 100)
             self.assertAlmostEqual(sec['nrw_net'][1], -80)
             self.assertAlmostEqual(sec['available_total'][1], expected)
-            self.assertGreater(sec['nrw_delivered_upgrade_hh'][1], 0)
+            self.assertEqual(sec['nrw_delivered_upgrade_hh'][1], 0)
+            self.assertGreater(sec['nrw_physical_recovery'][1], 0)
 
     def test_avoided_cost_has_no_sales_or_rate_uplift(self):
-        sec = project(nrw_enabled=True, nrw_value_unit=.25, tariff_enabled=True,
+        sec = project(nrw_enabled=True, nrw_physical=1, nrw_production_reduction_share=1,
+                      nrw_production_cost=.25, tariff_enabled=True,
                       tariff_start=2026, tariff_target_year=2026, tariff_target=3,
                       ce_enabled=True, ce_start=2026, ce_target_year=2026, ce_target_ratio=1)
         self.assertEqual(sec['nrw_sales_cash'][1], 0)
@@ -142,13 +152,13 @@ class ConsolidatedRevenueTests(unittest.TestCase):
         base = dict(version=1, volume_mld=100000/365, tariff=2,
                     collection_ratio=.5, reference_year=2025, growth_rate=0)
         sec = project(revenue_base=base, linked_nrw_volume=[0, 10, 10, 10],
-                      linked_overlap_volume=[0, 3, 3, 3], connection_config=configuration(),
+                      linked_overlap_volume=[0, 0, 3, 3], connection_config=configuration(),
                       tariff_enabled=True, tariff_start=2026, tariff_target_year=2026, tariff_target=3,
                       ce_enabled=True, ce_start=2026, ce_target_year=2026, ce_target_ratio=.6)
         self.assertAlmostEqual(sec['nrw_sales_cash'][1], 10)
         self.assertAlmostEqual(sec['eligible_nrw_link_cash'][1], 10)
         self.assertAlmostEqual(sec['nrw_overlap_volume'][1], 0)
-        self.assertAlmostEqual(sec['connection_unapplied_overlap_volume_million_m3'][1], 3)
+        self.assertEqual(sec['connection_unapplied_overlap_volume_million_m3'][1], 0)
         self.assertEqual(sec['nrw_net'][1], 0)
         self.assertAlmostEqual(sec['additional_net_cash'][1],
             sec['connection_net_cash'][1]+sec['collection_cash'][1]+sec['tariff_cash'][1]+

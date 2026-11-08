@@ -68,6 +68,10 @@ class SourceAttributionTests(unittest.TestCase):
         from test_support import controlled_budgets
         for q in [p['inputs'], p['altInputs']['rural']]:
             controlled_budgets(q)
+            # Explicit reviewed assumptions for this copied legacy fixture only.
+            q['water_interventions'].update(nrw_allocation_version=1,
+                nrw_existing_customer_sales_capacity_mld=0.,
+                nrw_unsold_production_reduction_share=0.)
         results=[calculate(coerce_to_engine(q)) for q in [p['inputs'],p['altInputs']['rural']]]
         for r in results+[aggregate(results)]:
             for sector in ['water_supply','sanitation']:

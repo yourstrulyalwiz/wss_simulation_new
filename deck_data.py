@@ -27,7 +27,7 @@ WATER_INTV = [
     ('ws_capital_efficiency_enabled', 'Budget execution improvement', None, 'c58216', 'execution'),
     ('ws_costeff_enabled', 'Capex efficiency (unit cost)', None, '7238f8', 'cost'),
     ('ws_techmix_enabled', 'Optimised technology selection', None, 'b814a0', 'cost'),
-    ('ws_nrw_enabled', 'NRW reduction', 'scenario_nrw_net', 'fb464b', 'revenue'),
+    ('ws_nrw_enabled', 'NRW net cash benefit', 'scenario_nrw_net', 'fb464b', 'revenue'),
     ('ws_tariff_enabled', 'Tariff reform', 'scenario_tariff_cash', 'c355fb', 'revenue'),
     ('ws_microfinance_enabled', 'Microfinance', 'scenario_mf_loan_volume', 'c5146a', 'revenue'),
 ]
@@ -437,7 +437,7 @@ def lever_performance(inputs: dict, sector_key: str, key: str) -> dict:
                 'start_year': g('nrw_start_year'), 'target_year': g('nrw_target_year')}
     if key == 'san_nrw_link_enabled':
         return {'current': 'no sewer revenue from recovered water',
-                'target': _fmt_pct(g('nrw_link_return_ratio', 0)) + ' of recovered water billed',
+                'target': _fmt_pct(g('nrw_link_return_ratio', 0)) + ' of delivered physical water returned',
                 'start_year': wat.get('nrw_start_year'), 'target_year': wat.get('nrw_target_year')}
     if 'capital_efficiency' in key:
         from model.engine import build_context

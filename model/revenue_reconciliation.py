@@ -1,6 +1,7 @@
 """One signed collected-revenue identity; money/volume are in millions."""
 import math
 from .utility_revenue import RevenueInputError
+from .nrw_allocation import ALLOCATION_FIELDS
 
 RECONCILIATION_FIELDS = (
     'raw_billed_volume_million_m3', 'non_nrw_billed_volume_million_m3',
@@ -14,7 +15,7 @@ RECONCILIATION_FIELDS = (
     'target_sm_overachievement_hh', 'target_basic_or_better_overachievement_hh',
     'mf_flow_hh', 'grant_flow_hh', 'self_finance_exclusion_flow_hh',
     'microfinance_cohort_unoffered',
-)
+) + ALLOCATION_FIELDS
 ATTRIBUTION = ('Connections and NRW sales at baseline rates; collection then tariff on the full '
                'reconciled volume. Connection operating costs excluded; implementation costs remain in signed NRW net cash.')
 

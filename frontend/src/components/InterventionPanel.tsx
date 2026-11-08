@@ -12,7 +12,8 @@ import { RevenueBaseEditor, REVENUE_ATTRIBUTION } from './RevenueBase';
 import { ContributionViewToggle, type ContributionView } from '../contributionView';
 import { CurrencyDisplayControl, type CurrencyDisplaySettings } from '../currencyDisplay';
 import NRWDiagnostics from './NRWDiagnostics';
-import { nrwLinkBillableVolume, nrwRevenueMetadata, nrwRevenueVersion, setNrwLinkOverlapYear } from '../nrwRevenue';
+import { nrwLinkBillableVolume, setNrwLinkOverlapYear } from '../nrwRevenue';
+import { NRW_ALLOCATION_LABELS } from '../nrwAllocationValidation';
 import ConnectionRevenue from './ConnectionRevenue';
 import InterventionControlRow from './InterventionControlRow';
 import RevenueSourceChart from './RevenueSourceChart';
@@ -603,40 +604,22 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           </InterventionToggle>
 
           <InterventionToggle label="NRW reduction" checked={inputs.toggles?.ws_nrw_enabled ?? false} onChange={v => toggleIntv('ws_nrw_enabled', v)} onFocus={() => onSectionFocus?.('ws_nrw')}>
-            {(() => {
-              const metadata = nrwRevenueMetadata(results);
-              const version = nrwRevenueVersion(results);
-              const reconciled = version === 2 || version === 3 || version === 4;
-              const iv = inputs.water_interventions || {};
-              const sharedTariff = inputs.revenue_bases?.water?.tariff;
-              const legacyTariff = iv.nrw_tariff;
-              const localRateConflict = Number.isFinite(Number(legacyTariff)) && Number.isFinite(Number(sharedTariff)) &&
-                Math.abs(Number(legacyTariff) - Number(sharedTariff)) > 1e-9;
-              const conflict = !!metadata?.legacy_rate_conflict || localRateConflict;
-              return <div style={{ gridColumn: '1 / -1', fontSize: 11, lineHeight: 1.5, padding: '8px 10px', borderRadius: 5,
-                background: conflict ? '#fff7ed' : '#f1f7fa', border: `1px solid ${conflict ? '#fed7aa' : '#dbe5ea'}`, color: conflict ? '#9a3412' : '#475569' }}>
-                {version === 4
-                  ? <>Version 4: connection revenue adds only positive marginal coverage growth; below-baseline coverage never reduces baseline revenue. Connection overlap is removed only from the positive increment. NRW sales use shared baseline rates and implementation costs remain inside signed NRW cash.</>
-                  : version === 3
-                  ? <>Version 3: NRW sales are valued at shared baseline tariff and collection rates. Reform uplifts on these sales appear separately in collection and tariff cash. Implementation costs are deducted once inside signed NRW cash.</>
-                  : reconciled
-                  ? <>Backend v2 reconciles connection/NRW billed-volume overlap. Sales use the shared water revenue-base tariff and collection rate; reference-rate connection growth is kept separate, and NRW receives the joint reform effect. {conflict && <>Legacy NRW tariff {legacyTariff ?? metadata?.legacy_nrw_tariff ?? '—'} conflicts with shared tariff {sharedTariff ?? metadata?.shared_tariff ?? '—'}; the legacy input is retained unchanged.</>}</>
-                  : <>Overlap reconciliation is not confirmed until backend revenue metadata reports version 2. Treat NRW and connection revenue as potentially overlapping; missing diagnostics are not inferred.</>}
-                {!reconciled && conflict && <> Legacy NRW tariff {legacyTariff} differs from shared base tariff {sharedTariff}; it is retained, not used as the v2 sales rate.</>}
-              </div>;
-            })()}
+            <div style={{ gridColumn: '1 / -1', fontSize: 11, lineHeight: 1.5, padding: '8px 10px', borderRadius: 5,
+              background: '#f1f7fa', border: '1px solid #dbe5ea', color: '#475569' }}>
+              Commercial recovery adds billed volume. Physical recovery creates annual supply capacity, allocated below before valuation. Sales use shared baseline tariff and collection rates; reform uplifts remain attributed to collection and tariff. NRW net cash benefit includes production savings and deducts aggregate programme fixing costs once. Legacy valuation and automatic physical-upgrade assumptions are retained only for audit.
+            </div>
             <F label="Start year" value={inputs.water_interventions.nrw_start_year} onChange={v => u('water_interventions','nrw_start_year',v)} tip="Year the NRW-reduction works begin and spending starts. Unlike the other levers — where the start year is when the improvement shows up — the recovered-water benefit here only appears after the lag below." />
             <F label="Target year" value={inputs.water_interventions.nrw_target_year} onChange={v => u('water_interventions','nrw_target_year',v)} tip="Year the target NRW level is reached by the works (spending schedule); the benefit reaches it the lag below afterwards." />
             <F label="Benefit lag" value={inputs.water_interventions.nrw_lag_years} onChange={v => u('water_interventions','nrw_lag_years',v)} step={1} unit="yrs" tip="Years between spending on the fixes and the recovered water (and its value) materialising. Other levers bake this delay into their start year; NRW needs it because there is a real gap between the works and the water coming back. Set 0 for no delay." />
             <F label="Current NRW %" value={inputs.water_interventions.nrw_current_pct} onChange={v => u('water_interventions','nrw_current_pct',v)} isPercent unit="%" tip="Current non-revenue water: share of water produced that is not billed (physical leaks + commercial losses)" />
-            <F label="Target NRW %" value={inputs.water_interventions.nrw_target_pct} onChange={v => u('water_interventions','nrw_target_pct',v)} isPercent unit="%" tip="Target non-revenue water for the model end year. Aim for the economically optimal level — where the cost of further reduction outweighs the benefit; ~20% is a typical benchmark." />
+            <F label="Programme recovery-sizing target NRW %" value={inputs.water_interventions.nrw_target_pct} onChange={v => u('water_interventions','nrw_target_pct',v)} isPercent unit="%" tip="Programme recovery-sizing benchmark, not an automatically achieved observed NRW ratio. Realized sales and production savings depend on allocation." />
             {(() => {
               const t = inputs.water_interventions.nrw_target_pct || 0;
               if (t > 0 && t < 0.15) return <div style={{ gridColumn: '1 / -1', fontSize: 10, fontWeight: 600, color: '#92400e', padding: '3px 8px', background: '#fef3c7', borderRadius: 4, marginBottom: 4 }}>Warning: Below ~15% is rarely economically optimal — reducing NRW further usually costs more than it saves (~20% is a typical benchmark).</div>;
               return null;
             })()}
             <F label="Commercial losses % of NRW" value={inputs.water_interventions.nrw_commercial_loss_pct} onChange={v => u('water_interventions','nrw_commercial_loss_pct',v)} isPercent unit="%" tip="Share of NRW from commercial losses (metering errors, theft, unbilled use). Commercial + physical must sum to 100%." />
-            <F label="Physical losses % of NRW" value={inputs.water_interventions.nrw_physical_loss_pct} onChange={v => u('water_interventions','nrw_physical_loss_pct',v)} isPercent unit="%" tip="Share of NRW from physical leaks in the network. Only this physical (leak) portion frees up deliverable water for basic→SM upgrades; the commercial portion counts only toward revenue. Commercial + physical must sum to 100%." />
+            <F label="Physical losses % of NRW" value={inputs.water_interventions.nrw_physical_loss_pct} onChange={v => u('water_interventions','nrw_physical_loss_pct',v)} isPercent unit="%" tip="Physical losses as a fraction of total NRW. Commercial + physical must sum to 100%. The same proportional reduction schedule applies to both. Recovery creates annual supply capacity, never automatic household upgrades." />
             {(() => {
               const s = (inputs.water_interventions.nrw_commercial_loss_pct || 0) + (inputs.water_interventions.nrw_physical_loss_pct || 0);
               const bad = Math.abs(s - 1) > 0.005;
@@ -644,39 +627,26 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
             })()}
             <F label="System input volume (at start year)" value={inputs.water_interventions.nrw_system_input_vol} onChange={v => u('water_interventions','nrw_system_input_vol',v)} step={1} unit="MLD" tip="Total water produced / put into the system at the start year, in million litres per day. It grows each forecast year — with population by default, or at the growth rate below if you set one." />
             <F label="Volume growth rate" value={inputs.water_interventions.nrw_vol_growth} onChange={v => u('water_interventions','nrw_vol_growth',v)} isPercent unit="%" placeholder="population" tip="Annual real growth of the system input volume from the start year. Leave blank to scale with population; enter a rate to override (e.g. 3%)." />
-            <p style={{ fontSize: 11, gridColumn: '1 / -1' }}>Scenario system input also scales with coverage-driven billable expansion, excluding NRW’s own direct physical upgrades. This is a modeling proxy, not a hydraulic estimate. Zero or missing system input produces no recovered water.</p>
-            <F label="Water per basic→SM upgrade" value={inputs.water_interventions.nrw_water_per_upgrade} onChange={v => u('water_interventions','nrw_water_per_upgrade',v)} step={5} unit="m³/HH/yr" tip="Extra water a basic household needs each year to become safely managed. Recovered physical water ÷ this = households upgraded." />
-            <F label="Cost of fixing" value={inputs.water_interventions.nrw_capex_unit_cost_local} onChange={v => u('water_interventions','nrw_capex_unit_cost_local',v)} step={1000} unit={`${CUR}/m³/day`} tip="Existing implementation-cost input and timing are retained. This cost stays inside signed NRW net cash and is not added again as a separate financing requirement." />
-            <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-              <label style={{ fontSize: 12, color: '#3A4452', fontWeight: 500 }} title="How to value the recovered water: as tariff revenue from sales, or as the production cost you no longer have to spend.">Value recovered water at</label>
-              <select aria-label="NRW valuation mode" value={inputs.water_interventions.nrw_value_basis ?? ''} onChange={e => u('water_interventions','nrw_value_basis', e.target.value)}
-                style={{ width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, border: '1px solid #F0D070', background: '#FFF9E6', color: '#3A4452', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }}>
-                <option value="">Select valuation mode</option>
-                <option value="tariff">Water tariff — revenue from sales</option>
-                <option value="production">Cost of production — cost avoided (separate from sales)</option>
-              </select>
+            <p style={{ fontSize: 11, gridColumn: '1 / -1' }}>System input scales with exogenous growth and prior funded service expansion, not commercial recovery or direct NRW sales. This is a planning proxy, not a hydraulic estimate. Recovered capacity does not directly deliver households; only investment-funded service changes coverage.</p>
+            <F label="Cost of fixing" value={inputs.water_interventions.nrw_capex_unit_cost_local} onChange={v => u('water_interventions','nrw_capex_unit_cost_local',v)} step={1000} unit={`${CUR}/m³/day`} tip="Aggregate programme cost for physical and commercial recovery. Existing implementation-cost timing is retained, including works before benefits. This cost stays inside signed NRW net cash benefit and is not added again as a separate financing requirement." />
+            <F label={NRW_ALLOCATION_LABELS.nrw_existing_customer_sales_capacity_mld} value={inputs.water_interventions.nrw_existing_customer_sales_capacity_mld}
+              onChange={v => u('water_interventions', 'nrw_existing_customer_sales_capacity_mld', v)} min={0} unit="MLD"
+              tip="Additional water customers can receive and be billed for through existing connections. Exclude water already in baseline billing and demand already represented by modeled new or upgraded connections. This is a planning assumption about deliverable demand, not an automatic conversion of recovered water into sales." />
+            <F label={NRW_ALLOCATION_LABELS.nrw_unsold_production_reduction_share} value={inputs.water_interventions.nrw_unsold_production_reduction_share}
+              onChange={v => u('water_interventions', 'nrw_unsold_production_reduction_share', v)} isPercent min={0} max={100} unit="%"
+              tip="Of the recovered physical capacity remaining after eligible sales, the share that can actually reduce production or bulk-water purchases. Unsold capacity does not automatically create a saving." />
+            <div style={{ gridColumn: '1 / -1', fontSize: 11, color: '#475569' }}>
+              Annual allocation: existing-customer sales first, then already-operational funded-connection demand, then feasible production reduction. Remaining capacity has no immediate cash benefit. The existing-customer cap stays constant in MLD. Connection receipts stay attributed to connections; they are not counted again as NRW sales.
             </div>
-            {!['production', 'avoided_cost'].includes(inputs.water_interventions.nrw_value_basis) && <label style={{ gridColumn: '1 / -1', display: 'grid', gap: 4, fontSize: 12, color: '#3A4452' }}>
-              Recovered-water sales assumption
-              <select value={inputs.water_interventions.nrw_sales_assumption || 'all_recovered_sold'}
-                onChange={e => u('water_interventions', 'nrw_sales_assumption', e.target.value)}
-                style={{ width: '100%', padding: '7px 10px', borderRadius: 4, fontSize: 13, border: '1px solid #F0D070', background: '#FFF9E6', color: '#3A4452' }}>
-                <option value="all_recovered_sold">All eligible recovered volume sold/billed — households and other customers</option>
-                <option value="household_only">Alternative restriction: genuinely tagged household-equivalent volume only</option>
-              </select>
-              <span style={{ fontSize: 10.5, color: '#64748b' }}>This explicit assumption is retained on migration from legacy full-recovery tariff valuation. Avoided production cost is shown separately; it does not add tariff receipts.</span>
-              {inputs.water_interventions.nrw_sales_assumption === 'household_only' && <span style={{ fontSize: 10.5, color: '#92400e' }}>
-                This alternative requires genuinely tagged household-equivalent volume. The technical household share is used only for this eligibility restriction,
-                never as a blanket haircut to aggregate connection revenue or all-sales NRW. Missing tagged eligible volume must be resolved by the calculation.
-              </span>}
-            </label>}
-            {['production', 'avoided_cost'].includes(inputs.water_interventions.nrw_value_basis)
-              ? <F label="Production cost" value={inputs.water_interventions.nrw_production_cost} onChange={v => u('water_interventions','nrw_production_cost',v)} step={0.5} unit={`${CUR}/m³`} tip="Recovering water avoids producing this much fresh water, per cubic metre." />
-              : <div style={{ gridColumn: '1 / -1' }}>
+            {Number(inputs.water_interventions.nrw_unsold_production_reduction_share) > 0 &&
+              <F label={NRW_ALLOCATION_LABELS.nrw_production_cost} value={inputs.water_interventions.nrw_production_cost}
+                onChange={v => u('water_interventions','nrw_production_cost',v)} min={0} step={0.5} unit={`${CUR}/m³`}
+                tip="Avoidable energy, chemicals, abstraction or purchased bulk-water costs only. Exclude fixed salaries, depreciation and costs already counted elsewhere. Explicit zero is accepted." />}
+            <div style={{ gridColumn: '1 / -1' }}>
                 <div style={{ fontSize: 11, color: '#64748b' }}>Shared baseline tariff (read-only): {inputs.revenue_bases?.water?.tariff ?? 'not set'} {CUR}/m³.
                   {' '}Shared baseline collection (read-only): {inputs.revenue_bases?.water?.collection_ratio == null ? 'not set' : `${inputs.revenue_bases.water.collection_ratio * 100}%`}.
                   {' '}Edit the shared base in Data Inputs. Legacy NRW rates are inactive migration metadata.</div>
-              </div>}
+              </div>
             <NRWDiagnostics results={results} currency={CUR} currencyDisplay={currencyDisplay} />
           </InterventionToggle>
 
@@ -770,7 +740,7 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
           <InterventionToggle label="NRW-linked sanitation revenue" unavailable={!sectors.includes('water')} checked={inputs.toggles?.san_nrw_link_enabled ?? false} onChange={v => toggleIntv('san_nrw_link_enabled', v)} onFocus={() => onSectionFocus?.('san_nrw_link')}>
             {(() => {
               const water = results?.water_supply || {};
-              const recovery: number[] = water.scenario_nrw_physical_recovery || water.scenario_nrw_recovered_phys_vol || [];
+              const recovery: number[] = water.scenario_nrw_physical_delivered_volume || [];
               const yrs: number[] = results?.years || [];
               const nrwOn = !!inputs.toggles?.ws_nrw_enabled;
               const endYr = yrs.length ? yrs[yrs.length - 1] : Number(inputs.period?.forecast_end_year);
@@ -805,10 +775,13 @@ export default function InterventionPanel({ inputs, onChange, results, calculati
                 <div style={{ gridColumn: '1 / -1', fontSize: 11, lineHeight: 1.5, borderRadius: 6, padding: '7px 10px',
                   background: nrwOn ? '#ecfeff' : '#fef3c7', border: `1px solid ${nrwOn ? '#a5f3fc' : '#fde68a'}`, color: nrwOn ? '#155e75' : '#92400e' }}>
                   {nrwOn
-                    ? <>Linked to <b>Water Supply → NRW reduction</b>. Eligible sewer-billable recovered volume is physical recovery × wastewater return ratio × explicit eligible share. Shared baseline sanitation tariff and collection rates value direct sales; selected reforms add their effects separately. Only identified overlap is removed.</>
+                    ? <>Linked to <b>Water Supply → NRW reduction</b>. Eligible sewer-billable volume is delivered physical water (E + N) × wastewater return ratio × explicit eligible share. Production avoided, unused capacity and commercial recovery add no wastewater. Missing delivered-water results remain unavailable; total physical recovery is never substituted. Shared baseline sanitation rates value direct sales. Only identified overlap is removed.</>
                     : <>Warning: This lever needs <b>NRW reduction</b> switched on under the <b>Water Supply</b> interventions — that is what recovers the water. While it is off there is no recovered volume, so this lever has no effect.</>}
                 </div>
-                <F label="Wastewater return ratio" value={iv.nrw_link_return_ratio} onChange={v => u('sanitation_interventions','nrw_link_return_ratio',v)} isPercent unit="%" tip="Share of the recovered water that returns to the sewer as wastewater the utility can charge for (the rest is consumptive use or not sewer-connected)." />
+                {iv.nrw_allocation_review_required && <div role="status" style={{ gridColumn: '1 / -1', fontSize: 11, color: '#92400e', background: '#fff7ed', padding: '8px 10px' }}>
+                  Migrated linked scenario: review sewer eligibility and explicit overlap. The candidate now uses only delivered physical water (E + N), not all recovered capacity. A saved zero overlap remains an assumption, not proof of no overlap.
+                </div>}
+                <F label="Wastewater return ratio" value={iv.nrw_link_return_ratio} onChange={v => u('sanitation_interventions','nrw_link_return_ratio',v)} isPercent unit="%" tip="Share of delivered physical water (E + N) returning to the sewer as potentially billable wastewater." />
                 <F label="Explicit sewer-billable share" value={iv.nrw_link_eligible_share}
                   onChange={v => u('sanitation_interventions','nrw_link_eligible_share',v)}
                   isPercent min={0} max={100} unit="%" tip="Share of returned recovered water eligible for sewer billing. The legacy default of 100% is retained as an explicit assumption, not a measured connection share." />

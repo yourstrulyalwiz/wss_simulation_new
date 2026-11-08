@@ -21,7 +21,8 @@ from model.expansion_ledger import ExpansionLedger
 from model.service_gaps import assess_service_gaps, reconcile_expansion_gaps
 from model.utility_revenue import collected_revenue, volume_path, number, RevenueInputError
 from model.service_history import historical_households, historical_transition_counts
-from model.connection_revenue import prepare_connection, annual_connection_cash, tagged_nrw_volume, DIAGNOSTIC_FIELDS
+from model.connection_revenue import prepare_connection, annual_connection_cash, DIAGNOSTIC_FIELDS
+from model.nrw_allocation import allocate_recovery, nonnegative, ALLOCATION_FIELDS, ALLOCATION_VERSION, PRIORITY
 from model.revenue_reconciliation import reconcile_revenue, RECONCILIATION_FIELDS, ATTRIBUTION
 from model.service_cohorts import EligibleCohorts
 from model.public_spending import resolve_schedule
@@ -274,6 +275,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                 extra_cash=None, eligible_nrw_cash=None, custom_cash=None, revenue_base=None, revenue_volume=None,
                 utility_debt_execution=None, full_spending_provided=True, connection_config=None, revenue_sector='Water Supply',
                 nrw_value_basis='tariff', nrw_sales_assumption='all_recovered_sold',
+                nrw_existing_demand=None, nrw_production_reduction_share=None, nrw_production_cost=None,
                 linked_nrw_volume=None, linked_overlap_volume=None, revenue_reconciliation_meta=None,
                 budget_is_total_spending=False, budget_capital_share=1.0, budget_label='Budget'):
     """Shared 4a-4d core. All HH and money values are in MILLIONS; costs in actual currency.
@@ -654,7 +656,16 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     revenue_diagnostics['additional_net_cash'][:] = collection_cash + tariff_cash
     revenue_diagnostics['applicable_tariff'][:] = tariff_current + tariff_add
     revenue_diagnostics['applicable_collection_ratio'][:] = ce_current_ratio + ce_add_ratio
-    retained_nrw_origin = 0.0  # delivery origin only, not historical billed-customer calibration
+    if nrw_enabled:
+        nrw_existing_demand = nonnegative(nrw_existing_demand, 'Additional billable demand through existing connections')
+        nrw_production_reduction_share = nonnegative(nrw_production_reduction_share, 'Production-reduction share', 1)
+        nrw_physical = nonnegative(nrw_physical, 'Physical share of NRW', 1)
+        current = nonnegative(nrw_current, 'Current NRW', 1)
+        target = nonnegative(nrw_target, 'Programme NRW target', 1)
+        if target > current:
+            raise RevenueInputError('Programme NRW target must not exceed current NRW.')
+        nrw_production_cost = (nonnegative(nrw_production_cost, 'Avoidable variable production cost per m³')
+                               if nrw_production_reduction_share > 0 else 0.)
 
     # ── NRW reduction (test2) ───────────────────────────────────────────────────────────────────────
     # Reduce non-revenue water from nrw_current → nrw_target over start→target year. The recovered
@@ -694,8 +705,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
     nrw_dynamic_capacity = np.zeros(n)
     nrw_dynamic_throughput = np.zeros(n)
 
-    flow_diagnostics = {key: np.zeros(n) for key in RECONCILIATION_FIELDS}
-    nrw_origin_hh = 0.0
+    flow_diagnostics = {key: np.zeros(n) for key in (*RECONCILIATION_FIELDS, *ALLOCATION_FIELDS)}
     cohorts = None
     cohort_offers = np.zeros(n)
     cohort_unserved = np.zeros(n)
@@ -865,37 +875,34 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         # Revenue is computed once on reconciled volumes, at the revenue year's rates.
         raw = float(billed_volume[t])
         reference = float(revenue_diagnostics['reference_billed_volume_million_m3'][t])
-        tagged_overlap = 0.0
-        if connection_runtime:
-            tagged_overlap = tagged_nrw_volume(connection_runtime, retained_nrw_origin, t)
         # Prior delivered coverage scales the independently calibrated system input.
-        # Excluding NRW-origin physical upgrades avoids self-amplifying recovery.
+        # Direct NRW sales/commercial recovery do not feed back into this proxy.
         if nrw_enabled and nrw_start:
             expansion = max(0.0, raw - reference)
-            non_nrw_expansion = max(0.0, expansion - min(expansion, tagged_overlap))
-            if reference <= 0 and non_nrw_expansion > 0:
+            if reference <= 0 and expansion > 0:
                 raise RevenueInputError('Dynamic NRW throughput requires a positive billed-volume reference.')
-            scale = 1.0 + non_nrw_expansion / reference if reference > 0 else 1.0
+            scale = 1.0 + expansion / reference if reference > 0 else 1.0
             factor = _vol_factor(t, nrw_start, nrw_vol_growth) * scale
             nrw_dynamic_throughput[t] = nrw_vol_m3yr * factor
             lag = max(0, int(nrw_lag))
             reduction = nrw_reduction[t-lag] if t >= lag else 0.0
             recovered_volume[t] = reduction * nrw_dynamic_throughput[t]
             nrw_recovered_phys[t] = nrw_physical * recovered_volume[t]
-            nrw_upgrade_cum[t] = nrw_recovered_phys[t] / nrw_water_per_upgrade if nrw_water_per_upgrade > 0 else 0.0
             nrw_dynamic_capacity[t] = nrw_reduction[t] * nrw_vol_m3day * factor
             nrw_implementation_cost[t] = nrw_capex_unit_m3day * max(
                 0.0, nrw_dynamic_capacity[t] - nrw_dynamic_capacity[t-1]) / 1_000_000.
         recovered = float(recovered_volume[t])
-        own_sales = recovered if nrw_value_basis == 'tariff' else 0.0
-        if nrw_sales_assumption == 'household_only':
-            own_sales = min(own_sales, tagged_overlap * hh_share)
-        sales = own_sales + float(link_vol[t])
-        overlap_limit = recovered if nrw_value_basis != 'tariff' else own_sales
-        eligible_overlap = min(tagged_overlap, overlap_limit) + float(link_overlap[t])
-        if link_overlap[t] < 0 or link_overlap[t] > link_vol[t] + 1e-10 or not np.isfinite(eligible_overlap):
-            raise RevenueInputError('Tagged sanitation/NRW overlap exceeds eligible billed volume.')
         increment = max(0.0, raw-reference)
+        allocation_nrw = allocate_recovery(
+            recovered, nrw_physical, nrw_existing_demand if nrw_enabled else 0.,
+            increment, nrw_production_reduction_share if nrw_enabled else 0.)
+        own_sales = allocation_nrw.direct_sales
+        avoided_cost = allocation_nrw.production_avoided * (nrw_production_cost if nrw_enabled else 0.)
+        sales = own_sales + float(link_vol[t])
+        eligible_overlap = float(link_overlap[t])
+        if (eligible_overlap < 0 or eligible_overlap > link_vol[t] + 1e-10
+                or eligible_overlap > increment + 1e-10 or not np.isfinite(eligible_overlap)):
+            raise RevenueInputError('Tagged sanitation/NRW overlap exceeds eligible billed volume.')
         overlap = min(increment, eligible_overlap) if connection_runtime else 0.0
         revenue_diagnostics['connection_unapplied_overlap_volume_million_m3'][t] = eligible_overlap-overlap
         row = reconcile_revenue(
@@ -903,10 +910,8 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             tariff_current + tariff_add[t], ce_current_ratio + ce_add_ratio[t],
             0.0,
             nrw_implementation_cost[t],
-            recovered * nrw_value_unit if nrw_value_basis != 'tariff' else 0.0,
+            avoided_cost,
             connection_funding=connection_funding)
-        if nrw_value_basis != 'tariff':
-            row['nrw_avoided_sales_adjustment'] = min(increment, tagged_overlap, recovered)
         for key in DIAGNOSTIC_FIELDS:
             if key in row:
                 revenue_diagnostics[key][t] = row[key]
@@ -918,9 +923,19 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         collection_cash[t], tariff_cash[t] = row['collection_cash'], row['tariff_cash']
         nrw_net[t], nrw_sales_cash[t] = row['nrw_net'], row['nrw_sales_cash']
         flow_diagnostics['nrw_physical_recovery'][t] = nrw_recovered_phys[t]
-        flow_diagnostics['nrw_commercial_recovery'][t] = max(0.0, recovered - nrw_recovered_phys[t])
-        flow_diagnostics['nrw_residual_recovery'][t] = max(0.0, recovered - own_sales)
-        flow_diagnostics['nrw_potential_upgrade_hh'][t] = nrw_upgrade_cum[t]
+        flow_diagnostics['nrw_commercial_recovery'][t] = allocation_nrw.commercial
+        flow_diagnostics['nrw_residual_recovery'][t] = allocation_nrw.unused
+        for field, value in (
+            ('nrw_recovery_total', recovered),
+            ('nrw_physical_sales_existing', allocation_nrw.existing_sales),
+            ('nrw_physical_sales_connections', allocation_nrw.connection_sales),
+            ('nrw_physical_delivered_volume', allocation_nrw.delivered),
+            ('nrw_production_avoided_volume', allocation_nrw.production_avoided),
+            ('nrw_unused_physical_capacity', allocation_nrw.unused),
+            ('nrw_direct_sales_volume', own_sales),
+            ('nrw_modeled_production_volume', max(0., nrw_dynamic_throughput[t]-allocation_nrw.production_avoided)),
+        ):
+            flow_diagnostics[field][t] = value
         # Linked cash is part of NRW net, not added a second time through extra_cash.
         if linked_nrw_volume is not None:
             # Keep the sanitation source separate and count it once in funding/loan sizing.
@@ -980,37 +995,19 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             new_sm = pool_basic
             room = max(0.0, pool_lower - new_basic)
             new_basic += min(room, (spare / cost_basic_t[t]) if cost_basic_t[t] > 0 else 0.0)
-        # Physical upgrades reuse infrastructure, and share the same eligible
-        # Basic pool with funded upgrades. Never pay for capped-out connections.
-        # Annual recovered capacity sustains existing upgrades before supporting new ones.
-        # Uncommitted capacity is reusable later; committed capacity is never awarded twice.
-        nrw_upg = (max(0.0, nrw_recovered_phys[t] / nrw_water_per_upgrade - nrw_origin_hh)
-                   if nrw_water_per_upgrade > 0 else 0.0)
-        room_sm = pool_basic
-        nrw_upg = min(nrw_upg, pool_basic, room_sm)
-        actual_sm = min(new_sm, max(0.0, min(pool_basic, room_sm) - nrw_upg))
-        released = (new_sm - actual_sm) * cost_sm_t[t]
-        new_sm = actual_sm
-        if cost_basic_t[t] > 0:
-            new_basic += min(max(0.0, pool_lower - new_basic), released / cost_basic_t[t])
+        # NRW affects the ordinary funding pool, never household stock directly.
         # Actual paid purchases, including the corresponding non-household share.
         connection_purchase_capital[t] = (
             (new_sm * cost_sm_t[t] + new_basic * cost_basic_t[t]) / hh_share
             if hh_share > 0 else 0.0)
         unallocated_positive_capital[t] = max(
             0.0, expansion_capital_available[t] - connection_purchase_capital[t])
-        nrw_origin_hh += nrw_upg
-        tagged_billing_hh[t] = nrw_origin_hh
-        flow_diagnostics['nrw_delivered_upgrade_hh'][t] = nrw_upg
         flow_diagnostics['funded_sm_upgrade_hh'][t] = new_sm
         flow_diagnostics['funded_basic_entry_hh'][t] = new_basic
-        flow_diagnostics['nrw_capacity_committed'][t] = nrw_origin_hh * nrw_water_per_upgrade
-        flow_diagnostics['nrw_capacity_uncommitted'][t] = max(
-            0.0, nrw_recovered_phys[t] - nrw_origin_hh * nrw_water_per_upgrade)
         if cohorts:
             cohorts.reconcile_opening(pool_basic)
-            cohorts.remove(nrw_upg + new_sm)
-        budget_sm = budget_sm + new_sm + nrw_upg                      # SM from the budget + NRW only (no levers)
+            cohorts.remove(new_sm)
+        budget_sm = budget_sm + new_sm
         # ── Microfinance affordability intervention (with self-finance carve-out + means-based grant) ──
         # One offer per eligible cohort; NRW/public funding deduct proportionally.
         # Newly funded Basic entrants are enrolled next year, not through net stock growth.
@@ -1039,7 +1036,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                     totals += outcome
                     delivered_by_band[band] = outcome[0] + outcome[1]
                 mf_hh, grant_hh, grant_spent, mf_loan = totals
-                limit = max(0.0, pool_basic - new_sm - nrw_upg)
+                limit = max(0.0, pool_basic - new_sm)
                 ratio = min(1.0, limit / (mf_hh + grant_hh)) if mf_hh + grant_hh > 0 else 1.0
                 mf_hh *= ratio; grant_hh *= ratio; grant_spent *= ratio; mf_loan *= ratio
                 cohorts.deliver_by_band(delivered_by_band * ratio)
@@ -1053,7 +1050,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             cohorts.add_entrants(new_basic)
             flow_diagnostics['microfinance_cohort_unoffered'][t] = float(cohorts.unoffered.sum())
         flow_diagnostics['eligible_basic_remaining_hh'][t] = max(
-            0.0, pool_basic - nrw_upg - new_sm - mf_flow[t] - grant_flow[t])
+            0.0, pool_basic - new_sm - mf_flow[t] - grant_flow[t])
         flow_diagnostics['eligible_lower_remaining_hh'][t] = max(0.0, pool_lower - new_basic)
         # Total SM = budget + microfinance/grant connections (self-financers are ISOLATED, not added). Capped at
         # the SM target; the cap only engages when NRW or the lever is active so the pure-BAU pass is unchanged.
@@ -1081,12 +1078,6 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                 bau[r, t] = max(0.0, bau[r, t] + resid * share)
             for r in range(5):
                 unadj[r] = bau[r, t]                                   # keep the unadjusted vector in step
-        # Retain actual NRW origins, with proportional attrition if SM stock shrinks.
-        expected_sm = bau[0, t - 1] + nrw_upg + new_sm + mf_flow[t] + grant_flow[t]
-        retained_nrw_origin += nrw_upg
-        if expected_sm > 0 and bau[0, t] < expected_sm:
-            retained_nrw_origin *= max(0.0, bau[0, t]) / expected_sm
-        retained_nrw_origin = min(retained_nrw_origin, max(0.0, bau[0, t]))
         # Gross funded asset roll-forward, deliberately replacing the workbook's
         # depreciating-stock convention. Replacement does not duplicate assets.
         external_cost = (mf_flow[t] + grant_flow[t]) * cost_sm_t[t]
@@ -1171,7 +1162,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
                                    if opening_backlog.sum() > 0 else np.zeros(2))
         closing, ancillary_paid = ledger.step(
             t, tgt[:, t], np.array([cost_sm_t[t], cost_basic_t[t]]) * (1 + nonhh_mult),
-            [new_sm, new_basic], [mf_flow[t] + grant_flow[t], 0], [nrw_upg, 0],
+            [new_sm, new_basic], [mf_flow[t] + grant_flow[t], 0], [0, 0],
             replacement=replacement[t], unpaid_by_service=unpaid_by_service,
             deficit_by_service=cash_deficit_by_service[:, t],
             ancillary_cost=capex_adder * (1 + nonhh_mult),
@@ -1198,7 +1189,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
             new_sm * cost_sm_t[t] / hh_share if hh_share > 0 else 0.,
             ancillary_paid - priority_treatment_paid, debt_cash_available[t])
         record(source_funding, t, allocation)
-        coverage_origins.step(t, allocation, new_basic, new_sm, nrw_upg, mf_flow[t],
+        coverage_origins.step(t, allocation, new_basic, new_sm, 0., mf_flow[t],
                               grant_flow[t], bau[0, t], bau[1, t])
         nc_total = float(closing.sum())
         new_capex_total[t] = nc_total
@@ -1238,6 +1229,7 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         0, bau[0] + bau[1] - tgt[0] - tgt[1])
     return {
         'connection_revenue': connection_status,
+        'nrw_allocation_version': ALLOCATION_VERSION,
         'nrw_dynamic_system_input_million_m3': nrw_dynamic_throughput.tolist(),
         'nrw_dynamic_works_capacity_m3day': nrw_dynamic_capacity.tolist(),
         **{key: values.tolist() for key, values in revenue_diagnostics.items()},
@@ -1245,9 +1237,16 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'revenue_reconciliation': {
             'version': 4, 'attribution': ATTRIBUTION,
             'dynamic_volume_version': 1,
-            'throughput_assumption': 'Independent NRW system input scaled by coverage-driven billable expansion excluding retained NRW-origin physical upgrades; prior-year service stocks.',
+            'throughput_assumption': 'Independent NRW system input scaled only by prior-year funded service expansion; direct NRW sales do not self-amplify.',
+            'nrw_allocation_version': ALLOCATION_VERSION,
+            'nrw_allocation_priority': PRIORITY,
+            'nrw_existing_customer_demand_million_m3': nrw_existing_demand,
+            'nrw_unsold_production_reduction_share': nrw_production_reduction_share,
+            'legacy_direct_delivery_active': False,
+            'nrw_volume_units': 'million m³/year',
+            'nrw_money_units': 'million real local currency',
             'nrw_system_input_available': bool(nrw_vol_m3yr > 0),
-            'nrw_sales_assumption': nrw_sales_assumption,
+            'nrw_sales_assumption': 'Commercial recovery plus eligible existing-customer sales; connection volume counted only in connections.',
             **(revenue_reconciliation_meta or {}),
         },
         'nrw_origin_households': tagged_billing_hh.tolist(),
@@ -1282,15 +1281,16 @@ def sector_bau(ctx, *, period, pct_start, pct_base, tgt1, tgt2, cost_sm, cost_ba
         'nrw_sales_cash': nrw_sales_cash.tolist(),
         'nrw_implementation_cost': nrw_implementation_cost.tolist(),
         'nrw_recurring_cash': (
-            nrw_sales_cash if nrw_enabled and (not nrw_target_year or nrw_target_year <= years[-1])
+            nrw_sales_cash + flow_diagnostics['nrw_avoided_cost_cash']
+            if nrw_enabled and (not nrw_target_year or nrw_target_year <= years[-1])
             else np.minimum(nrw_net, 0.0)).tolist(),
-        'nrw_recovered_phys_vol': nrw_recovered_phys.tolist(),  # recovered physical water per year (M m³/yr) → wastewater
+        'nrw_recovered_phys_vol': nrw_recovered_phys.tolist(),  # compatibility: capacity, NOT sanitation-link water
         'nrw_link_cash': (eligible_nrw_cash_arr[:n] if linked_nrw_volume is not None else extra_cash_arr).tolist(),
         'eligible_nrw_link_cash': eligible_nrw_cash_arr[:n].tolist(),
         'custom_cash': custom_cash_arr[:n].tolist(),
         'eligible_additional_revenue': (
             collection_cash + tariff_cash + nrw_net + eligible_nrw_cash_arr[:n]).tolist(),
-        'nrw_upgrade_hh': nrw_upgrade_cum.tolist(),    # cumulative basic→SM upgrades from recovered water (M HH)
+        'nrw_upgrade_hh': nrw_upgrade_cum.tolist(),    # inactive compatibility series, always zero
         'selffinance_upgrade_hh': selffin_upgrade_cum.tolist(),  # cumulative self-financed SM connections (M HH)
         'mf_upgrade_hh': mf_upgrade_cum.tolist(),      # cumulative microfinance-alone SM connections (M HH)
         'grant_upgrade_hh': grant_upgrade_cum.tolist(),# cumulative grant-enabled SM connections (M HH)
@@ -1427,6 +1427,11 @@ def calculate_water_supply(inputs, ctx, utility_debt_execution=None):
     tariff_vol_base_m3 = float(getattr(nrw, 'tariff_volume_mld', 0.0) or 0.0) * _mld_to_m3
     # NRW: system input volume in million m³/yr (for value & upgrades) and m³/day (for the fixing capex).
     nrw_sys_mld = float(getattr(nrw, 'nrw_system_input_vol', 0.0) or 0.0)
+    if nrw_on:
+        commercial = nonnegative(nrw.nrw_commercial_loss_pct, 'Commercial share of NRW', 1)
+        physical = nonnegative(nrw.nrw_physical_loss_pct, 'Physical share of NRW', 1)
+        if abs(commercial + physical - 1) > .005:
+            raise RevenueInputError('Commercial and physical loss shares must total 100%.')
     nrw_vol_m3yr = nrw_sys_mld * _mld_to_m3
     nrw_vol_m3day = nrw_sys_mld * inputs.constants.thousand      # 1 MLD = 1000 m³/day
     nrw_value_unit = (float(getattr(nrw, 'nrw_tariff', 0.0) or 0.0)
@@ -1522,6 +1527,10 @@ def calculate_water_supply(inputs, ctx, utility_debt_execution=None):
         nrw_vol_m3day=nrw_vol_m3day,
         nrw_water_per_upgrade=float(getattr(nrw, 'nrw_water_per_upgrade', 0.0) or 0.0),
         nrw_value_unit=nrw_value_unit,
+        nrw_existing_demand=(nrw.nrw_existing_customer_sales_capacity_mld * _mld_to_m3
+                            if nrw.nrw_existing_customer_sales_capacity_mld is not None else None),
+        nrw_production_reduction_share=nrw.nrw_unsold_production_reduction_share,
+        nrw_production_cost=nrw.nrw_production_cost,
         nrw_value_basis=nrw.nrw_value_basis,
         nrw_sales_assumption=nrw.nrw_sales_assumption,
         revenue_reconciliation_meta={
@@ -1530,7 +1539,7 @@ def calculate_water_supply(inputs, ctx, utility_debt_execution=None):
             'legacy_rate_conflict': False,
             'migration_notice': (
                 'Shared baseline rates are authoritative; legacy NRW tariff is inactive audit metadata. '
-                'Legacy full-recovery valuation is an explicit all-recovered-sold assumption.'),
+                'Legacy valuation and physical-upgrade settings are inactive; explicit allocation assumptions are required.'),
         },
         nrw_capex_unit_m3day=float(getattr(nrw, 'nrw_capex_unit_cost_local', 0.0) or 0.0),
         nrw_vol_growth=(float(nrw.nrw_vol_growth) if getattr(nrw, 'nrw_vol_growth', None) is not None else None),

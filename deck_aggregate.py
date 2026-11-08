@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 
 from model.engine import calculate
 from demo_adapter import coerce_to_engine
+from model.nrw_allocation import ALLOCATION_FIELDS
 
 SECTORS = ('water_supply', 'sanitation')
 
@@ -181,6 +182,18 @@ def aggregate(results: List[dict]) -> dict:
             else:
                 agg[key] = val
         for prefix in ('', 'scenario_', 'scenario_without_utility_debt_'):
+            versions = [s.get(prefix+'nrw_allocation_version') for s in secs]
+            if any(v == 1 for v in versions) and not all(v == 1 for v in versions):
+                raise ValueError('NRW allocation results are stale; recalculate all selected areas before combining them.')
+            agg[prefix+'nrw_allocation_version'] = 1 if all(v == 1 for v in versions) else None
+            for field in ALLOCATION_FIELDS:
+                arrays = [s.get(prefix+field) for s in secs]
+                if all(v == 1 for v in versions):
+                    if any(not isinstance(a, list) or len(a) != len(years) for a in arrays):
+                        raise ValueError('NRW allocation arrays are incomplete; recalculate all selected areas.')
+                    agg[prefix+field] = _sum_series(arrays)
+                else:
+                    agg[prefix+field] = None
             for field in ('source_funding', 'coverage_attribution'):
                 items = [s.get(prefix+field) for s in secs]
                 if all(items):
@@ -200,6 +213,9 @@ def aggregate(results: List[dict]) -> dict:
             if any(metas):
                 agg[prefix + 'revenue_reconciliation'] = {
                     'version': min(m.get('version', 1) for m in metas), 'attribution': metas[0].get('attribution'),
+                    'nrw_allocation_version': agg[prefix+'nrw_allocation_version'],
+                    'legacy_direct_delivery_active': False if agg[prefix+'nrw_allocation_version'] == 1 else None,
+                    'nrw_allocation_priority': metas[0].get('nrw_allocation_priority'),
                     'nrw_sales_assumption': 'Area-specific; see area configurations',
                     'legacy_rate_conflict': any(m.get('legacy_rate_conflict') for m in metas),
                     'migration_notice': 'Area calculations remain separate; volumes and money sum, rates are volume/revenue-weighted.',

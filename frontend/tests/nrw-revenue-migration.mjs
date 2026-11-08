@@ -15,12 +15,16 @@ const migrated = migrateNrwRevenueInputs(old);
 assert.equal(migrated.water_interventions.revenue_integration_version, 3);
 assert.equal(migrated.water_interventions.legacy_metadata.nrw_tariff, 17.25);
 assert.deepEqual(migrateNrwRevenueInputs(migrated), migrated);
-assert.equal(migrated.water_interventions.nrw_sales_assumption, 'all_recovered_sold');
+assert.equal(migrated.water_interventions.nrw_sales_assumption, undefined, 'never infer legacy sales modes');
+assert.equal(migrated.water_interventions.nrw_existing_customer_sales_capacity_mld, null);
+assert.equal(migrated.water_interventions.nrw_unsold_production_reduction_share, null);
+assert.equal(migrated.water_interventions.nrw_allocation_version, 1);
+assert.equal(migrated.water_interventions.legacy_metadata.nrw_value_basis, 'tariff');
 assert.equal(migrated.water_interventions.nrw_tariff, 17.25, 'legacy NRW tariff is never overwritten');
 assert.equal(migrated.water_interventions.nrw_capex_unit_cost_local, 420);
 assert.equal(migrated.revenue_bases.water.version, 1, 'shared revenue base stays v1');
 assert.equal(migrateNrwRevenueInputs({ water_interventions: { nrw_value_basis: 'production' } })
-  .water_interventions.nrw_sales_assumption, 'household_only');
+  .water_interventions.nrw_sales_assumption, undefined);
 assert.equal(migrateNrwRevenueInputs({ water_interventions: {
   revenue_integration_version: 2, nrw_sales_assumption: 'household_only', nrw_tariff: 9,
 } }).water_interventions.nrw_sales_assumption, 'household_only', 'current assumption is unchanged');

@@ -996,7 +996,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
   },
   ws_nrw: {
     title: 'Water · NRW reduction',
-    content: "Cuts non-revenue water from its current level toward a target. Set the target at the economically optimal level of NRW — the point where the cost of further reduction outweighs the benefit; ~20% is a typical benchmark (chasing very low NRW rarely pays off). Allow a few years' lag before benefits appear. Only the physical (leak) share of NRW frees up deliverable water, which upgrades basic households to safely-managed service; the commercial share counts toward revenue only. Split NRW into commercial vs physical losses (they must total 100%). Value the recovered water either as tariff revenue from sales or as avoided production cost; the value net of the fixing capex flows into the budget.",
+    content: "The programme recovery-sizing target determines recovery potential, not an automatically achieved observed NRW ratio. Physical and commercial shares must total 100%; both follow the same reduction schedule and benefit lag. Commercial recovery adds billed volume. Annual physical capacity is allocated first to explicit additional billable demand through existing connections (constant MLD), then operational funded-connection demand, then the selected share of remaining capacity to production reduction. Unused capacity has no immediate monetary value. Connection receipts remain in the connection source. Shared tariff and collection rates value direct NRW sales; avoidable variable production costs value savings. NRW net cash benefit deducts fixing costs once and enters existing source funding. Recovery never directly upgrades households.",
   },
   ws_budget_exec: {
     title: 'Water · Budget execution improvement',
@@ -1056,7 +1056,7 @@ const contextualGuide: Record<string, { title: string; content: React.ReactNode;
   },
   san_nrw_link: {
     title: 'Sanitation · NRW-linked revenue',
-    content: 'Links sanitation revenue to physical water-loss recovery. Eligible linked volume = physical recovery × wastewater return ratio × explicit sewer-billable share. Enter overlap by year only when it is identified in raw sanitation connection billing; blank years remain unassigned—never infer overlap from all new connections. V2 uses the shared sanitation tariff and collection scenario rates. Legacy sewer charge/collection inputs remain saved for review, but do not replace those shared rates. Linked sanitation cash is signed and separate from water NRW net.',
+    content: 'Links sanitation revenue only to delivered physical water (existing-customer sales E + funded-connection supply N), multiplied by wastewater return ratio and explicit sewer-billable share. Commercial recovery, production avoided and unused capacity create no automatic wastewater. Missing delivered-water arrays remain incomplete; total physical recovery is never a fallback. Review migrated scenarios because the candidate basis has changed. Retain explicit annual overlap, subtracting identified overlap once; a saved zero remains an assumption. Shared sanitation rates remain authoritative. Linked sanitation cash is signed and separate from water NRW net cash benefit.',
   },
   san_tariff: {
     title: 'Sanitation · Tariff reform',

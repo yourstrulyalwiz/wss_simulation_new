@@ -205,7 +205,7 @@ def analyse(payload):
                 if engine.toggles.san_nrw_link_enabled and 'water' not in out:
                     raise ValueError('Sanitation requires valid water results for its NRW link.')
                 out['sanitation'] = calculate_sanitation(engine, context,
-                    nrw_recovered_vol=out.get('water', {}).get('nrw_recovered_phys_vol', []),
+                    nrw_recovered_vol=out.get('water', {}).get('nrw_physical_delivered_volume'),
                     utility_debt_execution=plans['sanitation'])
             return out
 

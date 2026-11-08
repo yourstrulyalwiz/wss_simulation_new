@@ -20,6 +20,7 @@ import ExportButtons from './ExportButtons';
 import ChartExport from './ChartExport';
 import TableExport from './TableExport';
 import NRWDiagnostics from './NRWDiagnostics';
+import { NRW_ALLOCATION_ARRAYS } from '../nrwRevenue';
 import ServiceAccessGaps from './ServiceAccessGaps';
 import { serviceAccessRows, type AccessRow } from '../serviceAccess';
 import { captureImage } from './exportUtils';
@@ -187,7 +188,7 @@ function UtilityDebtSchedule({ debt, currency, moneyFactor }: { debt: DebtData; 
   const modeled = isModeledLoanSummary(summary);
   const sourceLabels: Record<string, string> = {
     collection: 'Collection efficiency', tariff: 'Tariff reform',
-    nrw: 'Water NRW net / eligible sanitation-link net cash',
+    nrw: 'Water NRW net cash benefit / eligible sanitation-link net cash',
     connections: 'Revenue from new connections',
   };
   const tableHeaders = ['Year', 'Ordinary funds before service', 'Debt service due', 'Debt service funded', 'Debt service unfunded',
@@ -412,13 +413,13 @@ export default function ResultsDashboard({ geoScope, scenarios, inputs, altInput
             .forEach(d => impactRows.push({ key: d.key, label: d.label, addHH: null, resources: null }));
           const revenueFields = [
             'baseline_billed_volume_million_m3', 'connection_raw_volume_million_m3', 'connection_overlap_volume_million_m3',
-            'connection_volume_million_m3', 'nrw_avoided_sales_adjustment', 'connection_scale', 'connection_aggregate_volume_proxy',
+            'connection_volume_million_m3', 'connection_scale', 'connection_aggregate_volume_proxy',
             'raw_billed_volume_million_m3',
             'non_nrw_billed_volume_million_m3', 'reference_billed_volume_million_m3',
             'reference_collected_revenue', 'connection_revenue_delta', 'connection_excluded_receipts',
             'connection_net_cash', 'additional_net_cash', 'applicable_tariff', 'applicable_collection_ratio',
             'billed_volume_million_m3', 'collected_revenue', 'collection_cash', 'tariff_cash',
-            'nrw_net', 'eligible_nrw_link_cash',
+            ...NRW_ALLOCATION_ARRAYS, 'eligible_nrw_link_cash',
           ];
           const annualField = (sec: any, key: string, index: number) => {
             const value = sec?.[key];

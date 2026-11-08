@@ -81,8 +81,8 @@ export default function RevenueSourceChart({ inputs, results, sector, currencyDi
     <p className="sector-funds__note">
       Forecast years only · {unit}. Mobilized Funds + Additional Revenues Generated = Sector Available Funds.
       Public Spending includes baseline capital, budget-execution changes and public-spending commitments.
-      External Funding is the separate capital injection. Revenue sources retain signed net cash, including NRW costs.
-      Loans, household financing and cost savings are not ordinary available funding. Losses are already signed;
+      External Funding is the separate capital injection. Revenue sources retain signed net cash. NRW net cash benefit includes eligible sales and production savings less programme costs, counted once.
+      Loans, household financing and separate capex-efficiency savings are not ordinary available funding. Losses are already signed;
       debt and replacement charges are not deducted again. Model estimates; uncertainty bounds are unavailable.
     </p>
     {current?.error && <div role="alert">{current.error} <button type="button" onClick={() => setAttempt(n => n + 1)}>Retry calculation</button></div>}

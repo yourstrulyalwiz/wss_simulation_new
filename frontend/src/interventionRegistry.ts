@@ -9,7 +9,7 @@ export const WATER_INTERVENTIONS: InterventionDefinition[] = [
   { key: 'ws_capital_efficiency_enabled', label: 'Budget execution', controlLabel: 'Budget execution improvement', color: P.budgetExec },
   { key: 'ws_costeff_enabled', label: 'Capex efficiency', controlLabel: 'Capex efficiency (unit cost)', color: P.capex },
   { key: 'ws_techmix_enabled', label: 'Optimised technology', controlLabel: 'Optimised technology selection', color: P.techmix },
-  { key: 'ws_nrw_enabled', label: 'NRW reduction', color: P.nrw, resourceKey: 'scenario_nrw_net' },
+  { key: 'ws_nrw_enabled', label: 'NRW net cash benefit', controlLabel: 'NRW reduction', color: P.nrw, resourceKey: 'scenario_nrw_net' },
   { key: 'ws_tariff_enabled', label: 'Tariff reform', color: P.tariff, resourceKey: 'scenario_tariff_cash' },
   { key: 'ws_microfinance_enabled', label: 'Microfinance', color: P.microfinance, resourceKey: 'scenario_mf_loan_volume' },
 ];
